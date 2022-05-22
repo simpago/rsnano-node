@@ -11,3 +11,4 @@ cmake -Scorrosion -Bbuild -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 sudo cmake --install build --config Release
 rm -rf corrosion
+rm -rf build
