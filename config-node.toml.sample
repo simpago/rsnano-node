@@ -1,0 +1,524 @@
+# This is an example configuration file for Nano. Visit https://docs.nano.org/running-a-node/configuration/ for more information.
+#
+# Fields may need to be defined in the context of a [category] above them.
+# The desired configuration changes should be placed in config-node.toml in the node data path.
+# To change a value from its default, uncomment (erasing #) the corresponding field.
+# It is not recommended to uncomment every field, as the default value for important fields may change in the future. Only change what you need.
+# Additional information for notable configuration options is available in https://docs.nano.org/running-a-node/configuration/#notable-configuration-options
+
+[nano_pow_server]
+
+# Value is currently not in use. Enable or disable starting Nano PoW Server as a child process.
+# type:bool
+#enable = false
+
+# Value is currently not in use. Path to the nano_pow_server executable.
+# type:string,path
+#nano_pow_server_path = "/Users/ruimorais/Downloads/rsnano-node/nano/nano_node/../../nano_pow_server"
+
+[node]
+
+# Number of active elections. Elections beyond this limit have limited survival time.
+# Warning: modifying this value may result in a lower confirmation rate.
+# type:uint64,[250..]
+#active_elections_size = 5000
+
+# Enable or disable local host peering.
+# type:bool
+#allow_local_peers = true
+
+# Backup the ledger database before performing upgrades.
+# Warning: uses more disk storage and increases startup time when upgrading.
+# type:bool
+#backup_before_upgrade = false
+
+# Outbound traffic limit in bytes/sec after which messages will be dropped.
+# Note: changing to unlimited bandwidth (0) is not recommended for limited connections.
+# type:uint64
+#bandwidth_limit = 10485760
+
+# Burst ratio for outbound traffic shaping.
+# type:double
+#bandwidth_limit_burst_ratio = 3.0000000000000000
+
+# The maximum time the block processor can continuously process blocks for.
+# type:milliseconds
+#block_processor_batch_max_time = 500
+
+# Number of outbound bootstrap connections. Must be a power of 2. Defaults to 4.
+# Warning: a larger amount of connections may use substantially more system memory.
+# type:uint64
+#bootstrap_connections = 4
+
+# Maximum number of inbound bootstrap connections. Defaults to 64.
+# Warning: a larger amount of connections may use additional system memory.
+# type:uint64
+#bootstrap_connections_max = 64
+
+# Change bootstrap threshold (online stake / 256 * bootstrap_fraction_numerator).
+# type:uint32
+#bootstrap_fraction_numerator = 1
+
+# Number frontiers per bootstrap frontier request. Defaults to 1048576.
+# type:uint32,[1024..4294967295]
+#bootstrap_frontier_request_count = 1048576
+
+# Number of threads dedicated to concurrent bootstrap attempts. Defaults to 1.
+# Warning: a larger amount of attempts may use additional system memory and disk IO.
+# type:uint64
+#bootstrap_initiator_threads = 1
+
+# Minimum write batching time when there are blocks pending confirmation height.
+# type:milliseconds
+#conf_height_processor_batch_min_time = 50
+
+# Maximum confirmation history size. If tracking the rate of block confirmations, the websocket feature is recommended instead.
+# type:uint64
+#confirmation_history_size = 2048
+
+# Percentage of online weight to hint at starting an election. Defaults to 10.
+# type:uint32,[5,50]
+#election_hint_weight_percent = 10
+
+# Enable or disable voting. Enabling this option requires additional system resources, namely increased CPU, bandwidth and disk usage.
+# type:bool
+#enable_voting = true
+
+# The external address of this node (NAT). If not set, the node will request this information via UPnP.
+# type:string,ip
+#external_address = "::"
+
+# The external port number of this node (NAT). Only used if external_address is set.
+# type:uint16
+#external_port = 0
+
+# Mode controlling frontier confirmation rate.
+# type:string,{auto,always,disabled}
+#frontiers_confirmation = "auto"
+
+# Number of threads dedicated to I/O operations. Defaults to the number of CPU threads, and at least 4.
+# type:uint64
+#io_threads = 4
+
+# Limit for number of queued confirmation requests for one channel, after which new requests are dropped until the queue drops below this value.
+# type:uint32
+#max_queued_requests = 512
+
+# Maximum allowed difficulty multiplier for work generation.
+# type:double,[1..]
+#max_work_generate_multiplier = 64.000000000000000
+
+# Number of threads dedicated to processing network messages. Defaults to the number of CPU threads, and at least 4.
+# type:uint64
+#network_threads = 4
+
+# When calculating online weight, the node is forced to assume at least this much voting weight is online, thus setting a floor for voting weight to confirm transactions at online_weight_minimum * "quorum delta".
+# type:string,amount,raw
+#online_weight_minimum = "60000000000000000000000000000000000000"
+
+# Password fanout factor.
+# type:uint64
+#password_fanout = 1024
+
+# Time to sleep between batch work generation attempts. Reduces max CPU usage at the expense of a longer generation time.
+# type:nanoseconds
+#pow_sleep_interval = 0
+
+# A list of "address" (hostname or ipv6 notation ip address) entries to identify preconfigured peers.
+#preconfigured_peers = []
+
+# A list of representative account addresses used when creating new accounts in internal wallets.
+#preconfigured_representatives = ["nano_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo"]
+
+# Minimum receive amount. Only affects node wallets. A large amount is recommended to avoid automatic work generation for tiny transactions.
+# type:string,amount,raw
+#receive_minimum = "1000000000000000000000000"
+
+# Rep crawler minimum weight, if this is less than minimum principal weight then this is taken as the minimum weight a rep must have to be tracked. If you want to track all reps set this to 0. If you do not want this to influence anything then set it to max value. This is only useful for debugging or for people who really know what they are doing.
+# type:string,amount,raw
+#rep_crawler_weight_minimum = "340282366920938463463374607431768211455"
+
+# Number of additional threads dedicated to signature verification. Defaults to number of CPU threads / 2.
+# type:uint64
+#signature_checker_threads = 0
+
+# Maximum number of incoming TCP connections.
+# type:uint64
+#tcp_incoming_connections_max = 2048
+
+# Timeout for TCP connect-, read- and write operations.
+# Warning: a low value (e.g., below 5 seconds) may result in TCP connections failing.
+# type:seconds
+#tcp_io_timeout = 5
+
+# Number of seconds before deleting an unchecked entry.
+# Warning: lower values (e.g., 3600 seconds, or 1 hour) may result in unsuccessful bootstraps, especially a bootstrap from scratch.
+# type:seconds
+#unchecked_cutoff_time = 14400
+
+# If true, allocate memory from memory pools. Enabling this may improve performance. Memory is never released to the OS.
+# type:bool
+#use_memory_pools = true
+
+# Delay before votes are sent to allow for efficient bundling of hashes in votes.
+# type:milliseconds
+#vote_generator_delay = 100
+
+# Number of bundled hashes required for an additional generator delay.
+# type:uint64,[1..11]
+#vote_generator_threshold = 3
+
+# Local representatives do not vote if the delegated weight is under this threshold. Saves on system resources.
+# type:string,amount,raw
+#vote_minimum = "1000000000000000000000000000000000"
+
+# A list of "address:port" entries to identify work peers.
+#work_peers = []
+
+# Number of threads dedicated to CPU generated work. Defaults to all available CPU threads.
+# type:uint64
+#work_threads = 4
+
+[node.diagnostics.txn_tracking]
+
+# Enable or disable database transaction tracing.
+# type:bool
+#enable = false
+
+# Ignore any block processor writes less than block_processor_batch_max_time.
+# type:bool
+#ignore_writes_below_block_processor_max_time = true
+
+# Log stacktrace when read transactions are held longer than this duration.
+# type:milliseconds
+#min_read_txn_time = 5000
+
+# Log stacktrace when write transactions are held longer than this duration.
+# type:milliseconds
+#min_write_txn_time = 500
+
+[node.experimental]
+
+# Time limit for blocks age after pruning.
+# type:seconds
+#max_pruning_age = 86400
+
+# Limit for full blocks in chain after pruning.
+# type:uint64
+#max_pruning_depth = 0
+
+# A list of "address:port" entries to identify work peers for secondary work generation.
+#secondary_work_peers = ["127.0.0.1:8076"]
+
+[node.httpcallback]
+
+# Callback address.
+# type:string,ip
+#address = ""
+
+# Callback port number.
+# type:uint16
+#port = 0
+
+# Callback target path.
+# type:string,uri
+#target = ""
+
+[node.ipc.flatbuffers]
+
+# Allow client to send unknown fields in json messages. These will be ignored.
+# type:bool
+#skip_unexpected_fields_in_json = true
+
+# Verify that the buffer is valid before parsing. This is recommended when receiving data from untrusted sources.
+# type:bool
+#verify_buffers = true
+
+[node.ipc.local]
+
+# If enabled, certain unsafe RPCs can be used. Not recommended for production systems.
+# type:bool
+#allow_unsafe = false
+
+# Enable or disable IPC via local domain socket.
+# type:bool
+#enable = false
+
+# Timeout for requests.
+# type:seconds
+#io_timeout = 15
+
+# Path to the local domain socket.
+# type:string
+#path = "/tmp/nano"
+
+[node.ipc.tcp]
+
+# Enable or disable IPC via TCP server.
+# type:bool
+#enable = false
+
+# Timeout for requests.
+# type:seconds
+#io_timeout = 15
+
+# Server listening port.
+# type:uint16
+#port = 46000
+
+[node.lmdb]
+
+# Maximum ledger database map size in bytes.
+# type:uint64
+#map_size = 274877906944
+
+# Maximum open lmdb databases. Increase default if more than 100 wallets is required.
+# Note: external management is recommended when a large amounts of wallets are required (see https://docs.nano.org/integration-guides/key-management/).
+# type:uin32
+#max_databases = 128
+
+# Sync strategy for flushing commits to the ledger database. This does not affect the wallet database.
+# type:string,{always, nosync_safe, nosync_unsafe, nosync_unsafe_large_memory}
+#sync = "always"
+
+[node.logging]
+
+# Log when a block is updated while in active transactions.
+# type:bool
+#active_update = false
+
+# Log bulk pull errors and messages.
+# type:bool
+#bulk_pull = false
+
+# Log election tally on expiration.
+# type:bool
+#election_expiration = false
+
+# Log election tally when more than one block is seen.
+# type:bool
+#election_fork = false
+
+# Log election result when cleaning up election from active election container.
+# type:bool
+#election_result = false
+
+# If enabled, immediately flush new entries to log file.
+# Warning: this may negatively affect logging performance.
+# type:bool
+#flush = true
+
+# Log if insufficient work is detected.
+# type:bool
+#insufficient_work = true
+
+# Log ledger related messages.
+# type:bool
+#ledger = false
+
+# Log when a duplicate block is attempted inserted into the ledger.
+# type:bool
+#ledger_duplicate = false
+
+# Log when a block is replaced in the ledger.
+# type:bool
+#ledger_rollback = false
+
+# Log IPC related activity.
+# type:bool
+#log_ipc = true
+
+# Log to standard error in addition to the log file. Not recommended for production systems.
+# type:bool
+#log_to_cerr = false
+
+# Maximum log file size in bytes.
+# type:uint64
+#max_size = 134217728
+
+# Minimum time that must pass for low priority entries to be logged.
+# Warning: decreasing this value may result in a very large amount of logs.
+# type:milliseconds
+#min_time_between_output = 5
+
+# Log network related messages.
+# type:bool
+#network = true
+
+# Log keepalive related messages.
+# type:bool
+#network_keepalive = false
+
+# Log network errors and message details.
+# type:bool
+#network_message = false
+
+# Log node-id handshake related messages.
+# type:bool
+#network_node_id_handshake = false
+
+# Log network packet activity.
+# type:bool
+#network_packet = false
+
+# Log publish related network messages.
+# type:bool
+#network_publish = false
+
+# Log message when a connection is rejected.
+# type:bool
+#network_rejected = false
+
+# Log telemetry related messages.
+# type:bool
+#network_telemetry = false
+
+# Log TCP timeouts.
+# type:bool
+#network_timeout = false
+
+# Log node startup and shutdown messages.
+# type:bool
+#node_lifetime_tracing = false
+
+# Rep crawler logging. Enabling this option leads to a high volume.
+# of log messages which may affect node performance.
+# type:bool
+#rep_crawler = false
+
+# Log file rotation size in character count.
+# type:uint64
+#rotation_size = 4194304
+
+# Keep log entries on single lines.
+# type:bool
+#single_line_record = false
+
+# Append to log/node.log without a timestamp in the filename.
+# The file is not emptied on startup if it exists, but appended to.
+# type:bool
+#stable_log_filename = false
+
+# Log detailed timing information for various node operations.
+# type:bool
+#timing = false
+
+# Log UPNP discovery details..
+# Warning: this may include information.
+# about discovered devices, such as product identification. Please review before sharing logs.
+# type:bool
+#upnp_details = false
+
+# Vote logging. Enabling this option leads to a high volume.
+# of log messages which may affect node performance.
+# type:bool
+#vote = false
+
+# Log work generation timing information.
+# type:bool
+#work_generation_time = true
+
+[node.rocksdb]
+
+# Whether to use the RocksDB backend for the ledger database.
+# type:bool
+#enable = false
+
+# Number of threads to use with the background compaction and flushing. Number of hardware threads is recommended.
+# type:uint32
+#io_threads = 1
+
+# This will modify how much memory is used represented by 1 (low), 2 (medium), 3 (high). Default is 2.
+# type:uint8
+#memory_multiplier = 2
+
+[node.statistics.log]
+
+# Log file name for counters.
+# type:string
+#filename_counters = "counters.stat"
+
+# Log file name for samples.
+# type:string
+#filename_samples = "samples.stat"
+
+# If true, write headers on each counter or samples writeout.
+# The header contains log type and the current wall time.
+# type:bool
+#headers = true
+
+# How often to log counters. 0 disables logging.
+# type:milliseconds
+#interval_counters = 0
+
+# How often to log samples. 0 disables logging.
+# type:milliseconds
+#interval_samples = 0
+
+# Maximum number of log outputs before rotating the file.
+# type:uint64
+#rotation_count = 100
+
+[node.statistics.sampling]
+
+# How many sample intervals to keep in the ring buffer.
+# type:uint64
+#capacity = 0
+
+# Enable or disable sampling.
+# type:bool
+#enable = false
+
+# Sample interval.
+# type:milliseconds
+#interval = 0
+
+[node.websocket]
+
+# WebSocket server bind address.
+# type:string,ip
+#address = "::1"
+
+# Enable or disable WebSocket server.
+# type:bool
+#enable = false
+
+# WebSocket server listening port.
+# type:uint16
+#port = 47000
+
+[opencl]
+
+# OpenCL device identifier
+#device = 0
+
+# Enable or disable OpenCL work generation
+# type:bool
+#enable = false
+
+# OpenCL platform identifier
+#platform = 0
+
+# OpenCL thread count
+#threads = 1048576
+
+[rpc]
+
+# Enable or disable RPC
+# type:bool
+#enable = false
+
+# Allow or disallow signing of hashes.
+# type:bool
+#enable_sign_hash = false
+
+[rpc.child_process]
+
+# Enable or disable RPC child process. If false, an in-process RPC server is used.
+# type:bool
+#enable = false
+
+# Path to the nano_rpc executable. Must be set if child process is enabled.
+# type:string,path
+#rpc_path = "/Users/ruimorais/Downloads/rsnano-node/nano/nano_node/../../nano_rpc"
+

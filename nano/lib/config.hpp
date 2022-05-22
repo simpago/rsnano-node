@@ -129,7 +129,7 @@ public:
 class network_constants
 {
 public:
-	network_constants () = default;
+	//network_constants () = default;
 	network_constants (nano::work_thresholds work, nano::networks network_a);
 	network_constants (rsnano::NetworkConstantsDto const & dto);
 	void read_dto (rsnano::NetworkConstantsDto const & dto);
