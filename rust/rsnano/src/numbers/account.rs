@@ -1,8 +1,8 @@
 use super::PublicKey;
-use crate::utils::Stream;
+use crate::utils::{Deserialize, Serialize, Stream};
 use anyhow::Result;
 use blake2::digest::{Update, VariableOutput};
-use primitive_types::U512;
+use primitive_types::{U256, U512};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Hash)]
 pub struct Account {
@@ -34,16 +34,11 @@ impl Account {
         }
     }
 
-    pub const fn serialized_size() -> usize {
-        PublicKey::serialized_size()
-    }
-
-    pub fn serialize(&self, stream: &mut dyn Stream) -> Result<()> {
-        self.public_key.serialize(stream)
-    }
-
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
-        PublicKey::deserialize(stream).map(Self::from)
+    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+        match PublicKey::from_slice(bytes) {
+            Some(key) => Some(Account { public_key: key }),
+            None => None,
+        }
     }
 
     pub fn to_bytes(self) -> [u8; 32] {
@@ -89,12 +84,43 @@ impl Account {
     pub fn decode_hex(s: impl AsRef<str>) -> Result<Self> {
         let s = s.as_ref();
         if s.is_empty() || s.len() > 64 {
-            bail!("invalid length");
+            bail!(
+                "Invalid account string length. Expected <= 64 but was {}",
+                s.len()
+            );
         }
 
+        let mut padded_string = String::new();
+        let sanitized = if s.len() < 64 {
+            for _ in 0..(64 - s.len()) {
+                padded_string.push('0');
+            }
+            padded_string.push_str(s);
+            &padded_string
+        } else {
+            s
+        };
+
         let mut bytes = [0u8; 32];
-        hex::decode_to_slice(s, &mut bytes)?;
+        hex::decode_to_slice(sanitized, &mut bytes)?;
         Ok(Account::from_bytes(bytes))
+    }
+}
+
+impl Serialize for Account {
+    fn serialized_size() -> usize {
+        PublicKey::serialized_size()
+    }
+
+    fn serialize(&self, stream: &mut dyn Stream) -> anyhow::Result<()> {
+        self.public_key.serialize(stream)
+    }
+}
+
+impl Deserialize for Account {
+    type Target = Self;
+    fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Account> {
+        PublicKey::deserialize(stream).map(Self::from)
     }
 }
 
@@ -264,6 +290,12 @@ impl From<u64> for Account {
     }
 }
 
+impl From<U256> for Account {
+    fn from(value: U256) -> Self {
+        PublicKey::from(value).into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,5 +349,17 @@ mod tests {
             Account::decode_account(&encoded).expect("could not decode"),
             account
         );
+    }
+
+    #[test]
+    fn decode_less_than_64_chars() {
+        let account = Account::decode_hex("AA").unwrap();
+        assert_eq!(
+            account.to_bytes(),
+            [
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0xAA
+            ]
+        )
     }
 }

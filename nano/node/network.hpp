@@ -69,22 +69,15 @@ private:
 class tcp_message_manager final
 {
 public:
-	tcp_message_manager (unsigned incoming_connections_max_a);
+	explicit tcp_message_manager (unsigned incoming_connections_max_a);
+	tcp_message_manager (tcp_message_manager const &) = delete;
+	tcp_message_manager (tcp_message_manager &&) = delete;
+	~tcp_message_manager ();
 	void put_message (nano::tcp_message_item const & item_a);
 	nano::tcp_message_item get_message ();
 	// Stop container and notify waiting threads
 	void stop ();
-
-private:
-	nano::mutex mutex;
-	nano::condition_variable producer_condition;
-	nano::condition_variable consumer_condition;
-	std::deque<nano::tcp_message_item> entries;
-	unsigned max_entries;
-	static unsigned const max_entries_per_connection = 16;
-	bool stopped{ false };
-
-	friend class network_tcp_message_manager_Test;
+	rsnano::TcpMessageManagerHandle * handle;
 };
 /**
  * Node ID cookies for node ID handshakes
@@ -92,8 +85,10 @@ private:
 class syn_cookies final
 {
 public:
-	syn_cookies (std::size_t);
-	void purge (std::chrono::steady_clock::time_point const &);
+	explicit syn_cookies (std::size_t);
+	syn_cookies (nano::syn_cookies const &) = delete;
+	~syn_cookies ();
+	void purge (std::chrono::seconds const &);
 	// Returns boost::none if the IP is rate capped on syn cookie requests,
 	// or if the endpoint already has a syn cookie query
 	boost::optional<nano::uint256_union> assign (nano::endpoint const &);
@@ -102,25 +97,15 @@ public:
 	bool validate (nano::endpoint const &, nano::account const &, nano::signature const &);
 	std::unique_ptr<container_info_component> collect_container_info (std::string const &);
 	std::size_t cookies_size ();
-
-private:
-	class syn_cookie_info final
-	{
-	public:
-		nano::uint256_union cookie;
-		std::chrono::steady_clock::time_point created_at;
-	};
-	mutable nano::mutex syn_cookie_mutex;
-	std::unordered_map<nano::endpoint, syn_cookie_info> cookies;
-	std::unordered_map<boost::asio::ip::address, unsigned> cookies_per_ip;
-	std::size_t max_cookies_per_ip;
+	rsnano::SynCookiesHandle * handle;
 };
-class network final
+class network final : public std::enable_shared_from_this<network>
 {
 public:
 	network (nano::node &, uint16_t);
 	~network ();
 	nano::networks id;
+	void start_threads ();
 	void start ();
 	void stop ();
 	void flood_message (nano::message &, nano::buffer_drop_policy const = nano::buffer_drop_policy::limiter, float const = 1.0f);
@@ -162,7 +147,7 @@ public:
 	void cleanup (std::chrono::steady_clock::time_point const &);
 	void ongoing_cleanup ();
 	// Node ID cookies cleanup
-	nano::syn_cookies syn_cookies;
+	std::shared_ptr<nano::syn_cookies> syn_cookies;
 	void ongoing_syn_cookie_cleanup ();
 	void ongoing_keepalive ();
 	std::size_t size () const;
@@ -171,6 +156,8 @@ public:
 	void erase (nano::transport::channel const &);
 	void set_bandwidth_params (double, std::size_t);
 	static std::string to_string (nano::networks);
+	void on_new_channel (std::function<void (std::shared_ptr<nano::transport::channel>)> observer_a);
+	void notify_new_channel (std::shared_ptr<nano::transport::channel> channel_a);
 
 private:
 	void process_message (nano::message const &, std::shared_ptr<nano::transport::channel> const &);
@@ -184,13 +171,17 @@ public:
 	nano::peer_exclusion excluded_peers;
 	nano::tcp_message_manager tcp_message_manager;
 	nano::node & node;
-	nano::network_filter publish_filter;
+	std::shared_ptr<nano::network_filter> publish_filter;
 	nano::transport::udp_channels udp_channels;
-	nano::transport::tcp_channels tcp_channels;
+	std::shared_ptr<nano::transport::tcp_channels> tcp_channels;
 	std::atomic<uint16_t> port{ 0 };
 	std::function<void ()> disconnect_observer;
+
+private:
 	// Called when a new channel is observed
 	std::function<void (std::shared_ptr<nano::transport::channel>)> channel_observer;
+
+public:
 	std::atomic<bool> stopped{ false };
 	static unsigned const broadcast_interval_ms = 10;
 	static std::size_t const buffer_size = 512;

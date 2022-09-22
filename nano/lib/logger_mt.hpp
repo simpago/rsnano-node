@@ -11,6 +11,11 @@
 #include <chrono>
 #include <mutex>
 
+namespace rsnano
+{
+class LoggerHandle;
+}
+
 namespace nano
 {
 enum class severity_level
@@ -136,4 +141,7 @@ private:
 	std::chrono::steady_clock::time_point last_log_time;
 	boost::log::sources::severity_logger_mt<severity_level> boost_logger_mt;
 };
+
+rsnano::LoggerHandle * to_logger_handle (std::shared_ptr<nano::logger_mt> const & logger_a);
+
 }

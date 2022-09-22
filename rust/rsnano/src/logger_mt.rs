@@ -1,6 +1,9 @@
-pub(crate) trait Logger: Send + Sync {
+use std::ffi::c_void;
+
+pub trait Logger: Send + Sync {
     fn try_log(&self, message: &str) -> bool;
     fn always_log(&self, message: &str);
+    fn handle(&self) -> *mut c_void;
 }
 
 pub(crate) struct NullLogger {}
@@ -17,4 +20,8 @@ impl Logger for NullLogger {
     }
 
     fn always_log(&self, _message: &str) {}
+
+    fn handle(&self) -> *mut c_void {
+        std::ptr::null_mut()
+    }
 }

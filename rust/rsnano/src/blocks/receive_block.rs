@@ -1,7 +1,8 @@
 use crate::{
-    from_string_hex, sign_message, to_string_hex, Account, Block, BlockHash, BlockHashBuilder,
-    BlockSideband, BlockType, LazyBlockHash, Link, PropertyTreeReader, PropertyTreeWriter,
-    PublicKey, RawKey, Signature, Stream,
+    from_string_hex, sign_message, to_string_hex,
+    utils::{Deserialize, PropertyTreeReader, PropertyTreeWriter, Serialize, Stream},
+    Account, Block, BlockHash, BlockHashBuilder, BlockSideband, BlockType, LazyBlockHash, Link,
+    PublicKey, RawKey, Root, Signature,
 };
 use anyhow::Result;
 
@@ -12,7 +13,7 @@ pub struct ReceiveHashables {
 }
 
 impl ReceiveHashables {
-    const fn serialized_size() -> usize {
+    fn serialized_size() -> usize {
         BlockHash::serialized_size() + BlockHash::serialized_size()
     }
 }
@@ -56,7 +57,7 @@ impl ReceiveBlock {
         })
     }
 
-    pub const fn serialized_size() -> usize {
+    pub fn serialized_size() -> usize {
         ReceiveHashables::serialized_size()
             + Signature::serialized_size()
             + std::mem::size_of::<u64>()
@@ -76,7 +77,7 @@ impl ReceiveBlock {
         })
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let previous = BlockHash::deserialize(stream)?;
         let source = BlockHash::deserialize(stream)?;
         let signature = Signature::deserialize(stream)?;
@@ -164,13 +165,21 @@ impl Block for ReceiveBlock {
         writer.put_string("signature", &self.signature.encode_hex())?;
         Ok(())
     }
+
+    fn root(&self) -> Root {
+        self.previous().into()
+    }
+
+    fn visit(&self, visitor: &mut dyn crate::BlockVisitor) {
+        visitor.receive_block(self);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         numbers::KeyPair,
-        utils::{TestPropertyTree, TestStream},
+        utils::{MemoryStream, TestPropertyTree},
     };
 
     use super::*;
@@ -187,7 +196,7 @@ mod tests {
             &key1.public_key(),
             4,
         )?;
-        let mut stream = TestStream::new();
+        let mut stream = MemoryStream::new();
         block1.serialize(&mut stream)?;
         assert_eq!(ReceiveBlock::serialized_size(), stream.bytes_written());
 

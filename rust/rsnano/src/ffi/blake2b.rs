@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::ffi::c_void;
 
-use crate::Blake2b;
+use crate::utils::Blake2b;
 
 type Blake2BInitCallback = unsafe extern "C" fn(*mut c_void, usize) -> i32;
 type Blake2BUpdateCallback = unsafe extern "C" fn(*mut c_void, *const c_void, usize) -> i32;

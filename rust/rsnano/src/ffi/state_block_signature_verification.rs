@@ -9,7 +9,7 @@ use crate::{
     Account, StateBlockSignatureVerification,
 };
 
-use super::{BlockHandle, EpochsHandle, LoggerMT, SignatureCheckerHandle};
+use super::{BlockHandle, EpochsHandle, LoggerHandle, LoggerMT, SignatureCheckerHandle};
 
 pub struct StateBlockSignatureVerificationHandle {
     verification: StateBlockSignatureVerification,
@@ -22,13 +22,6 @@ pub struct StateBlockSignatureVerificationValueDto {
     pub verification: u8,
 }
 
-pub struct StateBlockSignatureVerificationResultHandle {
-    verifications: Vec<i32>,
-    hashes: Vec<[u8; 32]>,
-    signatures: Vec<[u8; 64]>,
-    items: Vec<StateBlockSignatureVerificationValueDto>,
-}
-
 #[repr(C)]
 pub struct StateBlockSignatureVerificationResultDto {
     hashes: *const [u8; 32],
@@ -36,20 +29,19 @@ pub struct StateBlockSignatureVerificationResultDto {
     verifications: *const i32,
     items: *const StateBlockSignatureVerificationValueDto,
     size: usize,
-    handle: *mut StateBlockSignatureVerificationResultHandle,
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_state_block_signature_verification_create(
+pub unsafe extern "C" fn rsn_state_block_signature_verification_create(
     checker: *const SignatureCheckerHandle,
     epochs: *const EpochsHandle,
-    logger: *mut c_void,
+    logger: *mut LoggerHandle,
     timing_logging: bool,
     verification_size: usize,
 ) -> *mut StateBlockSignatureVerificationHandle {
-    let checker = unsafe { &*checker }.checker.clone();
-    let epochs = Arc::new((unsafe { &*epochs }).epochs.clone());
-    let logger = Arc::new(LoggerMT::new(logger));
+    let checker = Arc::clone(&*checker);
+    let epochs = Arc::new((*epochs).epochs.clone());
+    let logger = Arc::new(LoggerMT::new(Box::from_raw(logger)));
     let verification = StateBlockSignatureVerification::builder()
         .signature_checker(checker)
         .epochs(epochs)
@@ -66,13 +58,6 @@ pub extern "C" fn rsn_state_block_signature_verification_create(
 #[no_mangle]
 pub extern "C" fn rsn_state_block_signature_verification_destroy(
     handle: *mut StateBlockSignatureVerificationHandle,
-) {
-    drop(unsafe { Box::from_raw(handle) });
-}
-
-#[no_mangle]
-pub extern "C" fn rsn_state_block_signature_verification_result_destroy(
-    handle: *mut StateBlockSignatureVerificationResultHandle,
 ) {
     drop(unsafe { Box::from_raw(handle) });
 }
@@ -102,24 +87,20 @@ pub extern "C" fn rsn_state_block_signature_verification_verified_callback(
     let context_handle = ContextHandle(context);
 
     let callback_adapter = Box::new(move |result: StateBlockSignatureVerificationResult| {
-        let result_handle = Box::new(StateBlockSignatureVerificationResultHandle {
-            verifications: result.verifications,
-            hashes: result.hashes.iter().map(|x| x.to_bytes()).collect(),
-            signatures: result.signatures.iter().map(|x| *x.as_bytes()).collect(),
-            items: result
-                .items
-                .iter()
-                .map(StateBlockSignatureVerificationValueDto::from)
-                .collect(),
-        });
+        let hashes: Vec<_> = result.hashes.iter().map(|x| x.to_bytes()).collect();
+        let signatures: Vec<_> = result.signatures.iter().map(|x| *x.as_bytes()).collect();
+        let items: Vec<_> = result
+            .items
+            .iter()
+            .map(StateBlockSignatureVerificationValueDto::from)
+            .collect();
 
         let result_dto = StateBlockSignatureVerificationResultDto {
-            hashes: result_handle.hashes.as_ptr(),
-            signatures: result_handle.signatures.as_ptr(),
-            verifications: result_handle.verifications.as_ptr(),
-            size: result_handle.verifications.len(),
-            items: result_handle.items.as_ptr(),
-            handle: Box::into_raw(result_handle),
+            hashes: hashes.as_ptr(),
+            signatures: signatures.as_ptr(),
+            verifications: result.verifications.as_ptr(),
+            size: result.verifications.len(),
+            items: items.as_ptr(),
         };
 
         unsafe {

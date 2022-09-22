@@ -6,9 +6,10 @@ use std::collections::HashMap;
  */
 
 #[repr(u8)]
-#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, Hash)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, Hash, Default)]
 pub enum Epoch {
     Invalid = 0,
+    #[default]
     Unspecified = 1,
     Epoch0 = 2,
     Epoch1 = 3,

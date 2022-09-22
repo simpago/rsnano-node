@@ -12,19 +12,49 @@ pub trait Stream {
     fn in_avail(&mut self) -> anyhow::Result<usize>;
 }
 
-#[cfg(test)]
-pub struct TestStream {
+pub trait StreamExt: Stream {
+    fn read_u32_be(&mut self) -> anyhow::Result<u32> {
+        let mut buffer = [0u8; 4];
+        self.read_bytes(&mut buffer, 4)?;
+        Ok(u32::from_be_bytes(buffer))
+    }
+
+    fn read_u64_be(&mut self) -> anyhow::Result<u64> {
+        let mut buffer = [0u8; 8];
+        self.read_bytes(&mut buffer, 8)?;
+        Ok(u64::from_be_bytes(buffer))
+    }
+
+    fn read_u64_ne(&mut self) -> anyhow::Result<u64> {
+        let mut buffer = [0u8; 8];
+        self.read_bytes(&mut buffer, 8)?;
+        Ok(u64::from_ne_bytes(buffer))
+    }
+
+    fn write_u32_be(&mut self, value: u32) -> anyhow::Result<()> {
+        self.write_bytes(&value.to_be_bytes())
+    }
+
+    fn write_u64_be(&mut self, value: u64) -> anyhow::Result<()> {
+        self.write_bytes(&value.to_be_bytes())
+    }
+
+    fn write_u64_ne(&mut self, value: u64) -> anyhow::Result<()> {
+        self.write_bytes(&value.to_ne_bytes())
+    }
+}
+
+impl<T: Stream + ?Sized> StreamExt for T {}
+
+#[derive(Default)]
+pub struct MemoryStream {
     bytes: Vec<u8>,
     read_index: usize,
 }
 
-#[cfg(test)]
-impl TestStream {
+impl MemoryStream {
     pub fn new() -> Self {
-        Self {
-            bytes: Vec::new(),
-            read_index: 0,
-        }
+        Default::default()
     }
 
     pub fn bytes_written(&self) -> usize {
@@ -34,10 +64,17 @@ impl TestStream {
     pub fn byte_at(&self, i: usize) -> u8 {
         self.bytes[i]
     }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub fn to_vec(self) -> Vec<u8> {
+        self.bytes
+    }
 }
 
-#[cfg(test)]
-impl Stream for TestStream {
+impl Stream for MemoryStream {
     fn write_u8(&mut self, value: u8) -> anyhow::Result<()> {
         self.bytes.push(value);
         Ok(())
@@ -69,7 +106,55 @@ impl Stream for TestStream {
     }
 
     fn in_avail(&mut self) -> anyhow::Result<usize> {
-        todo!()
+        Ok(self.bytes.len() - self.read_index)
+    }
+}
+
+pub struct StreamAdapter<'a> {
+    bytes: &'a [u8],
+    read_index: usize,
+}
+
+impl<'a> StreamAdapter<'a> {
+    pub fn new(bytes: &'a [u8]) -> Self {
+        Self {
+            bytes,
+            read_index: 0,
+        }
+    }
+}
+
+impl<'a> Stream for StreamAdapter<'a> {
+    fn write_u8(&mut self, _value: u8) -> anyhow::Result<()> {
+        bail!("not supported");
+    }
+
+    fn write_bytes(&mut self, _bytes: &[u8]) -> anyhow::Result<()> {
+        bail!("not supported");
+    }
+
+    fn read_u8(&mut self) -> anyhow::Result<u8> {
+        if self.read_index >= self.bytes.len() {
+            bail!("no more bytes to read")
+        }
+
+        let result = self.bytes[self.read_index];
+        self.read_index += 1;
+        Ok(result)
+    }
+
+    fn read_bytes(&mut self, buffer: &mut [u8], len: usize) -> anyhow::Result<()> {
+        if self.read_index + len > self.bytes.len() {
+            bail!("not enough bytes to read")
+        }
+
+        buffer.copy_from_slice(&self.bytes[self.read_index..self.read_index + len]);
+        self.read_index += len;
+        Ok(())
+    }
+
+    fn in_avail(&mut self) -> anyhow::Result<usize> {
+        Ok(self.bytes.len() - self.read_index)
     }
 }
 
@@ -80,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_stream() -> Result<()> {
-        let mut stream = TestStream::new();
+        let mut stream = MemoryStream::new();
         stream.write_bytes(&[1, 2, 3])?;
         assert_eq!(stream.bytes_written(), 3);
 

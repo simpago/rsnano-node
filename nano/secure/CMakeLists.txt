@@ -50,8 +50,6 @@ add_library(
   network_filter.cpp
   utility.hpp
   utility.cpp
-  versioning.hpp
-  versioning.cpp
   working.hpp)
 
 target_link_libraries(

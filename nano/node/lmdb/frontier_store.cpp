@@ -2,56 +2,86 @@
 #include <nano/node/lmdb/lmdb.hpp>
 #include <nano/secure/parallel_traversal.hpp>
 
-nano::lmdb::frontier_store::frontier_store (nano::lmdb::store & store) :
-	store{ store }
+nano::lmdb::frontier_store::frontier_store (rsnano::LmdbFrontierStoreHandle * handle_a) :
+	handle{ handle_a }
 {
+}
+
+nano::lmdb::frontier_store::~frontier_store ()
+{
+	if (handle != nullptr)
+		rsnano::rsn_lmdb_frontier_store_destroy (handle);
 }
 
 void nano::lmdb::frontier_store::put (nano::write_transaction const & transaction, nano::block_hash const & hash, nano::account const & account)
 {
-	auto status = store.put (transaction, tables::frontiers, hash, account);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_frontier_store_put (handle, transaction.get_rust_handle (), hash.bytes.data (), account.bytes.data ());
 }
 
 nano::account nano::lmdb::frontier_store::get (nano::transaction const & transaction, nano::block_hash const & hash) const
 {
-	nano::db_val<MDB_val> value;
-	auto status = store.get (transaction, tables::frontiers, hash, value);
-	release_assert (store.success (status) || store.not_found (status));
-	nano::account result{};
-	if (store.success (status))
-	{
-		result = static_cast<nano::account> (value);
-	}
+	nano::account result;
+	rsnano::rsn_lmdb_frontier_store_get (handle, transaction.get_rust_handle (), hash.bytes.data (), result.bytes.data ());
 	return result;
 }
 
 void nano::lmdb::frontier_store::del (nano::write_transaction const & transaction, nano::block_hash const & hash)
 {
-	auto status = store.del (transaction, tables::frontiers, hash);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_frontier_store_del (handle, transaction.get_rust_handle (), hash.bytes.data ());
+}
+
+namespace
+{
+nano::store_iterator<nano::block_hash, nano::account> to_iterator (rsnano::LmdbIteratorHandle * it_handle)
+{
+	if (it_handle == nullptr)
+	{
+		return { nullptr };
+	}
+
+	return { std::make_unique<nano::mdb_iterator<nano::block_hash, nano::account>> (it_handle) };
+}
 }
 
 nano::store_iterator<nano::block_hash, nano::account> nano::lmdb::frontier_store::begin (nano::transaction const & transaction) const
 {
-	return store.make_iterator<nano::block_hash, nano::account> (transaction, tables::frontiers);
+	auto it_handle{ rsnano::rsn_lmdb_frontier_store_begin (handle, transaction.get_rust_handle ()) };
+	return to_iterator (it_handle);
 }
 
 nano::store_iterator<nano::block_hash, nano::account> nano::lmdb::frontier_store::begin (nano::transaction const & transaction, nano::block_hash const & hash) const
 {
-	return store.make_iterator<nano::block_hash, nano::account> (transaction, tables::frontiers, nano::db_val<MDB_val> (hash));
+	auto it_handle{ rsnano::rsn_lmdb_frontier_store_begin_at_hash (handle, transaction.get_rust_handle (), hash.bytes.data ()) };
+	return to_iterator (it_handle);
 }
 
 nano::store_iterator<nano::block_hash, nano::account> nano::lmdb::frontier_store::end () const
 {
-	return nano::store_iterator<nano::block_hash, nano::account> (nullptr);
+	return { nullptr };
+}
+
+namespace
+{
+void for_each_par_wrapper (void * context, rsnano::TransactionHandle * txn_handle, rsnano::LmdbIteratorHandle * begin_handle, rsnano::LmdbIteratorHandle * end_handle)
+{
+	auto action = static_cast<std::function<void (nano::read_transaction const &, nano::store_iterator<nano::block_hash, nano::account>, nano::store_iterator<nano::block_hash, nano::account>)> const *> (context);
+	nano::read_mdb_txn txn{ txn_handle };
+	auto begin{ to_iterator (begin_handle) };
+	auto end{ to_iterator (end_handle) };
+	(*action) (txn, std::move (begin), std::move (end));
+}
+void for_each_par_delete_context (void * context)
+{
+}
 }
 
 void nano::lmdb::frontier_store::for_each_par (std::function<void (nano::read_transaction const &, nano::store_iterator<nano::block_hash, nano::account>, nano::store_iterator<nano::block_hash, nano::account>)> const & action_a) const
 {
-	parallel_traversal<nano::uint256_t> (
-	[&action_a, this] (nano::uint256_t const & start, nano::uint256_t const & end, bool const is_last) {
-		auto transaction (this->store.tx_begin_read ());
-		action_a (transaction, this->begin (transaction, start), !is_last ? this->begin (transaction, end) : this->end ());
-	});
+	auto context = (void *)&action_a;
+	rsnano::rsn_lmdb_frontier_store_for_each_par (handle, for_each_par_wrapper, context, for_each_par_delete_context);
+}
+
+MDB_dbi nano::lmdb::frontier_store::table_handle () const
+{
+	return rsnano::rsn_lmdb_frontier_store_table_handle (handle);
 }

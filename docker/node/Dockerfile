@@ -1,7 +1,7 @@
-FROM nanocurrency/nano-env:gcc
+FROM simpago/rsnano-env:gcc
 
 ARG NETWORK=live
-ARG TRAVIS_TAG=DEV_BUILD
+ARG CI_TAG=DEV_BUILD
 ARG CI_BUILD=OFF
 ADD ./ /tmp/src
 
@@ -10,7 +10,7 @@ cd /tmp/build && \
 cmake /tmp/src -DCI_BUILD=${CI_BUILD} \
 -DBOOST_ROOT=${BOOST_ROOT} -DPORTABLE=1 \
 -DACTIVE_NETWORK=nano_${NETWORK}_network \
--DNANO_POW_SERVER=ON -DNANO_SHARED_BOOST=ON && \
+-DNANO_POW_SERVER=ON -DNANO_SHARED_BOOST=ON -DCMAKE_BUILD_TYPE=Release && \
 make nano_node -j $(nproc) && \
 make nano_rpc -j $(nproc) && \
 make nano_pow_server -j $(nproc) && \
@@ -40,5 +40,5 @@ USER root
 ENV PATH="${PATH}:/usr/bin"
 ENTRYPOINT ["/usr/bin/entry.sh"]
 CMD ["nano_node", "daemon", "-l"]
-ARG REPOSITORY=nanocurrency/nano-node
+ARG REPOSITORY=simpago/rsnano-node
 LABEL org.opencontainers.image.source https://github.com/$REPOSITORY

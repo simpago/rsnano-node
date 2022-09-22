@@ -17,14 +17,19 @@ void nano::txn_tracking_config::load_dto (rsnano::TxnTrackingConfigDto & dto)
 	ignore_writes_below_block_processor_max_time = dto.ignore_writes_below_block_processor_max_time;
 }
 
-rsnano::TxnTrackingConfigDto nano::diagnostics_config::to_dto () const
+rsnano::TxnTrackingConfigDto nano::txn_tracking_config::to_dto () const
 {
 	rsnano::TxnTrackingConfigDto dto;
-	dto.enable = txn_tracking.enable;
-	dto.min_read_txn_time_ms = txn_tracking.min_read_txn_time.count ();
-	dto.min_write_txn_time_ms = txn_tracking.min_write_txn_time.count ();
-	dto.ignore_writes_below_block_processor_max_time = txn_tracking.ignore_writes_below_block_processor_max_time;
+	dto.enable = enable;
+	dto.min_read_txn_time_ms = min_read_txn_time.count ();
+	dto.min_write_txn_time_ms = min_write_txn_time.count ();
+	dto.ignore_writes_below_block_processor_max_time = ignore_writes_below_block_processor_max_time;
 	return dto;
+}
+
+rsnano::TxnTrackingConfigDto nano::diagnostics_config::to_dto () const
+{
+	return txn_tracking.to_dto ();
 }
 
 void nano::diagnostics_config::load_dto (rsnano::TxnTrackingConfigDto & dto)

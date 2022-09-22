@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use crate::{PublicKey, Signature, SignatureCheckSet, SignatureChecker};
 
@@ -12,21 +12,27 @@ pub struct SignatureCheckSetDto {
     pub verifications: *mut i32,
 }
 
-pub struct SignatureCheckerHandle {
-    pub checker: Arc<SignatureChecker>,
+pub struct SignatureCheckerHandle(Arc<SignatureChecker>);
+
+impl Deref for SignatureCheckerHandle {
+    type Target = Arc<SignatureChecker>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn rsn_signature_checker_create(num_threads: usize) -> *mut SignatureCheckerHandle {
-    Box::into_raw(Box::new(SignatureCheckerHandle {
-        checker: Arc::new(SignatureChecker::new(num_threads)),
-    }))
+    Box::into_raw(Box::new(SignatureCheckerHandle(Arc::new(
+        SignatureChecker::new(num_threads),
+    ))))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_signature_checker_destroy(handle: *mut SignatureCheckerHandle) {
     let bx = Box::from_raw(handle);
-    bx.checker.stop();
+    bx.0.stop();
     drop(bx);
 }
 
@@ -42,19 +48,19 @@ pub unsafe extern "C" fn rsn_signature_checker_verify(
 ) {
     let ffi_check_set = &mut *check_set;
     let mut check_set = into_check_set(ffi_check_set);
-    handle.checker.verify(&mut check_set);
+    handle.0.verify(&mut check_set);
     let valid = std::slice::from_raw_parts_mut(ffi_check_set.verifications, ffi_check_set.size);
     valid.copy_from_slice(&check_set.verifications);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_signature_checker_stop(handle: *mut SignatureCheckerHandle) {
-    (*handle).checker.stop();
+    (*handle).0.stop();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_signature_checker_flush(handle: &SignatureCheckerHandle) {
-    handle.checker.flush();
+pub unsafe extern "C" fn rsn_signature_checker_flush(handle: &SignatureCheckerHandle) -> bool {
+    handle.0.flush().is_ok()
 }
 
 unsafe fn into_check_set(ffi_check_set: &SignatureCheckSetDto) -> SignatureCheckSet {
@@ -75,7 +81,7 @@ unsafe fn into_check_set(ffi_check_set: &SignatureCheckSetDto) -> SignatureCheck
         .iter()
         .map(|&bytes| {
             let bytes = std::slice::from_raw_parts(bytes, 32);
-            PublicKey::try_from_bytes(bytes).unwrap()
+            PublicKey::from_slice(bytes).unwrap()
         })
         .collect();
 

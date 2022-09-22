@@ -8,6 +8,7 @@
 
 #include <boost/filesystem.hpp>
 
+#include <fstream>
 #include <future>
 #include <thread>
 

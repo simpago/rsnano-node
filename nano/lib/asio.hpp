@@ -15,11 +15,14 @@ public:
 	explicit shared_const_buffer (std::string const & data);
 	explicit shared_const_buffer (std::vector<uint8_t> && data);
 	explicit shared_const_buffer (std::shared_ptr<std::vector<uint8_t>> const & data);
+	explicit shared_const_buffer (const uint8_t * data_a, std::size_t size_a);
+	shared_const_buffer (nano::shared_const_buffer const & other_a);
 
 	boost::asio::const_buffer const * begin () const;
 	boost::asio::const_buffer const * end () const;
 
 	std::size_t size () const;
+	const std::uint8_t * data () const;
 	std::vector<uint8_t> to_bytes () const;
 
 private:

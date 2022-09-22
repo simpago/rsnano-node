@@ -20,7 +20,15 @@ RsNano is a Rust port of the original Nano node.
 
 **Please mind that this project is still in its early stages and hasn't been thoroughly tested yet!**
 
-Currently you can only build RsNano on Linux by yourself.
+## Build Docker Image
+
+    docker build -f docker/node/Dockerfile -t rsnano-node https://github.com/simpago/rsnano-node.git#develop
+
+    docker run -d --name rsnano -p 54000:54000 -v ~/NanoBeta:/root/NanoBeta rsnano-node:latest nano_node daemon --network=beta
+
+## Build from Source
+
+Currently you can only build RsNano on Linux.
 
 Install the cmake plugin [Corrosion](https://github.com/corrosion-rs/corrosion) for building Rust projects with cmake:
 
@@ -34,15 +42,16 @@ Install the cmake plugin [Corrosion](https://github.com/corrosion-rs/corrosion) 
 
 Build the nano-node. The official [nano-node build instructions](https://docs.nano.org/integration-guides/build-options/) still apply for RsNano.
 
-    git clone https://github.com/simpago/rsnano-node.git
+    git clone --recurse-submodules https://github.com/simpago/rsnano-node.git
     cd rsnano-node
-    export BOOST_ROOT=`pwd`/../boost_build
+    export BOOST_ROOT=`pwd`/build_boost
     bash util/build_prep/bootstrap_boost.sh -m -B 1.73
 
-    cmake -G "Unix Makefiles" -DNANO_TEST=ON -DACTIVE_NETWORK=nano_dev_network -DNANO_WARN_TO_ERR=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DNANO_STACKTRACE_BACKTRACE=ON .
+    mkdir build_rsnano && cd build_rsnano
+    cmake -G "Unix Makefiles" -DNANO_TEST=ON -DCMAKE_BUILD_TYPE=Debug ..
 
     make nano_node
-    cp nano_node ../nano_node && cd .. && ./nano_node --diagnostics
+    ./nano_node --diagnostics
 
 ### Contact us
 

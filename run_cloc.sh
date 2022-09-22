@@ -1,2 +1,3 @@
 #!/bin/sh
-cloc --exclude-lang=D,CMake,make,TypeScript,TOML,Objective-C++,"Bourne Shell" nano rust
+cloc --include-lang=Rust,C,C++,"C/C++ Header" --exclude-dir=CMakeFiles nano rust
+

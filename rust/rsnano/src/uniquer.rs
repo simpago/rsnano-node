@@ -5,7 +5,7 @@ use rand::Rng;
 
 use crate::{BlockHash, FullHash};
 
-pub(crate) struct Uniquer<T>
+pub struct Uniquer<T>
 where
     T: FullHash,
 {

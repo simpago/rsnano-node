@@ -26,5 +26,5 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y \
     && cmake --build build --config Release \
     && cmake --install build --config Release 
 
-ARG REPOSITORY=simpago/nano-node
+ARG REPOSITORY=simpago/rsnano-node
 LABEL org.opencontainers.image.source https://github.com/$REPOSITORY

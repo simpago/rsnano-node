@@ -75,14 +75,14 @@ bool nano::gap_cache::bootstrap_check (std::vector<nano::account> const & voters
 		tally += node.ledger.weight (voter);
 	}
 	bool start_bootstrap (false);
-	if (!node.flags.disable_lazy_bootstrap)
+	if (!node.flags.disable_lazy_bootstrap ())
 	{
 		if (tally >= node.online_reps.delta ())
 		{
 			start_bootstrap = true;
 		}
 	}
-	else if (!node.flags.disable_legacy_bootstrap && tally > bootstrap_threshold ())
+	else if (!node.flags.disable_legacy_bootstrap () && tally > bootstrap_threshold ())
 	{
 		start_bootstrap = true;
 	}
@@ -96,18 +96,18 @@ bool nano::gap_cache::bootstrap_check (std::vector<nano::account> const & voters
 void nano::gap_cache::bootstrap_start (nano::block_hash const & hash_a)
 {
 	auto node_l (node.shared ());
-	node.workers.add_timed_task (std::chrono::steady_clock::now () + node.network_params.bootstrap.gap_cache_bootstrap_start_interval, [node_l, hash_a] () {
+	node.workers->add_timed_task (std::chrono::steady_clock::now () + node.network_params.bootstrap.gap_cache_bootstrap_start_interval, [node_l, hash_a] () {
 		if (!node_l->ledger.block_or_pruned_exists (hash_a))
 		{
 			if (!node_l->bootstrap_initiator.in_progress ())
 			{
-				node_l->logger.try_log (boost::str (boost::format ("Missing block %1% which has enough votes to warrant lazy bootstrapping it") % hash_a.to_string ()));
+				node_l->logger->try_log (boost::str (boost::format ("Missing block %1% which has enough votes to warrant lazy bootstrapping it") % hash_a.to_string ()));
 			}
-			if (!node_l->flags.disable_lazy_bootstrap)
+			if (!node_l->flags.disable_lazy_bootstrap ())
 			{
 				node_l->bootstrap_initiator.bootstrap_lazy (hash_a);
 			}
-			else if (!node_l->flags.disable_legacy_bootstrap)
+			else if (!node_l->flags.disable_legacy_bootstrap ())
 			{
 				node_l->bootstrap_initiator.bootstrap ();
 			}
@@ -117,7 +117,7 @@ void nano::gap_cache::bootstrap_start (nano::block_hash const & hash_a)
 
 nano::uint128_t nano::gap_cache::bootstrap_threshold ()
 {
-	auto result ((node.online_reps.trended () / 256) * node.config.bootstrap_fraction_numerator);
+	auto result ((node.online_reps.trended () / 256) * node.config->bootstrap_fraction_numerator);
 	return result;
 }
 

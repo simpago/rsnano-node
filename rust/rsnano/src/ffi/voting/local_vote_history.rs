@@ -26,9 +26,9 @@ pub unsafe extern "C" fn rsn_local_vote_history_add(
     hash: *const u8,
     vote: *const VoteHandle,
 ) {
-    let root = Root::from(root);
-    let hash = BlockHash::from(hash);
-    let vote = (*vote).vote.clone();
+    let root = Root::from_ptr(root);
+    let hash = BlockHash::from_ptr(hash);
+    let vote = (*vote).clone();
     (*handle).history.add(&root, &hash, &vote);
 }
 
@@ -37,7 +37,7 @@ pub unsafe extern "C" fn rsn_local_vote_history_erase(
     handle: *mut LocalVoteHistoryHandle,
     root: *const u8,
 ) {
-    let root = Root::from(root);
+    let root = Root::from_ptr(root);
     (*handle).history.erase(&root);
 }
 
@@ -58,14 +58,14 @@ pub unsafe extern "C" fn rsn_local_vote_history_votes(
     is_final: bool,
     result: *mut LocalVotesResult,
 ) {
-    let root = Root::from(root);
-    let hash = BlockHash::from(hash);
+    let root = Root::from_ptr(root);
+    let hash = BlockHash::from_ptr(hash);
 
     let mut votes = (*handle).history.votes(&root, &hash, is_final);
     let mut votes = Box::new(LocalVotesResultHandle(
         votes
             .drain(..)
-            .map(|vote| Box::into_raw(Box::new(VoteHandle { vote })))
+            .map(|vote| Box::into_raw(Box::new(VoteHandle::new(vote))))
             .collect::<Vec<_>>(),
     ));
     let result = &mut *result;
@@ -76,10 +76,7 @@ pub unsafe extern "C" fn rsn_local_vote_history_votes(
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_local_vote_history_votes_destroy(handle: *mut LocalVotesResultHandle) {
-    let votes = Box::from_raw(handle);
-    for x in votes.0 {
-        drop(Box::from_raw(x))
-    }
+    drop(Box::from_raw(handle));
 }
 
 #[no_mangle]
@@ -87,7 +84,7 @@ pub unsafe extern "C" fn rsn_local_vote_history_exists(
     handle: *mut LocalVoteHistoryHandle,
     root: *const u8,
 ) -> bool {
-    let root = Root::from(root);
+    let root = Root::from_ptr(root);
     (*handle).history.exists(&root)
 }
 

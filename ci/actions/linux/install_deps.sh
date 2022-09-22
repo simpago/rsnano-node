@@ -8,4 +8,5 @@ if [[ "${COMPILER:-}" != "" ]]; then
 else
     ci/build-docker-image.sh docker/ci/Dockerfile-gcc simpago/rsnano-env:gcc
     ci/build-docker-image.sh docker/ci/Dockerfile-clang-6 simpago/rsnano-env:clang-6
+    ci/build-docker-image.sh docker/ci/Dockerfile-centos simpago/rsnano-env:centos
 fi

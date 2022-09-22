@@ -1,7 +1,8 @@
 use crate::{
-    from_string_hex, sign_message, to_string_hex, Account, Amount, Block, BlockHash,
-    BlockHashBuilder, BlockSideband, BlockType, LazyBlockHash, Link, PropertyTreeReader,
-    PropertyTreeWriter, PublicKey, RawKey, Signature, Stream,
+    from_string_hex, sign_message, to_string_hex,
+    utils::{PropertyTreeReader, PropertyTreeWriter, Serialize, Stream},
+    Account, Amount, Block, BlockHash, BlockHashBuilder, BlockSideband, BlockType, LazyBlockHash,
+    Link, PublicKey, RawKey, Root, Signature,
 };
 use anyhow::Result;
 
@@ -13,7 +14,7 @@ pub struct SendHashables {
 }
 
 impl SendHashables {
-    pub const fn serialized_size() -> usize {
+    pub fn serialized_size() -> usize {
         BlockHash::serialized_size() + Account::serialized_size() + Amount::serialized_size()
     }
 
@@ -24,7 +25,7 @@ impl SendHashables {
         Ok(())
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let mut buffer_32 = [0u8; 32];
         let mut buffer_16 = [0u8; 16];
 
@@ -97,7 +98,7 @@ impl SendBlock {
         })
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let hashables = SendHashables::deserialize(stream)?;
         let signature = Signature::deserialize(stream)?;
 
@@ -113,7 +114,7 @@ impl SendBlock {
         })
     }
 
-    pub const fn serialized_size() -> usize {
+    pub fn serialized_size() -> usize {
         SendHashables::serialized_size() + Signature::serialized_size() + std::mem::size_of::<u64>()
     }
 
@@ -131,6 +132,10 @@ impl SendBlock {
         self.hashables.previous = previous;
     }
 
+    pub fn balance(&self) -> Amount {
+        self.hashables.balance
+    }
+
     pub fn set_balance(&mut self, balance: Amount) {
         self.hashables.balance = balance;
     }
@@ -145,7 +150,7 @@ impl SendBlock {
     pub fn deserialize_json(reader: &impl PropertyTreeReader) -> Result<Self> {
         let previous = BlockHash::decode_hex(reader.get_string("previous")?)?;
         let destination = Account::decode_account(reader.get_string("destination")?)?;
-        let balance = Amount::decode_hex(reader.get_string("balance")?)?;
+        let balance = Amount::decode_dec(reader.get_string("balance")?)?;
         let signature = Signature::decode_hex(reader.get_string("signature")?)?;
         let work = from_string_hex(reader.get_string("work")?)?;
         Ok(SendBlock {
@@ -227,10 +232,18 @@ impl Block for SendBlock {
         writer.put_string("type", "send")?;
         writer.put_string("previous", &self.hashables.previous.encode_hex())?;
         writer.put_string("destination", &self.hashables.destination.encode_account())?;
-        writer.put_string("balance", &self.hashables.balance.encode_hex())?;
+        writer.put_string("balance", &self.hashables.balance.to_string_dec())?;
         writer.put_string("work", &to_string_hex(self.work))?;
         writer.put_string("signature", &self.signature.encode_hex())?;
         Ok(())
+    }
+
+    fn root(&self) -> Root {
+        self.previous().into()
+    }
+
+    fn visit(&self, visitor: &mut dyn crate::BlockVisitor) {
+        visitor.send_block(self);
     }
 }
 
@@ -238,7 +251,7 @@ impl Block for SendBlock {
 mod tests {
     use crate::{
         numbers::{validate_message, KeyPair},
-        utils::{TestPropertyTree, TestStream},
+        utils::{MemoryStream, TestPropertyTree},
     };
 
     use super::*;
@@ -276,7 +289,7 @@ mod tests {
             &key.public_key(),
             5,
         )?;
-        let mut stream = TestStream::new();
+        let mut stream = MemoryStream::new();
         block1.serialize(&mut stream)?;
         assert_eq!(SendBlock::serialized_size(), stream.bytes_written());
 

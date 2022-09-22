@@ -1,9 +1,10 @@
-use crate::{PropertyTreeReader, PropertyTreeWriter};
 use anyhow::Result;
 use std::{
-    ffi::{c_void, CString},
+    ffi::{c_void, CStr, CString},
     os::raw::c_char,
 };
+
+use crate::utils::{PropertyTreeReader, PropertyTreeWriter};
 
 type PropertyTreePutStringCallback =
     unsafe extern "C" fn(*mut c_void, *const c_char, usize, *const c_char, usize);
@@ -15,15 +16,24 @@ type PropertyTreeCreateTreeCallback = unsafe extern "C" fn() -> *mut c_void;
 type PropertyTreeDestroyTreeCallback = unsafe extern "C" fn(*mut c_void);
 type PropertyTreePushBackCallback = unsafe extern "C" fn(*mut c_void, *const c_char, *const c_void);
 type CreatePopertyTreeCallback = unsafe extern "C" fn() -> *mut c_void;
+type PropertyTreeClearCallback = unsafe extern "C" fn(*mut c_void);
+type PropertyTreeToJsonCallback = unsafe extern "C" fn(*mut c_void) -> *mut c_void;
+type StringCharsCallback = unsafe extern "C" fn(*mut c_void) -> *const c_char;
+type StringDeleteCallback = unsafe extern "C" fn(*mut c_void);
 
 static mut PUT_STRING_CALLBACK: Option<PropertyTreePutStringCallback> = None;
 static mut PUT_U64_CALLBACK: Option<PropertyTreePutU64Callback> = None;
 static mut ADD_CALLBACK: Option<PropertyTreePutStringCallback> = None;
+static mut CLEAR_CALLBACK: Option<PropertyTreeClearCallback> = None;
 static mut GET_STRING_CALLBACK: Option<PropertyTreeGetStringCallback> = None;
 static mut CREATE_TREE_CALLBACK: Option<PropertyTreeCreateTreeCallback> = None;
 static mut DESTROY_TREE_CALLBACK: Option<PropertyTreeDestroyTreeCallback> = None;
 static mut PUSH_BACK_CALLBACK: Option<PropertyTreePushBackCallback> = None;
 static mut ADD_CHILD_CALLBACK: Option<PropertyTreePushBackCallback> = None;
+static mut PUT_CHILD_CALLBACK: Option<PropertyTreePushBackCallback> = None;
+static mut TO_JSON_CALLBACK: Option<PropertyTreeToJsonCallback> = None;
+static mut STRING_CHARS_CALLBACK: Option<StringCharsCallback> = None;
+static mut STRING_DELETE_CALLBACK: Option<StringDeleteCallback> = None;
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_callback_property_tree_put_string(f: PropertyTreePutStringCallback) {
@@ -38,6 +48,11 @@ pub unsafe extern "C" fn rsn_callback_property_tree_put_u64(f: PropertyTreePutU6
 #[no_mangle]
 pub unsafe extern "C" fn rsn_callback_property_tree_add(f: PropertyTreePutStringCallback) {
     ADD_CALLBACK = Some(f);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_callback_property_tree_clear(f: PropertyTreeClearCallback) {
+    CLEAR_CALLBACK = Some(f);
 }
 
 #[no_mangle]
@@ -63,6 +78,26 @@ pub unsafe extern "C" fn rsn_callback_property_tree_push_back(f: PropertyTreePus
 #[no_mangle]
 pub unsafe extern "C" fn rsn_callback_property_tree_add_child(f: PropertyTreePushBackCallback) {
     ADD_CHILD_CALLBACK = Some(f);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_callback_property_tree_put_child(f: PropertyTreePushBackCallback) {
+    PUT_CHILD_CALLBACK = Some(f);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_callback_property_tree_to_json(f: PropertyTreeToJsonCallback) {
+    TO_JSON_CALLBACK = Some(f);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_callback_string_chars(f: StringCharsCallback) {
+    STRING_CHARS_CALLBACK = Some(f);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_callback_string_delete(f: StringDeleteCallback) {
+    STRING_DELETE_CALLBACK = Some(f);
 }
 
 pub struct FfiPropertyTreeWriter {
@@ -175,6 +210,58 @@ impl PropertyTreeWriter for FfiPropertyTreeWriter {
                 None => Err(anyhow!("ADD_CALLBACK missing")),
             }
         }
+    }
+
+    fn clear(&mut self) -> Result<()> {
+        unsafe {
+            match CLEAR_CALLBACK {
+                Some(f) => {
+                    f(self.handle);
+                    Ok(())
+                }
+                None => Err(anyhow!("CLEAR_CALLBACK missing")),
+            }
+        }
+    }
+
+    fn put_child(&mut self, path: &str, value: &dyn PropertyTreeWriter) {
+        unsafe {
+            match PUT_CHILD_CALLBACK {
+                Some(f) => {
+                    let path_str = CString::new(path).unwrap();
+                    let ffi_value = value
+                        .as_any()
+                        .downcast_ref::<FfiPropertyTreeWriter>()
+                        .unwrap();
+                    f(self.handle, path_str.as_ptr(), ffi_value.handle);
+                }
+                None => panic!("PUT_CHILD_CALLBACK missing"),
+            }
+        }
+    }
+
+    fn to_json(&self) -> String {
+        let result: String;
+        unsafe {
+            match TO_JSON_CALLBACK {
+                Some(f) => {
+                    let handle = f(self.handle);
+                    match STRING_CHARS_CALLBACK {
+                        Some(c) => {
+                            let chars = c(handle);
+                            result = CStr::from_ptr(chars).to_string_lossy().to_string();
+                        }
+                        None => panic!("STRING_CHARS_CALLBACK missing"),
+                    }
+                    match STRING_DELETE_CALLBACK {
+                        Some(d) => d(handle),
+                        None => panic!("STRING_DELETE_CALLBACK missing"),
+                    }
+                }
+                None => panic!("TO_JSON_CALLBACK missing"),
+            }
+        }
+        result
     }
 }
 

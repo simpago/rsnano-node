@@ -6,6 +6,7 @@
 #include <nano/lib/asio.hpp>
 #include <nano/lib/jsonconfig.hpp>
 #include <nano/lib/memory.hpp>
+#include <nano/lib/stats.hpp>
 #include <nano/secure/common.hpp>
 #include <nano/secure/network_filter.hpp>
 
@@ -190,6 +191,7 @@ enum class message_type : uint8_t
 };
 
 std::string message_type_to_string (message_type);
+stat::detail message_type_to_stat_detail (message_type);
 
 enum class bulk_pull_account_flags : uint8_t
 {
@@ -203,55 +205,67 @@ class message_header final
 {
 public:
 	message_header (nano::network_constants const &, nano::message_type);
+	message_header (nano::network_constants const &, nano::message_type, uint8_t version_using_a);
 	message_header (bool &, nano::stream &);
+	message_header (message_header const &);
+	message_header (message_header &&);
+	message_header (rsnano::MessageHeaderHandle * handle_a);
+	~message_header ();
+
+	message_header & operator= (message_header && other_a);
+	message_header & operator= (message_header const & other_a);
 	void serialize (nano::stream &) const;
 	bool deserialize (nano::stream &);
 	nano::block_type block_type () const;
 	void block_type_set (nano::block_type);
 	uint8_t count_get () const;
 	void count_set (uint8_t);
-	nano::networks network;
-	uint8_t version_max;
-	uint8_t version_using;
-	uint8_t version_min;
 	std::string to_string ();
 
-public:
-	nano::message_type type;
-	std::bitset<16> extensions;
-	static std::size_t constexpr size = sizeof (nano::networks) + sizeof (version_max) + sizeof (version_using) + sizeof (version_min) + sizeof (type) + sizeof (/* extensions */ uint16_t);
-
 	void flag_set (uint8_t);
-	static uint8_t constexpr bulk_pull_count_present_flag = 0;
-	bool bulk_pull_is_count_present () const;
 	static uint8_t constexpr frontier_req_only_confirmed = 1;
-	bool frontier_req_is_only_confirmed_present () const;
-	static uint8_t constexpr node_id_handshake_query_flag = 0;
-	static uint8_t constexpr node_id_handshake_response_flag = 1;
-	bool node_id_handshake_is_query () const;
-	bool node_id_handshake_is_response () const;
 
 	/** Size of the payload in bytes. For some messages, the payload size is based on header flags. */
 	std::size_t payload_length_bytes () const;
+	bool is_valid_message_type () const;
 
-	static std::bitset<16> constexpr block_type_mask{ 0x0f00 };
-	static std::bitset<16> constexpr count_mask{ 0xf000 };
-	static std::bitset<16> constexpr telemetry_size_mask{ 0x3ff };
+	nano::networks get_network () const;
+	void set_network (nano::networks network);
+	uint8_t get_version_max () const;
+	uint8_t get_version_using () const;
+	void set_version_using (uint8_t version_a);
+	uint8_t get_version_min () const;
+	nano::message_type get_type () const;
+	std::bitset<16> get_extensions () const;
+	uint16_t get_extensions_raw () const;
+	void set_extensions (std::bitset<16> const & bits);
+	bool test_extension (std::size_t position) const;
+	void set_extension (std::size_t position, bool value);
+
+	rsnano::MessageHeaderHandle * handle;
+
+	static std::size_t size ();
 };
 
 class message
 {
 public:
-	explicit message (nano::network_constants const &, nano::message_type);
-	explicit message (nano::message_header const &);
-	virtual ~message () = default;
+	explicit message (rsnano::MessageHandle * handle);
+	message (message const &) = delete;
+	message (message &&) = delete;
+	virtual ~message ();
+	message & operator= (message const &) = delete;
+	message & operator= (message &&) = delete;
 	virtual void serialize (nano::stream &) const = 0;
 	virtual void visit (nano::message_visitor &) const = 0;
 	std::shared_ptr<std::vector<uint8_t>> to_bytes () const;
 	nano::shared_const_buffer to_shared_const_buffer () const;
-
-	nano::message_header header;
+	nano::message_header get_header () const;
+	void set_header (nano::message_header const & header);
+	rsnano::MessageHandle * handle;
 };
+
+std::unique_ptr<nano::message> message_handle_to_message (rsnano::MessageHandle * handle_a);
 
 class work_pool;
 class network_constants;
@@ -299,13 +313,17 @@ class keepalive final : public message
 {
 public:
 	explicit keepalive (nano::network_constants const & constants);
+	explicit keepalive (nano::network_constants const & constants, uint8_t version_using_a);
+	keepalive (rsnano::MessageHandle * handle_a);
+	keepalive (keepalive const & other_a);
 	keepalive (bool &, nano::stream &, nano::message_header const &);
 	void visit (nano::message_visitor &) const override;
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	bool operator== (nano::keepalive const &) const;
-	std::array<nano::endpoint, 8> peers;
-	static std::size_t constexpr size = 8 * (16 + 2);
+	std::array<nano::endpoint, 8> get_peers () const;
+	void set_peers (std::array<nano::endpoint, 8> const & peers_a);
+	static std::size_t size ();
 };
 
 class publish final : public message
@@ -313,12 +331,15 @@ class publish final : public message
 public:
 	publish (bool &, nano::stream &, nano::message_header const &, nano::uint128_t const & = 0, nano::block_uniquer * = nullptr);
 	publish (nano::network_constants const & constants, std::shared_ptr<nano::block> const &);
+	publish (nano::publish const & other_a);
+	publish (rsnano::MessageHandle * handle_a);
 	void visit (nano::message_visitor &) const override;
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &, nano::block_uniquer * = nullptr);
 	bool operator== (nano::publish const &) const;
-	std::shared_ptr<nano::block> block;
-	nano::uint128_t digest{ 0 };
+	std::shared_ptr<nano::block> get_block () const;
+	nano::uint128_t get_digest () const;
+	void set_digest (nano::uint128_t digest_a);
 };
 
 class confirm_req final : public message
@@ -328,14 +349,16 @@ public:
 	confirm_req (nano::network_constants const & constants, std::shared_ptr<nano::block> const &);
 	confirm_req (nano::network_constants const & constants, std::vector<std::pair<nano::block_hash, nano::root>> const &);
 	confirm_req (nano::network_constants const & constants, nano::block_hash const &, nano::root const &);
+	confirm_req (rsnano::MessageHandle * handle_a);
+	confirm_req (nano::confirm_req const & other_a);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &, nano::block_uniquer * = nullptr);
 	void visit (nano::message_visitor &) const override;
 	bool operator== (nano::confirm_req const &) const;
-	std::shared_ptr<nano::block> block;
-	std::vector<std::pair<nano::block_hash, nano::root>> roots_hashes;
 	std::string roots_string () const;
 	static std::size_t size (nano::block_type, std::size_t = 0);
+	std::shared_ptr<nano::block> get_block () const;
+	std::vector<std::pair<nano::block_hash, nano::root>> get_roots_hashes () const;
 };
 
 class confirm_ack final : public message
@@ -343,11 +366,13 @@ class confirm_ack final : public message
 public:
 	confirm_ack (bool &, nano::stream &, nano::message_header const &, nano::vote_uniquer * = nullptr);
 	confirm_ack (nano::network_constants const & constants, std::shared_ptr<nano::vote> const &);
+	confirm_ack (nano::confirm_ack const & other_a);
+	confirm_ack (rsnano::MessageHandle * handle_a);
 	void serialize (nano::stream &) const override;
 	void visit (nano::message_visitor &) const override;
 	bool operator== (nano::confirm_ack const &) const;
-	std::shared_ptr<nano::vote> vote;
 	static std::size_t size (std::size_t count);
+	std::shared_ptr<nano::vote> get_vote () const;
 };
 
 class frontier_req final : public message
@@ -355,14 +380,20 @@ class frontier_req final : public message
 public:
 	explicit frontier_req (nano::network_constants const & constants);
 	frontier_req (bool &, nano::stream &, nano::message_header const &);
+	frontier_req (rsnano::MessageHandle * handle_a);
+	frontier_req (frontier_req const &);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	void visit (nano::message_visitor &) const override;
 	bool operator== (nano::frontier_req const &) const;
-	nano::account start;
-	uint32_t age;
-	uint32_t count;
-	static std::size_t constexpr size = sizeof (start) + sizeof (age) + sizeof (count);
+	bool is_only_confirmed_present () const;
+	static std::size_t size ();
+	nano::account get_start () const;
+	void set_start (nano::account const & account);
+	uint32_t get_age () const;
+	void set_age (uint32_t age);
+	uint32_t get_count () const;
+	void set_count (uint32_t count);
 };
 
 enum class telemetry_maker : uint8_t
@@ -374,25 +405,51 @@ enum class telemetry_maker : uint8_t
 class telemetry_data
 {
 public:
-	nano::signature signature{ 0 };
-	nano::account node_id{};
-	uint64_t block_count{ 0 };
-	uint64_t cemented_count{ 0 };
-	uint64_t unchecked_count{ 0 };
-	uint64_t account_count{ 0 };
-	uint64_t bandwidth_cap{ 0 };
-	uint64_t uptime{ 0 };
-	uint32_t peer_count{ 0 };
-	uint8_t protocol_version{ 0 };
-	nano::block_hash genesis_block{ 0 };
-	uint8_t major_version{ 0 };
-	uint8_t minor_version{ 0 };
-	uint8_t patch_version{ 0 };
-	uint8_t pre_release_version{ 0 };
-	uint8_t maker{ static_cast<std::underlying_type_t<telemetry_maker>> (telemetry_maker::nf_node) }; // Where this telemetry information originated
-	std::chrono::system_clock::time_point timestamp;
-	uint64_t active_difficulty{ 0 };
-	std::vector<uint8_t> unknown_data;
+	telemetry_data ();
+	telemetry_data (nano::telemetry_data const & other_a);
+	telemetry_data (nano::telemetry_data && other_a);
+	telemetry_data (rsnano::TelemetryDataHandle * handle);
+	~telemetry_data ();
+	nano::telemetry_data & operator= (nano::telemetry_data const & other_a);
+
+	nano::signature get_signature () const;
+	void set_signature (nano::signature const & signature_a);
+	nano::account get_node_id () const;
+	void set_node_id (nano::account const & node_id_a);
+	uint64_t get_block_count () const;
+	void set_block_count (uint64_t count_a);
+	uint64_t get_cemented_count () const;
+	void set_cemented_count (uint64_t count_a);
+	uint64_t get_unchecked_count () const;
+	void set_unchecked_count (uint64_t count_a);
+	uint64_t get_account_count () const;
+	void set_account_count (uint64_t count_a);
+	uint64_t get_bandwidth_cap () const;
+	void set_bandwidth_cap (uint64_t cap_a);
+	uint64_t get_uptime () const;
+	void set_uptime (uint64_t uptime_a);
+	uint32_t get_peer_count () const;
+	void set_peer_count (uint32_t count_a);
+	uint8_t get_protocol_version () const;
+	void set_protocol_version (uint8_t version_a);
+	nano::block_hash get_genesis_block () const;
+	void set_genesis_block (nano::block_hash const & block_a);
+	uint8_t get_major_version () const;
+	void set_major_version (uint8_t version_a);
+	uint8_t get_minor_version () const;
+	void set_minor_version (uint8_t version_a);
+	uint8_t get_patch_version () const;
+	void set_patch_version (uint8_t version_a);
+	uint8_t get_pre_release_version () const;
+	void set_pre_release_version (uint8_t version_a);
+	uint8_t get_maker () const;
+	void set_maker (uint8_t maker_a);
+	std::chrono::system_clock::time_point get_timestamp () const;
+	void set_timestamp (std::chrono::system_clock::time_point timestamp_a);
+	uint64_t get_active_difficulty () const;
+	void set_active_difficulty (uint64_t difficulty_a);
+	std::vector<uint8_t> get_unknown_data () const;
+	void set_unknown_data (std::vector<uint8_t> data_a);
 
 	void serialize (nano::stream &) const;
 	void deserialize (nano::stream &, uint16_t);
@@ -405,10 +462,12 @@ public:
 	std::string to_string () const;
 
 	// Size does not include unknown_data
-	static auto constexpr size = sizeof (signature) + sizeof (node_id) + sizeof (block_count) + sizeof (cemented_count) + sizeof (unchecked_count) + sizeof (account_count) + sizeof (bandwidth_cap) + sizeof (peer_count) + sizeof (protocol_version) + sizeof (uptime) + sizeof (genesis_block) + sizeof (major_version) + sizeof (minor_version) + sizeof (patch_version) + sizeof (pre_release_version) + sizeof (maker) + sizeof (uint64_t) + sizeof (active_difficulty);
-	static auto constexpr latest_size = size; // This needs to be updated for each new telemetry version
-private:
-	void serialize_without_signature (nano::stream &) const;
+	static std::size_t size ();
+	static std::size_t latest_size ()
+	{
+		return size ();
+	}; // This needs to be updated for each new telemetry version
+	rsnano::TelemetryDataHandle * handle;
 };
 
 class telemetry_req final : public message
@@ -416,6 +475,8 @@ class telemetry_req final : public message
 public:
 	explicit telemetry_req (nano::network_constants const & constants);
 	explicit telemetry_req (nano::message_header const &);
+	telemetry_req (nano::telemetry_req const &);
+	telemetry_req (rsnano::MessageHandle * handle_a);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	void visit (nano::message_visitor &) const override;
@@ -427,13 +488,16 @@ public:
 	explicit telemetry_ack (nano::network_constants const & constants);
 	telemetry_ack (bool &, nano::stream &, nano::message_header const &);
 	telemetry_ack (nano::network_constants const & constants, telemetry_data const &);
+	telemetry_ack (nano::telemetry_ack const &);
+	telemetry_ack (rsnano::MessageHandle * handle_a);
+	telemetry_ack & operator= (telemetry_ack const & other_a);
 	void serialize (nano::stream &) const override;
 	void visit (nano::message_visitor &) const override;
 	bool deserialize (nano::stream &);
 	uint16_t size () const;
 	bool is_empty_payload () const;
 	static uint16_t size (nano::message_header const &);
-	nano::telemetry_data data;
+	nano::telemetry_data get_data () const;
 };
 
 class bulk_pull final : public message
@@ -442,17 +506,21 @@ public:
 	using count_t = uint32_t;
 	explicit bulk_pull (nano::network_constants const & constants);
 	bulk_pull (bool &, nano::stream &, nano::message_header const &);
+	bulk_pull (rsnano::MessageHandle * handle_a);
+	bulk_pull (bulk_pull const & other_a);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	void visit (nano::message_visitor &) const override;
-	nano::hash_or_account start{ 0 };
-	nano::block_hash end{ 0 };
-	count_t count{ 0 };
 	bool is_count_present () const;
 	void set_count_present (bool);
-	static std::size_t constexpr count_present_flag = nano::message_header::bulk_pull_count_present_flag;
-	static std::size_t constexpr extended_parameters_size = 8;
-	static std::size_t constexpr size = sizeof (start) + sizeof (end);
+	bool is_ascending () const;
+	void set_ascending ();
+	nano::hash_or_account get_start () const;
+	nano::block_hash get_end () const;
+	count_t get_count () const;
+	void set_start (nano::hash_or_account start_a);
+	void set_end (nano::block_hash end_a);
+	void set_count (count_t count_a);
 };
 
 class bulk_pull_account final : public message
@@ -460,13 +528,18 @@ class bulk_pull_account final : public message
 public:
 	explicit bulk_pull_account (nano::network_constants const & constants);
 	bulk_pull_account (bool &, nano::stream &, nano::message_header const &);
+	bulk_pull_account (rsnano::MessageHandle * handle_a);
+	bulk_pull_account (bulk_pull_account const & other_a);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	void visit (nano::message_visitor &) const override;
-	nano::account account;
-	nano::amount minimum_amount;
-	bulk_pull_account_flags flags;
-	static std::size_t constexpr size = sizeof (account) + sizeof (minimum_amount) + sizeof (bulk_pull_account_flags);
+	static std::size_t size ();
+	nano::account get_account () const;
+	nano::amount get_minimum_amount () const;
+	bulk_pull_account_flags get_flags () const;
+	void set_account (nano::account account_a);
+	void set_minimum_amount (nano::amount amount_a);
+	void set_flags (bulk_pull_account_flags flags_a);
 };
 
 class bulk_push final : public message
@@ -474,6 +547,7 @@ class bulk_push final : public message
 public:
 	explicit bulk_push (nano::network_constants const & constants);
 	explicit bulk_push (nano::message_header const &);
+	bulk_push (rsnano::MessageHandle * handle_a);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	void visit (nano::message_visitor &) const override;
@@ -484,14 +558,16 @@ class node_id_handshake final : public message
 public:
 	node_id_handshake (bool &, nano::stream &, nano::message_header const &);
 	node_id_handshake (nano::network_constants const & constants, boost::optional<nano::uint256_union>, boost::optional<std::pair<nano::account, nano::signature>>);
+	node_id_handshake (node_id_handshake const &);
+	node_id_handshake (rsnano::MessageHandle * handle_a);
 	void serialize (nano::stream &) const override;
 	bool deserialize (nano::stream &);
 	void visit (nano::message_visitor &) const override;
 	bool operator== (nano::node_id_handshake const &) const;
-	boost::optional<nano::uint256_union> query;
-	boost::optional<std::pair<nano::account, nano::signature>> response;
 	std::size_t size () const;
 	static std::size_t size (nano::message_header const &);
+	boost::optional<nano::uint256_union> get_query () const;
+	boost::optional<std::pair<nano::account, nano::signature>> get_response () const;
 };
 
 class message_visitor
@@ -548,10 +624,7 @@ public:
 class telemetry_cache_cutoffs
 {
 public:
-	static std::chrono::seconds constexpr dev{ 3 };
-	static std::chrono::seconds constexpr beta{ 15 };
-	static std::chrono::seconds constexpr live{ 60 };
-
+	static std::chrono::seconds dev ();
 	static std::chrono::seconds network_to_time (network_constants const & network_constants);
 };
 

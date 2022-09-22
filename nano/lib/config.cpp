@@ -2,6 +2,7 @@
 #include <nano/lib/config.hpp>
 
 #include <boost/filesystem/path.hpp>
+#include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include <valgrind/valgrind.h>
@@ -147,26 +148,22 @@ uint64_t nano::work_thresholds::threshold_base (nano::work_version const version
 
 uint64_t nano::work_thresholds::difficulty (nano::work_version const version_a, nano::root const & root_a, uint64_t const work_a) const
 {
-	uint8_t bytes[32];
-	std::copy (std::begin (root_a.bytes), std::end (root_a.bytes), std::begin (bytes));
-	return rsnano::rsn_work_thresholds_difficulty (&dto, work_version_to_uint8 (version_a), &bytes, work_a);
+	return rsnano::rsn_work_thresholds_difficulty (&dto, work_version_to_uint8 (version_a), root_a.bytes.data (), work_a);
 }
 
 uint64_t nano::work_thresholds::difficulty (nano::block const & block_a) const
 {
-	return difficulty (block_a.work_version (), block_a.root (), block_a.block_work ());
+	return rsnano::rsn_work_thresholds_difficulty_block (&dto, block_a.get_handle ());
 }
 
 bool nano::work_thresholds::validate_entry (nano::work_version const version_a, nano::root const & root_a, uint64_t const work_a) const
 {
-	uint8_t bytes[32];
-	std::copy (std::begin (root_a.bytes), std::end (root_a.bytes), std::begin (bytes));
-	return rsnano::rsn_work_thresholds_validate_entry (&dto, work_version_to_uint8 (version_a), &bytes, work_a);
+	return rsnano::rsn_work_thresholds_validate_entry (&dto, work_version_to_uint8 (version_a), root_a.bytes.data (), work_a);
 }
 
 bool nano::work_thresholds::validate_entry (nano::block const & block_a) const
 {
-	return difficulty (block_a) < threshold_entry (block_a.work_version (), block_a.type ());
+	return rsnano::rsn_work_thresholds_validate_entry_block (&dto, block_a.get_handle ());
 }
 
 nano::networks nano::network_constants::active_network ()
@@ -322,12 +319,6 @@ uint8_t get_pre_release_node_version ()
 	return boost::numeric_cast<uint8_t> (boost::lexical_cast<int> (NANO_PRE_RELEASE_VERSION_STRING));
 }
 
-std::string get_env_or_default (char const * variable_name, std::string default_value)
-{
-	auto value = getenv (variable_name);
-	return value ? value : default_value;
-}
-
 uint64_t get_env_threshold_or_default (char const * variable_name, uint64_t const default_value)
 {
 	auto * value = getenv (variable_name);
@@ -357,6 +348,21 @@ bool running_within_valgrind ()
 	return (RUNNING_ON_VALGRIND > 0);
 }
 
+bool memory_intensive_instrumentation ()
+{
+	return is_tsan_build () || nano::running_within_valgrind ();
+}
+
+bool slow_instrumentation ()
+{
+	return is_tsan_build () || nano::running_within_valgrind ();
+}
+
+bool is_sanitizer_build ()
+{
+	return is_asan_build () || is_tsan_build ();
+}
+
 std::string get_node_toml_config_path (boost::filesystem::path const & data_path)
 {
 	return (data_path / "config-node.toml").string ();
@@ -382,3 +388,44 @@ std::string get_tls_toml_config_path (boost::filesystem::path const & data_path)
 	return (data_path / "config-tls.toml").string ();
 }
 } // namespace nano
+
+std::optional<std::string> nano::get_env (const char * variable_name)
+{
+	auto value = std::getenv (variable_name);
+	if (value)
+	{
+		return value;
+	}
+	return {};
+}
+
+std::string nano::get_env_or_default (char const * variable_name, std::string default_value)
+{
+	auto value = nano::get_env (variable_name);
+	return value ? *value : default_value;
+}
+
+int nano::get_env_int_or_default (const char * variable_name, const int default_value)
+{
+	auto value = nano::get_env (variable_name);
+	if (value)
+	{
+		try
+		{
+			return boost::lexical_cast<int> (*value);
+		}
+		catch (...)
+		{
+			// It is unexpected that this exception will be caught, log to cerr the reason.
+			std::cerr << boost::str (boost::format ("Error parsing environment variable: %1% value: %2%") % variable_name % *value);
+			throw;
+		}
+	}
+	return default_value;
+}
+
+uint32_t nano::test_scan_wallet_reps_delay ()
+{
+	auto test_env = nano::get_env_or_default ("NANO_TEST_WALLET_SCAN_REPS_DELAY", "900000"); // 15 minutes by default
+	return boost::lexical_cast<uint32_t> (test_env);
+}

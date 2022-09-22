@@ -1,8 +1,10 @@
 use std::net::Ipv6Addr;
 
 use crate::{
-    get_cpu_count, get_env_or_default_string, Account, Amount, DiagnosticsConfig, IpcConfig,
-    LmdbConfig, Logging, NetworkParams, Networks, RocksDbConfig, StatConfig, TomlWriter,
+    get_env_or_default_string, is_sanitizer_build,
+    stats::StatConfig,
+    utils::{get_cpu_count, TomlWriter},
+    Account, Amount, DiagnosticsConfig, IpcConfig, LmdbConfig, Logging, NetworkParams, Networks,
     WebsocketConfig, GXRB_RATIO, XRB_RATIO,
 };
 use anyhow::Result;
@@ -32,6 +34,7 @@ pub struct NodeConfig {
     pub bootstrap_connections: u32,
     pub bootstrap_connections_max: u32,
     pub bootstrap_initiator_threads: u32,
+    pub bootstrap_serving_threads: u32,
     pub bootstrap_frontier_request_count: u32,
     pub block_processor_batch_max_time_ms: i64,
     pub allow_local_peers: bool,
@@ -47,6 +50,7 @@ pub struct NodeConfig {
     pub use_memory_pools: bool,
     pub confirmation_history_size: usize,
     pub active_elections_size: usize,
+    pub active_elections_hinted_limit_percentage: usize, // Limit of hinted elections as percentage of active_elections_size
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
     pub conf_height_processor_batch_min_time_ms: i64,
@@ -69,7 +73,6 @@ pub struct NodeConfig {
     pub ipc_config: IpcConfig,
     pub diagnostics_config: DiagnosticsConfig,
     pub stat_config: StatConfig,
-    pub rocksdb_config: RocksDbConfig,
     pub lmdb_config: LmdbConfig,
 }
 
@@ -208,7 +211,7 @@ impl NodeConfig {
             bootstrap_fraction_numerator: 1,
             receive_minimum: Amount::new(*XRB_RATIO),
             online_weight_minimum: Amount::new(60000 * *GXRB_RATIO),
-            election_hint_weight_percent: 10,
+            election_hint_weight_percent: 50,
             password_fanout: 1024,
             io_threads: std::cmp::max(get_cpu_count() as u32, 4),
             network_threads: std::cmp::max(get_cpu_count() as u32, 4),
@@ -219,6 +222,7 @@ impl NodeConfig {
             bootstrap_connections: 4,
             bootstrap_connections_max: 64,
             bootstrap_initiator_threads: 1,
+            bootstrap_serving_threads: std::cmp::max(get_cpu_count() as u32 / 2, 2),
             bootstrap_frontier_request_count: 1024 * 1024,
             block_processor_batch_max_time_ms: if network_params.network.is_dev_network() {
                 500
@@ -231,7 +235,7 @@ impl NodeConfig {
             vote_generator_delay_ms: 100,
             vote_generator_threshold: 3,
             unchecked_cutoff_time_s: 4 * 60 * 60, // 4 hours
-            tcp_io_timeout_s: if network_params.network.is_dev_network() {
+            tcp_io_timeout_s: if network_params.network.is_dev_network() && !is_sanitizer_build() {
                 5
             } else {
                 15
@@ -244,6 +248,7 @@ impl NodeConfig {
             use_memory_pools: true,
             confirmation_history_size: 2048,
             active_elections_size: 5000,
+            active_elections_hinted_limit_percentage: 20,
             /** Default outbound traffic shaping is 10MB/s */
             bandwidth_limit: 10 * 1024 * 1024,
             /** By default, allow bursts of 15MB/s (not sustainable) */
@@ -273,7 +278,6 @@ impl NodeConfig {
             ipc_config: IpcConfig::new(&network_params.network),
             diagnostics_config: DiagnosticsConfig::new(),
             stat_config: StatConfig::new(),
-            rocksdb_config: RocksDbConfig::new(),
             lmdb_config: LmdbConfig::new(),
         }
     }
@@ -300,6 +304,7 @@ impl NodeConfig {
         toml.put_u32("bootstrap_connections", self.bootstrap_connections, "Number of outbound bootstrap connections. Must be a power of 2. Defaults to 4.\nWarning: a larger amount of connections may use substantially more system memory.\ntype:uint64")?;
         toml.put_u32("bootstrap_connections_max", self.bootstrap_connections_max, "Maximum number of inbound bootstrap connections. Defaults to 64.\nWarning: a larger amount of connections may use additional system memory.\ntype:uint64")?;
         toml.put_u32("bootstrap_initiator_threads", self.bootstrap_initiator_threads, "Number of threads dedicated to concurrent bootstrap attempts. Defaults to 1.\nWarning: a larger amount of attempts may use additional system memory and disk IO.\ntype:uint64")?;
+        toml.put_u32("bootstrap_serving_threads", self.bootstrap_serving_threads, "Number of threads dedicated to serving bootstrap data to other peers. Defaults to half the number of CPU threads, and at least 2.\ntype:uint64")?;
         toml.put_u32("bootstrap_frontier_request_count", self.bootstrap_frontier_request_count, "Number frontiers per bootstrap frontier request. Defaults to 1048576.\ntype:uint32,[1024..4294967295]")?;
         toml.put_i64("block_processor_batch_max_time", self.block_processor_batch_max_time_ms, "The maximum time the block processor can continuously process blocks for.\ntype:milliseconds")?;
         toml.put_bool(
@@ -420,10 +425,6 @@ impl NodeConfig {
 
         toml.put_child("statistics", &mut |statistics| {
             self.stat_config.serialize_toml(statistics)
-        })?;
-
-        toml.put_child("rocksdb", &mut |rocksdb| {
-            self.rocksdb_config.serialize_toml(rocksdb)
         })?;
 
         toml.put_child("lmdb", &mut |lmdb| self.lmdb_config.serialize_toml(lmdb))?;

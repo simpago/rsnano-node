@@ -1,4 +1,4 @@
-FROM simpago/nano-env:base
+FROM simpago/rsnano-env:base
 
 RUN apt-get update -qq && apt-get install -yqq \
 clang-3.9 lldb-3.9 git
@@ -19,5 +19,5 @@ RUN ./fetch_boost.sh
 # see https://www.boost.org/doc/libs/1_70_0/doc/html/stacktrace/configuration_and_build.html#stacktrace.configuration_and_build.f3
 
 RUN ln -s /usr/lib/gcc/x86_64-linux-gnu/5/include/backtrace.h /tmp/backtrace.h
-ARG REPOSITORY=simpago/nano-node
+ARG REPOSITORY=simpago/rsnano-node
 LABEL org.opencontainers.image.source https://github.com/$REPOSITORY

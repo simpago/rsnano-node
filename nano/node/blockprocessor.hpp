@@ -34,6 +34,7 @@ class block_arrival;
 class unchecked_map;
 class gap_cache;
 class bootstrap_initiator;
+class vote_cache;
 
 namespace websocket
 {
@@ -49,12 +50,12 @@ enum class block_origin
 class block_post_events final
 {
 public:
-	explicit block_post_events (std::function<nano::read_transaction ()> &&);
+	explicit block_post_events (std::function<std::unique_ptr<nano::read_transaction> ()> &&);
 	~block_post_events ();
 	std::deque<std::function<void (nano::read_transaction const &)>> events;
 
 private:
-	std::function<nano::read_transaction ()> get_transaction;
+	std::function<std::unique_ptr<nano::read_transaction> ()> get_transaction;
 };
 
 /**
@@ -88,6 +89,7 @@ public:
 	// Delay required for average network propagartion before requesting confirmation
 	static std::chrono::milliseconds constexpr confirmation_request_delay{ 1500 };
 	rsnano::BlockProcessorHandle const * get_handle () const;
+	nano::observer_set<nano::transaction const &, nano::process_return const &, nano::block const &> processed;
 
 private:
 	void queue_unchecked (nano::write_transaction const &, nano::hash_or_account const &);
@@ -121,6 +123,7 @@ private:
 	nano::store & store;
 	nano::stat & stats;
 	nano::active_transactions & active_transactions;
+	nano::vote_cache & inactive_vote_cache;
 	nano::election_scheduler & scheduler;
 	std::shared_ptr<nano::websocket::listener> & websocket_server;
 	nano::unchecked_map & unchecked;

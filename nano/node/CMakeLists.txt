@@ -16,8 +16,14 @@ add_library(
   ${platform_sources}
   active_transactions.hpp
   active_transactions.cpp
+  backlog_population.hpp
+  backlog_population.cpp
+  block_arrival.hpp
+  block_arrival.cpp
   blockprocessor.hpp
   blockprocessor.cpp
+  bootstrap/block_deserializer.hpp
+  bootstrap/block_deserializer.cpp
   bootstrap/bootstrap_attempt.hpp
   bootstrap/bootstrap_attempt.cpp
   bootstrap/bootstrap_bulk_pull.hpp
@@ -36,6 +42,8 @@ add_library(
   bootstrap/bootstrap_server.cpp
   bootstrap/bootstrap.hpp
   bootstrap/bootstrap.cpp
+  bootstrap/message_deserializer.hpp
+  bootstrap/message_deserializer.cpp
   cli.hpp
   cli.cpp
   common.hpp
@@ -60,6 +68,8 @@ add_library(
   election_scheduler.cpp
   gap_cache.hpp
   gap_cache.cpp
+  hinted_scheduler.hpp
+  hinted_scheduler.cpp
   inactive_cache_information.hpp
   inactive_cache_information.cpp
   inactive_cache_status.hpp
@@ -143,33 +153,6 @@ add_library(
   repcrawler.cpp
   request_aggregator.hpp
   request_aggregator.cpp
-  rocksdb/account_store.hpp
-  rocksdb/account_store.cpp
-  rocksdb/block_store.hpp
-  rocksdb/block_store.cpp
-  rocksdb/confirmation_height_store.hpp
-  rocksdb/confirmation_height_store.cpp
-  rocksdb/final_vote_store.hpp
-  rocksdb/final_vote_store.cpp
-  rocksdb/frontier_store.hpp
-  rocksdb/frontier_store.cpp
-  rocksdb/online_weight_store.hpp
-  rocksdb/online_weight_store.cpp
-  rocksdb/peer_store.hpp
-  rocksdb/peer_store.cpp
-  rocksdb/pending_store.hpp
-  rocksdb/pending_store.cpp
-  rocksdb/pruned_store.hpp
-  rocksdb/pruned_store.cpp
-  rocksdb/unchecked_store.hpp
-  rocksdb/unchecked_store.cpp
-  rocksdb/version_store.hpp
-  rocksdb/version_store.cpp
-  rocksdb/rocksdb.hpp
-  rocksdb/rocksdb.cpp
-  rocksdb/rocksdb_iterator.hpp
-  rocksdb/rocksdb_txn.hpp
-  rocksdb/rocksdb_txn.cpp
   rsnano_callbacks.hpp
   rsnano_callbacks.cpp
   signatures.hpp
@@ -180,6 +163,8 @@ add_library(
   state_block_signature_verification.cpp
   telemetry.hpp
   telemetry.cpp
+  transport/fake.hpp
+  transport/fake.cpp
   transport/inproc.hpp
   transport/inproc.cpp
   transport/tcp.hpp
@@ -190,6 +175,8 @@ add_library(
   transport/udp.cpp
   unchecked_map.cpp
   unchecked_map.hpp
+  vote_cache.hpp
+  vote_cache.cpp
   vote_processor.hpp
   vote_processor.cpp
   voting.hpp
@@ -225,7 +212,6 @@ target_link_libraries(
   Boost::system
   Boost::thread
   Boost::boost
-  rocksdb
   ${DISKHASH}
   ${CMAKE_DL_LIBS}
   ${psapi_lib})

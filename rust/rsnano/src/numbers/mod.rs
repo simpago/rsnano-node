@@ -1,18 +1,27 @@
 mod account;
+mod account_info;
+mod amount;
 mod difficulty;
 
 use std::convert::TryInto;
-use std::fmt::Write;
+use std::fmt::{Debug, Write};
+use std::mem::size_of;
 use std::ops::Deref;
 use std::{convert::TryFrom, fmt::Display};
 
-use crate::utils::Stream;
+use crate::utils::{Deserialize, Serialize, Stream};
+use crate::Epoch;
 use anyhow::Result;
 
 pub use account::*;
+pub use account_info::AccountInfo;
+pub use amount::*;
 use blake2::digest::{Update, VariableOutput};
 pub use difficulty::*;
+use num::FromPrimitive;
 use once_cell::sync::Lazy;
+use primitive_types::{U256, U512};
+use rand::{thread_rng, Rng};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Hash)]
 pub struct PublicKey {
@@ -32,8 +41,11 @@ impl PublicKey {
         Self { value }
     }
 
-    pub fn try_from_bytes(value: &[u8]) -> Result<Self> {
-        Ok(Self::from_bytes(value.try_into()?))
+    pub fn from_slice(value: &[u8]) -> Option<Self> {
+        match value.try_into() {
+            Ok(value) => Some(Self { value }),
+            Err(_) => None,
+        }
     }
 
     pub const fn serialized_size() -> usize {
@@ -44,7 +56,7 @@ impl PublicKey {
         stream.write_bytes(&self.value)
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let mut result = PublicKey::new();
         stream.read_bytes(&mut result.value, 32)?;
         Ok(result)
@@ -56,6 +68,14 @@ impl PublicKey {
 
     pub fn to_be_bytes(self) -> [u8; 32] {
         self.value
+    }
+}
+
+impl From<U256> for PublicKey {
+    fn from(value: U256) -> Self {
+        let mut key = Self::new();
+        value.to_big_endian(&mut key.value);
+        key
     }
 }
 
@@ -79,22 +99,22 @@ impl BlockHash {
         self.value == [0u8; 32]
     }
 
+    pub fn random() -> Self {
+        BlockHash::from_bytes(thread_rng().gen())
+    }
+
     pub fn from_bytes(value: [u8; 32]) -> Self {
         Self { value }
     }
 
-    pub const fn serialized_size() -> usize {
-        32
-    }
-
-    pub fn serialize(&self, stream: &mut dyn Stream) -> Result<()> {
-        stream.write_bytes(&self.value)
-    }
-
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
-        let mut result = Self::new();
-        stream.read_bytes(&mut result.value, 32)?;
-        Ok(result)
+    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != 32 {
+            None
+        } else {
+            let mut result = Self::new();
+            result.value.copy_from_slice(bytes);
+            Some(result)
+        }
     }
 
     pub fn to_bytes(self) -> [u8; 32] {
@@ -120,6 +140,15 @@ impl BlockHash {
     }
 }
 
+impl Deserialize for BlockHash {
+    type Target = Self;
+    fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
+        let mut result = Self::new();
+        stream.read_bytes(&mut result.value, 32)?;
+        Ok(result)
+    }
+}
+
 impl From<u64> for BlockHash {
     fn from(value: u64) -> Self {
         let mut result = Self { value: [0; 32] };
@@ -128,9 +157,34 @@ impl From<u64> for BlockHash {
     }
 }
 
+impl From<U256> for BlockHash {
+    fn from(value: U256) -> Self {
+        let mut hash = BlockHash::new();
+        value.to_big_endian(&mut hash.value);
+        hash
+    }
+}
+
+fn write_hex_bytes(bytes: &[u8], f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    for &byte in bytes {
+        write!(f, "{:02X}", byte)?;
+    }
+    Ok(())
+}
+
 impl Display for BlockHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode_upper(self.value))
+        write_hex_bytes(&self.value, f)
+    }
+}
+
+impl Serialize for BlockHash {
+    fn serialized_size() -> usize {
+        32
+    }
+
+    fn serialize(&self, stream: &mut dyn Stream) -> Result<()> {
+        stream.write_bytes(&self.value)
     }
 }
 
@@ -164,70 +218,6 @@ impl BlockHashBuilder {
         BlockHash::from_bytes(hash_bytes)
     }
 }
-
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct Amount {
-    value: u128, // native endian!
-}
-
-impl Amount {
-    pub fn new(value: u128) -> Self {
-        Self { value }
-    }
-
-    pub fn zero() -> Self {
-        Self::new(0)
-    }
-
-    pub fn from_be_bytes(bytes: [u8; 16]) -> Self {
-        Self {
-            value: u128::from_be_bytes(bytes),
-        }
-    }
-
-    pub const fn serialized_size() -> usize {
-        std::mem::size_of::<u128>()
-    }
-
-    pub fn serialize(&self, stream: &mut dyn Stream) -> Result<()> {
-        stream.write_bytes(&self.value.to_be_bytes())
-    }
-
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
-        let mut buffer = [0u8; 16];
-        let len = buffer.len();
-        stream.read_bytes(&mut buffer, len)?;
-        Ok(Amount::new(u128::from_be_bytes(buffer)))
-    }
-
-    pub fn to_be_bytes(self) -> [u8; 16] {
-        self.value.to_be_bytes()
-    }
-
-    pub fn encode_hex(&self) -> String {
-        format!("{:032X}", self.value)
-    }
-
-    pub fn decode_hex(s: impl AsRef<str>) -> Result<Self> {
-        let value = u128::from_str_radix(s.as_ref(), 16)?;
-        Ok(Amount::new(value))
-    }
-
-    pub fn decode_dec(s: impl AsRef<str>) -> Result<Self> {
-        Ok(Self::new(s.as_ref().parse::<u128>()?))
-    }
-
-    pub fn to_string_dec(self) -> String {
-        self.value.to_string()
-    }
-}
-
-impl From<u128> for Amount {
-    fn from(value: u128) -> Self {
-        Amount::new(value)
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Signature {
     bytes: [u8; 64],
@@ -260,7 +250,7 @@ impl Signature {
         stream.write_bytes(&self.bytes)
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Signature> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Signature> {
         let mut result = Signature { bytes: [0; 64] };
 
         stream.read_bytes(&mut result.bytes, 64)?;
@@ -313,6 +303,16 @@ impl HashOrAccount {
         Self { bytes }
     }
 
+    fn from_slice(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != 32 {
+            None
+        } else {
+            let mut result = Self { bytes: [0; 32] };
+            result.bytes.copy_from_slice(bytes);
+            Some(result)
+        }
+    }
+
     pub const fn serialized_size() -> usize {
         32
     }
@@ -321,7 +321,7 @@ impl HashOrAccount {
         stream.write_bytes(&self.bytes)
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let mut result = Self::new();
         stream.read_bytes(&mut result.bytes, 32)?;
         Ok(result)
@@ -352,6 +352,16 @@ impl HashOrAccount {
     pub fn to_account(self) -> Account {
         Account::from_bytes(self.bytes)
     }
+
+    pub fn to_block_hash(self) -> BlockHash {
+        BlockHash::from_bytes(self.bytes)
+    }
+}
+
+impl Display for HashOrAccount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_hex_bytes(&self.bytes, f)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Default, Debug, Copy)]
@@ -376,7 +386,7 @@ impl Link {
         32
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         HashOrAccount::deserialize(stream).map(|inner| Self { inner })
     }
 
@@ -424,6 +434,21 @@ impl Root {
             inner: HashOrAccount::from_bytes(bytes),
         }
     }
+
+    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+        match HashOrAccount::from_slice(bytes) {
+            Some(inner) => Some(Self { inner }),
+            None => None,
+        }
+    }
+
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
+        HashOrAccount::deserialize(stream).map(|inner| Root { inner })
+    }
+
+    pub fn serialized_size() -> usize {
+        HashOrAccount::serialized_size()
+    }
 }
 
 impl Deref for Root {
@@ -439,6 +464,60 @@ impl From<u64> for Root {
         let mut bytes = [0; 32];
         bytes[..8].copy_from_slice(&value.to_le_bytes());
         Self::from_bytes(bytes)
+    }
+}
+
+impl Display for Root {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_hex_bytes(&self.bytes, f)
+    }
+}
+
+impl From<&Account> for Root {
+    fn from(hash: &Account) -> Self {
+        Root::from_bytes(hash.to_bytes())
+    }
+}
+
+impl From<&BlockHash> for Root {
+    fn from(hash: &BlockHash) -> Self {
+        Root::from_bytes(hash.to_bytes())
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct QualifiedRoot {
+    pub root: Root,
+    pub previous: BlockHash,
+}
+
+impl Serialize for QualifiedRoot {
+    fn serialized_size() -> usize {
+        Root::serialized_size() + BlockHash::serialized_size()
+    }
+
+    fn serialize(&self, stream: &mut dyn Stream) -> anyhow::Result<()> {
+        self.root.serialize(stream)?;
+        self.previous.serialize(stream)
+    }
+}
+
+impl Deserialize for QualifiedRoot {
+    type Target = Self;
+    fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<QualifiedRoot> {
+        let root = Root::deserialize(stream)?;
+        let previous = BlockHash::deserialize(stream)?;
+        Ok(QualifiedRoot { root, previous })
+    }
+}
+
+impl From<U512> for QualifiedRoot {
+    fn from(value: U512) -> Self {
+        let mut bytes = [0; 64];
+        value.to_big_endian(&mut bytes);
+        let root = Root::from_slice(&bytes[..32]).unwrap();
+        let previous = BlockHash::from_slice(&bytes[32..]).unwrap();
+        QualifiedRoot { root, previous }
     }
 }
 
@@ -589,8 +668,175 @@ pub fn from_string_hex(s: impl AsRef<str>) -> Result<u64> {
 }
 
 pub static XRB_RATIO: Lazy<u128> = Lazy::new(|| str::parse("1000000000000000000000000").unwrap()); // 10^24
+pub static KXRB_RATIO: Lazy<u128> =
+    Lazy::new(|| str::parse("1000000000000000000000000000").unwrap()); // 10^27
+pub static MXRB_RATIO: Lazy<u128> =
+    Lazy::new(|| str::parse("1000000000000000000000000000000").unwrap()); // 10^30
 pub static GXRB_RATIO: Lazy<u128> =
     Lazy::new(|| str::parse("1000000000000000000000000000000000").unwrap()); // 10^33
+
+#[derive(Default)]
+pub struct EndpointKey {
+    /// The ipv6 address in network byte order
+    address: [u8; 16],
+
+    /// The port in host byte order
+    port: u16,
+}
+
+impl EndpointKey {
+    /// address in network byte order, port in host byte order
+    pub fn new(address: [u8; 16], port: u16) -> Self {
+        Self { address, port }
+    }
+}
+
+impl Serialize for EndpointKey {
+    fn serialized_size() -> usize {
+        18
+    }
+
+    fn serialize(&self, stream: &mut dyn Stream) -> anyhow::Result<()> {
+        stream.write_bytes(&self.address)?;
+        stream.write_bytes(&self.port.to_be_bytes())
+    }
+}
+
+impl Deserialize for EndpointKey {
+    type Target = Self;
+    fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<EndpointKey> {
+        let mut result = EndpointKey {
+            address: Default::default(),
+            port: 0,
+        };
+        stream.read_bytes(&mut result.address, 16)?;
+        let mut buffer = [0; 2];
+        stream.read_bytes(&mut buffer, 2)?;
+        result.port = u16::from_be_bytes(buffer);
+        Ok(result)
+    }
+}
+
+pub struct NoValue {}
+
+impl Serialize for NoValue {
+    fn serialized_size() -> usize {
+        0
+    }
+
+    fn serialize(&self, _stream: &mut dyn Stream) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+impl Deserialize for NoValue {
+    type Target = Self;
+    fn deserialize(_stream: &mut dyn Stream) -> anyhow::Result<NoValue> {
+        Ok(NoValue {})
+    }
+}
+
+#[derive(Default, PartialEq, Eq)]
+pub struct PendingKey {
+    pub account: Account,
+    pub hash: BlockHash,
+}
+
+impl PendingKey {
+    pub fn new(account: Account, hash: BlockHash) -> Self {
+        Self { account, hash }
+    }
+
+    pub fn to_bytes(&self) -> [u8; 64] {
+        let mut result = [0; 64];
+        result[..32].copy_from_slice(self.account.as_bytes());
+        result[32..].copy_from_slice(self.hash.as_bytes());
+        result
+    }
+}
+
+impl Serialize for PendingKey {
+    fn serialized_size() -> usize {
+        Account::serialized_size() + BlockHash::serialized_size()
+    }
+
+    fn serialize(&self, stream: &mut dyn Stream) -> anyhow::Result<()> {
+        self.account.serialize(stream)?;
+        self.hash.serialize(stream)
+    }
+}
+
+impl Deserialize for PendingKey {
+    type Target = Self;
+
+    fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Self::Target> {
+        let account = Account::deserialize(stream)?;
+        let hash = BlockHash::deserialize(stream)?;
+        Ok(Self { account, hash })
+    }
+}
+
+pub struct PendingInfo {
+    pub source: Account,
+    pub amount: Amount,
+    pub epoch: Epoch,
+}
+
+impl Default for PendingInfo {
+    fn default() -> Self {
+        Self {
+            source: Default::default(),
+            amount: Default::default(),
+            epoch: Epoch::Epoch0,
+        }
+    }
+}
+
+impl PendingInfo {
+    pub fn new(source: Account, amount: Amount, epoch: Epoch) -> Self {
+        Self {
+            source,
+            amount,
+            epoch,
+        }
+    }
+
+    pub fn to_bytes(&self) -> [u8; 49] {
+        let mut bytes = [0; 49];
+        bytes[..32].copy_from_slice(self.source.as_bytes());
+        bytes[32..48].copy_from_slice(&self.amount.to_be_bytes());
+        bytes[48] = self.epoch as u8;
+        bytes
+    }
+}
+
+impl Serialize for PendingInfo {
+    fn serialized_size() -> usize {
+        Account::serialized_size() + Amount::serialized_size() + size_of::<u8>()
+    }
+
+    fn serialize(&self, stream: &mut dyn Stream) -> anyhow::Result<()> {
+        self.source.serialize(stream)?;
+        self.amount.serialize(stream)?;
+        stream.write_u8(self.epoch as u8)
+    }
+}
+
+impl Deserialize for PendingInfo {
+    type Target = Self;
+
+    fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Self::Target> {
+        let source = Account::deserialize(stream)?;
+        let amount = Amount::deserialize(stream)?;
+        let epoch =
+            FromPrimitive::from_u8(stream.read_u8()?).ok_or_else(|| anyhow!("invalid epoch"))?;
+        Ok(Self {
+            source,
+            amount,
+            epoch,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -640,5 +886,27 @@ mod tests {
         let signature = sign_message(&keypair.private_key(), &keypair.public_key(), &data)?;
         validate_message(&keypair.public_key(), &data, &signature)?;
         Ok(())
+    }
+
+    #[test]
+    fn signing_same_message_twice_produces_equal_signatures() -> Result<()> {
+        // the C++ implementation adds random bytes and a padding when signing for extra security and for making side channel attacks more difficult.
+        // Currently the Rust impl does not do that.
+        // In C++ signing the same message twice will produce different signatures. In Rust we get the same signature.
+        let keypair = KeyPair::new();
+        let data = [1, 2, 3];
+        let signature_a = sign_message(&keypair.private_key(), &keypair.public_key(), &data)?;
+        let signature_b = sign_message(&keypair.private_key(), &keypair.public_key(), &data)?;
+        assert_eq!(signature_a, signature_b);
+        Ok(())
+    }
+}
+
+impl QualifiedRoot {
+    pub fn to_bytes(&self) -> [u8; 64] {
+        let mut result = [0; 64];
+        result[..32].copy_from_slice(self.root.as_bytes());
+        result[32..].copy_from_slice(self.previous.as_bytes());
+        result
     }
 }

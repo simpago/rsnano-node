@@ -1,14 +1,27 @@
+use std::{ffi::c_void, ops::Deref};
+
 use num::FromPrimitive;
 
-use crate::{Account, UncheckedInfo};
+use crate::{
+    utils::{Deserialize, Serialize},
+    Account, UncheckedInfo,
+};
 
-use super::BlockHandle;
+use super::{BlockHandle, FfiStream};
 
 pub struct UncheckedInfoHandle(UncheckedInfo);
 
 impl UncheckedInfoHandle {
     pub(crate) fn new(info: UncheckedInfo) -> Self {
         Self(info)
+    }
+}
+
+impl Deref for UncheckedInfoHandle {
+    type Target = UncheckedInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -54,24 +67,8 @@ pub unsafe extern "C" fn rsn_unchecked_info_block(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_unchecked_info_block_set(
-    handle: *mut UncheckedInfoHandle,
-    block: *mut BlockHandle,
-) {
-    (*handle).0.block = Some((*block).block.clone());
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn rsn_unchecked_info_modified(handle: *const UncheckedInfoHandle) -> u64 {
     (*handle).0.modified
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_unchecked_info_modified_set(
-    handle: *mut UncheckedInfoHandle,
-    modified: u64,
-) {
-    (*handle).0.modified = modified;
 }
 
 #[no_mangle]
@@ -80,16 +77,6 @@ pub unsafe extern "C" fn rsn_unchecked_info_account(
     result: *mut u8,
 ) {
     std::slice::from_raw_parts_mut(result, 32).copy_from_slice((*handle).0.account.as_bytes());
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_unchecked_info_account_set(
-    handle: *mut UncheckedInfoHandle,
-    account: *const u8,
-) {
-    let mut bytes = [0; 32];
-    bytes.copy_from_slice(std::slice::from_raw_parts(account, 32));
-    (*handle).0.account = Account::from_bytes(bytes);
 }
 
 #[no_mangle]
@@ -103,4 +90,28 @@ pub unsafe extern "C" fn rsn_unchecked_info_verified_set(
     verified: u8,
 ) {
     (*handle).0.verified = FromPrimitive::from_u8(verified).unwrap();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_unchecked_info_serialize(
+    handle: *mut UncheckedInfoHandle,
+    stream: *mut c_void,
+) -> bool {
+    let mut stream = FfiStream::new(stream);
+    (*handle).0.serialize(&mut stream).is_ok()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_unchecked_info_deserialize(
+    handle: *mut UncheckedInfoHandle,
+    stream: *mut c_void,
+) -> bool {
+    let mut stream = FfiStream::new(stream);
+    match UncheckedInfo::deserialize(&mut stream) {
+        Ok(info) => {
+            (*handle).0 = info;
+            true
+        }
+        Err(_) => false,
+    }
 }

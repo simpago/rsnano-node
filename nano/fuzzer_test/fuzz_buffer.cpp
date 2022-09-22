@@ -13,7 +13,7 @@ void force_nano_dev_network ();
 }
 namespace
 {
-std::shared_ptr<nano::system> system0;
+std::shared_ptr<nano::test::system> system0;
 std::shared_ptr<nano::node> node0;
 
 class fuzz_visitor : public nano::message_visitor
@@ -63,12 +63,12 @@ void fuzz_message_parser (uint8_t const * Data, size_t Size)
 	{
 		nano::force_nano_dev_network ();
 		initialized = true;
-		system0 = std::make_shared<nano::system> (1);
+		system0 = std::make_shared<nano::test::system> (1);
 		node0 = system0->nodes[0];
 	}
 
 	fuzz_visitor visitor;
-	nano::message_parser parser (node0->network.publish_filter, node0->block_uniquer, node0->vote_uniquer, visitor, node0->work);
+	nano::message_parser parser (*node0->network.publish_filter, node0->block_uniquer, node0->vote_uniquer, visitor, node0->work);
 	parser.deserialize_buffer (Data, Size);
 }
 

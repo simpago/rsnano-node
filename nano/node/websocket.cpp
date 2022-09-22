@@ -1,6 +1,7 @@
 #include <nano/boost/asio/bind_executor.hpp>
 #include <nano/boost/asio/dispatch.hpp>
 #include <nano/boost/asio/strand.hpp>
+#include <nano/lib/rsnanoutils.hpp>
 #include <nano/lib/tlsconfig.hpp>
 #include <nano/lib/work.hpp>
 #include <nano/node/transport/transport.hpp>
@@ -123,7 +124,7 @@ bool nano::websocket::confirmation_options::should_filter (nano::websocket::mess
 			(void)decode_source_ok_l;
 			(void)decode_destination_ok_l;
 			debug_assert (decode_source_ok_l && decode_destination_ok_l);
-			if (wallets.exists (transaction_l, source_l) || wallets.exists (transaction_l, destination_l))
+			if (wallets.exists (*transaction_l, source_l) || wallets.exists (*transaction_l, destination_l))
 			{
 				should_filter_account = false;
 			}
@@ -377,9 +378,7 @@ std::string from_topic (nano::websocket::topic topic_a)
 {
 	rsnano::StringDto result;
 	rsnano::rsn_from_topic (static_cast<uint8_t> (topic_a), &result);
-	std::string topic_str (result.value);
-	rsnano::rsn_string_destroy (result.handle);
-	return topic_str;
+	return rsnano::convert_dto_to_string (result);
 }
 }
 
@@ -631,6 +630,18 @@ nano::websocket::message dto_to_message (rsnano::MessageDto & message_dto)
 	nano::websocket::message message_l (static_cast<nano::websocket::topic> (message_dto.topic));
 	message_l.contents = *ptree;
 	delete ptree;
+	return message_l;
+}
+
+nano::websocket::message nano::websocket::message_builder::started_election (nano::block_hash const & hash_a)
+{
+	nano::websocket::message message_l (nano::websocket::topic::started_election);
+	set_common_fields (message_l);
+
+	boost::property_tree::ptree message_node_l;
+	message_node_l.add ("hash", hash_a.to_string ());
+	message_l.contents.add_child ("message", message_node_l);
+
 	return message_l;
 }
 

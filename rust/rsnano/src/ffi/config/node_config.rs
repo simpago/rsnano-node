@@ -16,7 +16,6 @@ use crate::{
 use super::{
     fill_logging_dto, fill_txn_tracking_config_dto, fill_websocket_config_dto,
     lmdb_config::{fill_lmdb_config_dto, LmdbConfigDto},
-    rocksdb_config::{fill_rocksdb_config_dto, RocksDbConfigDto},
     LoggingDto, TxnTrackingConfigDto,
 };
 
@@ -37,6 +36,7 @@ pub struct NodeConfigDto {
     pub bootstrap_connections: u32,
     pub bootstrap_connections_max: u32,
     pub bootstrap_initiator_threads: u32,
+    pub bootstrap_serving_threads: u32,
     pub bootstrap_frontier_request_count: u32,
     pub block_processor_batch_max_time_ms: i64,
     pub allow_local_peers: bool,
@@ -53,6 +53,7 @@ pub struct NodeConfigDto {
     pub use_memory_pools: bool,
     pub confirmation_history_size: usize,
     pub active_elections_size: usize,
+    pub active_elections_hinted_limit_percentage: usize,
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
     pub conf_height_processor_batch_min_time_ms: i64,
@@ -81,7 +82,6 @@ pub struct NodeConfigDto {
     pub ipc_config: IpcConfigDto,
     pub diagnostics_config: TxnTrackingConfigDto,
     pub stat_config: StatConfigDto,
-    pub rocksdb_config: RocksDbConfigDto,
     pub lmdb_config: LmdbConfigDto,
 }
 
@@ -132,6 +132,7 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.bootstrap_connections = cfg.bootstrap_connections;
     dto.bootstrap_connections_max = cfg.bootstrap_connections_max;
     dto.bootstrap_initiator_threads = cfg.bootstrap_initiator_threads;
+    dto.bootstrap_serving_threads = cfg.bootstrap_serving_threads;
     dto.bootstrap_frontier_request_count = cfg.bootstrap_frontier_request_count;
     dto.block_processor_batch_max_time_ms = cfg.block_processor_batch_max_time_ms;
     dto.allow_local_peers = cfg.allow_local_peers;
@@ -149,6 +150,7 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.use_memory_pools = cfg.use_memory_pools;
     dto.confirmation_history_size = cfg.confirmation_history_size;
     dto.active_elections_size = cfg.active_elections_size;
+    dto.active_elections_hinted_limit_percentage = cfg.active_elections_hinted_limit_percentage;
     dto.bandwidth_limit = cfg.bandwidth_limit;
     dto.bandwidth_limit_burst_ratio = cfg.bandwidth_limit_burst_ratio;
     dto.conf_height_processor_batch_min_time_ms = cfg.conf_height_processor_batch_min_time_ms;
@@ -198,7 +200,6 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
         &cfg.diagnostics_config.txn_tracking,
     );
     fill_stat_config_dto(&mut dto.stat_config, &cfg.stat_config);
-    fill_rocksdb_config_dto(&mut dto.rocksdb_config, &cfg.rocksdb_config);
     fill_lmdb_config_dto(&mut dto.lmdb_config, &cfg.lmdb_config);
 }
 
@@ -265,6 +266,7 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             bootstrap_connections: value.bootstrap_connections,
             bootstrap_connections_max: value.bootstrap_connections_max,
             bootstrap_initiator_threads: value.bootstrap_initiator_threads,
+            bootstrap_serving_threads: value.bootstrap_serving_threads,
             bootstrap_frontier_request_count: value.bootstrap_frontier_request_count,
             block_processor_batch_max_time_ms: value.block_processor_batch_max_time_ms,
             allow_local_peers: value.allow_local_peers,
@@ -283,6 +285,8 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             use_memory_pools: value.use_memory_pools,
             confirmation_history_size: value.confirmation_history_size,
             active_elections_size: value.active_elections_size,
+            active_elections_hinted_limit_percentage: value
+                .active_elections_hinted_limit_percentage,
             bandwidth_limit: value.bandwidth_limit,
             bandwidth_limit_burst_ratio: value.bandwidth_limit_burst_ratio,
             conf_height_processor_batch_min_time_ms: value.conf_height_processor_batch_min_time_ms,
@@ -312,7 +316,6 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             ipc_config: (&value.ipc_config).try_into()?,
             diagnostics_config: (&value.diagnostics_config).into(),
             stat_config: (&value.stat_config).into(),
-            rocksdb_config: (&value.rocksdb_config).into(),
             lmdb_config: (&value.lmdb_config).into(),
         };
 

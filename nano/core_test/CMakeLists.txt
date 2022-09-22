@@ -24,7 +24,6 @@ add_executable(
   ledger_walker.cpp
   locks.cpp
   logger.cpp
-  message.cpp
   message_parser.cpp
   memory_pool.cpp
   network.cpp
@@ -43,6 +42,7 @@ add_executable(
   uint256_union.cpp
   unchecked_map.cpp
   utility.cpp
+  vote_cache.cpp
   vote_processor.cpp
   voting.cpp
   wallet.cpp

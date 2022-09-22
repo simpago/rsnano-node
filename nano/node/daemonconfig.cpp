@@ -13,7 +13,7 @@ nano::daemon_config::daemon_config (boost::filesystem::path const & data_path_a,
 {
 	rsnano::DaemonConfigDto dto;
 	auto network_dto{ network_params.to_dto () };
-	if (rsnano::rsn_daemon_config_create (&dto, &network_dto) < 0)
+	if (rsnano::rsn_daemon_config_create (&dto, &network_dto.dto) < 0)
 		throw std::runtime_error ("could not create daemon_config");
 	rpc_enable = dto.rpc_enable;
 	node.load_dto (dto.node);

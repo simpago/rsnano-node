@@ -2,12 +2,13 @@ use anyhow::Result;
 use std::{sync::RwLock, time::Duration};
 
 use crate::{
-    sign_message, validate_message, Account, BlockHash, BlockHashBuilder, FullHash,
-    PropertyTreeWriter, RawKey, Signature, Stream,
+    sign_message,
+    utils::{Deserialize, PropertyTreeWriter, Serialize, Stream},
+    validate_message, Account, BlockHash, BlockHashBuilder, FullHash, RawKey, Signature,
 };
 
 #[derive(Clone)]
-pub(crate) struct Vote {
+pub struct Vote {
     pub timestamp: u64,
 
     // Account that's voting
@@ -110,7 +111,7 @@ impl Vote {
         builder.update(self.timestamp.to_ne_bytes()).build()
     }
 
-    pub(crate) fn serialize(&self, stream: &mut impl Stream) -> Result<()> {
+    pub(crate) fn serialize(&self, stream: &mut dyn Stream) -> Result<()> {
         self.voting_account.serialize(stream)?;
         self.signature.serialize(stream)?;
         stream.write_bytes(&self.timestamp.to_le_bytes())?;
@@ -139,6 +140,13 @@ impl Vote {
             self.hash().as_bytes(),
             &self.signature,
         )
+    }
+
+    pub fn serialized_size(count: usize) -> usize {
+        Account::serialized_size()
+        + Signature::serialized_size()
+        + std::mem::size_of::<u64>() // timestamp
+        + (BlockHash::serialized_size() * count)
     }
 }
 

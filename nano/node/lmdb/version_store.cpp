@@ -1,28 +1,33 @@
 #include <nano/node/lmdb/lmdb.hpp>
 #include <nano/node/lmdb/version_store.hpp>
 
-nano::lmdb::version_store::version_store (nano::lmdb::store & store_a) :
-	store{ store_a } {};
+nano::lmdb::version_store::version_store (rsnano::LmdbVersionStoreHandle * handle_a) :
+	handle{ handle_a }
+{
+}
+
+nano::lmdb::version_store::~version_store ()
+{
+	if (handle != nullptr)
+		rsnano::rsn_lmdb_version_store_destroy (handle);
+}
+
+bool nano::lmdb::version_store::open_db (nano::transaction const & txn, uint32_t flags)
+{
+	return !rsnano::rsn_lmdb_version_store_open_db (handle, txn.get_rust_handle (), flags);
+}
 
 void nano::lmdb::version_store::put (nano::write_transaction const & transaction_a, int version)
 {
-	nano::uint256_union version_key{ 1 };
-	nano::uint256_union version_value (version);
-	auto status = store.put (transaction_a, tables::meta, version_key, version_value);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_version_store_put (handle, transaction_a.get_rust_handle (), version);
 }
 
 int nano::lmdb::version_store::get (nano::transaction const & transaction_a) const
 {
-	nano::uint256_union version_key{ 1 };
-	nano::mdb_val data;
-	auto status = store.get (transaction_a, tables::meta, version_key, data);
-	int result = store.version_minimum;
-	if (store.success (status))
-	{
-		nano::uint256_union version_value{ data };
-		debug_assert (version_value.qwords[2] == 0 && version_value.qwords[1] == 0 && version_value.qwords[0] == 0);
-		result = version_value.number ().convert_to<int> ();
-	}
-	return result;
+	return rsnano::rsn_lmdb_version_store_get (handle, transaction_a.get_rust_handle ());
+}
+
+MDB_dbi nano::lmdb::version_store::table_handle () const
+{
+	return rsnano::rsn_lmdb_version_store_table_handle (handle);
 }

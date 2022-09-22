@@ -13,7 +13,7 @@ using namespace std::chrono_literals;
 
 TEST (ledger_walker, genesis_block)
 {
-	nano::system system{};
+	nano::test::system system{};
 	auto const node = system.add_node ();
 
 	nano::ledger_walker ledger_walker{ node->ledger };
@@ -41,8 +41,8 @@ namespace nano
 {
 TEST (ledger_walker, genesis_account_longer)
 {
-	nano::system system{};
-	nano::node_config node_config (nano::get_available_port (), system.logging);
+	nano::test::system system{};
+	nano::node_config node_config (nano::test::get_available_port (), system.logging);
 	node_config.enable_voting = true;
 	node_config.receive_minimum = 1;
 
@@ -65,9 +65,9 @@ TEST (ledger_walker, genesis_account_longer)
 
 	auto const transaction = node->ledger.store.tx_begin_read ();
 	nano::account_info genesis_account_info{};
-	ASSERT_FALSE (node->ledger.store.account.get (transaction, nano::dev::genesis_key.pub, genesis_account_info));
-	EXPECT_EQ (get_number_of_walked_blocks (genesis_account_info.open_block), 1);
-	EXPECT_EQ (get_number_of_walked_blocks (genesis_account_info.head), 1);
+	ASSERT_FALSE (node->ledger.store.account ().get (*transaction, nano::dev::genesis_key.pub, genesis_account_info));
+	EXPECT_EQ (get_number_of_walked_blocks (genesis_account_info.open_block ()), 1);
+	EXPECT_EQ (get_number_of_walked_blocks (genesis_account_info.head ()), 1);
 
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	for (auto itr = 1; itr <= 5; ++itr)
@@ -76,7 +76,7 @@ TEST (ledger_walker, genesis_account_longer)
 		ASSERT_TRUE (send);
 		EXPECT_EQ (get_number_of_walked_blocks (send->hash ()), 1 + itr * 2 - 1);
 		ASSERT_TIMELY (3s, 1 + itr * 2 == node->ledger.cache.cemented_count);
-		ASSERT_FALSE (node->ledger.store.account.get (transaction, nano::dev::genesis_key.pub, genesis_account_info));
+		ASSERT_FALSE (node->ledger.store.account ().get (*transaction, nano::dev::genesis_key.pub, genesis_account_info));
 		// TODO: check issue with account head
 		// EXPECT_EQ(get_number_of_walked_blocks (genesis_account_info.head), 1 + itr * 2);
 	}
@@ -90,8 +90,8 @@ TEST (ledger_walker, genesis_account_longer)
 
 TEST (ledger_walker, cross_account)
 {
-	nano::system system{};
-	nano::node_config node_config (nano::get_available_port (), system.logging);
+	nano::test::system system{};
+	nano::node_config node_config (nano::test::get_available_port (), system.logging);
 	node_config.enable_voting = true;
 	node_config.receive_minimum = 1;
 
@@ -108,14 +108,14 @@ TEST (ledger_walker, cross_account)
 
 	auto const transaction = node->ledger.store.tx_begin_read ();
 	nano::account_info account_info{};
-	ASSERT_FALSE (node->ledger.store.account.get (transaction, key.pub, account_info));
+	ASSERT_FALSE (node->ledger.store.account ().get (*transaction, key.pub, account_info));
 
 	//    TODO: check issue with account head
-	//    auto const first = node->ledger.store.block.get_no_sideband(transaction, account_info.head);
-	//    auto const second = node->ledger.store.block.get_no_sideband(transaction, first->previous());
-	//    auto const third = node->ledger.store.block.get_no_sideband(transaction, second->previous());
-	//    auto const fourth = node->ledger.store.block.get_no_sideband(transaction, third->previous());
-	//    auto const fifth = node->ledger.store.block.get_no_sideband(transaction, fourth->previous());
+	//    auto const first = node->ledger.store.block ().get_no_sideband(transaction, account_info.head);
+	//    auto const second = node->ledger.store.block ().get_no_sideband(transaction, first->previous());
+	//    auto const third = node->ledger.store.block ().get_no_sideband(transaction, second->previous());
+	//    auto const fourth = node->ledger.store.block ().get_no_sideband(transaction, third->previous());
+	//    auto const fifth = node->ledger.store.block ().get_no_sideband(transaction, fourth->previous());
 	//
 	//    auto const expected_blocks_to_walk = { first, second, third, fourth, fifth };
 	//    auto expected_blocks_to_walk_itr = expected_blocks_to_walk.begin();
@@ -140,9 +140,9 @@ TEST (ledger_walker, cross_account)
 // Issue for investigating it: https://github.com/nanocurrency/nano-node/issues/3603
 TEST (ledger_walker, DISABLED_ladder_geometry)
 {
-	nano::system system{};
+	nano::test::system system{};
 
-	nano::node_config node_config (nano::get_available_port (), system.logging);
+	nano::node_config node_config (nano::test::get_available_port (), system.logging);
 	node_config.enable_voting = true;
 	node_config.receive_minimum = 1;
 
@@ -175,8 +175,11 @@ TEST (ledger_walker, DISABLED_ladder_geometry)
 
 	ASSERT_TRUE (last_destination);
 	nano::account_info last_destination_info{};
-	auto const last_destination_read_error = node->ledger.store.account.get (node->ledger.store.tx_begin_read (), *last_destination, last_destination_info);
-	ASSERT_FALSE (last_destination_read_error);
+	{
+		auto tx{ node->ledger.store.tx_begin_read () };
+		auto const last_destination_read_error = node->ledger.store.account ().get (*tx, *last_destination, last_destination_info);
+		ASSERT_FALSE (last_destination_read_error);
+	}
 
 	// This is how we expect chains to look like (for 3 accounts and 10 amounts to be sent)
 	// k1: 1000     SEND     3     SEND     6     SEND     9     SEND
@@ -187,14 +190,15 @@ TEST (ledger_walker, DISABLED_ladder_geometry)
 	auto amounts_expected_backwards_itr = amounts_expected_backwards.cbegin ();
 
 	nano::ledger_walker ledger_walker{ node->ledger };
-	ledger_walker.walk_backward (last_destination_info.head,
+	ledger_walker.walk_backward (last_destination_info.head (),
 	[&] (auto const & block) {
 		if (block->sideband ().details ().is_receive ())
 		{
 			nano::amount previous_balance{};
 			if (!block->previous ().is_zero ())
 			{
-				auto const previous_block = node->ledger.store.block.get_no_sideband (node->ledger.store.tx_begin_read (), block->previous ());
+				auto tx{ node->ledger.store.tx_begin_read () };
+				auto const previous_block = node->ledger.store.block ().get_no_sideband (*tx, block->previous ());
 				previous_balance = previous_block->balance ();
 			}
 
@@ -206,14 +210,15 @@ TEST (ledger_walker, DISABLED_ladder_geometry)
 
 	auto amounts_expected_itr = amounts_expected_backwards.crbegin ();
 
-	ledger_walker.walk (last_destination_info.head,
+	ledger_walker.walk (last_destination_info.head (),
 	[&] (auto const & block) {
 		if (block->sideband ().details ().is_receive ())
 		{
 			nano::amount previous_balance{};
 			if (!block->previous ().is_zero ())
 			{
-				auto const previous_block = node->ledger.store.block.get_no_sideband (node->ledger.store.tx_begin_read (), block->previous ());
+				auto tx{ node->ledger.store.tx_begin_read () };
+				auto const previous_block = node->ledger.store.block ().get_no_sideband (*tx, block->previous ());
 				previous_balance = previous_block->balance ();
 			}
 

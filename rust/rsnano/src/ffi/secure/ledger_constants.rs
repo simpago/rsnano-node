@@ -62,26 +62,28 @@ pub unsafe extern "C" fn rsn_ledger_constants_create(
         Err(_) => return -1,
     };
 
-    fill_ledger_constants_dto(&mut (*dto), ledger);
+    fill_ledger_constants_dto(&mut (*dto), &ledger);
     0
 }
 
-fn block_to_block_handle(block: Arc<RwLock<BlockEnum>>) -> *mut BlockHandle {
-    Box::into_raw(Box::new(BlockHandle { block }))
+fn block_to_block_handle(block: &Arc<RwLock<BlockEnum>>) -> *mut BlockHandle {
+    Box::into_raw(Box::new(BlockHandle {
+        block: Arc::clone(block),
+    }))
 }
 
-pub fn fill_ledger_constants_dto(dto: &mut LedgerConstantsDto, ledger: LedgerConstants) {
+pub fn fill_ledger_constants_dto(dto: &mut LedgerConstantsDto, ledger: &LedgerConstants) {
     fill_work_thresholds_dto(&mut dto.work, &ledger.work);
     dto.pub_key = ledger.zero_key.public_key().to_be_bytes();
     dto.priv_key = *ledger.zero_key.private_key().as_bytes();
     dto.nano_beta_account = ledger.nano_beta_account.to_bytes();
     dto.nano_live_account = ledger.nano_live_account.to_bytes();
     dto.nano_test_account = ledger.nano_test_account.to_bytes();
-    dto.nano_dev_genesis = block_to_block_handle(ledger.nano_dev_genesis);
-    dto.nano_beta_genesis = block_to_block_handle(ledger.nano_beta_genesis);
-    dto.nano_live_genesis = block_to_block_handle(ledger.nano_live_genesis);
-    dto.nano_test_genesis = block_to_block_handle(ledger.nano_test_genesis);
-    dto.genesis = block_to_block_handle(ledger.genesis);
+    dto.nano_dev_genesis = block_to_block_handle(&ledger.nano_dev_genesis);
+    dto.nano_beta_genesis = block_to_block_handle(&ledger.nano_beta_genesis);
+    dto.nano_live_genesis = block_to_block_handle(&ledger.nano_live_genesis);
+    dto.nano_test_genesis = block_to_block_handle(&ledger.nano_test_genesis);
+    dto.genesis = block_to_block_handle(&ledger.genesis);
     dto.genesis_amount = ledger.genesis_amount.to_be_bytes();
     dto.burn_account = ledger.burn_account.to_bytes();
     dto.nano_dev_final_votes_canary_account = ledger.nano_dev_final_votes_canary_account.to_bytes();

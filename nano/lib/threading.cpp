@@ -72,6 +72,9 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 		case nano::thread_role::name::worker:
 			thread_role_name_string = "Worker";
 			break;
+		case nano::thread_role::name::bootstrap_worker:
+			thread_role_name_string = "Bootstrap work";
+			break;
 		case nano::thread_role::name::request_aggregator:
 			thread_role_name_string = "Req aggregator";
 			break;
@@ -86,6 +89,12 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 			break;
 		case nano::thread_role::name::unchecked:
 			thread_role_name_string = "Unchecked";
+			break;
+		case nano::thread_role::name::backlog_population:
+			thread_role_name_string = "Backlog";
+			break;
+		case nano::thread_role::name::election_hinting:
+			thread_role_name_string = "Hinting";
 			break;
 		default:
 			debug_assert (false && "nano::thread_role::get_string unhandled thread role");
@@ -295,4 +304,16 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (th
 	auto composite = std::make_unique<container_info_composite> (name);
 	composite->add_component (std::make_unique<container_info_leaf> (container_info{ "count", thread_pool.num_queued_tasks (), sizeof (std::function<void ()>) }));
 	return composite;
+}
+
+unsigned int nano::hardware_concurrency ()
+{
+	// Try to read overridden value from environment variable
+	static int value = nano::get_env_int_or_default ("NANO_HARDWARE_CONCURRENCY", 0);
+	if (value <= 0)
+	{
+		// Not present or invalid, use default
+		return std::thread::hardware_concurrency ();
+	}
+	return value;
 }

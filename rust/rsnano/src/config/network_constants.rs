@@ -1,6 +1,6 @@
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
+use std::{sync::Mutex, time::Duration};
 
 use super::{Networks, WorkThresholds};
 
@@ -38,97 +38,83 @@ pub struct NetworkConstants {
 }
 
 impl NetworkConstants {
+    pub fn empty() -> Self {
+        Self::new(WorkThresholds::publish_dev().clone(), Networks::Invalid)
+    }
+
     pub fn new(work: WorkThresholds, network: Networks) -> Self {
-        let cleanup_period_s = if network == Networks::NanoDevNetwork {
-            1
-        } else {
-            60
-        };
-        let max_peers_per_ip = if network == Networks::NanoDevNetwork {
-            20
-        } else {
-            10
-        };
+        match network {
+            Networks::NanoDevNetwork => Self::dev(work),
+            Networks::NanoBetaNetwork => Self::beta(work),
+            Networks::NanoLiveNetwork | Networks::Invalid => Self::live(work),
+            Networks::NanoTestNetwork => Self::test(work),
+        }
+    }
+
+    fn live(work: WorkThresholds) -> Self {
+        let cleanup_period_s = 60;
+        let max_peers_per_ip = 10;
         Self {
             work,
-            current_network: network,
-            protocol_version: 0x12,
+            current_network: Networks::NanoLiveNetwork,
+            protocol_version: 0x13,
             protocol_version_min: 0x12,
             principal_weight_factor: 1000, // 0.1%
-            default_node_port: Self::get_default_node_port(network),
-            default_rpc_port: Self::get_default_rpc_port(network),
-            default_ipc_port: Self::get_default_ipc_port(network),
-            default_websocket_port: Self::get_default_websocket_port(network),
-            request_interval_ms: if network == Networks::NanoDevNetwork {
-                20
-            } else {
-                500
-            },
+            default_node_port: 7075,
+            default_rpc_port: 7076,
+            default_ipc_port: 7077,
+            default_websocket_port: 7078,
+            request_interval_ms: 500,
             cleanup_period_s,
-            idle_timeout_s: if network == Networks::NanoDevNetwork {
-                cleanup_period_s * 15
-            } else {
-                cleanup_period_s * 2
-            },
+            idle_timeout_s: cleanup_period_s * 2,
             sync_cookie_cutoff_s: 5,
             bootstrap_interval_s: 15 * 60,
             max_peers_per_ip,
             max_peers_per_subnetwork: max_peers_per_ip * 4,
-            peer_dump_interval_s: if network == Networks::NanoDevNetwork {
-                1
-            } else {
-                5 * 60
-            },
+            peer_dump_interval_s: 5 * 60,
             ipv6_subnetwork_prefix_for_limiting: 64,
             silent_connection_tolerance_time_s: 120,
         }
     }
 
-    fn get_default_node_port(network: Networks) -> u16 {
-        if network == Networks::NanoLiveNetwork {
-            7075
-        } else if network == Networks::NanoBetaNetwork {
-            54000
-        } else if network == Networks::NanoTestNetwork {
-            test_node_port()
-        } else {
-            44000
+    fn beta(work: WorkThresholds) -> Self {
+        Self {
+            current_network: Networks::NanoBetaNetwork,
+            default_node_port: 54000,
+            default_rpc_port: 55000,
+            default_ipc_port: 56000,
+            default_websocket_port: 57000,
+            ..Self::live(work)
         }
     }
 
-    fn get_default_rpc_port(network: Networks) -> u16 {
-        if network == Networks::NanoLiveNetwork {
-            7076
-        } else if network == Networks::NanoBetaNetwork {
-            55000
-        } else if network == Networks::NanoTestNetwork {
-            test_rpc_port()
-        } else {
-            45000
+    fn test(work: WorkThresholds) -> Self {
+        Self {
+            current_network: Networks::NanoTestNetwork,
+            default_node_port: test_node_port(),
+            default_rpc_port: test_rpc_port(),
+            default_ipc_port: test_ipc_port(),
+            default_websocket_port: test_websocket_port(),
+            ..Self::live(work)
         }
     }
 
-    fn get_default_ipc_port(network: Networks) -> u16 {
-        if network == Networks::NanoLiveNetwork {
-            7077
-        } else if network == Networks::NanoBetaNetwork {
-            56000
-        } else if network == Networks::NanoTestNetwork {
-            test_ipc_port()
-        } else {
-            46000
-        }
-    }
-
-    fn get_default_websocket_port(network: Networks) -> u16 {
-        if network == Networks::NanoLiveNetwork {
-            7078
-        } else if network == Networks::NanoBetaNetwork {
-            57000
-        } else if network == Networks::NanoTestNetwork {
-            test_websocket_port()
-        } else {
-            47000
+    fn dev(work: WorkThresholds) -> Self {
+        let cleanup_period_s = 1;
+        let max_peers_per_ip = 20;
+        Self {
+            current_network: Networks::NanoDevNetwork,
+            default_node_port: 44000,
+            default_rpc_port: 45000,
+            default_ipc_port: 46000,
+            default_websocket_port: 47000,
+            request_interval_ms: 20,
+            cleanup_period_s,
+            idle_timeout_s: cleanup_period_s * 15,
+            max_peers_per_ip,
+            max_peers_per_subnetwork: max_peers_per_ip * 4,
+            peer_dump_interval_s: 1,
+            ..Self::live(work)
         }
     }
 
@@ -197,7 +183,6 @@ impl NetworkConstants {
         }
     }
 }
-
 fn get_env_or_default<T>(variable_name: &str, default: T) -> T
 where
     T: core::str::FromStr + Copy,
@@ -225,4 +210,29 @@ fn test_ipc_port() -> u16 {
 
 fn test_websocket_port() -> u16 {
     get_env_or_default("NANO_TEST_WEBSOCKET_PORT", 17078)
+}
+
+pub struct TelemetryCacheCutoffs {}
+
+impl TelemetryCacheCutoffs {
+    pub const DEV: Duration = Duration::from_secs(3);
+    pub const BETA: Duration = Duration::from_secs(15);
+    pub const LIVE: Duration = Duration::from_secs(60);
+
+    pub fn network_to_time(network: &NetworkConstants) -> Duration {
+        if network.is_live_network() || network.is_test_network() {
+            TelemetryCacheCutoffs::LIVE
+        } else if network.is_beta_network() {
+            TelemetryCacheCutoffs::BETA
+        } else {
+            TelemetryCacheCutoffs::DEV
+        }
+    }
+}
+
+#[derive(FromPrimitive, Clone, PartialEq, Eq, Copy)]
+pub enum ConfirmationHeightMode {
+    Automatic,
+    Unbounded,
+    Bounded,
 }

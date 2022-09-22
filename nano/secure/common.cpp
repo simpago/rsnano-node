@@ -1,6 +1,7 @@
 #include <nano/crypto_lib/random_pool.hpp>
 #include <nano/lib/config.hpp>
 #include <nano/lib/numbers.hpp>
+#include <nano/lib/rsnanoutils.hpp>
 #include <nano/lib/timer.hpp>
 #include <nano/secure/common.hpp>
 #include <nano/secure/store.hpp>
@@ -45,7 +46,19 @@ nano::network_params::network_params (nano::networks network_a) :
 	kdf_work = dto.kdf_work;
 }
 
-rsnano::NetworkParamsDto nano::network_params::to_dto () const
+nano::network_params::network_params (rsnano::NetworkParamsDto const & dto) :
+	kdf_work{ dto.kdf_work },
+	work{ dto.work },
+	network{ dto.network },
+	ledger{ dto.ledger },
+	voting{ dto.voting },
+	node{ dto.node },
+	portmapping{ dto.portmapping },
+	bootstrap{ dto.bootstrap }
+{
+}
+
+nano::NetworkParamsDtoWrapper nano::network_params::to_dto () const
 {
 	rsnano::NetworkParamsDto dto;
 	dto.kdf_work = kdf_work;
@@ -56,7 +69,7 @@ rsnano::NetworkParamsDto nano::network_params::to_dto () const
 	dto.node = node.to_dto ();
 	dto.portmapping = portmapping.to_dto ();
 	dto.bootstrap = bootstrap.to_dto ();
-	return dto;
+	return NetworkParamsDtoWrapper{ dto };
 }
 
 nano::ledger_constants::ledger_constants (nano::work_thresholds work_a, nano::networks network_a) :
@@ -64,7 +77,7 @@ nano::ledger_constants::ledger_constants (nano::work_thresholds work_a, nano::ne
 {
 	rsnano::LedgerConstantsDto dto;
 	if (rsnano::rsn_ledger_constants_create (&dto, &work_a.dto, static_cast<uint16_t> (network_a)) < 0)
-		throw std::runtime_error ("could not create ledger_constants");
+		throw std::runtime_error ("could not create ledger_constants.");
 	read_dto (dto);
 }
 
@@ -319,48 +332,68 @@ nano::keypair::keypair (nano::raw_key const & priv_key_a, nano::public_key const
 {
 }
 
+nano::keypair::keypair (const nano::keypair & other_a) :
+	prv{ other_a.prv },
+	pub{ other_a.pub }
+{
+}
+
 // Serialize a block prefixed with an 8-bit typecode
 void nano::serialize_block (nano::stream & stream_a, nano::block const & block_a)
 {
 	write (stream_a, block_a.type ());
 	block_a.serialize (stream_a);
 }
+nano::account_info::account_info () :
+	account_info (0, 0, 0, 0, 0, 0, nano::epoch::epoch_0)
+{
+}
 
 nano::account_info::account_info (nano::block_hash const & head_a, nano::account const & representative_a, nano::block_hash const & open_block_a, nano::amount const & balance_a, uint64_t modified_a, uint64_t block_count_a, nano::epoch epoch_a) :
-	head (head_a),
-	representative (representative_a),
-	open_block (open_block_a),
-	balance (balance_a),
-	modified (modified_a),
-	block_count (block_count_a),
-	epoch_m (epoch_a)
+	handle{ rsnano::rsn_account_info_create (head_a.bytes.data (), representative_a.bytes.data (), open_block_a.bytes.data (), balance_a.bytes.data (), modified_a, block_count_a, static_cast<uint8_t> (epoch_a)) }
 {
+}
+
+nano::account_info::account_info (nano::account_info const & other_a) :
+	handle{ rsnano::rsn_account_info_clone (other_a.handle) }
+{
+}
+
+nano::account_info::account_info (nano::account_info && other_a) :
+	handle{ other_a.handle }
+{
+	other_a.handle = nullptr;
+}
+
+nano::account_info::~account_info ()
+{
+	if (handle)
+		rsnano::rsn_account_info_destroy (handle);
+}
+
+nano::account_info & nano::account_info::operator= (nano::account_info const & other_a)
+{
+	if (handle)
+		rsnano::rsn_account_info_destroy (handle);
+	handle = rsnano::rsn_account_info_clone (other_a.handle);
+	return *this;
+}
+
+bool nano::account_info::serialize (nano::stream & stream_a) const
+{
+	bool success = rsnano::rsn_account_info_serialize (handle, &stream_a);
+	return !success;
 }
 
 bool nano::account_info::deserialize (nano::stream & stream_a)
 {
-	auto error (false);
-	try
-	{
-		nano::read (stream_a, head.bytes);
-		nano::read (stream_a, representative.bytes);
-		nano::read (stream_a, open_block.bytes);
-		nano::read (stream_a, balance.bytes);
-		nano::read (stream_a, modified);
-		nano::read (stream_a, block_count);
-		nano::read (stream_a, epoch_m);
-	}
-	catch (std::runtime_error const &)
-	{
-		error = true;
-	}
-
-	return error;
+	bool success = rsnano::rsn_account_info_deserialize (handle, &stream_a);
+	return !success;
 }
 
 bool nano::account_info::operator== (nano::account_info const & other_a) const
 {
-	return head == other_a.head && representative == other_a.representative && open_block == other_a.open_block && balance == other_a.balance && modified == other_a.modified && block_count == other_a.block_count && epoch () == other_a.epoch ();
+	return rsnano::rsn_account_info_equals (handle, other_a.handle);
 }
 
 bool nano::account_info::operator!= (nano::account_info const & other_a) const
@@ -370,19 +403,60 @@ bool nano::account_info::operator!= (nano::account_info const & other_a) const
 
 size_t nano::account_info::db_size () const
 {
-	debug_assert (reinterpret_cast<uint8_t const *> (this) == reinterpret_cast<uint8_t const *> (&head));
-	debug_assert (reinterpret_cast<uint8_t const *> (&head) + sizeof (head) == reinterpret_cast<uint8_t const *> (&representative));
-	debug_assert (reinterpret_cast<uint8_t const *> (&representative) + sizeof (representative) == reinterpret_cast<uint8_t const *> (&open_block));
-	debug_assert (reinterpret_cast<uint8_t const *> (&open_block) + sizeof (open_block) == reinterpret_cast<uint8_t const *> (&balance));
-	debug_assert (reinterpret_cast<uint8_t const *> (&balance) + sizeof (balance) == reinterpret_cast<uint8_t const *> (&modified));
-	debug_assert (reinterpret_cast<uint8_t const *> (&modified) + sizeof (modified) == reinterpret_cast<uint8_t const *> (&block_count));
-	debug_assert (reinterpret_cast<uint8_t const *> (&block_count) + sizeof (block_count) == reinterpret_cast<uint8_t const *> (&epoch_m));
-	return sizeof (head) + sizeof (representative) + sizeof (open_block) + sizeof (balance) + sizeof (modified) + sizeof (block_count) + sizeof (epoch_m);
+	return rsnano::rsn_account_info_db_size ();
 }
 
 nano::epoch nano::account_info::epoch () const
 {
-	return epoch_m;
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	return static_cast<nano::epoch> (dto.epoch);
+}
+nano::block_hash nano::account_info::head () const
+{
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	nano::block_hash head;
+	std::copy (std::begin (dto.head), std::end (dto.head), std::begin (head.bytes));
+	return head;
+}
+
+nano::account nano::account_info::representative () const
+{
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	nano::account representative;
+	std::copy (std::begin (dto.representative), std::end (dto.representative), std::begin (representative.bytes));
+	return representative;
+}
+
+nano::block_hash nano::account_info::open_block () const
+{
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	nano::block_hash open_block;
+	std::copy (std::begin (dto.open_block), std::end (dto.open_block), std::begin (open_block.bytes));
+	return open_block;
+}
+nano::amount nano::account_info::balance () const
+{
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	nano::amount balance;
+	std::copy (std::begin (dto.balance), std::end (dto.balance), std::begin (balance.bytes));
+	return balance;
+}
+uint64_t nano::account_info::modified () const
+{
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	return dto.modified;
+}
+uint64_t nano::account_info::block_count () const
+{
+	rsnano::AccountInfoDto dto;
+	rsnano::rsn_account_info_values (handle, &dto);
+	return dto.block_count;
 }
 
 nano::pending_info::pending_info (nano::account const & source_a, nano::amount const & amount_a, nano::epoch epoch_a) :
@@ -490,6 +564,9 @@ nano::unchecked_info::~unchecked_info ()
 
 nano::unchecked_info & nano::unchecked_info::operator= (const nano::unchecked_info & other_a)
 {
+	if (handle != nullptr)
+		rsnano::rsn_unchecked_info_destroy (handle);
+
 	handle = rsnano::rsn_unchecked_info_clone (other_a.handle);
 	return *this;
 }
@@ -519,40 +596,14 @@ void nano::unchecked_info::set_verified (nano::signature_verification verified)
 
 void nano::unchecked_info::serialize (nano::stream & stream_a) const
 {
-	auto modified = rsnano::rsn_unchecked_info_modified (handle);
-	auto block = get_block ();
-	auto acc = get_account ();
-	nano::serialize_block (stream_a, *block);
-	nano::write (stream_a, acc.bytes);
-	nano::write (stream_a, modified);
-	nano::write (stream_a, get_verified ());
+	if (!rsnano::rsn_unchecked_info_serialize (handle, &stream_a))
+		throw std::runtime_error ("could not serialize unchecked_info");
 }
 
 bool nano::unchecked_info::deserialize (nano::stream & stream_a)
 {
-	auto block = nano::deserialize_block (stream_a);
-	bool error (block == nullptr);
-	if (!error)
-	{
-		rsnano::rsn_unchecked_info_block_set (handle, block->get_handle ());
-		try
-		{
-			nano::account acc;
-			nano::read (stream_a, acc.bytes);
-			rsnano::rsn_unchecked_info_account_set (handle, acc.bytes.data ());
-			uint64_t modified;
-			nano::read (stream_a, modified);
-			rsnano::rsn_unchecked_info_modified_set (handle, modified);
-			nano::signature_verification v;
-			nano::read (stream_a, v);
-			rsnano::rsn_unchecked_info_verified_set (handle, static_cast<uint8_t> (v));
-		}
-		catch (std::runtime_error const &)
-		{
-			error = true;
-		}
-	}
-	return error;
+	auto success = rsnano::rsn_unchecked_info_deserialize (handle, &stream_a);
+	return !success;
 }
 
 uint64_t nano::unchecked_info::modified () const
@@ -575,31 +626,40 @@ uint16_t nano::endpoint_key::port () const
 	return boost::endian::big_to_native (network_port);
 }
 
-nano::confirmation_height_info::confirmation_height_info (uint64_t confirmation_height_a, nano::block_hash const & confirmed_frontier_a) :
-	height (confirmation_height_a),
-	frontier (confirmed_frontier_a)
+nano::confirmation_height_info::confirmation_height_info ()
 {
+	rsnano::rsn_confirmation_height_info_create (&dto);
+}
+
+uint64_t nano::confirmation_height_info::height () const
+{
+	return dto.height;
+}
+
+nano::block_hash nano::confirmation_height_info::frontier () const
+{
+	nano::block_hash hash;
+	std::copy (std::begin (dto.frontier), std::end (dto.frontier), std::begin (hash.bytes));
+	return hash;
+}
+
+nano::confirmation_height_info::confirmation_height_info (uint64_t confirmation_height_a, nano::block_hash const & confirmed_frontier_a)
+{
+	rsnano::rsn_confirmation_height_info_create2 (confirmation_height_a, confirmed_frontier_a.bytes.data (), &dto);
 }
 
 void nano::confirmation_height_info::serialize (nano::stream & stream_a) const
 {
-	nano::write (stream_a, height);
-	nano::write (stream_a, frontier);
+	if (!rsnano::rsn_confirmation_height_info_serialize (&dto, &stream_a))
+	{
+		throw std::runtime_error ("could not serialize confirmation_height_info");
+	}
 }
 
 bool nano::confirmation_height_info::deserialize (nano::stream & stream_a)
 {
-	auto error (false);
-	try
-	{
-		nano::read (stream_a, height);
-		nano::read (stream_a, frontier);
-	}
-	catch (std::runtime_error const &)
-	{
-		error = true;
-	}
-	return error;
+	bool success = rsnano::rsn_confirmation_height_info_deserialize (&dto, &stream_a);
+	return !success;
 }
 
 nano::block_info::block_info (nano::account const & account_a, nano::amount const & balance_a) :
@@ -719,9 +779,7 @@ nano::vote::~vote ()
 std::string nano::vote::hashes_string () const
 {
 	auto dto{ rsnano::rsn_vote_hashes_string (handle) };
-	std::string result (dto.value);
-	rsnano::rsn_string_destroy (dto.handle);
-	return result;
+	return rsnano::convert_dto_to_string (dto);
 }
 
 std::string const nano::vote::hash_prefix = "vote ";
@@ -856,7 +914,7 @@ nano::unchecked_key::unchecked_key (nano::hash_or_account const & dependency) :
 }
 
 nano::unchecked_key::unchecked_key (nano::hash_or_account const & previous_a, nano::block_hash const & hash_a) :
-	previous (previous_a.hash),
+	previous (previous_a.as_block_hash ()),
 	hash (hash_a)
 {
 }
@@ -888,15 +946,107 @@ bool nano::unchecked_key::operator== (nano::unchecked_key const & other_a) const
 	return previous == other_a.previous && hash == other_a.hash;
 }
 
+bool nano::unchecked_key::operator< (nano::unchecked_key const & other_a) const
+{
+	return previous != other_a.previous ? previous < other_a.previous : hash < other_a.hash;
+}
+
 nano::block_hash const & nano::unchecked_key::key () const
 {
 	return previous;
 }
+rsnano::UncheckedKeyDto nano::unchecked_key::to_dto () const
+{
+	rsnano::UncheckedKeyDto dto;
+	std::copy (std::begin (previous.bytes), std::end (previous.bytes), std::begin (dto.previous));
+	std::copy (std::begin (hash.bytes), std::end (hash.bytes), std::begin (dto.hash));
+	return dto;
+}
+
+nano::generate_cache::generate_cache () :
+	handle{ rsnano::rsn_generate_cache_create () }
+{
+}
+
+nano::generate_cache::generate_cache (rsnano::GenerateCacheHandle * handle_a) :
+	handle{ handle_a }
+{
+}
 
 void nano::generate_cache::enable_all ()
 {
-	reps = true;
-	cemented_count = true;
-	unchecked_count = true;
-	account_count = true;
+	rsnano::rsn_generate_cache_enable_all (handle);
+}
+
+nano::generate_cache::generate_cache (nano::generate_cache && other_a) noexcept :
+	handle{ other_a.handle }
+{
+	other_a.handle = nullptr;
+}
+
+nano::generate_cache::generate_cache (const nano::generate_cache & other_a) :
+	handle{ rsnano::rsn_generate_cache_clone (other_a.handle) }
+{
+}
+
+nano::generate_cache::~generate_cache ()
+{
+	if (handle)
+		rsnano::rsn_generate_cache_destroy (handle);
+}
+
+nano::generate_cache & nano::generate_cache::operator= (nano::generate_cache && other_a)
+{
+	if (handle != nullptr)
+		rsnano::rsn_generate_cache_destroy (handle);
+	handle = other_a.handle;
+	other_a.handle = nullptr;
+	return *this;
+}
+nano::generate_cache & nano::generate_cache::operator= (const nano::generate_cache & other_a)
+{
+	if (handle != nullptr)
+		rsnano::rsn_generate_cache_destroy (handle);
+	handle = rsnano::rsn_generate_cache_clone (other_a.handle);
+	return *this;
+}
+bool nano::generate_cache::reps () const
+{
+	return rsnano::rsn_generate_cache_reps (handle);
+}
+void nano::generate_cache::enable_reps (bool enable)
+{
+	rsnano::rsn_generate_cache_set_reps (handle, enable);
+}
+bool nano::generate_cache::cemented_count () const
+{
+	return rsnano::rsn_generate_cache_cemented_count (handle);
+}
+void nano::generate_cache::enable_cemented_count (bool enable)
+{
+	rsnano::rsn_generate_cache_set_cemented_count (handle, enable);
+}
+bool nano::generate_cache::unchecked_count () const
+{
+	return rsnano::rsn_generate_cache_unchecked_count (handle);
+}
+void nano::generate_cache::enable_unchecked_count (bool enable)
+{
+	rsnano::rsn_generate_cache_set_unchecked_count (handle, enable);
+}
+bool nano::generate_cache::account_count () const
+{
+	return rsnano::rsn_generate_cache_account_count (handle);
+}
+void nano::generate_cache::enable_account_count (bool enable)
+{
+	rsnano::rsn_generate_cache_set_account_count (handle, enable);
+}
+bool nano::generate_cache::block_count () const
+{
+	return rsnano::rsn_generate_cache_block_count (handle);
+}
+void nano::generate_cache::enable_block_count (bool enable)
+{
+	rsnano::rsn_generate_cache_set_account_count (handle, enable);
 }

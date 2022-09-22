@@ -1,31 +1,50 @@
 #include <nano/node/lmdb/lmdb.hpp>
 #include <nano/node/lmdb/online_weight_store.hpp>
 
-nano::lmdb::online_weight_store::online_weight_store (nano::lmdb::store & store_a) :
-	store{ store_a }
+namespace
 {
+nano::store_iterator<uint64_t, nano::amount> to_iterator (rsnano::LmdbIteratorHandle * it_handle)
+{
+	if (it_handle == nullptr)
+	{
+		return { nullptr };
+	}
+
+	return { std::make_unique<nano::mdb_iterator<uint64_t, nano::amount>> (it_handle) };
+}
+}
+
+nano::lmdb::online_weight_store::online_weight_store (rsnano::LmdbOnlineWeightStoreHandle * handle_a) :
+	handle{ handle_a }
+{
+}
+
+nano::lmdb::online_weight_store::~online_weight_store ()
+{
+	if (handle != nullptr)
+		rsnano::rsn_lmdb_online_weight_store_destroy (handle);
 }
 
 void nano::lmdb::online_weight_store::put (nano::write_transaction const & transaction, uint64_t time, nano::amount const & amount)
 {
-	auto status = store.put (transaction, tables::online_weight, time, amount);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_online_weight_store_put (handle, transaction.get_rust_handle (), time, amount.bytes.data ());
 }
 
 void nano::lmdb::online_weight_store::del (nano::write_transaction const & transaction, uint64_t time)
 {
-	auto status = store.del (transaction, tables::online_weight, time);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_online_weight_store_del (handle, transaction.get_rust_handle (), time);
 }
 
 nano::store_iterator<uint64_t, nano::amount> nano::lmdb::online_weight_store::begin (nano::transaction const & transaction) const
 {
-	return store.make_iterator<uint64_t, nano::amount> (transaction, tables::online_weight);
+	auto it_handle{ rsnano::rsn_lmdb_online_weight_store_begin (handle, transaction.get_rust_handle ()) };
+	return to_iterator (it_handle);
 }
 
 nano::store_iterator<uint64_t, nano::amount> nano::lmdb::online_weight_store::rbegin (nano::transaction const & transaction) const
 {
-	return store.make_iterator<uint64_t, nano::amount> (transaction, tables::online_weight, false);
+	auto it_handle{ rsnano::rsn_lmdb_online_weight_store_rbegin (handle, transaction.get_rust_handle ()) };
+	return to_iterator (it_handle);
 }
 
 nano::store_iterator<uint64_t, nano::amount> nano::lmdb::online_weight_store::end () const
@@ -35,11 +54,15 @@ nano::store_iterator<uint64_t, nano::amount> nano::lmdb::online_weight_store::en
 
 size_t nano::lmdb::online_weight_store::count (nano::transaction const & transaction) const
 {
-	return store.count (transaction, tables::online_weight);
+	return rsnano::rsn_lmdb_online_weight_store_count (handle, transaction.get_rust_handle ());
 }
 
 void nano::lmdb::online_weight_store::clear (nano::write_transaction const & transaction)
 {
-	auto status = store.drop (transaction, tables::online_weight);
-	store.release_assert_success (status);
+	return rsnano::rsn_lmdb_online_weight_store_clear (handle, transaction.get_rust_handle ());
+}
+
+MDB_dbi nano::lmdb::online_weight_store::table_handle () const
+{
+	return rsnano::rsn_lmdb_online_weight_store_table_handle (handle);
 }

@@ -8,7 +8,6 @@ cmake .. ^
   -Ax64 ^
   %NANO_TEST% ^
   %CI% ^
-  %ROCKS_LIB% ^
   -DPORTABLE=1 ^
   -DQt5_DIR="c:\qt\5.13.1\msvc2017_64\lib\cmake\Qt5" ^
   -DNANO_GUI=ON ^

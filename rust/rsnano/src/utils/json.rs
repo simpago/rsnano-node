@@ -8,15 +8,20 @@ pub trait PropertyTreeReader {
 }
 
 pub trait PropertyTreeWriter {
+    fn clear(&mut self) -> Result<()>;
     fn put_string(&mut self, path: &str, value: &str) -> Result<()>;
     fn put_u64(&mut self, path: &str, value: u64) -> Result<()>;
     fn new_writer(&self) -> Box<dyn PropertyTreeWriter>;
     fn push_back(&mut self, path: &str, value: &dyn PropertyTreeWriter);
     fn add_child(&mut self, path: &str, value: &dyn PropertyTreeWriter);
+    fn put_child(&mut self, path: &str, value: &dyn PropertyTreeWriter);
     fn add(&mut self, path: &str, value: &str) -> Result<()>;
     fn as_any(&self) -> &dyn Any;
+    fn to_json(&self) -> String;
 }
 
+/// Note: Once FfiPropertyTree is not used anymore we can return
+/// the tree unboxed
 pub(crate) fn create_property_tree() -> Box<dyn PropertyTreeWriter> {
     crate::ffi::create_ffi_property_tree()
 }
@@ -52,16 +57,16 @@ impl PropertyTreeWriter for TestPropertyTree {
         Ok(())
     }
 
+    fn put_u64(&mut self, _path: &str, _value: u64) -> Result<()> {
+        todo!()
+    }
+
     fn new_writer(&self) -> Box<dyn PropertyTreeWriter> {
         todo!()
     }
 
     fn push_back(&mut self, _path: &str, _value: &dyn PropertyTreeWriter) {
         todo!()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     fn add_child(&mut self, _path: &str, _value: &dyn PropertyTreeWriter) {
@@ -72,7 +77,19 @@ impl PropertyTreeWriter for TestPropertyTree {
         todo!()
     }
 
-    fn put_u64(&mut self, path: &str, value: u64) -> Result<()> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clear(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    fn put_child(&mut self, _path: &str, _value: &dyn PropertyTreeWriter) {
+        todo!()
+    }
+
+    fn to_json(&self) -> String {
         todo!()
     }
 }

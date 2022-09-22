@@ -146,11 +146,6 @@ pub extern "C" fn rsn_send_block_valid_predecessor(block_type: u8) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_send_block_size() -> usize {
-    SendBlock::serialized_size()
-}
-
-#[no_mangle]
 pub extern "C" fn rsn_send_block_deserialize_json(ptree: *const c_void) -> *mut BlockHandle {
     let reader = FfiPropertyTreeReader::new(ptree);
     match SendBlock::deserialize_json(&reader) {

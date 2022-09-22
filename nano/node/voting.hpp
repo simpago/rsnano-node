@@ -34,32 +34,15 @@ namespace transport
 
 class vote_spacing final
 {
-	class entry
-	{
-	public:
-		nano::root root;
-		std::chrono::steady_clock::time_point time;
-		nano::block_hash hash;
-	};
-
-	boost::multi_index_container<entry,
-	mi::indexed_by<
-	mi::hashed_non_unique<mi::tag<class tag_root>,
-	mi::member<entry, nano::root, &entry::root>>,
-	mi::ordered_non_unique<mi::tag<class tag_time>,
-	mi::member<entry, std::chrono::steady_clock::time_point, &entry::time>>>>
-	recent;
-	std::chrono::milliseconds const delay;
-	void trim ();
-
 public:
-	vote_spacing (std::chrono::milliseconds const & delay) :
-		delay{ delay }
-	{
-	}
+	vote_spacing (std::chrono::milliseconds const & delay);
+	vote_spacing (vote_spacing const &) = delete;
+	vote_spacing (vote_spacing &&) = delete;
+	~vote_spacing ();
 	bool votable (nano::root const & root_a, nano::block_hash const & hash_a) const;
 	void flag (nano::root const & root_a, nano::block_hash const & hash_a);
 	std::size_t size () const;
+	rsnano::VoteSpacingHandle * handle;
 };
 
 class local_vote_history final
@@ -84,6 +67,18 @@ private:
 
 std::unique_ptr<container_info_component> collect_container_info (local_vote_history & history, std::string const & name);
 
+/** Floods a vote to the network and calls the vote processor. */
+class vote_broadcaster
+{
+public:
+	vote_broadcaster (nano::vote_processor & vote_processor_a, nano::network & network_a);
+	void broadcast (std::shared_ptr<nano::vote> const &) const;
+
+private:
+	nano::vote_processor & vote_processor;
+	nano::network & network;
+};
+
 class vote_generator final
 {
 private:
@@ -104,16 +99,19 @@ private:
 	void broadcast (nano::unique_lock<nano::mutex> &);
 	void reply (nano::unique_lock<nano::mutex> &, request_t &&);
 	void vote (std::vector<nano::block_hash> const &, std::vector<nano::root> const &, std::function<void (std::shared_ptr<nano::vote> const &)> const &);
-	void broadcast_action (std::shared_ptr<nano::vote> const &) const;
 	std::function<void (std::shared_ptr<nano::vote> const &, std::shared_ptr<nano::transport::channel> &)> reply_action; // must be set only during initialization by using set_reply_action
+
+	// already ported to Rust:
 	nano::node_config const & config;
+	nano::local_vote_history & history;
+	nano::stat & stats;
+	nano::vote_spacing spacing;
+
+	// not ported yet:
 	nano::ledger & ledger;
 	nano::wallets & wallets;
-	nano::vote_processor & vote_processor;
-	nano::local_vote_history & history;
-	nano::vote_spacing spacing;
-	nano::network & network;
-	nano::stat & stats;
+	nano::vote_broadcaster vote_broadcaster;
+
 	mutable nano::mutex mutex;
 	nano::condition_variable condition;
 	static std::size_t constexpr max_requests{ 2048 };

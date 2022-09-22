@@ -6,7 +6,7 @@
 nano::rep_crawler::rep_crawler (nano::node & node_a) :
 	node (node_a)
 {
-	if (!node.flags.disable_rep_crawler)
+	if (!node.flags.disable_rep_crawler ())
 	{
 		node.observers.endpoint.add ([this] (std::shared_ptr<nano::transport::channel> const & channel_a) {
 			this->query (channel_a);
@@ -35,7 +35,7 @@ void nano::rep_crawler::validate ()
 
 	// normally the rep_crawler only tracks principal reps but it can be made to track
 	// reps with less weight by setting rep_crawler_weight_minimum to a low value
-	auto minimum = std::min (node.minimum_principal_weight (), node.config.rep_crawler_weight_minimum.number ());
+	auto minimum = std::min (node.minimum_principal_weight (), node.config->rep_crawler_weight_minimum.number ());
 
 	for (auto const & i : responses_l)
 	{
@@ -45,9 +45,9 @@ void nano::rep_crawler::validate ()
 
 		if (channel->get_type () == nano::transport::transport_type::loopback)
 		{
-			if (node.config.logging.rep_crawler_logging ())
+			if (node.config->logging.rep_crawler_logging ())
 			{
-				node.logger.try_log (boost::str (boost::format ("rep_crawler ignoring vote from loopback channel %1%") % channel->to_string ()));
+				node.logger->try_log (boost::str (boost::format ("rep_crawler ignoring vote from loopback channel %1%") % channel->to_string ()));
 			}
 			continue;
 		}
@@ -55,9 +55,9 @@ void nano::rep_crawler::validate ()
 		nano::uint128_t rep_weight = node.ledger.weight (vote->account ());
 		if (rep_weight < minimum)
 		{
-			if (node.config.logging.rep_crawler_logging ())
+			if (node.config->logging.rep_crawler_logging ())
 			{
-				node.logger.try_log (boost::str (boost::format ("rep_crawler ignoring vote from account %1% with too little voting weight %2%") % vote->account ().to_account () % rep_weight));
+				node.logger->try_log (boost::str (boost::format ("rep_crawler ignoring vote from account %1% with too little voting weight %2%") % vote->account ().to_account () % rep_weight));
 			}
 			continue;
 		}
@@ -96,12 +96,12 @@ void nano::rep_crawler::validate ()
 
 		if (inserted)
 		{
-			node.logger.try_log (boost::str (boost::format ("Found representative %1% at %2%") % vote->account ().to_account () % channel->to_string ()));
+			node.logger->try_log (boost::str (boost::format ("Found representative %1% at %2%") % vote->account ().to_account () % channel->to_string ()));
 		}
 
 		if (updated)
 		{
-			node.logger.try_log (boost::str (boost::format ("Updated representative %1% at %2% (was at: %3%)") % vote->account ().to_account () % channel->to_string () % prev_channel->to_string ()));
+			node.logger->try_log (boost::str (boost::format ("Updated representative %1% at %2% (was at: %3%)") % vote->account ().to_account () % channel->to_string () % prev_channel->to_string ()));
 		}
 	}
 }
@@ -118,13 +118,13 @@ void nano::rep_crawler::ongoing_crawl ()
 	// If online weight drops below minimum, reach out to preconfigured peers
 	if (!sufficient_weight)
 	{
-		node.keepalive_preconfigured (node.config.preconfigured_peers);
+		node.keepalive_preconfigured (node.config->preconfigured_peers);
 	}
 	// Reduce crawl frequency when there's enough total peer weight
 	unsigned next_run_ms = node.network_params.network.is_dev_network () ? 100 : sufficient_weight ? 7000
 																								   : 3000;
 	std::weak_ptr<nano::node> node_w (node.shared ());
-	node.workers.add_timed_task (now + std::chrono::milliseconds (next_run_ms), [node_w, this] () {
+	node.workers->add_timed_task (now + std::chrono::milliseconds (next_run_ms), [node_w, this] () {
 		if (auto node_l = node_w.lock ())
 		{
 			this->ongoing_crawl ();
@@ -148,7 +148,7 @@ std::vector<std::shared_ptr<nano::transport::channel>> nano::rep_crawler::get_cr
 	required_peer_count += required_peer_count / 2;
 
 	// The rest of the endpoints are picked randomly
-	auto random_peers (node.network.random_set (required_peer_count, 0, true)); // Include channels with ephemeral remote ports
+	auto random_peers (node.network->random_set (required_peer_count, 0, true)); // Include channels with ephemeral remote ports
 	std::vector<std::shared_ptr<nano::transport::channel>> result;
 	result.insert (result.end (), random_peers.begin (), random_peers.end ());
 	return result;
@@ -157,7 +157,7 @@ std::vector<std::shared_ptr<nano::transport::channel>> nano::rep_crawler::get_cr
 void nano::rep_crawler::query (std::vector<std::shared_ptr<nano::transport::channel>> const & channels_a)
 {
 	auto transaction (node.store.tx_begin_read ());
-	auto hash_root (node.ledger.hash_root_random (transaction));
+	auto hash_root (node.ledger.hash_root_random (*transaction));
 	{
 		nano::lock_guard<nano::mutex> lock (active_mutex);
 		// Don't send same block multiple times in tests
@@ -165,25 +165,26 @@ void nano::rep_crawler::query (std::vector<std::shared_ptr<nano::transport::chan
 		{
 			for (auto i (0); active.count (hash_root.first) != 0 && i < 4; ++i)
 			{
-				hash_root = node.ledger.hash_root_random (transaction);
+				hash_root = node.ledger.hash_root_random (*transaction);
 			}
 		}
 		active.insert (hash_root.first);
 	}
 	if (!channels_a.empty ())
 	{
-		node.active.erase_recently_confirmed (hash_root.first);
+		// In case our random block is a recently confirmed one, we remove an entry otherwise votes will be marked as replay and not forwarded to repcrawler
+		node.active.recently_confirmed.erase (hash_root.first);
 	}
 	for (auto i (channels_a.begin ()), n (channels_a.end ()); i != n; ++i)
 	{
 		debug_assert (*i != nullptr);
 		on_rep_request (*i);
-		node.network.send_confirm_req (*i, hash_root);
+		node.network->send_confirm_req (*i, hash_root);
 	}
 
 	// A representative must respond with a vote within the deadline
 	std::weak_ptr<nano::node> node_w (node.shared ());
-	node.workers.add_timed_task (std::chrono::steady_clock::now () + std::chrono::seconds (5), [node_w, hash = hash_root.first] () {
+	node.workers->add_timed_task (std::chrono::steady_clock::now () + std::chrono::seconds (5), [node_w, hash = hash_root.first] () {
 		if (auto node_l = node_w.lock ())
 		{
 			auto target_finished_processed (node_l->vote_processor.total_processed + node_l->vote_processor.size ());
@@ -208,7 +209,7 @@ void nano::rep_crawler::throttled_remove (nano::block_hash const & hash_a, uint6
 	else
 	{
 		std::weak_ptr<nano::node> node_w (node.shared ());
-		node.workers.add_timed_task (std::chrono::steady_clock::now () + std::chrono::seconds (5), [node_w, hash_a, target_finished_processed] () {
+		node.workers->add_timed_task (std::chrono::steady_clock::now () + std::chrono::seconds (5), [node_w, hash_a, target_finished_processed] () {
 			if (auto node_l = node_w.lock ())
 			{
 				node_l->rep_crawler.throttled_remove (hash_a, target_finished_processed);
@@ -229,14 +230,14 @@ bool nano::rep_crawler::is_pr (nano::transport::channel const & channel_a) const
 	return result;
 }
 
-bool nano::rep_crawler::response (std::shared_ptr<nano::transport::channel> const & channel_a, std::shared_ptr<nano::vote> const & vote_a)
+bool nano::rep_crawler::response (std::shared_ptr<nano::transport::channel> const & channel_a, std::shared_ptr<nano::vote> const & vote_a, bool force)
 {
 	bool error = true;
 	nano::lock_guard<nano::mutex> lock (active_mutex);
 	auto hashes = vote_a->hashes ();
 	for (auto i = hashes.begin (), n = hashes.end (); i != n; ++i)
 	{
-		if (active.count (*i) != 0)
+		if (force || active.count (*i) != 0)
 		{
 			responses.emplace_back (channel_a, vote_a);
 			error = false;
@@ -310,7 +311,7 @@ void nano::rep_crawler::cleanup_reps ()
 		bool equal (false);
 		if (i->get_type () == nano::transport::transport_type::tcp)
 		{
-			auto find_channel (node.network.tcp_channels.find_channel (i->get_tcp_endpoint ()));
+			auto find_channel (node.network->tcp_channels->find_channel (i->get_tcp_endpoint ()));
 			if (find_channel != nullptr && *find_channel == *static_cast<nano::transport::channel_tcp *> (i.get ()))
 			{
 				equal = true;
@@ -318,11 +319,15 @@ void nano::rep_crawler::cleanup_reps ()
 		}
 		else if (i->get_type () == nano::transport::transport_type::udp)
 		{
-			auto find_channel (node.network.udp_channels.channel (i->get_endpoint ()));
+			auto find_channel (node.network->udp_channels.channel (i->get_endpoint ()));
 			if (find_channel != nullptr && *find_channel == *static_cast<nano::transport::channel_udp *> (i.get ()))
 			{
 				equal = true;
 			}
+		}
+		else if (i->get_type () == nano::transport::transport_type::fake)
+		{
+			equal = true;
 		}
 		if (!equal)
 		{

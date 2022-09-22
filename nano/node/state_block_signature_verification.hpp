@@ -23,13 +23,12 @@ class state_block_signature_verification
 public:
 	using value_type = std::tuple<std::shared_ptr<nano::block>, nano::account, nano::signature_verification>;
 
-	state_block_signature_verification (nano::signature_checker &, nano::epochs &, bool timing_logging, nano::logger_mt &, uint64_t);
+	state_block_signature_verification (nano::signature_checker &, nano::epochs &, bool timing_logging, std::shared_ptr<nano::logger_mt> &, uint64_t);
 	~state_block_signature_verification ();
 	void add (value_type const & item);
 	std::size_t size ();
 	void stop ();
 	bool is_active ();
-	void set_blocks_verified_callback ();
 
 	std::function<void (std::deque<value_type> &, std::vector<int> const &, std::vector<nano::block_hash> const &, std::vector<nano::signature> const &)> blocks_verified_callback;
 	std::function<void ()> transition_inactive_callback;

@@ -42,15 +42,19 @@ pub unsafe extern "C" fn rsn_network_params_create(
         Err(_) => return -1,
     };
     let dto = &mut (*dto);
+    fill_network_params_dto(dto, &params);
+    0
+}
+
+pub fn fill_network_params_dto(dto: &mut NetworkParamsDto, params: &NetworkParams) {
     dto.kdf_work = params.kdf_work;
     fill_work_thresholds_dto(&mut dto.work, &params.work);
     fill_network_constants_dto(&mut dto.network, &params.network);
-    fill_ledger_constants_dto(&mut dto.ledger, params.ledger);
+    fill_ledger_constants_dto(&mut dto.ledger, &params.ledger);
     fill_voting_constants_dto(&mut dto.voting, &params.voting);
     fill_node_constants_dto(&mut dto.node, &params.node);
     fill_portmapping_constants_dto(&mut dto.portmapping, &params.portmapping);
     fill_bootstrap_constants_dto(&mut dto.bootstrap, &params.bootstrap);
-    0
 }
 
 impl TryFrom<&NetworkParamsDto> for NetworkParams {

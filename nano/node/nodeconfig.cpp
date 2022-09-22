@@ -2,6 +2,7 @@
 #include <nano/lib/config.hpp>
 #include <nano/lib/jsonconfig.hpp>
 #include <nano/lib/rpcconfig.hpp>
+#include <nano/lib/rsnanoutils.hpp>
 #include <nano/lib/tomlconfig.hpp>
 #include <nano/node/nodeconfig.hpp>
 #include <nano/node/transport/transport.hpp>
@@ -35,6 +36,7 @@ rsnano::NodeConfigDto to_node_config_dto (nano::node_config const & config)
 	dto.bootstrap_connections = config.bootstrap_connections;
 	dto.bootstrap_connections_max = config.bootstrap_connections_max;
 	dto.bootstrap_initiator_threads = config.bootstrap_initiator_threads;
+	dto.bootstrap_serving_threads = config.bootstrap_serving_threads;
 	dto.bootstrap_frontier_request_count = config.bootstrap_frontier_request_count;
 	dto.block_processor_batch_max_time_ms = config.block_processor_batch_max_time.count ();
 	dto.allow_local_peers = config.allow_local_peers;
@@ -51,6 +53,7 @@ rsnano::NodeConfigDto to_node_config_dto (nano::node_config const & config)
 	dto.use_memory_pools = config.use_memory_pools;
 	dto.confirmation_history_size = config.confirmation_history_size;
 	dto.active_elections_size = config.active_elections_size;
+	dto.active_elections_hinted_limit_percentage = config.active_elections_hinted_limit_percentage;
 	dto.bandwidth_limit = config.bandwidth_limit;
 	dto.bandwidth_limit_burst_ratio = config.bandwidth_limit_burst_ratio;
 	dto.conf_height_processor_batch_min_time_ms = config.conf_height_processor_batch_min_time.count ();
@@ -97,7 +100,6 @@ rsnano::NodeConfigDto to_node_config_dto (nano::node_config const & config)
 	dto.ipc_config = config.ipc_config.to_dto ();
 	dto.diagnostics_config = config.diagnostics_config.to_dto ();
 	dto.stat_config = config.stat_config.to_dto ();
-	dto.rocksdb_config = config.rocksdb_config.to_dto ();
 	dto.lmdb_config = config.lmdb_config.to_dto ();
 	return dto;
 }
@@ -116,7 +118,7 @@ nano::node_config::node_config (const std::optional<uint16_t> & peering_port_a, 
 	rsnano::NodeConfigDto dto;
 	auto network_params_dto{ network_params.to_dto () };
 	auto logging_dto{ logging.to_dto () };
-	rsnano::rsn_node_config_create (&dto, peering_port_a.value_or (0), peering_port_a.has_value (), &logging_dto, &network_params_dto);
+	rsnano::rsn_node_config_create (&dto, peering_port_a.value_or (0), peering_port_a.has_value (), &logging_dto, &network_params_dto.dto);
 	load_dto (dto);
 }
 
@@ -149,6 +151,7 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	bootstrap_connections = dto.bootstrap_connections;
 	bootstrap_connections_max = dto.bootstrap_connections_max;
 	bootstrap_initiator_threads = dto.bootstrap_initiator_threads;
+	bootstrap_serving_threads = dto.bootstrap_serving_threads;
 	bootstrap_frontier_request_count = dto.bootstrap_frontier_request_count;
 	block_processor_batch_max_time = std::chrono::milliseconds (dto.block_processor_batch_max_time_ms);
 	allow_local_peers = dto.allow_local_peers;
@@ -164,6 +167,7 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	use_memory_pools = dto.use_memory_pools;
 	confirmation_history_size = dto.confirmation_history_size;
 	active_elections_size = dto.active_elections_size;
+	active_elections_hinted_limit_percentage = dto.active_elections_hinted_limit_percentage;
 	bandwidth_limit = dto.bandwidth_limit;
 	bandwidth_limit_burst_ratio = dto.bandwidth_limit_burst_ratio;
 	conf_height_processor_batch_min_time = std::chrono::milliseconds (dto.conf_height_processor_batch_min_time_ms);
@@ -206,7 +210,6 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	ipc_config.load_dto (dto.ipc_config);
 	diagnostics_config.load_dto (dto.diagnostics_config);
 	stat_config.load_dto (dto.stat_config);
-	rocksdb_config.load_dto (dto.rocksdb_config);
 	lmdb_config.load_dto (dto.lmdb_config);
 }
 
@@ -259,12 +262,6 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		{
 			auto stat_config_l (toml.get_required_child ("statistics"));
 			stat_config.deserialize_toml (stat_config_l);
-		}
-
-		if (toml.has_key ("rocksdb"))
-		{
-			auto rocksdb_config_l (toml.get_required_child ("rocksdb"));
-			rocksdb_config.deserialize_toml (rocksdb_config_l);
 		}
 
 		if (toml.has_key ("work_peers"))
@@ -365,6 +362,7 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		toml.get<unsigned> ("bootstrap_connections", bootstrap_connections);
 		toml.get<unsigned> ("bootstrap_connections_max", bootstrap_connections_max);
 		toml.get<unsigned> ("bootstrap_initiator_threads", bootstrap_initiator_threads);
+		toml.get<unsigned> ("bootstrap_serving_threads", bootstrap_serving_threads);
 		toml.get<uint32_t> ("bootstrap_frontier_request_count", bootstrap_frontier_request_count);
 		toml.get<bool> ("enable_voting", enable_voting);
 		toml.get<bool> ("allow_local_peers", allow_local_peers);
@@ -529,4 +527,414 @@ nano::account nano::node_config::random_representative () const
 	std::size_t index (nano::random_pool::generate_word32 (0, static_cast<CryptoPP::word32> (preconfigured_representatives.size () - 1)));
 	auto result (preconfigured_representatives[index]);
 	return result;
+}
+
+nano::node_flags::node_flags () :
+	handle{ rsnano::rsn_node_flags_create () }
+{
+}
+
+nano::node_flags::node_flags (nano::node_flags && other_a) :
+	handle{ other_a.handle }
+{
+	other_a.handle = nullptr;
+}
+
+nano::node_flags::node_flags (const nano::node_flags & other_a) :
+	handle{ rsnano::rsn_node_flags_clone (other_a.handle) }
+{
+}
+
+nano::node_flags::~node_flags ()
+{
+	if (handle)
+		rsnano::rsn_node_flags_destroy (handle);
+}
+
+nano::node_flags & nano::node_flags::operator= (nano::node_flags const & other_a)
+{
+	if (handle != nullptr)
+		rsnano::rsn_node_flags_destroy (handle);
+	handle = rsnano::rsn_node_flags_clone (other_a.handle);
+	return *this;
+}
+
+nano::node_flags & nano::node_flags::operator= (nano::node_flags && other_a)
+{
+	if (handle != nullptr)
+		rsnano::rsn_node_flags_destroy (handle);
+	handle = other_a.handle;
+	other_a.handle = nullptr;
+	return *this;
+}
+
+rsnano::NodeFlagsDto nano::node_flags::flags_dto () const
+{
+	rsnano::NodeFlagsDto dto;
+	rsnano::rsn_node_flags_get (handle, &dto);
+	return dto;
+}
+
+void nano::node_flags::set_flag (std::function<void (rsnano::NodeFlagsDto &)> const & callback)
+{
+	auto dto{ flags_dto () };
+	callback (dto);
+	rsnano::rsn_node_flags_set (handle, &dto);
+}
+
+std::vector<std::string> nano::node_flags::config_overrides () const
+{
+	std::array<rsnano::StringDto, 1000> overrides;
+	auto count = rsnano::rsn_node_flags_config_overrides (handle, overrides.data (), overrides.size ());
+	std::vector<std::string> result;
+	result.reserve (count);
+	for (auto i = 0; i < count; ++i)
+	{
+		result.push_back (rsnano::convert_dto_to_string (overrides[i]));
+	}
+	return result;
+}
+
+void nano::node_flags::set_config_overrides (const std::vector<std::string> & overrides)
+{
+	std::vector<int8_t const *> dtos;
+	dtos.reserve (overrides.size ());
+	for (const auto & s : overrides)
+	{
+		dtos.push_back (reinterpret_cast<const int8_t *> (s.data ()));
+	}
+	rsnano::rsn_node_flags_config_set_overrides (handle, dtos.data (), dtos.size ());
+}
+
+std::vector<std::string> nano::node_flags::rpc_config_overrides () const
+{
+	std::array<rsnano::StringDto, 1000> overrides;
+	auto count = rsnano::rsn_node_flags_rpc_config_overrides (handle, overrides.data (), overrides.size ());
+	std::vector<std::string> result;
+	result.reserve (count);
+	for (auto i = 0; i < count; ++i)
+	{
+		result.push_back (rsnano::convert_dto_to_string (overrides[i]));
+	}
+	return result;
+}
+
+void nano::node_flags::set_rpc_overrides (const std::vector<std::string> & overrides)
+{
+	std::vector<int8_t const *> dtos;
+	dtos.reserve (overrides.size ());
+	for (const auto & s : overrides)
+	{
+		dtos.push_back (reinterpret_cast<const int8_t *> (s.data ()));
+	}
+	rsnano::rsn_node_flags_rpc_config_set_overrides (handle, dtos.data (), dtos.size ());
+}
+
+bool nano::node_flags::disable_add_initial_peers () const
+{
+	return flags_dto ().disable_add_initial_peers;
+}
+
+void nano::node_flags::set_disable_add_initial_peers (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_add_initial_peers = value; });
+}
+
+bool nano::node_flags::disable_backup () const
+{
+	return flags_dto ().disable_backup;
+}
+void nano::node_flags::set_disable_backup (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_backup = value; });
+}
+bool nano::node_flags::disable_lazy_bootstrap () const
+{
+	return flags_dto ().disable_lazy_bootstrap;
+}
+void nano::node_flags::set_disable_lazy_bootstrap (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_lazy_bootstrap = value; });
+}
+bool nano::node_flags::disable_legacy_bootstrap () const
+{
+	return flags_dto ().disable_legacy_bootstrap;
+}
+void nano::node_flags::set_disable_legacy_bootstrap (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_legacy_bootstrap = value; });
+}
+bool nano::node_flags::disable_wallet_bootstrap () const
+{
+	return flags_dto ().disable_wallet_bootstrap;
+}
+void nano::node_flags::set_disable_wallet_bootstrap (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_wallet_bootstrap = value; });
+}
+bool nano::node_flags::disable_bootstrap_listener () const
+{
+	return flags_dto ().disable_bootstrap_listener;
+}
+void nano::node_flags::set_disable_bootstrap_listener (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_bootstrap_listener = value; });
+}
+bool nano::node_flags::disable_bootstrap_bulk_pull_server () const
+{
+	return flags_dto ().disable_bootstrap_bulk_pull_server;
+}
+void nano::node_flags::set_disable_bootstrap_bulk_pull_server (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_bootstrap_bulk_pull_server = value; });
+}
+bool nano::node_flags::disable_bootstrap_bulk_push_client () const
+{
+	return flags_dto ().disable_bootstrap_bulk_push_client;
+}
+void nano::node_flags::set_disable_bootstrap_bulk_push_client (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_bootstrap_bulk_push_client = value; });
+}
+bool nano::node_flags::disable_ongoing_bootstrap () const // For testing onl
+{
+	return flags_dto ().disable_ongoing_bootstrap;
+}
+void nano::node_flags::set_disable_ongoing_bootstrap (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_ongoing_bootstrap = value; });
+}
+bool nano::node_flags::disable_rep_crawler () const
+{
+	return flags_dto ().disable_rep_crawler;
+}
+void nano::node_flags::set_disable_rep_crawler (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_rep_crawler = value; });
+}
+bool nano::node_flags::disable_request_loop () const // For testing onl
+{
+	return flags_dto ().disable_request_loop;
+}
+void nano::node_flags::set_disable_request_loop (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_request_loop = value; });
+}
+bool nano::node_flags::disable_tcp_realtime () const
+{
+	return flags_dto ().disable_tcp_realtime;
+}
+void nano::node_flags::set_disable_tcp_realtime (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_tcp_realtime = value; });
+}
+bool nano::node_flags::disable_udp () const
+{
+	return flags_dto ().disable_udp;
+}
+void nano::node_flags::set_disable_udp (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_udp = value; });
+}
+bool nano::node_flags::disable_unchecked_cleanup () const
+{
+	return flags_dto ().disable_unchecked_cleanup;
+}
+void nano::node_flags::set_disable_unchecked_cleanup (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_unchecked_cleanup = value; });
+}
+bool nano::node_flags::disable_unchecked_drop () const
+{
+	return flags_dto ().disable_unchecked_drop;
+}
+void nano::node_flags::set_disable_unchecked_drop (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_unchecked_drop = value; });
+}
+bool nano::node_flags::disable_providing_telemetry_metrics () const
+{
+	return flags_dto ().disable_providing_telemetry_metrics;
+}
+void nano::node_flags::set_disable_providing_telemetry_metrics (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_providing_telemetry_metrics = value; });
+}
+bool nano::node_flags::disable_ongoing_telemetry_requests () const
+{
+	return flags_dto ().disable_ongoing_telemetry_requests;
+}
+void nano::node_flags::set_disable_ongoing_telemetry_requests (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_ongoing_telemetry_requests = value; });
+}
+bool nano::node_flags::disable_initial_telemetry_requests () const
+{
+	return flags_dto ().disable_initial_telemetry_requests;
+}
+void nano::node_flags::set_disable_initial_telemetry_requests (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_initial_telemetry_requests = value; });
+}
+bool nano::node_flags::disable_block_processor_unchecked_deletion () const
+{
+	return flags_dto ().disable_block_processor_unchecked_deletion;
+}
+void nano::node_flags::set_disable_block_processor_unchecked_deletion (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_block_processor_unchecked_deletion = value; });
+}
+bool nano::node_flags::disable_block_processor_republishing () const
+{
+	return flags_dto ().disable_block_processor_republishing;
+}
+void nano::node_flags::set_disable_block_processor_republishing (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_block_processor_republishing = value; });
+}
+bool nano::node_flags::allow_bootstrap_peers_duplicates () const
+{
+	return flags_dto ().allow_bootstrap_peers_duplicates;
+}
+void nano::node_flags::set_allow_bootstrap_peers_duplicates (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.allow_bootstrap_peers_duplicates = value; });
+}
+bool nano::node_flags::disable_max_peers_per_ip () const // For testing onl
+{
+	return flags_dto ().disable_max_peers_per_ip;
+}
+void nano::node_flags::set_disable_max_peers_per_ip (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_max_peers_per_ip = value; });
+}
+bool nano::node_flags::disable_max_peers_per_subnetwork () const // For testing onl
+{
+	return flags_dto ().disable_max_peers_per_subnetwork;
+}
+void nano::node_flags::set_disable_max_peers_per_subnetwork (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_max_peers_per_subnetwork = value; });
+}
+bool nano::node_flags::force_use_write_database_queue () const // For testing only
+{
+	return flags_dto ().force_use_write_database_queue;
+}
+void nano::node_flags::set_force_use_write_database_queue (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.force_use_write_database_queue = value; });
+}
+bool nano::node_flags::disable_search_pending () const // For testing only
+{
+	return flags_dto ().disable_search_pending;
+}
+void nano::node_flags::set_disable_search_pending (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_search_pending = value; });
+}
+bool nano::node_flags::enable_pruning () const
+{
+	return flags_dto ().enable_pruning;
+}
+void nano::node_flags::set_enable_pruning (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.enable_pruning = value; });
+}
+bool nano::node_flags::fast_bootstrap () const
+{
+	return flags_dto ().fast_bootstrap;
+}
+void nano::node_flags::set_fast_bootstrap (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.fast_bootstrap = value; });
+}
+bool nano::node_flags::read_only () const
+{
+	return flags_dto ().read_only;
+}
+void nano::node_flags::set_read_only (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.read_only = value; });
+}
+bool nano::node_flags::disable_connection_cleanup () const
+{
+	return flags_dto ().disable_connection_cleanup;
+}
+void nano::node_flags::set_disable_connection_cleanup (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.disable_connection_cleanup = value; });
+}
+nano::confirmation_height_mode nano::node_flags::confirmation_height_processor_mode () const
+{
+	return static_cast<confirmation_height_mode> (flags_dto ().confirmation_height_processor_mode);
+}
+void nano::node_flags::set_confirmation_height_processor_mode (nano::confirmation_height_mode mode)
+{
+	auto dto{ flags_dto () };
+	dto.confirmation_height_processor_mode = static_cast<uint8_t> (mode);
+	rsnano::rsn_node_flags_set (handle, &dto);
+}
+nano::generate_cache nano::node_flags::generate_cache () const
+{
+	return nano::generate_cache{ rsnano::rsn_node_flags_generate_cache (handle) };
+}
+void nano::node_flags::set_generate_cache (nano::generate_cache const & cache)
+{
+	rsnano::rsn_node_flags_generate_set_cache (handle, cache.handle);
+}
+bool nano::node_flags::inactive_node () const
+{
+	return flags_dto ().inactive_node;
+}
+void nano::node_flags::set_inactive_node (bool value)
+{
+	set_flag ([value] (rsnano::NodeFlagsDto & dto) { dto.inactive_node = value; });
+}
+std::size_t nano::node_flags::block_processor_batch_size () const
+{
+	return flags_dto ().block_processor_batch_size;
+}
+void nano::node_flags::set_block_processor_batch_size (std::size_t size)
+{
+	set_flag ([size] (rsnano::NodeFlagsDto & dto) { dto.block_processor_batch_size = size; });
+}
+std::size_t nano::node_flags::block_processor_full_size () const
+{
+	return flags_dto ().block_processor_full_size;
+}
+void nano::node_flags::set_block_processor_full_size (std::size_t size)
+{
+	set_flag ([size] (rsnano::NodeFlagsDto & dto) { dto.block_processor_full_size = size; });
+}
+std::size_t nano::node_flags::block_processor_verification_size () const
+{
+	return flags_dto ().block_processor_verification_size;
+}
+void nano::node_flags::set_block_processor_verification_size (std::size_t size)
+{
+	set_flag ([size] (rsnano::NodeFlagsDto & dto) { dto.block_processor_verification_size = size; });
+}
+std::size_t nano::node_flags::inactive_votes_cache_size () const
+{
+	return flags_dto ().inactive_votes_cache_size;
+}
+void nano::node_flags::set_inactive_votes_cache_size (std::size_t size)
+{
+	set_flag ([size] (rsnano::NodeFlagsDto & dto) { dto.inactive_votes_cache_size = size; });
+}
+std::size_t nano::node_flags::vote_processor_capacity () const
+{
+	return flags_dto ().vote_processor_capacity;
+}
+void nano::node_flags::set_vote_processor_capacity (std::size_t size)
+{
+	set_flag ([size] (rsnano::NodeFlagsDto & dto) { dto.vote_processor_capacity = size; });
+}
+std::size_t nano::node_flags::bootstrap_interval () const
+{
+	return flags_dto ().bootstrap_interval;
+}
+void nano::node_flags::set_bootstrap_interval (std::size_t size)
+{
+	set_flag ([size] (rsnano::NodeFlagsDto & dto) { dto.bootstrap_interval = size; });
 }

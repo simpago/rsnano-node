@@ -57,7 +57,7 @@ namespace ipc
 	class ipc_config
 	{
 	public:
-		//ipc_config () = default;
+		// ipc_config () = default;
 		ipc_config (nano::network_constants network_constants);
 		nano::error deserialize_toml (nano::tomlconfig & toml_a);
 		void load_dto (rsnano::IpcConfigDto & dto);

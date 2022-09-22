@@ -11,7 +11,9 @@
 TEST (sign_message, sign_in_cpp_and_validate_in_rust)
 {
 	nano::keypair key;
-	auto signature{ nano::sign_message (key.prv, key.pub, 0) };
+	nano::signature signature;
+	nano::uint256_union msg{ 0 };
+	ed25519_sign (msg.bytes.data (), msg.bytes.size (), key.prv.bytes.data (), key.pub.bytes.data (), signature.bytes.data ());
 
 	uint8_t priv_key[32];
 	uint8_t pub_key[32];
@@ -30,6 +32,19 @@ TEST (sign_message, sign_in_cpp_and_validate_in_rust)
 	ASSERT_EQ (validate_result, true);
 }
 
+TEST (sign_message, sign_multiple_times)
+{
+	uint8_t data[] = { 1, 2, 3, 4 };
+	nano::keypair key;
+	auto signature_a{ nano::sign_message (key.prv, key.pub, &data[0], 4) };
+	auto signature_b{ nano::sign_message (key.prv, key.pub, &data[0], 4) };
+	ASSERT_NE (signature_a, signature_b);
+	bool res_a = nano::validate_message (key.pub, &data[0], 4, signature_a);
+	bool res_b = nano::validate_message (key.pub, &data[0], 4, signature_b);
+	ASSERT_EQ (res_a, false);
+	ASSERT_EQ (res_b, false);
+}
+
 TEST (sign_message, sign_in_rust_and_validate_in_cpp)
 {
 	nano::keypair key;
@@ -46,8 +61,8 @@ TEST (sign_message, sign_in_rust_and_validate_in_cpp)
 
 	nano::signature actual;
 	std::copy (std::begin (rsnano_sig), std::end (rsnano_sig), std::begin (actual.bytes));
-	auto valid{ nano::validate_message (key.pub, 0, actual) };
-	ASSERT_EQ (valid, false);
+	bool valid = ed25519_sign_open (&message[0], 32, key.pub.bytes.data (), actual.bytes.data ()) == 0;
+	ASSERT_EQ (valid, true);
 }
 
 TEST (uint512_union, parse_zero)
@@ -115,47 +130,6 @@ TEST (uint512_union, parse_error_overflow)
 	nano::uint512_union output;
 	auto error (output.decode_hex (text));
 	ASSERT_TRUE (error);
-}
-
-TEST (frontier_req, serialization)
-{
-	nano::frontier_req request1{ nano::dev::network_params.network };
-	request1.start = 1;
-	request1.age = 2;
-	request1.count = 3;
-	std::vector<uint8_t> bytes;
-	{
-		nano::vectorstream stream (bytes);
-		request1.serialize (stream);
-	}
-	auto error (false);
-	nano::bufferstream stream (bytes.data (), bytes.size ());
-	nano::message_header header (error, stream);
-	ASSERT_FALSE (error);
-	nano::frontier_req request2 (error, stream, header);
-	ASSERT_FALSE (error);
-	ASSERT_EQ (request1, request2);
-}
-
-TEST (block, publish_req_serialization)
-{
-	nano::keypair key1;
-	nano::keypair key2;
-	auto block (std::make_shared<nano::send_block> (0, key2.pub, 200, nano::keypair ().prv, 2, 3));
-	nano::publish req{ nano::dev::network_params.network, block };
-	std::vector<uint8_t> bytes;
-	{
-		nano::vectorstream stream (bytes);
-		req.serialize (stream);
-	}
-	auto error (false);
-	nano::bufferstream stream2 (bytes.data (), bytes.size ());
-	nano::message_header header (error, stream2);
-	ASSERT_FALSE (error);
-	nano::publish req2 (error, stream2, header);
-	ASSERT_FALSE (error);
-	ASSERT_EQ (req, req2);
-	ASSERT_EQ (*req.block, *req2.block);
 }
 
 TEST (block, difficulty)

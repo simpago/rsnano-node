@@ -20,10 +20,10 @@ TEST (network_filter, unit)
 		ASSERT_FALSE (error);
 
 		// This validates nano::message_header::size
-		ASSERT_EQ (bytes->size (), block_a->size (block_a->type ()) + header.size);
+		ASSERT_EQ (bytes->size (), block_a->size (block_a->type ()) + nano::message_header::size ());
 
 		// Now filter the rest of the stream
-		bool duplicate (filter.apply (bytes->data (), bytes->size () - header.size));
+		bool duplicate (filter.apply (bytes->data (), bytes->size () - nano::message_header::size ()));
 		ASSERT_EQ (expect_duplicate_a, duplicate);
 
 		// Make sure the stream was rewinded correctly
@@ -86,7 +86,7 @@ TEST (network_filter, many)
 		ASSERT_FALSE (error);
 
 		// This validates nano::message_header::size
-		ASSERT_EQ (bytes->size (), block->size () + header.size);
+		ASSERT_EQ (bytes->size (), block->size () + nano::message_header::size ());
 
 		// Now filter the rest of the stream
 		// All blocks should pass through
@@ -98,31 +98,4 @@ TEST (network_filter, many)
 		ASSERT_NE (nullptr, deserialized_block);
 		ASSERT_EQ (*block, *deserialized_block);
 	}
-}
-
-TEST (network_filter, clear)
-{
-	nano::network_filter filter (1);
-	std::vector<uint8_t> bytes1{ 1, 2, 3 };
-	std::vector<uint8_t> bytes2{ 1 };
-	ASSERT_FALSE (filter.apply (bytes1.data (), bytes1.size ()));
-	ASSERT_TRUE (filter.apply (bytes1.data (), bytes1.size ()));
-	filter.clear (bytes1.data (), bytes1.size ());
-	ASSERT_FALSE (filter.apply (bytes1.data (), bytes1.size ()));
-	ASSERT_TRUE (filter.apply (bytes1.data (), bytes1.size ()));
-	filter.clear (bytes2.data (), bytes2.size ());
-	ASSERT_TRUE (filter.apply (bytes1.data (), bytes1.size ()));
-	ASSERT_FALSE (filter.apply (bytes2.data (), bytes2.size ()));
-}
-
-TEST (network_filter, optional_digest)
-{
-	nano::network_filter filter (1);
-	std::vector<uint8_t> bytes1{ 1, 2, 3 };
-	nano::uint128_t digest{ 0 };
-	ASSERT_FALSE (filter.apply (bytes1.data (), bytes1.size (), &digest));
-	ASSERT_NE (0, digest);
-	ASSERT_TRUE (filter.apply (bytes1.data (), bytes1.size ()));
-	filter.clear (digest);
-	ASSERT_FALSE (filter.apply (bytes1.data (), bytes1.size ()));
 }

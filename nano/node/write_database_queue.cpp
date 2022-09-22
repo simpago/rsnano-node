@@ -1,29 +1,29 @@
-#include <nano/lib/config.hpp>
-#include <nano/lib/utility.hpp>
+#include <nano/lib/rsnano.hpp>
 #include <nano/node/write_database_queue.hpp>
 
-#include <algorithm>
-
-nano::write_guard::write_guard (std::function<void ()> guard_finish_callback_a) :
-	guard_finish_callback (guard_finish_callback_a)
+nano::write_guard::write_guard (rsnano::WriteGuardHandle * handle_a) :
+	handle{ handle_a }
 {
 }
 
 nano::write_guard::write_guard (nano::write_guard && write_guard_a) noexcept :
-	guard_finish_callback (std::move (write_guard_a.guard_finish_callback)),
+	handle (write_guard_a.handle),
 	owns (write_guard_a.owns)
 {
 	write_guard_a.owns = false;
-	write_guard_a.guard_finish_callback = nullptr;
+	write_guard_a.handle = nullptr;
 }
 
 nano::write_guard & nano::write_guard::operator= (nano::write_guard && write_guard_a) noexcept
 {
+	if (owns && handle != nullptr)
+		rsnano::rsn_write_guard_destroy (handle);
+
 	owns = write_guard_a.owns;
-	guard_finish_callback = std::move (write_guard_a.guard_finish_callback);
+	handle = write_guard_a.handle;
 
 	write_guard_a.owns = false;
-	write_guard_a.guard_finish_callback = nullptr;
+	write_guard_a.handle = nullptr;
 	return *this;
 }
 
@@ -31,7 +31,7 @@ nano::write_guard::~write_guard ()
 {
 	if (owns)
 	{
-		guard_finish_callback ();
+		rsnano::rsn_write_guard_destroy (handle);
 	}
 }
 
@@ -42,88 +42,40 @@ bool nano::write_guard::is_owned () const
 
 void nano::write_guard::release ()
 {
-	debug_assert (owns);
 	if (owns)
 	{
-		guard_finish_callback ();
+		rsnano::rsn_write_guard_release (handle);
 	}
 	owns = false;
 }
 
 nano::write_database_queue::write_database_queue (bool use_noops_a) :
-	guard_finish_callback ([use_noops_a, &queue = queue, &mutex = mutex, &cv = cv] () {
-		if (!use_noops_a)
-		{
-			{
-				nano::lock_guard<nano::mutex> guard (mutex);
-				queue.pop_front ();
-			}
-			cv.notify_all ();
-		}
-	}),
-	use_noops (use_noops_a)
+	handle{ rsnano::rsn_write_database_queue_create (use_noops_a) }
 {
+}
+
+nano::write_database_queue::~write_database_queue ()
+{
+	rsnano::rsn_write_database_queue_destroy (handle);
 }
 
 nano::write_guard nano::write_database_queue::wait (nano::writer writer)
 {
-	if (use_noops)
-	{
-		return write_guard ([] {});
-	}
-
-	nano::unique_lock<nano::mutex> lk (mutex);
-	// Add writer to the end of the queue if it's not already waiting
-	auto exists = std::find (queue.cbegin (), queue.cend (), writer) != queue.cend ();
-	if (!exists)
-	{
-		queue.push_back (writer);
-	}
-
-	while (queue.front () != writer)
-	{
-		cv.wait (lk);
-	}
-
-	return write_guard (guard_finish_callback);
+	auto guard_handle = rsnano::rsn_write_database_queue_wait (handle, static_cast<uint8_t> (writer));
+	return nano::write_guard (guard_handle);
 }
 
 bool nano::write_database_queue::contains (nano::writer writer)
 {
-	debug_assert (!use_noops);
-	nano::lock_guard<nano::mutex> guard (mutex);
-	return std::find (queue.cbegin (), queue.cend (), writer) != queue.cend ();
+	return rsnano::rsn_write_database_queue_contains (handle, static_cast<uint8_t> (writer));
 }
 
 bool nano::write_database_queue::process (nano::writer writer)
 {
-	if (use_noops)
-	{
-		return true;
-	}
-
-	auto result = false;
-	{
-		nano::lock_guard<nano::mutex> guard (mutex);
-		// Add writer to the end of the queue if it's not already waiting
-		auto exists = std::find (queue.cbegin (), queue.cend (), writer) != queue.cend ();
-		if (!exists)
-		{
-			queue.push_back (writer);
-		}
-
-		result = (queue.front () == writer);
-	}
-
-	if (!result)
-	{
-		cv.notify_all ();
-	}
-
-	return result;
+	return rsnano::rsn_write_database_queue_process (handle, static_cast<uint8_t> (writer));
 }
 
 nano::write_guard nano::write_database_queue::pop ()
 {
-	return write_guard (guard_finish_callback);
+	return nano::write_guard (rsnano::rsn_write_database_queue_pop (handle));
 }

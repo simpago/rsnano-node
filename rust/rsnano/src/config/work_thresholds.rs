@@ -5,7 +5,7 @@ use std::{
     convert::TryInto,
 };
 
-use crate::{BlockDetails, BlockType, Difficulty, Epoch, Root};
+use crate::{Block, BlockDetails, BlockType, Difficulty, Epoch, Root};
 
 /**
  * Network variants with different genesis blocks and network parameters
@@ -22,6 +22,18 @@ pub enum Networks {
     NanoLiveNetwork = 0x5243, // 'R', 'C'
     // Normal work parameters, secret test genesis key, test IP ports
     NanoTestNetwork = 0x5258, // 'R', 'X'
+}
+
+impl Networks {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Networks::Invalid => "invalid",
+            Networks::NanoDevNetwork => "dev",
+            Networks::NanoBetaNetwork => "beta",
+            Networks::NanoLiveNetwork => "live",
+            Networks::NanoTestNetwork => "test",
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -77,8 +89,25 @@ static PUBLISH_TEST: Lazy<WorkThresholds> = Lazy::new(|| {
 
 fn get_env_threshold_or_default(variable_name: &str, default_value: u64) -> u64 {
     match std::env::var(variable_name) {
-        Ok(value) => u64::from_str_radix(&value, 16).expect("could not parse difficulty env var"),
+        Ok(value) => parse_hex_u64(value).expect("could not parse difficulty env var"),
         Err(_) => default_value,
+    }
+}
+
+fn parse_hex_u64(value: impl AsRef<str>) -> Result<u64, std::num::ParseIntError> {
+    let s = value.as_ref();
+    let s = s.strip_prefix("0x").unwrap_or(s);
+    u64::from_str_radix(s, 16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_parse_threshold() {
+        assert_eq!(parse_hex_u64("0xffffffc000000000"), Ok(0xffffffc000000000));
+        assert_eq!(parse_hex_u64("0xFFFFFFC000000000"), Ok(0xffffffc000000000));
+        assert_eq!(parse_hex_u64("FFFFFFC000000000"), Ok(0xffffffc000000000));
     }
 }
 
@@ -225,8 +254,19 @@ impl WorkThresholds {
         }
     }
 
+    pub fn difficulty_block(&self, block: &dyn Block) -> u64 {
+        self.difficulty(block.work_version(), &block.root(), block.work())
+    }
+
+    //todo return true if valid!
     pub fn validate_entry(&self, work_version: WorkVersion, root: &Root, work: u64) -> bool {
         self.difficulty(work_version, root, work)
             < self.threshold_entry(BlockType::State, work_version)
+    }
+
+    //todo return true if valid!
+    pub fn validate_entry_block(&self, block: &dyn Block) -> bool {
+        self.difficulty_block(block)
+            < self.threshold_entry(block.block_type(), block.work_version())
     }
 }

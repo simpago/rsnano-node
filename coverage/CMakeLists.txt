@@ -28,15 +28,14 @@ add_custom_target(
     ${LCOV_PATH} --remove lcov.info.raw '/usr/*' '/tmp/*'
     '${PROJECT_SOURCE_DIR}/cpptoml/*' '${PROJECT_SOURCE_DIR}/crypto/*'
     '${PROJECT_SOURCE_DIR}/flatbuffers/*' '${PROJECT_SOURCE_DIR}/gtest/*'
-    '${PROJECT_SOURCE_DIR}/rocksdb/*' '${PROJECT_SOURCE_DIR}/valgrind/*'
-    '${PROJECT_SOURCE_DIR}/nano/core_test/*' '${PROJECT_SOURCE_DIR}/diskhash/*'
+    '${PROJECT_SOURCE_DIR}/valgrind/*' '${PROJECT_SOURCE_DIR}/nano/core_test/*'
+    '${PROJECT_SOURCE_DIR}/diskhash/*'
     '${PROJECT_SOURCE_DIR}/nano/ipc_flatbuffers_test/*'
     '${PROJECT_SOURCE_DIR}/nano/ipc_flatbuffers_lib/*'
     '${PROJECT_SOURCE_DIR}/nano/nano_node/*'
     '${PROJECT_SOURCE_DIR}/nano/nano_wallet/*'
     '${PROJECT_SOURCE_DIR}/nano/nano_rpc/*'
     '${PROJECT_SOURCE_DIR}/nano/rpc_test/*'
-    '${PROJECT_SOURCE_DIR}/nano/qt_test/*' '${PROJECT_SOURCE_DIR}/nano/qt/*'
     '${PROJECT_SOURCE_DIR}/nano/test_common/*' --output-file
     ${PROJECT_SOURCE_DIR}/coverage/lcov.info -q
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

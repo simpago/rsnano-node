@@ -13,7 +13,6 @@ clean_data_dir() {
     rm -f  "$DATADIR"/wallets.ldb*
     rm -f  "$DATADIR"/data.ldb*
     rm -f  "$DATADIR"/config-*.toml
-    rm -rf "$DATADIR"/rocksdb/
 }
 
 test_initialize_cmd() {

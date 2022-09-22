@@ -17,6 +17,14 @@ namespace boost::asio::ip
 class network_v6;
 }
 
+namespace rsnano
+{
+class SocketHandle;
+class SocketWeakHandle;
+class BufferHandle;
+class ErrorCodeDto;
+}
+
 namespace nano
 {
 /** Policy to affect at which stage a buffer can be dropped */
@@ -30,8 +38,58 @@ enum class buffer_drop_policy
 	no_socket_drop
 };
 
-class node;
 class server_socket;
+class thread_pool;
+class stat;
+class logger_mt;
+class node;
+
+class buffer_wrapper
+{
+public:
+	buffer_wrapper (std::size_t len);
+	buffer_wrapper (rsnano::BufferHandle * handle_a);
+	buffer_wrapper (buffer_wrapper const &) = delete;
+	buffer_wrapper (buffer_wrapper && other_a);
+	~buffer_wrapper ();
+	std::uint8_t * data ();
+	std::size_t len () const;
+	rsnano::BufferHandle * handle;
+};
+
+class tcp_socket_facade : public std::enable_shared_from_this<nano::tcp_socket_facade>
+{
+public:
+	tcp_socket_facade (boost::asio::io_context & io_ctx);
+	~tcp_socket_facade ();
+
+	void async_connect (boost::asio::ip::tcp::endpoint endpoint_a,
+	std::function<void (boost::system::error_code const &)> callback_a);
+
+	void async_read (std::shared_ptr<std::vector<uint8_t>> const & buffer_a, size_t len_a,
+	std::function<void (boost::system::error_code const &, std::size_t)> callback_a);
+
+	void async_read (std::shared_ptr<buffer_wrapper> const & buffer_a, size_t len_a,
+	std::function<void (boost::system::error_code const &, std::size_t)> callback_a);
+
+	void async_write (nano::shared_const_buffer const & buffer_a, std::function<void (boost::system::error_code const &, std::size_t)> callback_a);
+
+	boost::asio::ip::tcp::endpoint remote_endpoint (boost::system::error_code & ec);
+
+	void dispatch (std::function<void ()> callback_a);
+	void post (std::function<void ()> callback_a);
+	void close (boost::system::error_code & ec);
+
+	boost::asio::strand<boost::asio::io_context::executor_type> strand;
+	boost::asio::ip::tcp::socket tcp_socket;
+	boost::asio::io_context & io_ctx;
+
+private:
+	std::atomic<bool> closed{ false };
+};
+
+void async_read_adapter (void * context_a, rsnano::ErrorCodeDto const * error_a, std::size_t size_a);
+void async_read_delete_context (void * context_a);
 
 /** Socket class for tcp clients and newly accepted connections */
 class socket : public std::enable_shared_from_this<nano::socket>
@@ -55,52 +113,40 @@ public:
 
 	/**
 	 * Constructor
-	 * @param node Owning node
 	 * @param endpoint_type_a The endpoint's type: either server or client
 	 */
-	explicit socket (nano::node & node, endpoint_type_t endpoint_type_a);
+	explicit socket (boost::asio::io_context & io_ctx_a, endpoint_type_t endpoint_type_a, nano::stat & stats_a, std::shared_ptr<nano::logger_mt> & logger_a, std::shared_ptr<nano::thread_pool> const & workers_a, std::chrono::seconds default_timeout_a, std::chrono::seconds silent_connection_tolerance_time_a, bool network_timeout_logging_a);
+	socket (rsnano::SocketHandle * handle_a);
+	socket (nano::socket const &) = delete;
+	socket (nano::socket &&) = delete;
 	virtual ~socket ();
 	void async_connect (boost::asio::ip::tcp::endpoint const &, std::function<void (boost::system::error_code const &)>);
 	void async_read (std::shared_ptr<std::vector<uint8_t>> const &, std::size_t, std::function<void (boost::system::error_code const &, std::size_t)>);
+	void async_read (std::shared_ptr<buffer_wrapper> const &, std::size_t, std::function<void (boost::system::error_code const &, std::size_t)>);
 	void async_write (nano::shared_const_buffer const &, std::function<void (boost::system::error_code const &, std::size_t)> = {});
+	const void * inner_ptr () const;
 
-	void close ();
+	virtual void close ();
 	boost::asio::ip::tcp::endpoint remote_endpoint () const;
 	boost::asio::ip::tcp::endpoint local_endpoint () const;
 	/** Returns true if the socket has timed out */
 	bool has_timed_out () const;
 	/** This can be called to change the maximum idle time, e.g. based on the type of traffic detected. */
 	void set_default_timeout_value (std::chrono::seconds);
+	std::chrono::seconds get_default_timeout_value () const;
 	void set_timeout (std::chrono::seconds);
 	void set_silent_connection_tolerance_time (std::chrono::seconds tolerance_time_a);
-	bool max () const
-	{
-		return queue_size >= queue_size_max;
-	}
-	bool full () const
-	{
-		return queue_size >= queue_size_max * 2;
-	}
-	type_t type () const
-	{
-		return type_m;
-	};
-	void type_set (type_t type_a)
-	{
-		type_m = type_a;
-	}
-	endpoint_type_t endpoint_type () const
-	{
-		return endpoint_type_m;
-	}
+	bool max () const;
+	bool full () const;
+	type_t type () const;
+	void type_set (type_t type_a);
+	endpoint_type_t endpoint_type () const;
 	bool is_realtime_connection ()
 	{
 		return type () == nano::socket::type_t::realtime || type () == nano::socket::type_t::realtime_response_server;
 	}
-	bool is_closed ()
-	{
-		return closed;
-	}
+	bool is_bootstrap_connection ();
+	bool is_closed ();
 
 protected:
 	/** Holds the buffer and callback for queued writes */
@@ -111,65 +157,38 @@ protected:
 		std::function<void (boost::system::error_code const &, std::size_t)> callback;
 	};
 
-	boost::asio::strand<boost::asio::io_context::executor_type> strand;
-	boost::asio::ip::tcp::socket tcp_socket;
-	nano::node & node;
+	/** The other end of the connection */
+	boost::asio::ip::tcp::endpoint & get_remote ();
 
 	/** The other end of the connection */
 	boost::asio::ip::tcp::endpoint remote;
 
-	/** number of seconds of inactivity that causes a socket timeout
-	 *  activity is any successful connect, send or receive event
-	 */
-	std::atomic<uint64_t> timeout;
-
-	/** the timestamp (in seconds since epoch) of the last time there was successful activity on the socket
-	 *  activity is any successful connect, send or receive event
-	 */
-	std::atomic<uint64_t> last_completion_time_or_init;
-
-	/** the timestamp (in seconds since epoch) of the last time there was successful receive on the socket
-	 *  successful receive includes graceful closing of the socket by the peer (the read succeeds but returns 0 bytes)
-	 */
-	std::atomic<uint64_t> last_receive_time_or_init;
-
-	/** Flag that is set when cleanup decides to close the socket due to timeout.
-	 *  NOTE: Currently used by bootstrap_server::timeout() but I suspect that this and bootstrap_server::timeout() are not needed.
-	 */
-	std::atomic<bool> timed_out{ false };
-
-	/** the timeout value to use when calling set_default_timeout() */
-	std::atomic<std::chrono::seconds> default_timeout;
-
-	/** used in real time server sockets, number of seconds of no receive traffic that will cause the socket to timeout */
-	std::chrono::seconds silent_connection_tolerance_time;
-
-	/** Tracks number of blocks queued for delivery to the local socket send buffers.
-	 *  Under normal circumstances, this should be zero.
-	 *  Note that this is not the number of buffers queued to the peer, it is the number of buffers
-	 *  queued up to enter the local TCP send buffer
-	 *  socket buffer queue -> TCP send queue -> (network) -> TCP receive queue of peer
-	 */
-	std::atomic<std::size_t> queue_size{ 0 };
-
-	/** Set by close() - completion handlers must check this. This is more reliable than checking
-	 error codes as the OS may have already completed the async operation. */
-	std::atomic<bool> closed{ false };
+	std::size_t get_queue_size () const;
 	void close_internal ();
-	void set_default_timeout ();
-	void set_last_completion ();
-	void set_last_receive_time ();
 	void checkup ();
 
-private:
-	type_t type_m{ type_t::undefined };
-	endpoint_type_t endpoint_type_m;
-
 public:
-	static std::size_t constexpr queue_size_max = 128;
+	rsnano::SocketHandle * handle;
 };
 
-using address_socket_mmap = std::multimap<boost::asio::ip::address, std::weak_ptr<socket>>;
+class weak_socket_wrapper
+{
+public:
+	weak_socket_wrapper (rsnano::SocketWeakHandle * handle);
+	weak_socket_wrapper (weak_socket_wrapper const &) = delete;
+	weak_socket_wrapper (weak_socket_wrapper &&) = delete;
+	weak_socket_wrapper (std::shared_ptr<nano::socket> & socket);
+	~weak_socket_wrapper ();
+	std::shared_ptr<nano::socket> lock ();
+	bool expired () const;
+
+private:
+	rsnano::SocketWeakHandle * handle;
+};
+
+std::string socket_type_to_string (socket::type_t type);
+
+using address_socket_mmap = std::multimap<boost::asio::ip::address, weak_socket_wrapper>;
 
 namespace socket_functions
 {
@@ -180,7 +199,7 @@ namespace socket_functions
 }
 
 /** Socket class for TCP servers */
-class server_socket final : public socket
+class server_socket final : public std::enable_shared_from_this<nano::server_socket>
 {
 public:
 	/**
@@ -200,8 +219,15 @@ public:
 	{
 		return acceptor.local_endpoint ().port ();
 	}
+	nano::socket & get_socket ();
 
 private:
+	boost::asio::strand<boost::asio::io_context::executor_type> strand;
+	nano::logger_mt & logger;
+	nano::stat & stats;
+	nano::socket socket;
+	nano::thread_pool & workers;
+	nano::node & node;
 	nano::address_socket_mmap connections_per_address;
 	boost::asio::ip::tcp::acceptor acceptor;
 	boost::asio::ip::tcp::endpoint local;
@@ -213,17 +239,5 @@ private:
 	bool limit_reached_for_incoming_subnetwork_connections (std::shared_ptr<nano::socket> const & new_connection);
 };
 
-/** Socket class for TCP clients */
-class client_socket final : public socket
-{
-public:
-	/**
-	 * Constructor
-	 * @param node_a Owning node
-	 */
-	explicit client_socket (nano::node & node_a) :
-		socket{ node_a, endpoint_type_t::client }
-	{
-	}
-};
+std::shared_ptr<nano::socket> create_client_socket (nano::node & node_a);
 }

@@ -29,18 +29,18 @@ void nano::ledger_walker::walk_backward (nano::block_hash const & start_block_ha
 	enqueue_block (start_block_hash_a);
 	while (!blocks_to_walk.empty ())
 	{
-		auto const block = dequeue_block (transaction);
+		auto const block = dequeue_block (*transaction);
 		if (!should_visit_callback_a (block))
 		{
 			continue;
 		}
 
 		visitor_callback_a (block);
-		for (auto const & hash : ledger.dependent_blocks (transaction, *block))
+		for (auto const & hash : ledger.dependent_blocks (*transaction, *block))
 		{
 			if (!hash.is_zero ())
 			{
-				auto const dependent_block = ledger.store.block.get (transaction, hash);
+				auto const dependent_block = ledger.store.block ().get (*transaction, hash);
 				if (dependent_block)
 				{
 					enqueue_block (dependent_block);
@@ -73,7 +73,7 @@ void nano::ledger_walker::walk (nano::block_hash const & end_block_hash_a, shoul
 			continue;
 		}
 
-		auto const block = ledger.store.block.get (transaction, *block_hash);
+		auto const block = ledger.store.block ().get (*transaction, *block_hash);
 		if (!block)
 		{
 			debug_assert (false);
@@ -171,7 +171,7 @@ void nano::ledger_walker::clear_queue ()
 
 std::shared_ptr<nano::block> nano::ledger_walker::dequeue_block (nano::transaction const & transaction_a)
 {
-	auto block = ledger.store.block.get (transaction_a, blocks_to_walk.top ());
+	auto block = ledger.store.block ().get (transaction_a, blocks_to_walk.top ());
 	blocks_to_walk.pop ();
 
 	return block;

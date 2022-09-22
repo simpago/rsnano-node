@@ -19,38 +19,50 @@ class bootstrap_connections;
 class frontier_req_client;
 class pull_info;
 
+class bootstrap_client_observer
+{
+public:
+	virtual void bootstrap_client_closed () = 0;
+};
+
 /**
  * Owns the client side of the bootstrap connection.
  */
 class bootstrap_client final : public std::enable_shared_from_this<bootstrap_client>
 {
 public:
-	bootstrap_client (std::shared_ptr<nano::node> const & node_a, nano::bootstrap_connections & connections_a, std::shared_ptr<nano::transport::channel_tcp> const & channel_a, std::shared_ptr<nano::socket> const & socket_a);
+	bootstrap_client (std::shared_ptr<nano::bootstrap_client_observer> const & observer_a, std::shared_ptr<nano::transport::channel_tcp> const & channel_a, std::shared_ptr<nano::socket> const & socket_a);
 	~bootstrap_client ();
 	void stop (bool force);
 	double sample_block_rate ();
 	double elapsed_seconds () const;
-	void set_start_time (std::chrono::steady_clock::time_point start_time_a);
-	std::shared_ptr<nano::node> node;
-	nano::bootstrap_connections & connections;
-	std::shared_ptr<nano::transport::channel_tcp> channel;
-	std::shared_ptr<nano::socket> socket;
-	std::shared_ptr<std::vector<uint8_t>> receive_buffer;
-	std::atomic<uint64_t> block_count{ 0 };
-	std::atomic<double> block_rate{ 0 };
-	std::atomic<bool> pending_stop{ false };
-	std::atomic<bool> hard_stop{ false };
+	void set_start_time ();
+	void async_read (std::size_t size_a, std::function<void (boost::system::error_code const &, std::size_t)> callback_a);
+	void close_socket ();
+	void set_timeout (std::chrono::seconds timeout_a);
+	uint8_t * get_receive_buffer ();
+	nano::tcp_endpoint remote_endpoint () const;
+	std::string channel_string () const;
+	void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy drop_policy_a = nano::buffer_drop_policy::limiter);
+	void send_buffer (nano::shared_const_buffer const & buffer_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter);
+	nano::tcp_endpoint get_tcp_endpoint () const;
+	std::shared_ptr<nano::socket> get_socket () const;
+	uint64_t get_block_count () const;
+	uint64_t inc_block_count (); // returns the previous block count
+	double get_block_rate () const;
+	bool get_pending_stop () const;
+	bool get_hard_stop () const;
 
 private:
-	mutable nano::mutex start_time_mutex;
-	std::chrono::steady_clock::time_point start_time_m;
+	std::vector<uint8_t> buffer; // only used for returning a uint8_t*
+	rsnano::BootstrapClientHandle * handle;
 };
 
 /**
  * Container for bootstrap_client objects. Owned by bootstrap_initiator which pools open connections and makes them available
  * for use by different bootstrap sessions.
  */
-class bootstrap_connections final : public std::enable_shared_from_this<bootstrap_connections>
+class bootstrap_connections final : public std::enable_shared_from_this<bootstrap_connections>, public bootstrap_client_observer
 {
 public:
 	explicit bootstrap_connections (nano::node & node_a);
@@ -68,6 +80,7 @@ public:
 	void clear_pulls (uint64_t);
 	void run ();
 	void stop ();
+	void bootstrap_client_closed () override;
 	std::deque<std::weak_ptr<nano::bootstrap_client>> clients;
 	std::atomic<unsigned> connections_count{ 0 };
 	nano::node & node;

@@ -12,10 +12,13 @@ namespace lmdb
 	class pruned_store : public nano::pruned_store
 	{
 	private:
-		nano::lmdb::store & store;
+		rsnano::LmdbPrunedStoreHandle * handle;
 
 	public:
-		explicit pruned_store (nano::lmdb::store & store_a);
+		explicit pruned_store (rsnano::LmdbPrunedStoreHandle * handle_a);
+		~pruned_store ();
+		pruned_store (pruned_store const &) = delete;
+		pruned_store (pruned_store &&) = delete;
 		void put (nano::write_transaction const & transaction_a, nano::block_hash const & hash_a) override;
 		void del (nano::write_transaction const & transaction_a, nano::block_hash const & hash_a) override;
 		bool exists (nano::transaction const & transaction_a, nano::block_hash const & hash_a) const override;
@@ -27,11 +30,7 @@ namespace lmdb
 		nano::store_iterator<nano::block_hash, std::nullptr_t> end () const override;
 		void for_each_par (std::function<void (nano::read_transaction const &, nano::store_iterator<nano::block_hash, std::nullptr_t>, nano::store_iterator<nano::block_hash, std::nullptr_t>)> const & action_a) const override;
 
-		/**
-		 * Pruned blocks hashes
-		 * nano::block_hash -> none
-		 */
-		MDB_dbi pruned_handle{ 0 };
+		MDB_dbi table_handle () const;
 	};
 }
 }

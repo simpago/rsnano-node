@@ -43,7 +43,8 @@ void nano::signature_checker::stop ()
 
 void nano::signature_checker::flush ()
 {
-	rsnano::rsn_signature_checker_flush (handle);
+	bool is_ok = rsnano::rsn_signature_checker_flush (handle);
+	release_assert (is_ok && "timeout in flush");
 }
 
 rsnano::SignatureCheckerHandle const * nano::signature_checker::get_handle () const

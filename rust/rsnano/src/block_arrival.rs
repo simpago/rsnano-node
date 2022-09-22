@@ -19,15 +19,14 @@ pub(crate) struct BlockArrival {
 struct BlockArrivalCache {
     arrivals: BTreeMap<u64, BlockArrivalInfo>,
     by_hash: HashMap<BlockHash, u64>,
+    next_id: u64,
 }
 
 impl BlockArrivalCache {
-    fn new_key(&self) -> u64 {
-        self.arrivals
-            .iter()
-            .next_back()
-            .map(|(&key, _)| key + 1)
-            .unwrap_or_default()
+    fn new_key(&mut self) -> u64 {
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
+        id
     }
 
     fn add(&mut self, hash: &BlockHash, arrival: Instant) -> bool {
@@ -50,17 +49,21 @@ impl BlockArrivalCache {
     fn remove_old_entries(&mut self, min_size: usize, min_arrival_time: Duration) {
         let now = Instant::now();
         while self.arrivals.len() > min_size
-            && self.first_entry().1.arrival + min_arrival_time < now
+            && self.first_entry().unwrap().arrival + min_arrival_time < now
         {
-            let (&key, _) = self.first_entry();
+            let key = self.first_key().unwrap();
             if let Some(x) = self.arrivals.remove(&key) {
                 self.by_hash.remove(&x.hash);
             }
         }
     }
 
-    fn first_entry(&mut self) -> (&u64, &BlockArrivalInfo) {
-        self.arrivals.iter().next().unwrap()
+    fn first_entry(&mut self) -> Option<&BlockArrivalInfo> {
+        self.arrivals.iter().next().map(|(_, v)| v)
+    }
+
+    fn first_key(&mut self) -> Option<u64> {
+        self.arrivals.iter().next().map(|(&k, _)| k)
     }
 
     fn contains(&self, hash: &BlockHash) -> bool {

@@ -10,7 +10,7 @@ nano::online_reps::online_reps (nano::ledger & ledger_a, nano::node_config const
 	if (!ledger.store.init_error ())
 	{
 		auto transaction (ledger.store.tx_begin_read ());
-		trended_m = calculate_trend (transaction);
+		trended_m = calculate_trend (*transaction);
 	}
 }
 
@@ -41,14 +41,14 @@ void nano::online_reps::sample ()
 	{
 		auto transaction (ledger.store.tx_begin_write ({ tables::online_weight }));
 		// Discard oldest entries
-		while (ledger.store.online_weight.count (transaction) >= config.network_params.node.max_weight_samples)
+		while (ledger.store.online_weight ().count (*transaction) >= config.network_params.node.max_weight_samples)
 		{
-			auto oldest (ledger.store.online_weight.begin (transaction));
-			debug_assert (oldest != ledger.store.online_weight.end ());
-			ledger.store.online_weight.del (transaction, oldest->first);
+			auto oldest (ledger.store.online_weight ().begin (*transaction));
+			debug_assert (oldest != ledger.store.online_weight ().end ());
+			ledger.store.online_weight ().del (*transaction, oldest->first);
 		}
-		ledger.store.online_weight.put (transaction, std::chrono::system_clock::now ().time_since_epoch ().count (), online_l);
-		trend_l = calculate_trend (transaction);
+		ledger.store.online_weight ().put (*transaction, std::chrono::system_clock::now ().time_since_epoch ().count (), online_l);
+		trend_l = calculate_trend (*transaction);
 	}
 	lock.lock ();
 	trended_m = trend_l;
@@ -69,7 +69,7 @@ nano::uint128_t nano::online_reps::calculate_trend (nano::transaction & transact
 	std::vector<nano::uint128_t> items;
 	items.reserve (config.network_params.node.max_weight_samples + 1);
 	items.push_back (config.online_weight_minimum.number ());
-	for (auto i (ledger.store.online_weight.begin (transaction_a)), n (ledger.store.online_weight.end ()); i != n; ++i)
+	for (auto i (ledger.store.online_weight ().begin (transaction_a)), n (ledger.store.online_weight ().end ()); i != n; ++i)
 	{
 		items.push_back (i->second.number ());
 	}

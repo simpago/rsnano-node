@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{get_cpu_count, TomlWriter};
+use crate::utils::{get_cpu_count, TomlWriter};
 
 use super::NetworkConstants;
 

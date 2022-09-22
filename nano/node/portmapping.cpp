@@ -17,7 +17,7 @@ std::string nano::mapping_protocol::to_string ()
 
 nano::port_mapping::port_mapping (nano::node & node_a) :
 	node (node_a),
-	protocols ({ { { "TCP", boost::asio::ip::address_v4::any (), 0, true }, { "UDP", boost::asio::ip::address_v4::any (), 0, !node_a.flags.disable_udp } } })
+	protocols ({ { { "TCP", boost::asio::ip::address_v4::any (), 0, true }, { "UDP", boost::asio::ip::address_v4::any (), 0, !node_a.flags.disable_udp () } } })
 {
 }
 
@@ -31,7 +31,7 @@ void nano::port_mapping::start ()
 
 std::string nano::port_mapping::get_config_port (std::string const & node_port_a)
 {
-	return node.config.external_port != 0 ? std::to_string (node.config.external_port) : node_port_a;
+	return node.config->external_port != 0 ? std::to_string (node.config->external_port) : node_port_a;
 }
 
 std::string nano::port_mapping::to_string ()
@@ -58,14 +58,14 @@ void nano::port_mapping::refresh_devices ()
 		std::array<char, 64> local_address_l;
 		local_address_l.fill (0);
 		auto igd_error_l (UPNP_GetValidIGD (upnp_l.devices, &upnp_l.urls, &upnp_l.data, local_address_l.data (), sizeof (local_address_l)));
-		if (check_count % 15 == 0 || node.config.logging.upnp_details_logging ())
+		if (check_count % 15 == 0 || node.config->logging.upnp_details_logging ())
 		{
-			node.logger.always_log (boost::str (boost::format ("UPnP local address: %1%, discovery: %2%, IGD search: %3%") % local_address_l.data () % discover_error_l % igd_error_l));
-			if (node.config.logging.upnp_details_logging ())
+			node.logger->always_log (boost::str (boost::format ("UPnP local address: %1%, discovery: %2%, IGD search: %3%") % local_address_l.data () % discover_error_l % igd_error_l));
+			if (node.config->logging.upnp_details_logging ())
 			{
 				for (auto i (upnp_l.devices); i != nullptr; i = i->pNext)
 				{
-					node.logger.always_log (boost::str (boost::format ("UPnP device url: %1% st: %2% usn: %3%") % i->descURL % i->st % i->usn));
+					node.logger->always_log (boost::str (boost::format ("UPnP device url: %1% st: %2% usn: %3%") % i->descURL % i->st % i->usn));
 				}
 			}
 		}
@@ -100,7 +100,7 @@ void nano::port_mapping::refresh_mapping ()
 	if (on)
 	{
 		nano::lock_guard<nano::mutex> guard_l (mutex);
-		auto node_port_l (std::to_string (node.network.endpoint ().port ()));
+		auto node_port_l (std::to_string (node.network->endpoint ().port ()));
 		auto config_port_l (get_config_port (node_port_l));
 
 		// We don't map the RPC port because, unless RPC authentication was added, this would almost always be a security risk
@@ -113,13 +113,13 @@ void nano::port_mapping::refresh_mapping ()
 			{
 				protocol.external_port = static_cast<uint16_t> (std::atoi (config_port_l.data ()));
 				auto fmt = boost::format ("UPnP %1% %2%:%3% mapped to %4%") % protocol.name % protocol.external_address % config_port_l % node_port_l;
-				node.logger.always_log (boost::str (fmt));
+				node.logger->always_log (boost::str (fmt));
 			}
 			else
 			{
 				protocol.external_port = 0;
 				auto fmt = boost::format ("UPnP %1% %2%:%3% FAILED") % protocol.name % add_port_mapping_error_l % strupnperror (add_port_mapping_error_l);
-				node.logger.always_log (boost::str (fmt));
+				node.logger->always_log (boost::str (fmt));
 			}
 		}
 	}
@@ -131,7 +131,7 @@ bool nano::port_mapping::check_lost_or_old_mapping ()
 	debug_assert (!node.network_params.network.is_dev_network ());
 	bool result_l (false);
 	nano::lock_guard<nano::mutex> guard_l (mutex);
-	auto node_port_l (std::to_string (node.network.endpoint ().port ()));
+	auto node_port_l (std::to_string (node.network->endpoint ().port ()));
 	auto config_port_l (get_config_port (node_port_l));
 	for (auto & protocol : protocols | boost::adaptors::filtered ([] (auto const & p) { return p.enabled; }))
 	{
@@ -147,12 +147,12 @@ bool nano::port_mapping::check_lost_or_old_mapping ()
 		if (verify_port_mapping_error_l != UPNPCOMMAND_SUCCESS)
 		{
 			result_l = true;
-			node.logger.always_log (boost::str (boost::format ("UPNP_GetSpecificPortMappingEntry failed %1%: %2%") % verify_port_mapping_error_l % strupnperror (verify_port_mapping_error_l)));
+			node.logger->always_log (boost::str (boost::format ("UPNP_GetSpecificPortMappingEntry failed %1%: %2%") % verify_port_mapping_error_l % strupnperror (verify_port_mapping_error_l)));
 		}
 		if (!recent_lease)
 		{
 			result_l = true;
-			node.logger.always_log (boost::str (boost::format ("UPnP leasing time getting old, remaining time: %1%, lease time: %2%, below the threshold: %3%") % remaining_from_port_mapping % lease_duration % lease_duration_divided_by_two));
+			node.logger->always_log (boost::str (boost::format ("UPnP leasing time getting old, remaining time: %1%, lease time: %2%, below the threshold: %3%") % remaining_from_port_mapping % lease_duration % lease_duration_divided_by_two));
 		}
 		std::array<char, 64> external_address_l;
 		external_address_l.fill (0);
@@ -166,11 +166,11 @@ bool nano::port_mapping::check_lost_or_old_mapping ()
 		else
 		{
 			protocol.external_address = boost::asio::ip::address_v4::any ();
-			node.logger.always_log (boost::str (boost::format ("UPNP_GetExternalIPAddress failed %1%: %2%") % verify_port_mapping_error_l % strupnperror (verify_port_mapping_error_l)));
+			node.logger->always_log (boost::str (boost::format ("UPNP_GetExternalIPAddress failed %1%: %2%") % verify_port_mapping_error_l % strupnperror (verify_port_mapping_error_l)));
 		}
-		if (node.config.logging.upnp_details_logging ())
+		if (node.config->logging.upnp_details_logging ())
 		{
-			node.logger.always_log (boost::str (boost::format ("UPnP %1% mapping verification response: %2%, external ip response: %3%, external ip: %4%, internal ip: %5%, remaining lease: %6%") % protocol.name % verify_port_mapping_error_l % external_ip_error_l % external_address_l.data () % address.to_string () % remaining_mapping_duration_l.data ()));
+			node.logger->always_log (boost::str (boost::format ("UPnP %1% mapping verification response: %2%, external ip response: %3%, external ip: %4%, internal ip: %5%, remaining lease: %6%") % protocol.name % verify_port_mapping_error_l % external_ip_error_l % external_address_l.data () % address.to_string () % remaining_mapping_duration_l.data ()));
 		}
 	}
 	return result_l;
@@ -192,19 +192,19 @@ void nano::port_mapping::check_mapping_loop ()
 		}
 		else
 		{
-			node.logger.always_log (boost::str (boost::format ("UPnP No need to refresh the mapping")));
+			node.logger->always_log (boost::str (boost::format ("UPnP No need to refresh the mapping")));
 		}
 	}
 	else
 	{
-		if (check_count < 10 || node.config.logging.upnp_details_logging ())
+		if (check_count < 10 || node.config->logging.upnp_details_logging ())
 		{
-			node.logger.always_log (boost::str (boost::format ("UPnP No IGD devices found")));
+			node.logger->always_log (boost::str (boost::format ("UPnP No IGD devices found")));
 		}
 	}
 
 	// Check for new devices or after health_check_period
-	node.workers.add_timed_task (std::chrono::steady_clock::now () + health_check_period, [node_l = node.shared ()] () {
+	node.workers->add_timed_task (std::chrono::steady_clock::now () + health_check_period, [node_l = node.shared ()] () {
 		node_l->port_mapping.check_mapping_loop ();
 	});
 
@@ -223,11 +223,11 @@ void nano::port_mapping::stop ()
 			auto delete_error_l (UPNP_DeletePortMapping (upnp.urls.controlURL, upnp.data.first.servicetype, std::to_string (protocol.external_port).c_str (), protocol.name, address.to_string ().c_str ()));
 			if (delete_error_l)
 			{
-				node.logger.always_log (boost::str (boost::format ("UPnP shutdown %1% port mapping response: %2%") % protocol.name % delete_error_l));
+				node.logger->always_log (boost::str (boost::format ("UPnP shutdown %1% port mapping response: %2%") % protocol.name % delete_error_l));
 			}
 			else
 			{
-				node.logger.always_log (boost::str (boost::format ("UPnP shutdown %1% port mapping successful: %2%:%3%") % protocol.name % protocol.external_address % protocol.external_port));
+				node.logger->always_log (boost::str (boost::format ("UPnP shutdown %1% port mapping successful: %2%:%3%") % protocol.name % protocol.external_address % protocol.external_port));
 			}
 		}
 	}

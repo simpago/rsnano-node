@@ -35,6 +35,7 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 option(CI_BUILD false)
+option(CI_VERSION_PRE_RELEASE false)
 
 set(COVERAGE
     OFF
@@ -55,11 +56,15 @@ endif()
 set(CPACK_PACKAGE_VERSION_MAJOR "24")
 set(CPACK_PACKAGE_VERSION_MINOR "0")
 set(CPACK_PACKAGE_VERSION_PATCH "0")
-set(CPACK_PACKAGE_VERSION_PRE_RELEASE "99")
+if(CI_BUILD AND CI_VERSION_PRE_RELEASE)
+  set(CPACK_PACKAGE_VERSION_PRE_RELEASE "${CI_VERSION_PRE_RELEASE}")
+else()
+  set(CPACK_PACKAGE_VERSION_PRE_RELEASE "99")
+endif()
 set(CPACK_PACKAGE_VENDOR "Nano Currency")
 
 if(CI_BUILD)
-  set(TAG_VERSION_STRING "$ENV{TRAVIS_TAG}")
+  set(TAG_VERSION_STRING "$ENV{CI_TAG}")
 else()
   set(TAG_VERSION_STRING
       "V${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}")
@@ -126,9 +131,6 @@ set(NANO_FUZZER_TEST
 set(NANO_ASIO_HANDLER_TRACKING
     0
     CACHE STRING "")
-set(NANO_ROCKSDB_TOOLS
-    OFF
-    CACHE BOOL "")
 
 option(NANO_STACKTRACE_BACKTRACE
        "Use BOOST_STACKTRACE_USE_BACKTRACE in stacktraces, for POSIX" OFF)
@@ -256,7 +258,6 @@ else()
       add_compile_options(-fsanitize=address,undefined)
     endif()
     add_definitions(-DED25519_NO_INLINE_ASM)
-    add_definitions(-DROCKSDB_UBSAN_RUN)
   elseif(${USING_TSAN})
     add_compile_options(-fsanitize=thread)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -396,40 +397,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
   add_library(diskhash STATIC ${CMAKE_SOURCE_DIR}/diskhash/src/diskhash.c)
   include_directories(diskhash/src)
 endif()
-
-# RocksDB
-include_directories(rocksdb/include)
-set(USE_RTTI
-    ON
-    CACHE BOOL "")
-set(WITH_GFLAGS
-    OFF
-    CACHE BOOL "")
-set(WITH_TESTS
-    OFF
-    CACHE BOOL "")
-set(WITH_BENCHMARK_TOOLS
-    OFF
-    CACHE BOOL "")
-set(ROCKSDB_BUILD_SHARED
-    OFF
-    CACHE BOOL "")
-set(WITH_CORE_TOOLS
-    ${NANO_ROCKSDB_TOOLS}
-    CACHE BOOL "" FORCE)
-set(WITH_TOOLS
-    ${NANO_ROCKSDB_TOOLS}
-    CACHE BOOL "" FORCE)
-if(ENABLE_AVX2)
-  set(PORTABLE
-      OFF
-      CACHE BOOL "" FORCE)
-else()
-  set(PORTABLE
-      ON
-      CACHE BOOL "" FORCE)
-endif()
-add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
 
 include_directories(cpptoml/include)
 add_subdirectory(crypto/ed25519-donna)

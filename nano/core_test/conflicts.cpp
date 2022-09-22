@@ -10,14 +10,22 @@ using namespace std::chrono_literals;
 
 TEST (conflicts, start_stop)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	auto & node1 (*system.nodes[0]);
 	nano::keypair key1;
-	auto send1 (std::make_shared<nano::send_block> (nano::dev::genesis->hash (), key1.pub, 0, nano::dev::genesis_key.prv, nano::dev::genesis_key.pub, 0));
+	nano::block_builder builder;
+	auto send1 = builder
+				 .send ()
+				 .previous (nano::dev::genesis->hash ())
+				 .destination (key1.pub)
+				 .balance (0)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (0)
+				 .build_shared ();
 	node1.work_generate_blocking (*send1);
 	ASSERT_EQ (nano::process_result::progress, node1.process (*send1).code);
 	ASSERT_EQ (0, node1.active.size ());
-	node1.scheduler.activate (nano::dev::genesis_key.pub, node1.store.tx_begin_read ());
+	node1.scheduler.activate (nano::dev::genesis_key.pub, *node1.store.tx_begin_read ());
 	node1.scheduler.flush ();
 	auto election1 = node1.active.election (send1->qualified_root ());
 	ASSERT_EQ (1, node1.active.size ());
@@ -27,24 +35,57 @@ TEST (conflicts, start_stop)
 
 TEST (conflicts, add_existing)
 {
-	nano::system system{ 1 };
+	nano::test::system system{ 1 };
 	auto & node1 = *system.nodes[0];
 	nano::keypair key1;
-	auto send1 = std::make_shared<nano::send_block> (nano::dev::genesis->hash (), key1.pub, 0, nano::dev::genesis_key.prv, nano::dev::genesis_key.pub, 0);
+
+	// create a send block to send all of the nano supply to key1
+	nano::block_builder builder;
+	auto send1 = builder
+				 .send ()
+				 .previous (nano::dev::genesis->hash ())
+				 .destination (key1.pub)
+				 .balance (0)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (0)
+				 .build_shared ();
 	node1.work_generate_blocking (*send1);
+
+	// add the block to ledger as an unconfirmed block
 	ASSERT_EQ (nano::process_result::progress, node1.process (*send1).code);
-	node1.scheduler.activate (nano::dev::genesis_key.pub, node1.store.tx_begin_read ());
+
+	// wait for send1 to be inserted in the ledger
+	ASSERT_TIMELY (5s, node1.block (send1->hash ()));
+
+	// instruct the election scheduler to trigger an election for send1
+	node1.scheduler.activate (nano::dev::genesis_key.pub, *node1.store.tx_begin_read ());
+
+	// wait for election to be started before processing send2
+	ASSERT_TIMELY (5s, node1.active.active (*send1));
+
 	nano::keypair key2;
-	auto send2 = std::make_shared<nano::send_block> (nano::dev::genesis->hash (), key2.pub, 0, nano::dev::genesis_key.prv, nano::dev::genesis_key.pub, 0);
+	auto send2 = builder
+				 .send ()
+				 .previous (nano::dev::genesis->hash ())
+				 .destination (key2.pub)
+				 .balance (0)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (0)
+				 .build_shared ();
 	node1.work_generate_blocking (*send2);
 	send2->sideband_set ({});
+
+	// the block processor will notice that the block is a fork and it will try to publish it
+	// which will update the election object
 	node1.block_processor.add (send2);
+
+	ASSERT_TRUE (node1.active.active (*send1));
 	ASSERT_TIMELY (5s, node1.active.active (*send2));
 }
 
 TEST (conflicts, add_two)
 {
-	nano::system system{};
+	nano::test::system system{};
 	auto const & node = system.add_node ();
 
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
@@ -124,7 +165,7 @@ TEST (conflicts, add_two)
 
 	// activate elections for the previous two send blocks (to account3) that we did not forcefully confirm
 	//
-	node->scheduler.activate (account3.pub, node->store.tx_begin_read ());
+	node->scheduler.activate (account3.pub, *node->store.tx_begin_read ());
 	ASSERT_TIMELY (5s, node->active.election ((*send3)->qualified_root ()) != nullptr);
 	ASSERT_TIMELY (5s, node->active.election ((*send4)->qualified_root ()) != nullptr);
 

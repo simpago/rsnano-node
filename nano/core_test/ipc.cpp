@@ -19,9 +19,9 @@ using namespace std::chrono_literals;
 
 TEST (ipc, asynchronous)
 {
-	nano::system system (1);
-	system.nodes[0]->config.ipc_config.transport_tcp.enabled = true;
-	system.nodes[0]->config.ipc_config.transport_tcp.port = 24077;
+	nano::test::system system (1);
+	system.nodes[0]->config->ipc_config.transport_tcp.enabled = true;
+	system.nodes[0]->config->ipc_config.transport_tcp.port = 24077;
 	nano::node_rpc_config node_rpc_config;
 	nano::ipc::ipc_server ipc (*system.nodes[0], node_rpc_config);
 	nano::ipc::ipc_client client (system.nodes[0]->io_ctx);
@@ -59,9 +59,9 @@ TEST (ipc, asynchronous)
 
 TEST (ipc, synchronous)
 {
-	nano::system system (1);
-	system.nodes[0]->config.ipc_config.transport_tcp.enabled = true;
-	system.nodes[0]->config.ipc_config.transport_tcp.port = 24077;
+	nano::test::system system (1);
+	system.nodes[0]->config->ipc_config.transport_tcp.enabled = true;
+	system.nodes[0]->config->ipc_config.transport_tcp.port = 24077;
 	nano::node_rpc_config node_rpc_config;
 	nano::ipc::ipc_server ipc (*system.nodes[0], node_rpc_config);
 	nano::ipc::ipc_client client (system.nodes[0]->io_ctx);
@@ -192,9 +192,8 @@ TEST (ipc, permissions_default_user_order)
 
 TEST (ipc, invalid_endpoint)
 {
-	nano::system system (1);
-	system.nodes[0]->config.ipc_config.transport_tcp.enabled = true;
-	system.nodes[0]->config.ipc_config.transport_tcp.port = 24077;
+	nano::test::system system (1);
+
 	nano::node_rpc_config node_rpc_config;
 	nano::ipc::ipc_client client (system.nodes[0]->io_ctx);
 

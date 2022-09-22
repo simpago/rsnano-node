@@ -5,10 +5,8 @@
 #include <nano/lib/lmdbconfig.hpp>
 #include <nano/lib/logger_mt.hpp>
 #include <nano/lib/memory.hpp>
-#include <nano/lib/rocksdbconfig.hpp>
 #include <nano/secure/buffer.hpp>
 #include <nano/secure/common.hpp>
-#include <nano/secure/versioning.hpp>
 
 #include <boost/endian/conversion.hpp>
 #include <boost/polymorphic_cast.hpp>
@@ -18,14 +16,6 @@
 namespace nano
 {
 // Move to versioning with a specific version if required for a future upgrade
-template <typename T>
-class block_w_sideband_v18
-{
-public:
-	std::shared_ptr<T> block;
-	nano::block_sideband_v18 sideband;
-};
-
 class block_w_sideband
 {
 public:
@@ -76,25 +66,19 @@ public:
 	}
 
 	db_val (nano::account_info const & val_a) :
-		db_val (val_a.db_size (), const_cast<nano::account_info *> (&val_a))
+		buffer (std::make_shared<std::vector<uint8_t>> ())
 	{
-	}
-
-	db_val (nano::account_info_v14 const & val_a) :
-		db_val (val_a.db_size (), const_cast<nano::account_info_v14 *> (&val_a))
-	{
+		{
+			nano::vectorstream stream (*buffer);
+			val_a.serialize (stream);
+		}
+		convert_buffer_to_value ();
 	}
 
 	db_val (nano::pending_info const & val_a) :
 		db_val (val_a.db_size (), const_cast<nano::pending_info *> (&val_a))
 	{
 		static_assert (std::is_standard_layout<nano::pending_info>::value, "Standard layout is required");
-	}
-
-	db_val (nano::pending_info_v14 const & val_a) :
-		db_val (val_a.db_size (), const_cast<nano::pending_info_v14 *> (&val_a))
-	{
-		static_assert (std::is_standard_layout<nano::pending_info_v14>::value, "Standard layout is required");
 	}
 
 	db_val (nano::pending_key const & val_a) :
@@ -164,17 +148,11 @@ public:
 
 	explicit operator nano::account_info () const
 	{
+		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
 		nano::account_info result;
 		debug_assert (size () == result.db_size ());
-		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + result.db_size (), reinterpret_cast<uint8_t *> (&result));
-		return result;
-	}
-
-	explicit operator nano::account_info_v14 () const
-	{
-		nano::account_info_v14 result;
-		debug_assert (size () == result.db_size ());
-		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + result.db_size (), reinterpret_cast<uint8_t *> (&result));
+		bool error = result.deserialize (stream);
+		debug_assert (!error);
 		return result;
 	}
 
@@ -184,14 +162,6 @@ public:
 		debug_assert (size () == sizeof (result));
 		static_assert (sizeof (nano::block_info::account) + sizeof (nano::block_info::balance) == sizeof (result), "Packed class");
 		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + sizeof (result), reinterpret_cast<uint8_t *> (&result));
-		return result;
-	}
-
-	explicit operator nano::pending_info_v14 () const
-	{
-		nano::pending_info_v14 result;
-		debug_assert (size () == result.db_size ());
-		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + result.db_size (), reinterpret_cast<uint8_t *> (&result));
 		return result;
 	}
 
@@ -293,21 +263,6 @@ public:
 		return result;
 	}
 
-	template <class Block>
-	explicit operator block_w_sideband_v18<Block> () const
-	{
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
-		auto error (false);
-		block_w_sideband_v18<Block> block_w_sideband;
-		block_w_sideband.block = std::make_shared<Block> (error, stream);
-		release_assert (!error);
-
-		error = block_w_sideband.sideband.deserialize (stream, block_w_sideband.block->type ());
-		release_assert (!error);
-
-		return block_w_sideband;
-	}
-
 	explicit operator block_w_sideband () const
 	{
 		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
@@ -316,21 +271,6 @@ public:
 		auto error = block_w_sideband.sideband.deserialize (stream, block_w_sideband.block->type ());
 		release_assert (!error);
 		block_w_sideband.block->sideband_set (block_w_sideband.sideband);
-		return block_w_sideband;
-	}
-
-	explicit operator state_block_w_sideband_v14 () const
-	{
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
-		auto error (false);
-		nano::state_block_w_sideband_v14 block_w_sideband;
-		block_w_sideband.state_block = std::make_shared<nano::state_block> (error, stream);
-		debug_assert (!error);
-
-		block_w_sideband.sideband.type = nano::block_type::state;
-		error = block_w_sideband.sideband.deserialize (stream);
-		debug_assert (!error);
-
 		return block_w_sideband;
 	}
 
@@ -542,7 +482,6 @@ enum class tables
 	accounts,
 	blocks,
 	confirmation_height,
-	default_unused, // RocksDB only
 	final_votes,
 	frontiers,
 	meta,
@@ -554,68 +493,37 @@ enum class tables
 	vote
 };
 
-class transaction_impl
-{
-public:
-	virtual ~transaction_impl () = default;
-	virtual void * get_handle () const = 0;
-};
-
-class read_transaction_impl : public transaction_impl
-{
-public:
-	virtual void reset () = 0;
-	virtual void renew () = 0;
-};
-
-class write_transaction_impl : public transaction_impl
-{
-public:
-	virtual void commit () = 0;
-	virtual void renew () = 0;
-	virtual bool contains (nano::tables table_a) const = 0;
-};
-
 class transaction
 {
 public:
 	virtual ~transaction () = default;
 	virtual void * get_handle () const = 0;
+	virtual rsnano::TransactionHandle * get_rust_handle () const = 0;
 };
 
 /**
  * RAII wrapper of a read MDB_txn where the constructor starts the transaction
  * and the destructor aborts it.
  */
-class read_transaction final : public transaction
+class read_transaction : public transaction
 {
 public:
-	explicit read_transaction (std::unique_ptr<nano::read_transaction_impl> read_transaction_impl);
-	void * get_handle () const override;
-	void reset () const;
-	void renew () const;
-	void refresh () const;
-
-private:
-	std::unique_ptr<nano::read_transaction_impl> impl;
+	virtual void reset () = 0;
+	virtual void renew () = 0;
+	virtual void refresh () = 0;
 };
 
 /**
  * RAII wrapper of a read-write MDB_txn where the constructor starts the transaction
  * and the destructor commits it.
  */
-class write_transaction final : public transaction
+class write_transaction : public transaction
 {
 public:
-	explicit write_transaction (std::unique_ptr<nano::write_transaction_impl> write_transaction_impl);
-	void * get_handle () const override;
-	void commit ();
-	void renew ();
-	void refresh ();
-	bool contains (nano::tables table_a) const;
-
-private:
-	std::unique_ptr<nano::write_transaction_impl> impl;
+	virtual void commit () = 0;
+	virtual void renew () = 0;
+	virtual void refresh () = 0;
+	virtual bool contains (nano::tables table_a) const = 0;
 };
 
 class ledger_cache;
@@ -641,6 +549,7 @@ public:
 class account_store
 {
 public:
+	virtual ~account_store (){};
 	virtual void put (nano::write_transaction const &, nano::account const &, nano::account_info const &) = 0;
 	virtual bool get (nano::transaction const &, nano::account const &, nano::account_info &) = 0;
 	virtual void del (nano::write_transaction const &, nano::account const &) = 0;
@@ -756,14 +665,12 @@ public:
 	virtual void put (nano::write_transaction const &, nano::hash_or_account const & dependency, nano::unchecked_info const &) = 0;
 	std::pair<iterator, iterator> equal_range (nano::transaction const & transaction, nano::block_hash const & dependency);
 	std::pair<iterator, iterator> full_range (nano::transaction const & transaction);
-	std::vector<nano::unchecked_info> get (nano::transaction const &, nano::block_hash const &);
 	virtual bool exists (nano::transaction const & transaction_a, nano::unchecked_key const & unchecked_key_a) = 0;
 	virtual void del (nano::write_transaction const &, nano::unchecked_key const &) = 0;
 	virtual iterator begin (nano::transaction const &) const = 0;
 	virtual iterator lower_bound (nano::transaction const &, nano::unchecked_key const &) const = 0;
 	virtual iterator end () const = 0;
 	virtual size_t count (nano::transaction const &) = 0;
-	virtual void for_each_par (std::function<void (nano::read_transaction const &, iterator, iterator)> const & action_a) const = 0;
 };
 
 /**
@@ -800,6 +707,9 @@ public:
 class block_store
 {
 public:
+	virtual ~block_store ()
+	{
+	}
 	virtual void put (nano::write_transaction const &, nano::block_hash const &, nano::block const &) = 0;
 	virtual void raw_put (nano::write_transaction const &, std::vector<uint8_t> const &, nano::block_hash const &) = 0;
 	virtual nano::block_hash successor (nano::transaction const &, nano::block_hash const &) const = 0;
@@ -829,47 +739,21 @@ class unchecked_map;
 class store
 {
 public:
-	// clang-format off
-	explicit store (
-		nano::block_store &,
-		nano::frontier_store &,
-		nano::account_store &,
-		nano::pending_store &,
-		nano::unchecked_store &,
-		nano::online_weight_store &,
-		nano::pruned_store &,
-		nano::peer_store &,
-		nano::confirmation_height_store &,
-		nano::final_vote_store &,
-		nano::version_store &
-	);
-	// clang-format on
 	virtual ~store () = default;
 	void initialize (nano::write_transaction const & transaction_a, nano::ledger_cache & ledger_cache_a, nano::ledger_constants & constants);
-	virtual uint64_t count (nano::transaction const & transaction_a, tables table_a) const = 0;
-	virtual int drop (nano::write_transaction const & transaction_a, tables table_a) = 0;
-	virtual bool not_found (int status) const = 0;
-	virtual bool success (int status) const = 0;
-	virtual int status_code_not_found () const = 0;
-	virtual std::string error_string (int status) const = 0;
-
-	block_store & block;
-	frontier_store & frontier;
-	account_store & account;
-	pending_store & pending;
-	static int constexpr version_minimum{ 14 };
+	virtual block_store & block () = 0;
+	virtual frontier_store & frontier () = 0;
+	virtual account_store & account () = 0;
+	virtual pending_store & pending () = 0;
+	virtual unchecked_store & unchecked () = 0;
+	virtual online_weight_store & online_weight () = 0;
+	virtual pruned_store & pruned () = 0;
+	virtual peer_store & peer () = 0;
+	virtual confirmation_height_store & confirmation_height () = 0;
+	virtual final_vote_store & final_vote () = 0;
+	virtual version_store & version () = 0;
+	static int constexpr version_minimum{ 21 };
 	static int constexpr version_current{ 21 };
-
-private:
-	unchecked_store & unchecked;
-
-public:
-	online_weight_store & online_weight;
-	pruned_store & pruned;
-	peer_store & peer;
-	confirmation_height_store & confirmation_height;
-	final_vote_store & final_vote;
-	version_store & version;
 
 	virtual unsigned max_block_write_batch_num () const = 0;
 
@@ -883,17 +767,17 @@ public:
 	virtual bool init_error () const = 0;
 
 	/** Start read-write transaction */
-	virtual nano::write_transaction tx_begin_write (std::vector<nano::tables> const & tables_to_lock = {}, std::vector<nano::tables> const & tables_no_lock = {}) = 0;
+	virtual std::unique_ptr<nano::write_transaction> tx_begin_write (std::vector<nano::tables> const & tables_to_lock = {}, std::vector<nano::tables> const & tables_no_lock = {}) = 0;
 
 	/** Start read-only transaction */
-	virtual nano::read_transaction tx_begin_read () const = 0;
+	virtual std::unique_ptr<nano::read_transaction> tx_begin_read () const = 0;
 
 	virtual std::string vendor_get () const = 0;
 
 	friend class unchecked_map;
 };
 
-std::unique_ptr<nano::store> make_store (nano::logger_mt & logger, boost::filesystem::path const & path, nano::ledger_constants & constants, bool open_read_only = false, bool add_db_postfix = false, nano::rocksdb_config const & rocksdb_config = nano::rocksdb_config{}, nano::txn_tracking_config const & txn_tracking_config_a = nano::txn_tracking_config{}, std::chrono::milliseconds block_processor_batch_max_time_a = std::chrono::milliseconds (5000), nano::lmdb_config const & lmdb_config_a = nano::lmdb_config{}, bool backup_before_upgrade = false);
+std::unique_ptr<nano::store> make_store (std::shared_ptr<nano::logger_mt> logger, boost::filesystem::path const & path, nano::ledger_constants & constants, bool open_read_only = false, bool add_db_postfix = false, nano::txn_tracking_config const & txn_tracking_config_a = nano::txn_tracking_config{}, std::chrono::milliseconds block_processor_batch_max_time_a = std::chrono::milliseconds (5000), nano::lmdb_config const & lmdb_config_a = nano::lmdb_config{}, bool backup_before_upgrade = false);
 }
 
 namespace std

@@ -56,11 +56,13 @@ volatile sig_atomic_t sig_int_or_term = 0;
 constexpr std::size_t OPEN_FILE_DESCRIPTORS_LIMIT = 16384;
 }
 
-static void load_and_set_bandwidth_params (std::shared_ptr<nano::node> const & node, boost::filesystem::path const & data_path, nano::node_flags const & flags)
+static void load_and_set_bandwidth_params (std::shared_ptr<nano::node> const & node, boost::filesystem::path const & data_path, nano::node_flags & flags)
 {
 	nano::daemon_config config{ data_path, node->network_params };
 
-	auto error = nano::read_node_config_toml (data_path, config, flags.config_overrides);
+	auto tmp_overrides{ flags.rpc_config_overrides () };
+	auto error = nano::read_node_config_toml (data_path, config, tmp_overrides);
+	flags.set_rpc_overrides (tmp_overrides);
 	if (!error)
 	{
 		error = nano::flags_config_conflicts (flags, config.node);
@@ -71,7 +73,7 @@ static void load_and_set_bandwidth_params (std::shared_ptr<nano::node> const & n
 	}
 }
 
-void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::node_flags const & flags)
+void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::node_flags & flags)
 {
 	install_abort_signal_handler ();
 
@@ -81,7 +83,9 @@ void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::
 	std::unique_ptr<nano::thread_runner> runner;
 	nano::network_params network_params{ nano::network_constants::active_network () };
 	nano::daemon_config config{ data_path, network_params };
-	auto error = nano::read_node_config_toml (data_path, config, flags.config_overrides);
+	auto tmp_overrides{ flags.config_overrides () };
+	auto error = nano::read_node_config_toml (data_path, config, tmp_overrides);
+	flags.set_config_overrides (tmp_overrides);
 	nano::set_use_memory_pools (config.node.use_memory_pools);
 	if (!error)
 	{
@@ -116,6 +120,9 @@ void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::
 			auto initialization_text = "Starting up Nano node...";
 			std::cout << initialization_text << std::endl;
 			logger.always_log (initialization_text);
+
+			// Print info about number of logical cores detected, those are used to decide how many IO, worker and signature checker threads to spawn
+			logger.always_log (boost::format ("Hardware concurrency: %1% ( configured: %2% )") % std::thread::hardware_concurrency () % nano::hardware_concurrency ());
 
 			nano::set_file_descriptor_limit (OPEN_FILE_DESCRIPTORS_LIMIT);
 			auto const file_descriptor_limit = nano::get_file_descriptor_limit ();
@@ -177,7 +184,9 @@ void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::
 					{
 						// Launch rpc in-process
 						nano::rpc_config rpc_config{ config.node.network_params.network };
-						auto error = nano::read_rpc_config_toml (data_path, rpc_config, flags.rpc_config_overrides);
+						auto tmp_overrides{ flags.rpc_config_overrides () };
+						auto error = nano::read_rpc_config_toml (data_path, rpc_config, tmp_overrides);
+						flags.set_rpc_overrides (tmp_overrides);
 						if (error)
 						{
 							std::cout << error.get_message () << std::endl;
@@ -185,7 +194,7 @@ void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::
 						}
 
 						rpc_config.tls_config = tls_config;
-						rpc_handler = std::make_unique<nano::inprocess_rpc_handler> (*node, ipc_server, config.rpc, [&ipc_server, &workers = node->workers, &io_ctx] () {
+						rpc_handler = std::make_unique<nano::inprocess_rpc_handler> (*node, ipc_server, config.rpc, [&ipc_server, &workers = *node->workers, &io_ctx] () {
 							ipc_server.stop ();
 							workers.add_timed_task (std::chrono::steady_clock::now () + std::chrono::seconds (3), [&io_ctx] () {
 								io_ctx.stop ();
@@ -230,7 +239,7 @@ void nano_daemon::daemon::run (boost::filesystem::path const & data_path, nano::
 				sigman.register_signal_handler (SIGHUP, sighup_signal_handler, true);
 #endif
 
-				runner = std::make_unique<nano::thread_runner> (io_ctx, node->config.io_threads);
+				runner = std::make_unique<nano::thread_runner> (io_ctx, node->config->io_threads);
 				runner->join ();
 
 				if (sig_int_or_term == 1)

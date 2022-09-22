@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use crate::TomlWriter;
+use crate::utils::TomlWriter;
 
 pub struct NodePowServerConfig {
     pub enable: bool,

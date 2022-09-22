@@ -18,20 +18,6 @@ void item_to_dto (nano::state_block_signature_verification::value_type const & v
 	result.verification = static_cast<uint8_t> (verification);
 }
 
-std::vector<rsnano::StateBlockSignatureVerificationValueDto> items_to_dto (std::deque<nano::state_block_signature_verification::value_type> & items)
-{
-	std::vector<rsnano::StateBlockSignatureVerificationValueDto> result;
-	result.reserve (items.size ());
-	for (auto i : items)
-	{
-		rsnano::StateBlockSignatureVerificationValueDto value_dto;
-		item_to_dto (i, value_dto);
-		result.push_back (value_dto);
-	}
-
-	return result;
-}
-
 void dto_to_value_type (rsnano::StateBlockSignatureVerificationValueDto const & dto, nano::state_block_signature_verification::value_type & result)
 {
 	nano::account account;
@@ -78,9 +64,9 @@ void transition_inactive_callback_adapter (void * context)
 	instance->transition_inactive_callback ();
 }
 
-nano::state_block_signature_verification::state_block_signature_verification (nano::signature_checker & signature_checker, nano::epochs & epochs, bool timing_logging, nano::logger_mt & logger, uint64_t state_block_signature_verification_size)
+nano::state_block_signature_verification::state_block_signature_verification (nano::signature_checker & signature_checker, nano::epochs & epochs, bool timing_logging, std::shared_ptr<nano::logger_mt> & logger, uint64_t state_block_signature_verification_size)
 {
-	handle = rsnano::rsn_state_block_signature_verification_create (signature_checker.get_handle (), epochs.get_handle (), &logger, timing_logging, state_block_signature_verification_size);
+	handle = rsnano::rsn_state_block_signature_verification_create (signature_checker.get_handle (), epochs.get_handle (), nano::to_logger_handle (logger), timing_logging, state_block_signature_verification_size);
 	rsnano::rsn_state_block_signature_verification_verified_callback (handle, blocks_verified_callback_adapter, this);
 	rsnano::rsn_state_block_signature_verification_transition_inactive_callback (handle, transition_inactive_callback_adapter, this);
 }
@@ -105,6 +91,7 @@ void nano::state_block_signature_verification::add (value_type const & item)
 	rsnano::StateBlockSignatureVerificationValueDto dto;
 	item_to_dto (item, dto);
 	rsnano::rsn_state_block_signature_verification_add (handle, &dto);
+	rsnano::rsn_block_destroy (dto.block);
 }
 
 std::size_t nano::state_block_signature_verification::size ()

@@ -7,6 +7,7 @@
 #include <nano/lib/epoch.hpp>
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/rep_weights.hpp>
+#include <nano/lib/rsnano.hpp>
 #include <nano/lib/utility.hpp>
 
 #include <boost/iterator/transform_iterator.hpp>
@@ -39,6 +40,15 @@ struct hash<::nano::block_hash>
 	size_t operator() (::nano::block_hash const & value_a) const
 	{
 		return std::hash<::nano::block_hash> () (value_a);
+	}
+};
+
+template <>
+struct hash<::nano::hash_or_account>
+{
+	size_t operator() (::nano::hash_or_account const & data_a) const
+	{
+		return std::hash<::nano::hash_or_account> () (data_a);
 	}
 };
 
@@ -85,8 +95,9 @@ class keypair
 {
 public:
 	keypair ();
-	keypair (std::string const &);
-	keypair (nano::raw_key &&);
+	explicit keypair (std::string const &);
+	explicit keypair (nano::raw_key &&);
+	keypair (nano::keypair const &);
 	keypair (nano::raw_key const & priv_key_a, nano::public_key const & pub_key_a);
 	nano::public_key pub;
 	nano::raw_key prv;
@@ -98,21 +109,25 @@ public:
 class account_info final
 {
 public:
-	account_info () = default;
+	account_info ();
 	account_info (nano::block_hash const &, nano::account const &, nano::block_hash const &, nano::amount const &, uint64_t, uint64_t, epoch);
+	account_info (account_info const &);
+	account_info (account_info &&);
+	~account_info ();
+	account_info & operator= (account_info const &);
+	bool serialize (nano::stream &) const;
 	bool deserialize (nano::stream &);
 	bool operator== (nano::account_info const &) const;
 	bool operator!= (nano::account_info const &) const;
 	size_t db_size () const;
 	nano::epoch epoch () const;
-	nano::block_hash head{ 0 };
-	nano::account representative{};
-	nano::block_hash open_block{ 0 };
-	nano::amount balance{ 0 };
-	/** Seconds since posix epoch */
-	uint64_t modified{ 0 };
-	uint64_t block_count{ 0 };
-	nano::epoch epoch_m{ nano::epoch::epoch_0 };
+	nano::block_hash head () const;
+	nano::account representative () const;
+	nano::block_hash open_block () const;
+	nano::amount balance () const;
+	uint64_t modified () const;
+	uint64_t block_count () const;
+	rsnano::AccountInfoHandle * handle;
 };
 
 /**
@@ -181,8 +196,10 @@ public:
 	explicit unchecked_key (nano::hash_or_account const & dependency);
 	unchecked_key (nano::hash_or_account const &, nano::block_hash const &);
 	unchecked_key (nano::uint512_union const &);
+	rsnano::UncheckedKeyDto to_dto () const;
 	bool deserialize (nano::stream &);
 	bool operator== (nano::unchecked_key const &) const;
+	bool operator< (nano::unchecked_key const &) const;
 	nano::block_hash const & key () const;
 	nano::block_hash previous{ 0 };
 	nano::block_hash hash{ 0 };
@@ -220,8 +237,6 @@ public:
 	nano::account get_account () const;
 	nano::signature_verification get_verified () const;
 	void set_verified (nano::signature_verification verified);
-
-private:
 	rsnano::UncheckedInfoHandle * handle;
 };
 
@@ -237,17 +252,18 @@ public:
 class confirmation_height_info final
 {
 public:
-	confirmation_height_info () = default;
+	confirmation_height_info ();
 	confirmation_height_info (uint64_t, nano::block_hash const &);
 
 	void serialize (nano::stream &) const;
 	bool deserialize (nano::stream &);
 
 	/** height of the cemented frontier */
-	uint64_t height{};
+	uint64_t height () const;
 
 	/** hash of the highest cemented block, the cemented/confirmed frontier */
-	nano::block_hash frontier{};
+	nano::block_hash frontier () const;
+	rsnano::ConfirmationHeightInfoDto dto;
 };
 
 namespace confirmation_height
@@ -324,8 +340,6 @@ public:
 	std::shared_ptr<nano::vote> unique (std::shared_ptr<nano::vote> const &);
 	size_t size ();
 	vote_uniquer & operator= (vote_uniquer const &) = delete;
-
-private:
 	rsnano::VoteUniquerHandle * handle;
 };
 
@@ -371,6 +385,34 @@ enum class tally_result
 };
 
 class network_params;
+
+class NetworkParamsDtoWrapper
+{
+public:
+	NetworkParamsDtoWrapper (rsnano::NetworkParamsDto dto_a) :
+		dto{ dto_a }
+	{
+	}
+	NetworkParamsDtoWrapper (NetworkParamsDtoWrapper const &) = delete;
+	NetworkParamsDtoWrapper (NetworkParamsDtoWrapper && other_a)
+	{
+		dto = other_a.dto;
+		other_a.moved = true;
+	}
+	~NetworkParamsDtoWrapper ()
+	{
+		if (!moved)
+		{
+			rsnano::rsn_block_destroy (dto.ledger.genesis);
+			rsnano::rsn_block_destroy (dto.ledger.nano_beta_genesis);
+			rsnano::rsn_block_destroy (dto.ledger.nano_dev_genesis);
+			rsnano::rsn_block_destroy (dto.ledger.nano_live_genesis);
+			rsnano::rsn_block_destroy (dto.ledger.nano_test_genesis);
+		}
+	}
+	rsnano::NetworkParamsDto dto;
+	bool moved{ false };
+};
 
 /** Genesis keys and ledger constants for network variants */
 class ledger_constants
@@ -496,8 +538,9 @@ public:
 	network_params () = delete;
 	/** Populate values based on \p network_a */
 	network_params (nano::networks network_a);
+	network_params (rsnano::NetworkParamsDto const & dto);
 
-	rsnano::NetworkParamsDto to_dto () const;
+	nano::NetworkParamsDtoWrapper to_dto () const;
 
 	unsigned kdf_work;
 	nano::work_thresholds work;
@@ -521,13 +564,25 @@ enum class confirmation_height_mode
 class generate_cache
 {
 public:
-	bool reps = true;
-	bool cemented_count = true;
-	bool unchecked_count = true;
-	bool account_count = true;
-	bool block_count = true;
-
+	generate_cache ();
+	generate_cache (rsnano::GenerateCacheHandle * handle_a);
+	generate_cache (generate_cache const &);
+	generate_cache (generate_cache && other_a) noexcept;
+	~generate_cache ();
+	generate_cache & operator= (generate_cache const & other_a);
+	generate_cache & operator= (generate_cache && other_a);
+	bool reps () const;
+	void enable_reps (bool enable);
+	bool cemented_count () const;
+	void enable_cemented_count (bool enable);
+	bool unchecked_count () const;
+	void enable_unchecked_count (bool enable);
+	bool account_count () const;
+	void enable_account_count (bool enable);
+	bool block_count () const;
+	void enable_block_count (bool enable);
 	void enable_all ();
+	rsnano::GenerateCacheHandle * handle;
 };
 
 /* Holds an in-memory cache of various counts */

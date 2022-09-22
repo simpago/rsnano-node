@@ -53,7 +53,7 @@ public:
 	bool root_exists (nano::transaction const &, nano::root const &);
 	std::string block_text (char const *);
 	std::string block_text (nano::block_hash const &);
-	bool is_send (nano::transaction const &, nano::state_block const &) const;
+	bool is_send (nano::transaction const &, nano::block const &) const;
 	nano::account block_destination (nano::transaction const &, nano::block const &);
 	nano::block_hash block_source (nano::transaction const &, nano::block const &);
 	std::pair<nano::block_hash, nano::block_hash> hash_root_random (nano::transaction const &) const;
@@ -71,7 +71,7 @@ public:
 	nano::account epoch_signer (nano::link const &) const;
 	nano::link epoch_link (nano::epoch) const;
 	std::multimap<uint64_t, uncemented_info, std::greater<>> unconfirmed_frontiers () const;
-	bool migrate_lmdb_to_rocksdb (boost::filesystem::path const &) const;
+	bool bootstrap_weight_reached () const;
 	static nano::uint128_t const unit;
 	nano::ledger_constants & constants;
 	nano::store & store;

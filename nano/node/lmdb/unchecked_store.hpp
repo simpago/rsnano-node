@@ -12,11 +12,13 @@ namespace lmdb
 	class unchecked_store : public nano::unchecked_store
 	{
 	private:
-		nano::lmdb::store & store;
+		rsnano::LmdbUncheckedStoreHandle * handle;
 
 	public:
-		unchecked_store (nano::lmdb::store & store_a);
-
+		unchecked_store (rsnano::LmdbUncheckedStoreHandle * handle_a);
+		~unchecked_store ();
+		unchecked_store (unchecked_store const &) = delete;
+		unchecked_store (unchecked_store &&) = delete;
 		void clear (nano::write_transaction const & transaction_a) override;
 		void put (nano::write_transaction const & transaction_a, nano::hash_or_account const & dependency, nano::unchecked_info const & info_a) override;
 		bool exists (nano::transaction const & transaction_a, nano::unchecked_key const & unchecked_key_a) override;
@@ -25,13 +27,8 @@ namespace lmdb
 		nano::store_iterator<nano::unchecked_key, nano::unchecked_info> begin (nano::transaction const & transaction_a) const override;
 		nano::store_iterator<nano::unchecked_key, nano::unchecked_info> lower_bound (nano::transaction const & transaction_a, nano::unchecked_key const & key_a) const override;
 		size_t count (nano::transaction const & transaction_a) override;
-		void for_each_par (std::function<void (nano::read_transaction const &, nano::store_iterator<nano::unchecked_key, nano::unchecked_info>, nano::store_iterator<nano::unchecked_key, nano::unchecked_info>)> const & action_a) const override;
 
-		/**
-		 * Unchecked bootstrap blocks info.
-		 * nano::block_hash -> nano::unchecked_info
-		 */
-		MDB_dbi unchecked_handle{ 0 };
+		MDB_dbi table_handle () const;
 	};
 }
 }

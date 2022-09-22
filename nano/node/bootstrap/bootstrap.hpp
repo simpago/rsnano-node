@@ -45,23 +45,16 @@ public:
 class pulls_cache final
 {
 public:
+	pulls_cache ();
+	pulls_cache (pulls_cache const &) = delete;
+	pulls_cache (pulls_cache &&) = delete;
+	~pulls_cache ();
 	void add (nano::pull_info const &);
 	void update_pull (nano::pull_info &);
 	void remove (nano::pull_info const &);
-	nano::mutex pulls_cache_mutex;
-	class account_head_tag
-	{
-	};
-	// clang-format off
-	boost::multi_index_container<nano::cached_pulls,
-	mi::indexed_by<
-		mi::ordered_non_unique<
-			mi::member<nano::cached_pulls, std::chrono::steady_clock::time_point, &nano::cached_pulls::time>>,
-		mi::hashed_unique<mi::tag<account_head_tag>,
-			mi::member<nano::cached_pulls, nano::uint512_union, &nano::cached_pulls::account_head>>>>
-	cache;
-	// clang-format on
-	constexpr static std::size_t cache_size_max = 10000;
+	size_t size ();
+	static size_t element_size ();
+	rsnano::PullsCacheHandle * handle;
 };
 
 /**
@@ -70,11 +63,21 @@ public:
 class bootstrap_attempts final
 {
 public:
+	bootstrap_attempts ();
+	bootstrap_attempts (bootstrap_attempts const &) = delete;
+	bootstrap_attempts (bootstrap_attempts &&) = delete;
+	~bootstrap_attempts () noexcept;
 	void add (std::shared_ptr<nano::bootstrap_attempt>);
 	void remove (uint64_t);
 	void clear ();
 	std::shared_ptr<nano::bootstrap_attempt> find (uint64_t);
 	std::size_t size ();
+	uint64_t create_incremental_id ();
+	uint64_t total_attempts () const;
+	std::map<uint64_t, std::shared_ptr<nano::bootstrap_attempt>> get_attempts ();
+	rsnano::BootstrapAttemptsHandle * handle;
+
+private:
 	std::atomic<uint64_t> incremental{ 0 };
 	nano::mutex bootstrap_attempts_mutex;
 	std::map<uint64_t, std::shared_ptr<nano::bootstrap_attempt>> attempts;
@@ -90,6 +93,7 @@ class bootstrap_initiator final
 {
 public:
 	explicit bootstrap_initiator (nano::node &);
+	bootstrap_initiator (nano::bootstrap_initiator const &) = delete;
 	~bootstrap_initiator ();
 	void bootstrap (nano::endpoint const &, bool add_to_peers = true, std::string id_a = "");
 	void bootstrap (bool force = false, std::string id_a = "", uint32_t const frontiers_age_a = std::numeric_limits<uint32_t>::max (), nano::account const & start_account_a = nano::account{});
@@ -98,6 +102,7 @@ public:
 	void run_bootstrap ();
 	void lazy_requeue (nano::block_hash const &, nano::block_hash const &);
 	bool in_progress ();
+	void block_processed (nano::transaction const & tx, nano::process_return const & result, nano::block const & block);
 	std::shared_ptr<nano::bootstrap_connections> connections;
 	std::shared_ptr<nano::bootstrap_attempt> new_attempt ();
 	bool has_new_attempts ();
@@ -105,6 +110,8 @@ public:
 	std::shared_ptr<nano::bootstrap_attempt> current_attempt ();
 	std::shared_ptr<nano::bootstrap_attempt_lazy> current_lazy_attempt ();
 	std::shared_ptr<nano::bootstrap_attempt_wallet> current_wallet_attempt ();
+	void clear_pulls (uint64_t bootstrap_id_a);
+	rsnano::BootstrapInitiatorHandle * get_handle () const;
 	nano::pulls_cache cache;
 	nano::bootstrap_attempts attempts;
 	void stop ();
@@ -118,6 +125,7 @@ private:
 	nano::mutex mutex;
 	nano::condition_variable condition;
 	std::vector<boost::thread> bootstrap_initiator_threads;
+	rsnano::BootstrapInitiatorHandle * handle;
 
 	friend std::unique_ptr<container_info_component> collect_container_info (bootstrap_initiator & bootstrap_initiator, std::string const & name);
 };

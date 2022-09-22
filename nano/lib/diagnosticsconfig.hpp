@@ -14,6 +14,7 @@ class txn_tracking_config final
 public:
 	txn_tracking_config ();
 	void load_dto (rsnano::TxnTrackingConfigDto & dto);
+	rsnano::TxnTrackingConfigDto to_dto () const;
 	/** If true, enable tracking for transaction read/writes held open longer than the min time variables */
 	bool enable;
 	std::chrono::milliseconds min_read_txn_time;

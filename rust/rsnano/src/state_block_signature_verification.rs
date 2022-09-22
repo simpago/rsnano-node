@@ -102,7 +102,7 @@ pub(crate) struct StateBlockSignatureVerification {
     thread: Arc<StateBlockSignatureVerificationThread>,
 }
 
-impl<'a> StateBlockSignatureVerification {
+impl StateBlockSignatureVerification {
     pub fn builder() -> Builder {
         Builder::new()
     }

@@ -9,10 +9,12 @@ mod state_block;
 use std::{
     convert::TryFrom,
     ffi::c_void,
+    ops::Deref,
     sync::{Arc, RwLock},
 };
 
 pub use block_details::*;
+pub use block_uniquer::BlockUniquerHandle;
 pub use change_block::*;
 pub use open_block::*;
 pub use receive_block::*;
@@ -22,7 +24,7 @@ pub use state_block::*;
 use super::{property_tree::FfiPropertyTreeReader, FfiPropertyTreeWriter, FfiStream};
 use crate::{
     blocks::{deserialize_block_json, serialized_block_size, BlockEnum, BlockSideband},
-    Signature,
+    deserialize_block, BlockType, Signature,
 };
 use num::FromPrimitive;
 
@@ -105,9 +107,10 @@ pub struct BlockHandle {
     pub(crate) block: Arc<RwLock<BlockEnum>>,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn rsn_shared_block_enum_handle_destroy(handle: *mut BlockHandle) {
-    drop(Box::from_raw(handle));
+impl BlockHandle {
+    pub fn new(block: Arc<RwLock<BlockEnum>>) -> Self {
+        Self { block }
+    }
 }
 
 #[no_mangle]
@@ -226,5 +229,29 @@ pub unsafe extern "C" fn rsn_block_serialize_json(
     {
         Ok(_) => 0,
         Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_deserialize_block(
+    block_type: u8,
+    stream: *mut c_void,
+    uniquer: *mut BlockUniquerHandle,
+) -> *mut BlockHandle {
+    let mut stream = FfiStream::new(stream);
+    let block_type = match BlockType::from_u8(block_type) {
+        Some(bt) => bt,
+        None => return std::ptr::null_mut(),
+    };
+
+    let uniquer = if uniquer.is_null() {
+        None
+    } else {
+        Some((*uniquer).deref().as_ref())
+    };
+
+    match deserialize_block(block_type, &mut stream, uniquer) {
+        Ok(block) => Box::into_raw(Box::new(BlockHandle::new(block))),
+        Err(_) => std::ptr::null_mut(),
     }
 }

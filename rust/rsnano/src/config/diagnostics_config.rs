@@ -1,5 +1,6 @@
-use crate::TomlWriter;
 use anyhow::Result;
+
+use crate::utils::TomlWriter;
 
 pub struct TxnTrackingConfig {
     /** If true, enable tracking for transaction read/writes held open longer than the min time variables */

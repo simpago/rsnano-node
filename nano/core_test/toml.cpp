@@ -124,7 +124,6 @@ TEST (toml, daemon_config_deserialize_defaults)
 	[node.statistics.sampling]
 	[node.websocket]
 	[node.lmdb]
-	[node.rocksdb]
 	[opencl]
 	[rpc]
 	[rpc.child_process]
@@ -156,6 +155,7 @@ TEST (toml, daemon_config_deserialize_defaults)
 	ASSERT_EQ (conf.node.bootstrap_connections, defaults.node.bootstrap_connections);
 	ASSERT_EQ (conf.node.bootstrap_connections_max, defaults.node.bootstrap_connections_max);
 	ASSERT_EQ (conf.node.bootstrap_initiator_threads, defaults.node.bootstrap_initiator_threads);
+	ASSERT_EQ (conf.node.bootstrap_serving_threads, defaults.node.bootstrap_serving_threads);
 	ASSERT_EQ (conf.node.bootstrap_frontier_request_count, defaults.node.bootstrap_frontier_request_count);
 	ASSERT_EQ (conf.node.bootstrap_fraction_numerator, defaults.node.bootstrap_fraction_numerator);
 	ASSERT_EQ (conf.node.conf_height_processor_batch_min_time, defaults.node.conf_height_processor_batch_min_time);
@@ -255,10 +255,6 @@ TEST (toml, daemon_config_deserialize_defaults)
 	ASSERT_EQ (conf.node.lmdb_config.sync, defaults.node.lmdb_config.sync);
 	ASSERT_EQ (conf.node.lmdb_config.max_databases, defaults.node.lmdb_config.max_databases);
 	ASSERT_EQ (conf.node.lmdb_config.map_size, defaults.node.lmdb_config.map_size);
-
-	ASSERT_EQ (conf.node.rocksdb_config.enable, defaults.node.rocksdb_config.enable);
-	ASSERT_EQ (conf.node.rocksdb_config.memory_multiplier, defaults.node.rocksdb_config.memory_multiplier);
-	ASSERT_EQ (conf.node.rocksdb_config.io_threads, defaults.node.rocksdb_config.io_threads);
 }
 
 TEST (toml, optional_child)
@@ -395,6 +391,7 @@ TEST (toml, daemon_config_deserialize_no_defaults)
 	bootstrap_connections = 999
 	bootstrap_connections_max = 999
 	bootstrap_initiator_threads = 999
+	bootstrap_serving_threads = 999
 	bootstrap_frontier_request_count = 9999
 	bootstrap_fraction_numerator = 999
 	conf_height_processor_batch_min_time = 999
@@ -508,11 +505,6 @@ TEST (toml, daemon_config_deserialize_no_defaults)
 	max_databases = 999
 	map_size = 999
 
-	[node.rocksdb]
-	enable = true
-	memory_multiplier = 3
-	io_threads = 99
-
 	[node.experimental]
 	secondary_work_peers = ["dev.org:998"]
 	max_pruning_age = 999
@@ -559,6 +551,7 @@ TEST (toml, daemon_config_deserialize_no_defaults)
 	ASSERT_NE (conf.node.bootstrap_connections, defaults.node.bootstrap_connections);
 	ASSERT_NE (conf.node.bootstrap_connections_max, defaults.node.bootstrap_connections_max);
 	ASSERT_NE (conf.node.bootstrap_initiator_threads, defaults.node.bootstrap_initiator_threads);
+	ASSERT_NE (conf.node.bootstrap_serving_threads, defaults.node.bootstrap_serving_threads);
 	ASSERT_NE (conf.node.bootstrap_frontier_request_count, defaults.node.bootstrap_frontier_request_count);
 	ASSERT_NE (conf.node.bootstrap_fraction_numerator, defaults.node.bootstrap_fraction_numerator);
 	ASSERT_NE (conf.node.conf_height_processor_batch_min_time, defaults.node.conf_height_processor_batch_min_time);
@@ -661,11 +654,6 @@ TEST (toml, daemon_config_deserialize_no_defaults)
 	ASSERT_NE (conf.node.lmdb_config.sync, defaults.node.lmdb_config.sync);
 	ASSERT_NE (conf.node.lmdb_config.max_databases, defaults.node.lmdb_config.max_databases);
 	ASSERT_NE (conf.node.lmdb_config.map_size, defaults.node.lmdb_config.map_size);
-
-	ASSERT_TRUE (conf.node.rocksdb_config.enable);
-	ASSERT_EQ (nano::rocksdb_config::using_rocksdb_in_tests (), defaults.node.rocksdb_config.enable);
-	ASSERT_NE (conf.node.rocksdb_config.memory_multiplier, defaults.node.rocksdb_config.memory_multiplier);
-	ASSERT_NE (conf.node.rocksdb_config.io_threads, defaults.node.rocksdb_config.io_threads);
 }
 
 /** There should be no required values **/
@@ -684,7 +672,6 @@ TEST (toml, daemon_config_no_required)
 	[node.statistics.log]
 	[node.statistics.sampling]
 	[node.websocket]
-	[node.rocksdb]
 	[opencl]
 	[rpc]
 	[rpc.child_process]

@@ -1,7 +1,8 @@
 use crate::{
-    from_string_hex, sign_message, to_string_hex, Account, Block, BlockHash, BlockHashBuilder,
-    BlockSideband, BlockType, LazyBlockHash, Link, PropertyTreeReader, PropertyTreeWriter,
-    PublicKey, RawKey, Signature, Stream,
+    from_string_hex, sign_message, to_string_hex,
+    utils::{Deserialize, PropertyTreeReader, PropertyTreeWriter, Serialize, Stream},
+    Account, Block, BlockHash, BlockHashBuilder, BlockSideband, BlockType, LazyBlockHash, Link,
+    PublicKey, RawKey, Root, Signature,
 };
 use anyhow::Result;
 
@@ -13,7 +14,7 @@ pub struct OpenHashables {
 }
 
 impl OpenHashables {
-    const fn serialized_size() -> usize {
+    fn serialized_size() -> usize {
         BlockHash::serialized_size() + Account::serialized_size() + Account::serialized_size()
     }
 }
@@ -64,11 +65,11 @@ impl OpenBlock {
         })
     }
 
-    pub const fn serialized_size() -> usize {
+    pub fn serialized_size() -> usize {
         OpenHashables::serialized_size() + Signature::serialized_size() + std::mem::size_of::<u64>()
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let hashables = OpenHashables {
             source: BlockHash::deserialize(stream)?,
             representative: Account::deserialize(stream)?,
@@ -183,6 +184,14 @@ impl Block for OpenBlock {
         writer.put_string("signature", &self.signature.encode_hex())?;
         Ok(())
     }
+
+    fn root(&self) -> Root {
+        self.account().into()
+    }
+
+    fn visit(&self, visitor: &mut dyn crate::BlockVisitor) {
+        visitor.open_block(self);
+    }
 }
 
 #[cfg(test)]
@@ -190,7 +199,7 @@ mod tests {
     use super::*;
     use crate::{
         numbers::KeyPair,
-        utils::{TestPropertyTree, TestStream},
+        utils::{MemoryStream, TestPropertyTree},
     };
 
     // original test: block.open_serialize_json
@@ -225,7 +234,7 @@ mod tests {
             &key1.public_key(),
             0,
         )?;
-        let mut stream = TestStream::new();
+        let mut stream = MemoryStream::new();
         block1.serialize(&mut stream)?;
         assert_eq!(OpenBlock::serialized_size(), stream.bytes_written());
 

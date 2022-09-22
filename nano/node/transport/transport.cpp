@@ -1,6 +1,6 @@
+#include <nano/lib/logger_mt.hpp>
 #include <nano/lib/rsnano.hpp>
 #include <nano/node/common.hpp>
-#include <nano/node/node.hpp>
 #include <nano/node/transport/inproc.hpp>
 #include <nano/node/transport/transport.hpp>
 
@@ -10,59 +10,6 @@
 #include <boost/format.hpp>
 
 #include <numeric>
-
-namespace
-{
-class callback_visitor : public nano::message_visitor
-{
-public:
-	void keepalive (nano::keepalive const & message_a) override
-	{
-		result = nano::stat::detail::keepalive;
-	}
-	void publish (nano::publish const & message_a) override
-	{
-		result = nano::stat::detail::publish;
-	}
-	void confirm_req (nano::confirm_req const & message_a) override
-	{
-		result = nano::stat::detail::confirm_req;
-	}
-	void confirm_ack (nano::confirm_ack const & message_a) override
-	{
-		result = nano::stat::detail::confirm_ack;
-	}
-	void bulk_pull (nano::bulk_pull const & message_a) override
-	{
-		result = nano::stat::detail::bulk_pull;
-	}
-	void bulk_pull_account (nano::bulk_pull_account const & message_a) override
-	{
-		result = nano::stat::detail::bulk_pull_account;
-	}
-	void bulk_push (nano::bulk_push const & message_a) override
-	{
-		result = nano::stat::detail::bulk_push;
-	}
-	void frontier_req (nano::frontier_req const & message_a) override
-	{
-		result = nano::stat::detail::frontier_req;
-	}
-	void node_id_handshake (nano::node_id_handshake const & message_a) override
-	{
-		result = nano::stat::detail::node_id_handshake;
-	}
-	void telemetry_req (nano::telemetry_req const & message_a) override
-	{
-		result = nano::stat::detail::telemetry_req;
-	}
-	void telemetry_ack (nano::telemetry_ack const & message_a) override
-	{
-		result = nano::stat::detail::telemetry_ack;
-	}
-	nano::stat::detail result;
-};
-}
 
 nano::endpoint nano::transport::map_endpoint_to_v6 (nano::endpoint const & endpoint_a)
 {
@@ -99,40 +46,88 @@ boost::asio::ip::address nano::transport::ipv4_address_or_ipv6_subnet (boost::as
 	return address_a.to_v6 ().is_v4_mapped () ? address_a : boost::asio::ip::make_network_v6 (address_a.to_v6 (), ipv6_address_prefix_length).network ();
 }
 
-nano::transport::channel::channel (nano::node & node_a) :
-	node (node_a)
+nano::transport::channel::channel (rsnano::ChannelHandle * handle_a) :
+	handle (handle_a)
 {
-	set_network_version (node_a.network_params.network.protocol_version);
 }
 
-void nano::transport::channel::send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a, nano::buffer_drop_policy drop_policy_a)
+nano::transport::channel::~channel ()
 {
-	callback_visitor visitor;
-	message_a.visit (visitor);
-	auto buffer (message_a.to_shared_const_buffer ());
-	auto detail (visitor.result);
-	auto is_droppable_by_limiter = drop_policy_a == nano::buffer_drop_policy::limiter;
-	auto should_drop (node.network.limiter.should_drop (buffer.size ()));
-	if (!is_droppable_by_limiter || !should_drop)
+	rsnano::rsn_channel_destroy (handle);
+}
+
+bool nano::transport::channel::is_temporary () const
+{
+	return rsnano::rsn_channel_is_temporary (handle);
+}
+
+void nano::transport::channel::set_temporary (bool temporary)
+{
+	rsnano::rsn_channel_set_temporary (handle, temporary);
+}
+
+std::chrono::steady_clock::time_point nano::transport::channel::get_last_bootstrap_attempt () const
+{
+	auto value = rsnano::rsn_channel_get_last_bootstrap_attempt (handle);
+	return std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (value));
+}
+
+void nano::transport::channel::set_last_bootstrap_attempt (std::chrono::steady_clock::time_point const time_a)
+{
+	rsnano::rsn_channel_set_last_bootstrap_attempt (handle, time_a.time_since_epoch ().count ());
+}
+
+std::chrono::steady_clock::time_point nano::transport::channel::get_last_packet_received () const
+{
+	auto value = rsnano::rsn_channel_get_last_packet_received (handle);
+	return std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (value));
+}
+
+void nano::transport::channel::set_last_packet_sent (std::chrono::steady_clock::time_point const time_a)
+{
+	rsnano::rsn_channel_set_last_packet_sent (handle, time_a.time_since_epoch ().count ());
+}
+
+std::chrono::steady_clock::time_point nano::transport::channel::get_last_packet_sent () const
+{
+	auto value = rsnano::rsn_channel_get_last_packet_sent (handle);
+	return std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (value));
+}
+
+void nano::transport::channel::set_last_packet_received (std::chrono::steady_clock::time_point const time_a)
+{
+	rsnano::rsn_channel_set_last_packet_received (handle, time_a.time_since_epoch ().count ());
+}
+
+boost::optional<nano::account> nano::transport::channel::get_node_id_optional () const
+{
+	nano::account result;
+	if (rsnano::rsn_channel_get_node_id (handle, result.bytes.data ()))
 	{
-		send_buffer (buffer, callback_a, drop_policy_a);
-		node.stats.inc (nano::stat::type::message, detail, nano::stat::dir::out);
+		return result;
+	}
+
+	return boost::none;
+}
+
+nano::account nano::transport::channel::get_node_id () const
+{
+	auto node_id{ get_node_id_optional () };
+	nano::account result;
+	if (node_id.is_initialized ())
+	{
+		result = node_id.get ();
 	}
 	else
 	{
-		if (callback_a)
-		{
-			node.background ([callback_a] () {
-				callback_a (boost::system::errc::make_error_code (boost::system::errc::not_supported), 0);
-			});
-		}
-
-		node.stats.inc (nano::stat::type::drop, detail, nano::stat::dir::out);
-		if (node.config.logging.network_packet_logging ())
-		{
-			node.logger.always_log (boost::str (boost::format ("%1% of size %2% dropped") % node.stats.detail_to_string (detail) % buffer.size ()));
-		}
+		result = 0;
 	}
+	return result;
+}
+
+void nano::transport::channel::set_node_id (nano::account node_id_a)
+{
+	rsnano::rsn_channel_set_node_id (handle, node_id_a.bytes.data ());
 }
 
 boost::asio::ip::address_v6 nano::transport::mapped_from_v4_bytes (unsigned long address_a)
@@ -256,9 +251,21 @@ nano::bandwidth_limiter::bandwidth_limiter (double const limit_burst_ratio_a, st
 	handle = rsnano::rsn_bandwidth_limiter_create (limit_burst_ratio_a, limit_a);
 }
 
+nano::bandwidth_limiter::bandwidth_limiter (rsnano::BandwidthLimiterHandle * handle_a) :
+	handle{ handle_a }
+{
+}
+
+nano::bandwidth_limiter::bandwidth_limiter (nano::bandwidth_limiter && other_a) :
+	handle{ other_a.handle }
+{
+	other_a.handle = nullptr;
+}
+
 nano::bandwidth_limiter::~bandwidth_limiter ()
 {
-	rsnano::rsn_bandwidth_limiter_destroy (handle);
+	if (handle)
+		rsnano::rsn_bandwidth_limiter_destroy (handle);
 }
 
 bool nano::bandwidth_limiter::should_drop (std::size_t const & message_size_a)

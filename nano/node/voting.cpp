@@ -12,42 +12,29 @@
 
 #include <chrono>
 
-void nano::vote_spacing::trim ()
+nano::vote_spacing::vote_spacing (std::chrono::milliseconds const & delay) :
+	handle{ rsnano::rsn_vote_spacing_create (delay.count ()) }
 {
-	recent.get<tag_time> ().erase (recent.get<tag_time> ().begin (), recent.get<tag_time> ().upper_bound (std::chrono::steady_clock::now () - delay));
+}
+
+nano::vote_spacing::~vote_spacing ()
+{
+	rsnano::rsn_vote_spacing_destroy (handle);
 }
 
 bool nano::vote_spacing::votable (nano::root const & root_a, nano::block_hash const & hash_a) const
 {
-	bool result = true;
-	for (auto range = recent.get<tag_root> ().equal_range (root_a); result && range.first != range.second; ++range.first)
-	{
-		auto & item = *range.first;
-		result = hash_a == item.hash || item.time < std::chrono::steady_clock::now () - delay;
-	}
-	return result;
+	return rsnano::rsn_vote_spacing_votable (handle, root_a.bytes.data (), hash_a.bytes.data ());
 }
 
 void nano::vote_spacing::flag (nano::root const & root_a, nano::block_hash const & hash_a)
 {
-	trim ();
-	auto now = std::chrono::steady_clock::now ();
-	auto existing = recent.get<tag_root> ().find (root_a);
-	if (existing != recent.end ())
-	{
-		recent.get<tag_root> ().modify (existing, [now] (entry & entry) {
-			entry.time = now;
-		});
-	}
-	else
-	{
-		recent.insert ({ root_a, now, hash_a });
-	}
+	rsnano::rsn_vote_spacing_flag (handle, root_a.bytes.data (), hash_a.bytes.data ());
 }
 
 std::size_t nano::vote_spacing::size () const
 {
-	return recent.size ();
+	return rsnano::rsn_vote_spacing_len (handle);
 }
 
 nano::local_vote_history::local_vote_history (nano::voting_constants const & constants) :
@@ -70,15 +57,29 @@ void nano::local_vote_history::erase (nano::root const & root_a)
 	rsnano::rsn_local_vote_history_erase (handle, root_a.bytes.data ());
 }
 
+class LocalVotesResultWrapper
+{
+public:
+	LocalVotesResultWrapper () :
+		result{}
+	{
+	}
+	~LocalVotesResultWrapper ()
+	{
+		rsnano::rsn_local_vote_history_votes_destroy (result.handle);
+	}
+	rsnano::LocalVotesResult result;
+};
+
 std::vector<std::shared_ptr<nano::vote>> nano::local_vote_history::votes (nano::root const & root_a, nano::block_hash const & hash_a, bool const is_final_a) const
 {
-	rsnano::LocalVotesResult result;
-	rsnano::rsn_local_vote_history_votes (handle, root_a.bytes.data (), hash_a.bytes.data (), is_final_a, &result);
+	LocalVotesResultWrapper result_wrapper;
+	rsnano::rsn_local_vote_history_votes (handle, root_a.bytes.data (), hash_a.bytes.data (), is_final_a, &result_wrapper.result);
 	std::vector<std::shared_ptr<nano::vote>> votes;
-	votes.reserve (result.count);
-	for (auto i (0); i < result.count; ++i)
+	votes.reserve (result_wrapper.result.count);
+	for (auto i (0); i < result_wrapper.result.count; ++i)
 	{
-		votes.push_back (std::make_shared<nano::vote> (result.votes[i]));
+		votes.push_back (std::make_shared<nano::vote> (result_wrapper.result.votes[i]));
 	}
 	return votes;
 }
@@ -104,14 +105,26 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (na
 	return composite;
 }
 
+nano::vote_broadcaster::vote_broadcaster (nano::vote_processor & vote_processor_a, nano::network & network_a) :
+	vote_processor{ vote_processor_a },
+	network{ network_a }
+{
+}
+
+void nano::vote_broadcaster::broadcast (std::shared_ptr<nano::vote> const & vote_a) const
+{
+	network.flood_vote_pr (vote_a);
+	network.flood_vote (vote_a, 2.0f);
+	vote_processor.vote (vote_a, std::make_shared<nano::transport::inproc::channel> (network.node, network.node));
+}
+
 nano::vote_generator::vote_generator (nano::node_config const & config_a, nano::ledger & ledger_a, nano::wallets & wallets_a, nano::vote_processor & vote_processor_a, nano::local_vote_history & history_a, nano::network & network_a, nano::stat & stats_a, bool is_final_a) :
 	config (config_a),
 	ledger (ledger_a),
 	wallets (wallets_a),
-	vote_processor (vote_processor_a),
 	history (history_a),
 	spacing{ config_a.network_params.voting.delay },
-	network (network_a),
+	vote_broadcaster{ vote_processor_a, network_a },
 	stats (stats_a),
 	thread ([this] () { run (); }),
 	is_final (is_final_a)
@@ -127,7 +140,7 @@ void nano::vote_generator::add (nano::root const & root_a, nano::block_hash cons
 	{
 		for (auto const & vote : cached_votes)
 		{
-			broadcast_action (vote);
+			vote_broadcaster.broadcast (vote);
 		}
 	}
 	else
@@ -136,15 +149,15 @@ void nano::vote_generator::add (nano::root const & root_a, nano::block_hash cons
 		if (is_final)
 		{
 			auto transaction (ledger.store.tx_begin_write ({ tables::final_votes }));
-			auto block (ledger.store.block.get (transaction, hash_a));
-			should_vote = block != nullptr && ledger.dependents_confirmed (transaction, *block) && ledger.store.final_vote.put (transaction, block->qualified_root (), hash_a);
+			auto block (ledger.store.block ().get (*transaction, hash_a));
+			should_vote = block != nullptr && ledger.dependents_confirmed (*transaction, *block) && ledger.store.final_vote ().put (*transaction, block->qualified_root (), hash_a);
 			debug_assert (block == nullptr || root_a == block->root ());
 		}
 		else
 		{
 			auto transaction (ledger.store.tx_begin_read ());
-			auto block (ledger.store.block.get (transaction, hash_a));
-			should_vote = block != nullptr && ledger.dependents_confirmed (transaction, *block);
+			auto block (ledger.store.block ().get (*transaction, hash_a));
+			should_vote = block != nullptr && ledger.dependents_confirmed (*transaction, *block);
 		}
 		if (should_vote)
 		{
@@ -179,7 +192,7 @@ std::size_t nano::vote_generator::generate (std::vector<std::shared_ptr<nano::bl
 	{
 		auto transaction (ledger.store.tx_begin_read ());
 		auto dependents_confirmed = [&transaction, this] (auto const & block_a) {
-			return this->ledger.dependents_confirmed (transaction, *block_a);
+			return this->ledger.dependents_confirmed (*transaction, *block_a);
 		};
 		auto as_candidate = [] (auto const & block_a) {
 			return candidate_t{ block_a->root (), block_a->hash () };
@@ -220,7 +233,7 @@ void nano::vote_generator::broadcast (nano::unique_lock<nano::mutex> & lock_a)
 		{
 			if (cached_sent.insert (cached_vote).second)
 			{
-				broadcast_action (cached_vote);
+				vote_broadcaster.broadcast (cached_vote);
 			}
 		}
 		if (cached_votes.empty () && std::find (roots.begin (), roots.end (), root) == roots.end ())
@@ -241,7 +254,7 @@ void nano::vote_generator::broadcast (nano::unique_lock<nano::mutex> & lock_a)
 	{
 		lock_a.unlock ();
 		vote (hashes, roots, [this] (auto const & vote_a) {
-			this->broadcast_action (vote_a);
+			this->vote_broadcaster.broadcast (vote_a);
 			this->stats.inc (nano::stat::type::vote_generator, nano::stat::detail::generator_broadcasts);
 		});
 		lock_a.lock ();
@@ -317,13 +330,6 @@ void nano::vote_generator::vote (std::vector<nano::block_hash> const & hashes_a,
 		}
 		action_a (vote_l);
 	}
-}
-
-void nano::vote_generator::broadcast_action (std::shared_ptr<nano::vote> const & vote_a) const
-{
-	network.flood_vote_pr (vote_a);
-	network.flood_vote (vote_a, 2.0f);
-	vote_processor.vote (vote_a, std::make_shared<nano::transport::inproc::channel> (network.node, network.node));
 }
 
 void nano::vote_generator::run ()

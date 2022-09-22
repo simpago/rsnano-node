@@ -1,0 +1,5 @@
+cmake-build-debug
+.git
+rocksdb/CMakeFiles
+rust/target
+cargo

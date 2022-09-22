@@ -21,19 +21,6 @@ bool blocks_equal (T const & first, nano::block const & second)
 	static_assert (std::is_base_of<nano::block, T>::value, "Input parameter is not a block type");
 	return (first.type () == second.type ()) && (static_cast<T const &> (second)) == first;
 }
-
-template <typename block>
-std::shared_ptr<block> deserialize_block (nano::stream & stream_a)
-{
-	auto error (false);
-	auto result = nano::make_shared<block> (error, stream_a);
-	if (error)
-	{
-		result = nullptr;
-	}
-
-	return result;
-}
 }
 
 void nano::block_memory_pool_purge ()
@@ -42,6 +29,14 @@ void nano::block_memory_pool_purge ()
 	nano::purge_shared_ptr_singleton_pool_memory<nano::state_block> ();
 	nano::purge_shared_ptr_singleton_pool_memory<nano::send_block> ();
 	nano::purge_shared_ptr_singleton_pool_memory<nano::change_block> ();
+}
+
+nano::block::~block ()
+{
+	if (handle != nullptr)
+	{
+		rsnano::rsn_block_destroy (handle);
+	}
 }
 
 std::string nano::block::to_json () const
@@ -351,15 +346,6 @@ nano::send_block::send_block (rsnano::BlockHandle * handle_a)
 	handle = handle_a;
 }
 
-nano::send_block::~send_block ()
-{
-	if (handle != nullptr)
-	{
-		rsnano::rsn_block_destroy (handle);
-		handle = nullptr;
-	}
-}
-
 bool nano::send_block::operator== (nano::block const & other_a) const
 {
 	return blocks_equal (*this, other_a);
@@ -481,15 +467,6 @@ nano::open_block::open_block (nano::open_block && other)
 nano::open_block::open_block (rsnano::BlockHandle * handle_a)
 {
 	handle = handle_a;
-}
-
-nano::open_block::~open_block ()
-{
-	if (handle != nullptr)
-	{
-		rsnano::rsn_block_destroy (handle);
-		handle = nullptr;
-	}
 }
 
 nano::account nano::open_block::account () const
@@ -648,15 +625,6 @@ nano::change_block::change_block (rsnano::BlockHandle * handle_a)
 	handle = handle_a;
 }
 
-nano::change_block::~change_block ()
-{
-	if (handle != nullptr)
-	{
-		rsnano::rsn_block_destroy (handle);
-		handle = nullptr;
-	}
-}
-
 void nano::change_block::visit (nano::block_visitor & visitor_a) const
 {
 	visitor_a.change_block (*this);
@@ -807,15 +775,6 @@ nano::state_block::state_block (rsnano::BlockHandle * handle_a)
 	handle = handle_a;
 }
 
-nano::state_block::~state_block ()
-{
-	if (handle != nullptr)
-	{
-		rsnano::rsn_block_destroy (handle);
-		handle = nullptr;
-	}
-}
-
 nano::account nano::state_block::account () const
 {
 	uint8_t buffer[32];
@@ -847,6 +806,10 @@ bool nano::state_block::operator== (nano::state_block const & other_a) const
 
 nano::state_block & nano::state_block::operator= (const nano::state_block & other)
 {
+	if (handle != nullptr)
+	{
+		rsnano::rsn_block_destroy (handle);
+	}
 	cached_hash = other.cached_hash;
 	if (other.handle == nullptr)
 	{
@@ -984,45 +947,18 @@ std::shared_ptr<nano::block> nano::deserialize_block (nano::stream & stream_a)
 
 std::shared_ptr<nano::block> nano::deserialize_block (nano::stream & stream_a, nano::block_type type_a, nano::block_uniquer * uniquer_a)
 {
-	std::shared_ptr<nano::block> result;
-	switch (type_a)
-	{
-		case nano::block_type::receive:
-		{
-			result = ::deserialize_block<nano::receive_block> (stream_a);
-			break;
-		}
-		case nano::block_type::send:
-		{
-			result = ::deserialize_block<nano::send_block> (stream_a);
-			break;
-		}
-		case nano::block_type::open:
-		{
-			result = ::deserialize_block<nano::open_block> (stream_a);
-			break;
-		}
-		case nano::block_type::change:
-		{
-			result = ::deserialize_block<nano::change_block> (stream_a);
-			break;
-		}
-		case nano::block_type::state:
-		{
-			result = ::deserialize_block<nano::state_block> (stream_a);
-			break;
-		}
-		default:
-#ifndef NANO_FUZZER_TEST
-			debug_assert (false);
-#endif
-			break;
-	}
+	rsnano::BlockUniquerHandle * uniquer_handle = nullptr;
 	if (uniquer_a != nullptr)
 	{
-		result = uniquer_a->unique (result);
+		uniquer_handle = uniquer_a->handle;
 	}
-	return result;
+	auto block_handle = rsnano::rsn_deserialize_block (static_cast<uint8_t> (type_a), &stream_a, uniquer_handle);
+	if (block_handle == nullptr)
+	{
+		return nullptr;
+	}
+
+	return nano::block_handle_to_block (block_handle);
 }
 
 void nano::receive_block::visit (nano::block_visitor & visitor_a) const
@@ -1096,12 +1032,6 @@ nano::receive_block::receive_block (nano::receive_block && other)
 nano::receive_block::receive_block (rsnano::BlockHandle * handle_a)
 {
 	handle = handle_a;
-}
-
-nano::receive_block::~receive_block ()
-{
-	if (handle != nullptr)
-		rsnano::rsn_block_destroy (handle);
 }
 
 bool nano::receive_block::operator== (nano::block const & other_a) const
@@ -1423,6 +1353,9 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (bl
 
 std::shared_ptr<nano::block> nano::block_handle_to_block (rsnano::BlockHandle * handle)
 {
+	if (handle == nullptr)
+		return nullptr;
+
 	auto type = static_cast<nano::block_type> (rsnano::rsn_block_type (handle));
 	std::shared_ptr<nano::block> result;
 	switch (type)
@@ -1448,6 +1381,7 @@ std::shared_ptr<nano::block> nano::block_handle_to_block (rsnano::BlockHandle * 
 			break;
 
 		default:
+			rsnano::rsn_block_destroy (handle);
 			throw std::runtime_error ("invalid block type");
 	}
 

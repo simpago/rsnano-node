@@ -13,6 +13,53 @@ namespace rsnano
 {
 static const uintptr_t SignatureChecker_BATCH_SIZE = 256;
 
+static const double BOOTSTRAP_MINIMUM_ELAPSED_SECONDS_BLOCKRATE = 0.02;
+
+static const uint8_t GENERIC = 0;
+
+static const uintptr_t ConfirmAck_HASHES_MAX = 12;
+
+static const uintptr_t FrontierReq_ONLY_CONFIRMED = 1;
+
+static const uint64_t PULL_COUNT_PER_CHECK = (8 * 1024);
+
+static const int32_t STORE_VERSION_CURRENT = 21;
+
+static const int32_t STORE_VERSION_MINIMUM = 21;
+
+static const uint8_t SYSTEM = 1;
+
+enum class MdbCursorOp
+{
+	MdbFirst,
+	MdbFirstDup,
+	MdbGetBoth,
+	MdbGetBothRange,
+	MdbGetCurrent,
+	MdbGetMultiple,
+	MdbLast,
+	MdbLastDup,
+	MdbNext,
+	MdbNextDup,
+	MdbNextMultiple,
+	MdbNextNodup,
+	MdbPrev,
+	MdbPrevDup,
+	MdbPrevNodup,
+	MdbSet,
+	MdbSetKey,
+	MdbSetRange,
+	MdbPrevMultiple,
+};
+
+struct AccountInfoHandle;
+
+struct AsyncConnectCallbackHandle;
+
+struct AsyncReadCallbackHandle;
+
+struct AsyncWriteCallbackHandle;
+
 struct BandwidthLimiterHandle;
 
 struct BlockArrivalHandle;
@@ -25,29 +72,139 @@ struct BlockUniquerHandle;
 
 struct BootstrapAttemptHandle;
 
+struct BootstrapAttemptLockHandle;
+
+struct BootstrapAttemptsHandle;
+
+struct BootstrapClientHandle;
+
+struct BootstrapInitiatorHandle;
+
+struct BootstrapServerHandle;
+
+struct BootstrapServerWeakHandle;
+
+struct BufferHandle;
+
+struct ChannelHandle;
+
+struct ChannelTcpWrapperHandle;
+
 struct EpochsHandle;
 
+struct GenerateCacheHandle;
+
+struct IoContextHandle;
+
 struct LedgerHandle;
+
+struct LmdbAccountStoreHandle;
+
+struct LmdbBlockStoreHandle;
+
+struct LmdbConfirmationHeightStoreHandle;
+
+struct LmdbEnvHandle;
+
+struct LmdbFinalVoteStoreHandle;
+
+struct LmdbFrontierStoreHandle;
+
+struct LmdbIteratorHandle;
+
+struct LmdbOnlineWeightStoreHandle;
+
+struct LmdbPeerStoreHandle;
+
+struct LmdbPendingStoreHandle;
+
+struct LmdbPrunedStoreHandle;
+
+struct LmdbStoreHandle;
+
+struct LmdbUncheckedStoreHandle;
+
+struct LmdbVersionStoreHandle;
 
 struct LocalVoteHistoryHandle;
 
 struct LocalVotesResultHandle;
 
+/// points to a shared_ptr<logger_mt>
+struct LoggerHandle;
+
+struct MessageDeserializerHandle;
+
+struct MessageHandle;
+
+struct MessageHeaderHandle;
+
+struct NetworkFilterHandle;
+
+struct NodeFlagsHandle;
+
+struct PeerExclusionHandle;
+
+struct PullsCacheHandle;
+
 struct SignatureCheckerHandle;
+
+struct SocketHandle;
+
+struct SocketWeakHandle;
+
+struct StatHandle;
+
+struct StatLogSinkHandle;
 
 struct StateBlockSignatureVerificationHandle;
 
-struct StateBlockSignatureVerificationResultHandle;
-
 struct StringHandle;
 
+struct SynCookiesHandle;
+
+struct TcpChannelsHandle;
+
+struct TcpMessageItemHandle;
+
+struct TcpMessageManagerHandle;
+
+struct TelemetryDataHandle;
+
+struct TransactionHandle;
+
 struct UncheckedInfoHandle;
+
+struct VoidFnCallbackHandle;
 
 struct VoteHandle;
 
 struct VoteHashesHandle;
 
+struct VoteSpacingHandle;
+
 struct VoteUniquerHandle;
+
+struct WriteDatabaseQueueHandle;
+
+struct WriteGuardHandle;
+
+struct AccountInfoDto
+{
+	uint8_t head[32];
+	uint8_t representative[32];
+	uint8_t open_block[32];
+	uint8_t balance[16];
+	uint64_t modified;
+	uint64_t block_count;
+	uint8_t epoch;
+};
+
+struct ErrorCodeDto
+{
+	int32_t val;
+	uint8_t category;
+};
 
 struct BlockDetailsDto
 {
@@ -55,6 +212,13 @@ struct BlockDetailsDto
 	bool is_send;
 	bool is_receive;
 	bool is_epoch;
+};
+
+struct BlockHashArrayDto
+{
+	const uint8_t * data;
+	uintptr_t count;
+	void * raw_data;
 };
 
 struct BlockSidebandDto
@@ -73,6 +237,23 @@ struct StringDto
 	StringHandle * handle;
 	const char * value;
 };
+
+using SocketReadCallback = void (*) (void *, const ErrorCodeDto *, uintptr_t);
+
+using SocketDestroyContext = void (*) (void *);
+
+struct EndpointDto
+{
+	uint8_t bytes[16];
+	uint16_t port;
+	bool v6;
+};
+
+using ChannelTcpSendCallback = void (*) (void *, const ErrorCodeDto *, uintptr_t);
+
+using VoidPointerCallback = void (*) (void *);
+
+using ChannelTcpSendBufferCallback = void (*) (void *, const ErrorCodeDto *, uintptr_t);
 
 struct WorkThresholdsDto
 {
@@ -115,89 +296,6 @@ struct BootstrapConstantsDto
 	uint32_t lazy_destinations_retry_limit;
 	int64_t gap_cache_bootstrap_start_interval_ms;
 	uint32_t default_frontiers_age_seconds;
-};
-
-using AlwaysLogCallback = void (*) (void *, const uint8_t *, uintptr_t);
-
-using Blake2BFinalCallback = int32_t (*) (void *, void *, uintptr_t);
-
-using Blake2BInitCallback = int32_t (*) (void *, uintptr_t);
-
-using Blake2BUpdateCallback = int32_t (*) (void *, const void *, uintptr_t);
-
-using BlockProcessorAddCallback = void (*) (void *, UncheckedInfoHandle *);
-
-using InAvailCallback = uintptr_t (*) (void *, int32_t *);
-
-using LedgerBlockOrPrunedExistsCallback = bool (*) (void *, const uint8_t *);
-
-struct MessageDto
-{
-	uint8_t topic;
-	void * contents;
-};
-
-using ListenerBroadcastCallback = bool (*) (void *, const MessageDto *);
-
-using PropertyTreePutStringCallback = void (*) (void *, const char *, uintptr_t, const char *, uintptr_t);
-
-using PropertyTreePushBackCallback = void (*) (void *, const char *, const void *);
-
-using PropertyTreeCreateTreeCallback = void * (*)();
-
-using PropertyTreeDestroyTreeCallback = void (*) (void *);
-
-using PropertyTreeGetStringCallback = int32_t (*) (const void *, const char *, uintptr_t, char *, uintptr_t);
-
-using PropertyTreePutU64Callback = void (*) (void *, const char *, uintptr_t, uint64_t);
-
-using ReadBytesCallback = int32_t (*) (void *, uint8_t *, uintptr_t);
-
-using ReadU8Callback = int32_t (*) (void *, uint8_t *);
-
-using TomlArrayPutStrCallback = void (*) (void *, const uint8_t *, uintptr_t);
-
-using TomlCreateArrayCallback = void * (*)(void *, const uint8_t *, uintptr_t, const uint8_t *, uintptr_t);
-
-using TomlCreateConfigCallback = void * (*)();
-
-using TomlDropArrayCallback = void (*) (void *);
-
-using TomlDropConfigCallback = void (*) (void *);
-
-using TomlPutBoolCallback = int32_t (*) (void *, const uint8_t *, uintptr_t, bool, const uint8_t *, uintptr_t);
-
-using TomlPutChildCallback = void (*) (void *, const uint8_t *, uintptr_t, void *);
-
-using TomlPutF64Callback = int32_t (*) (void *, const uint8_t *, uintptr_t, double, const uint8_t *, uintptr_t);
-
-using TomlPutI64Callback = int32_t (*) (void *, const uint8_t *, uintptr_t, int64_t, const uint8_t *, uintptr_t);
-
-using TomlPutStrCallback = int32_t (*) (void *, const uint8_t *, uintptr_t, const uint8_t *, uintptr_t, const uint8_t *, uintptr_t);
-
-using TomlPutU64Callback = int32_t (*) (void *, const uint8_t *, uintptr_t, uint64_t, const uint8_t *, uintptr_t);
-
-using TryLogCallback = bool (*) (void *, const uint8_t *, uintptr_t);
-
-using WriteBytesCallback = int32_t (*) (void *, const uint8_t *, uintptr_t);
-
-using WriteU8Callback = int32_t (*) (void *, uint8_t);
-
-struct ChangeBlockDto
-{
-	uint64_t work;
-	uint8_t signature[64];
-	uint8_t previous[32];
-	uint8_t representative[32];
-};
-
-struct ChangeBlockDto2
-{
-	uint8_t previous[32];
-	uint8_t representative[32];
-	uint8_t priv_key[32];
-	uint8_t pub_key[32];
-	uint64_t work;
 };
 
 struct PeerDto
@@ -294,13 +392,6 @@ struct StatConfigDto
 	uintptr_t log_samples_filename_len;
 };
 
-struct RocksDbConfigDto
-{
-	bool enable;
-	uint8_t memory_multiplier;
-	uint32_t io_threads;
-};
-
 struct LmdbConfigDto
 {
 	uint8_t sync;
@@ -325,6 +416,7 @@ struct NodeConfigDto
 	uint32_t bootstrap_connections;
 	uint32_t bootstrap_connections_max;
 	uint32_t bootstrap_initiator_threads;
+	uint32_t bootstrap_serving_threads;
 	uint32_t bootstrap_frontier_request_count;
 	int64_t block_processor_batch_max_time_ms;
 	bool allow_local_peers;
@@ -341,6 +433,7 @@ struct NodeConfigDto
 	bool use_memory_pools;
 	uintptr_t confirmation_history_size;
 	uintptr_t active_elections_size;
+	uintptr_t active_elections_hinted_limit_percentage;
 	uintptr_t bandwidth_limit;
 	double bandwidth_limit_burst_ratio;
 	int64_t conf_height_processor_batch_min_time_ms;
@@ -369,40 +462,7 @@ struct NodeConfigDto
 	IpcConfigDto ipc_config;
 	TxnTrackingConfigDto diagnostics_config;
 	StatConfigDto stat_config;
-	RocksDbConfigDto rocksdb_config;
 	LmdbConfigDto lmdb_config;
-};
-
-struct OpenclConfigDto
-{
-	uint32_t platform;
-	uint32_t device;
-	uint32_t threads;
-};
-
-struct NodePowServerConfigDto
-{
-	bool enable;
-	uint8_t pow_server_path[128];
-	uintptr_t pow_server_path_len;
-};
-
-struct NodeRpcConfigDto
-{
-	uint8_t rpc_path[512];
-	uintptr_t rpc_path_length;
-	bool enable_child_process;
-	bool enable_sign_hash;
-};
-
-struct DaemonConfigDto
-{
-	bool rpc_enable;
-	NodeConfigDto node;
-	OpenclConfigDto opencl;
-	bool opencl_enable;
-	NodePowServerConfigDto pow_server;
-	NodeRpcConfigDto rpc;
 };
 
 struct LedgerConstantsDto
@@ -470,11 +530,381 @@ struct NetworkParamsDto
 	BootstrapConstantsDto bootstrap;
 };
 
+struct CreateBootstrapServerParams
+{
+	SocketHandle * socket;
+	const NodeConfigDto * config;
+	LoggerHandle * logger;
+	void * observer;
+	NetworkFilterHandle * publish_filter;
+	void * workers;
+	IoContextHandle * io_ctx;
+	const NetworkParamsDto * network;
+	bool disable_bootstrap_listener;
+	uintptr_t connections_max;
+	StatHandle * stats;
+	bool disable_bootstrap_bulk_pull_server;
+	bool disable_tcp_realtime;
+	void * request_response_visitor_factory;
+	BlockUniquerHandle * block_uniquer;
+	VoteUniquerHandle * vote_uniquer;
+	TcpMessageManagerHandle * tcp_message_manager;
+	SynCookiesHandle * syn_cookies;
+	const uint8_t * node_id_prv;
+	bool allow_bootstrap;
+};
+
+using AddTimedTaskCallback = void (*) (void *, uint64_t, VoidFnCallbackHandle *);
+
+using AlwaysLogCallback = void (*) (void *, const uint8_t *, uintptr_t);
+
+using Blake2BFinalCallback = int32_t (*) (void *, void *, uintptr_t);
+
+using Blake2BInitCallback = int32_t (*) (void *, uintptr_t);
+
+using Blake2BUpdateCallback = int32_t (*) (void *, const void *, uintptr_t);
+
+using BootstrapInitiatorClearPullsCallback = void (*) (void *, uint64_t);
+
+using BlockProcessorAddCallback = void (*) (void *, UncheckedInfoHandle *);
+
+using BootstrapClientClosedCallback = void (*) (void *);
+
+/// takes a `shared_ptr<bootstrap_client_observer>*` and
+using BootstrapClientObserverToWeakCallback = void * (*)(void *);
+
+using BootstrapServerBootstrapCountCallback = uintptr_t (*) (void *);
+
+using BootstrapServerExitedCallback = void (*) (void *, uint8_t, uintptr_t, const EndpointDto *);
+
+using BootstrapServerIncBootstrapCountCallback = void (*) (void *);
+
+using BootstrapServerTimeoutCallback = void (*) (void *, uintptr_t);
+
+using BufferSizeCallback = uintptr_t (*) (void *);
+
+/// clones a `weak_ptr<channel_tcp_observer> *`
+using ChannelTcpObserverWeakCloneCallback = void * (*)(void *);
+
+using ChannelTcpObserverDataSentCallback = void (*) (void *, const EndpointDto *);
+
+using ChannelTcpObserverCallback = void (*) (void *);
+
+/// input is a `weak_ptr<channel_tcp_observer> *`
+/// output is a `shared_ptr<channel_tcp_observer> *` or `nullptr`
+using ChannelTcpObserverLockWeakCallback = void * (*)(void *);
+
+using ChannelTcpObserverMessageDroppedCallback = void (*) (void *, MessageHandle * message, uintptr_t);
+
+using ChannelTcpObserverMessageSentCallback = void (*) (void *, MessageHandle * message);
+
+using InAvailCallback = uintptr_t (*) (void *, int32_t *);
+
+using DispatchCallback = void (*) (void *, VoidFnCallbackHandle *);
+
+using MemoryIntensiveInstrumentationCallback = bool (*) ();
+
+using LedgerBlockOrPrunedExistsCallback = bool (*) (void *, const uint8_t *);
+
+struct MessageDto
+{
+	uint8_t topic;
+	void * contents;
+};
+
+using ListenerBroadcastCallback = bool (*) (void *, const MessageDto *);
+
+struct MdbCursor
+{
+};
+
+using MdbCursorCloseCallback = void (*) (MdbCursor *);
+
+struct MdbVal
+{
+	uintptr_t mv_size;
+	void * mv_data;
+};
+
+using MdbCursorGetCallback = int32_t (*) (MdbCursor *, MdbVal *, MdbVal *, MdbCursorOp);
+
+struct MdbTxn
+{
+};
+
+using MdbCursorOpenCallback = int32_t (*) (MdbTxn *, uint32_t, MdbCursor **);
+
+struct MdbEnv
+{
+};
+
+using MdbDbiCloseCallback = void (*) (MdbEnv *, uint32_t);
+
+using MdbDbiOpenCallback = int32_t (*) (MdbTxn *, const int8_t *, uint32_t, uint32_t *);
+
+using MdbDelCallback = int32_t (*) (MdbTxn *, uint32_t, MdbVal *, MdbVal *);
+
+using MdbDropCallback = int32_t (*) (MdbTxn *, uint32_t, int32_t);
+
+using MdbEnvCloseCallback = void (*) (MdbEnv *);
+
+using MdbEnvCopyCallback = int32_t (*) (MdbEnv *, const int8_t *);
+
+using MdbEnvCopy2Callback = int32_t (*) (MdbEnv *, const int8_t *, uint32_t);
+
+using MdbEnvCreateCallback = int32_t (*) (MdbEnv **);
+
+using MdbEnvOpenCallback = int32_t (*) (MdbEnv *, const int8_t *, uint32_t, uint32_t);
+
+using MdbEnvSetMapSizeCallback = int32_t (*) (MdbEnv *, uintptr_t);
+
+using MdbEnvSetMaxDbsCallback = int32_t (*) (MdbEnv *, uint32_t);
+
+/// @brief Statistics for a database in the environment
+struct MdbStat
+{
+	/// Size of a database page.  This is currently the same for all databases.
+	uint32_t ms_psize;
+	/// Depth (height) of the B-tree
+	uint32_t ms_depth;
+	/// Number of internal (non-leaf) pages
+	uintptr_t ms_branch_pages;
+	/// Number of leaf pages
+	uintptr_t ms_leaf_pages;
+	/// Number of overflow pages
+	uintptr_t ms_overflow_pages;
+	/// Number of data items
+	uintptr_t ms_entries;
+};
+
+using MdbEnvStatCallback = int32_t (*) (MdbEnv *, MdbStat *);
+
+using MdbEnvSyncCallback = int32_t (*) (MdbEnv *, int32_t);
+
+using MdbGetCallback = int32_t (*) (MdbTxn *, uint32_t, MdbVal *, MdbVal *);
+
+using MdbPutCallback = int32_t (*) (MdbTxn *, uint32_t, MdbVal *, MdbVal *, uint32_t);
+
+using MdbStatCallback = int32_t (*) (MdbTxn *, uint32_t, MdbStat *);
+
+using MdbStrerrorCallback = char * (*)(int32_t);
+
+using MdbTxnBeginCallback = int32_t (*) (MdbEnv *, MdbTxn *, uint32_t, MdbTxn **);
+
+using MdbTxnCommitCallback = int32_t (*) (MdbTxn *);
+
+using MdbTxnRenewCallback = int32_t (*) (MdbTxn *);
+
+using MdbTxnResetCallback = void (*) (MdbTxn *);
+
+using MessageVisitorFlagCallback = bool (*) (void *);
+
+using MessageVisitorCallback = void (*) (void *, MessageHandle *, uint8_t);
+
+using PropertyTreePutStringCallback = void (*) (void *, const char *, uintptr_t, const char *, uintptr_t);
+
+using PropertyTreePushBackCallback = void (*) (void *, const char *, const void *);
+
+using PropertyTreeClearCallback = void (*) (void *);
+
+using PropertyTreeCreateTreeCallback = void * (*)();
+
+using PropertyTreeDestroyTreeCallback = void (*) (void *);
+
+using PropertyTreeGetStringCallback = int32_t (*) (const void *, const char *, uintptr_t, char *, uintptr_t);
+
+using PropertyTreePutU64Callback = void (*) (void *, const char *, uintptr_t, uint64_t);
+
+using PropertyTreeToJsonCallback = void * (*)(void *);
+
+using ReadBytesCallback = int32_t (*) (void *, uint8_t *, uintptr_t);
+
+using ReadU8Callback = int32_t (*) (void *, uint8_t *);
+
+/// first arg is a `shared_ptr<request_response_visitor_factory> *`
+/// returns a `shared_ptr<message_visitor> *`
+using RequestResponseVisitorFactoryCreateCallback = void * (*)(void *, BootstrapServerHandle *);
+
+using StringCharsCallback = const char * (*)(void *);
+
+using StringDeleteCallback = void (*) (void *);
+
+using AsyncConnectCallback = void (*) (void *, const EndpointDto *, AsyncConnectCallbackHandle *);
+
+using AsyncReadCallback = void (*) (void *, void *, uintptr_t, AsyncReadCallbackHandle *);
+
+using AsyncRead2Callback = void (*) (void *, BufferHandle *, uintptr_t, AsyncReadCallbackHandle *);
+
+using AsyncWriteCallback = void (*) (void *, const uint8_t *, uintptr_t, AsyncWriteCallbackHandle *);
+
+using CloseSocketCallback = void (*) (void *, ErrorCodeDto *);
+
+using SocketLocalEndpointCallback = void (*) (void *, EndpointDto *);
+
+using RemoteEndpointCallback = void (*) (void *, EndpointDto *, ErrorCodeDto *);
+
+using TomlArrayPutStrCallback = void (*) (void *, const uint8_t *, uintptr_t);
+
+using TomlCreateArrayCallback = void * (*)(void *, const uint8_t *, uintptr_t, const uint8_t *, uintptr_t);
+
+using TomlCreateConfigCallback = void * (*)();
+
+using TomlDropArrayCallback = void (*) (void *);
+
+using TomlDropConfigCallback = void (*) (void *);
+
+using TomlPutBoolCallback = int32_t (*) (void *, const uint8_t *, uintptr_t, bool, const uint8_t *, uintptr_t);
+
+using TomlPutChildCallback = void (*) (void *, const uint8_t *, uintptr_t, void *);
+
+using TomlPutF64Callback = int32_t (*) (void *, const uint8_t *, uintptr_t, double, const uint8_t *, uintptr_t);
+
+using TomlPutI64Callback = int32_t (*) (void *, const uint8_t *, uintptr_t, int64_t, const uint8_t *, uintptr_t);
+
+using TomlPutStrCallback = int32_t (*) (void *, const uint8_t *, uintptr_t, const uint8_t *, uintptr_t, const uint8_t *, uintptr_t);
+
+using TomlPutU64Callback = int32_t (*) (void *, const uint8_t *, uintptr_t, uint64_t, const uint8_t *, uintptr_t);
+
+using TryLogCallback = bool (*) (void *, const uint8_t *, uintptr_t);
+
+using TxnEndCallback = void (*) (void *, uint64_t);
+
+using TxnStartCallback = void (*) (void *, uint64_t, bool);
+
+using WriteBytesCallback = int32_t (*) (void *, const uint8_t *, uintptr_t);
+
+using WriteU8Callback = int32_t (*) (void *, uint8_t);
+
+struct ChangeBlockDto
+{
+	uint64_t work;
+	uint8_t signature[64];
+	uint8_t previous[32];
+	uint8_t representative[32];
+};
+
+struct ChangeBlockDto2
+{
+	uint8_t previous[32];
+	uint8_t representative[32];
+	uint8_t priv_key[32];
+	uint8_t pub_key[32];
+	uint64_t work;
+};
+
+struct ConfirmationHeightInfoDto
+{
+	uint64_t height;
+	uint8_t frontier[32];
+};
+
+struct OpenclConfigDto
+{
+	uint32_t platform;
+	uint32_t device;
+	uint32_t threads;
+};
+
+struct NodePowServerConfigDto
+{
+	bool enable;
+	uint8_t pow_server_path[128];
+	uintptr_t pow_server_path_len;
+};
+
+struct NodeRpcConfigDto
+{
+	uint8_t rpc_path[512];
+	uintptr_t rpc_path_length;
+	bool enable_child_process;
+	bool enable_sign_hash;
+};
+
+struct DaemonConfigDto
+{
+	bool rpc_enable;
+	NodeConfigDto node;
+	OpenclConfigDto opencl;
+	bool opencl_enable;
+	NodePowServerConfigDto pow_server;
+	NodeRpcConfigDto rpc;
+};
+
+using ForEachParCallback = void (*) (void *, TransactionHandle *, LmdbIteratorHandle *, LmdbIteratorHandle *);
+
+struct PendingKeyDto
+{
+	uint8_t account[32];
+	uint8_t hash[32];
+};
+
+struct PendingInfoDto
+{
+	uint8_t source[32];
+	uint8_t amount[16];
+	uint8_t epoch;
+};
+
+struct UncheckedKeyDto
+{
+	uint8_t previous[32];
+	uint8_t hash[32];
+};
+
 struct LocalVotesResult
 {
 	uintptr_t count;
 	VoteHandle * const * votes;
 	LocalVotesResultHandle * handle;
+};
+
+struct HashRootPair
+{
+	uint8_t block_hash[32];
+	uint8_t root[32];
+};
+
+using MessageDeserializedCallback = void (*) (void *, const ErrorCodeDto *, MessageHandle *);
+
+struct NodeFlagsDto
+{
+	bool disable_add_initial_peers;
+	bool disable_backup;
+	bool disable_lazy_bootstrap;
+	bool disable_legacy_bootstrap;
+	bool disable_wallet_bootstrap;
+	bool disable_bootstrap_listener;
+	bool disable_bootstrap_bulk_pull_server;
+	bool disable_bootstrap_bulk_push_client;
+	bool disable_ongoing_bootstrap;
+	bool disable_rep_crawler;
+	bool disable_request_loop;
+	bool disable_tcp_realtime;
+	bool disable_udp;
+	bool disable_unchecked_cleanup;
+	bool disable_unchecked_drop;
+	bool disable_providing_telemetry_metrics;
+	bool disable_ongoing_telemetry_requests;
+	bool disable_initial_telemetry_requests;
+	bool disable_block_processor_unchecked_deletion;
+	bool disable_block_processor_republishing;
+	bool allow_bootstrap_peers_duplicates;
+	bool disable_max_peers_per_ip;
+	bool disable_max_peers_per_subnetwork;
+	bool force_use_write_database_queue;
+	bool disable_search_pending;
+	bool enable_pruning;
+	bool fast_bootstrap;
+	bool read_only;
+	bool disable_connection_cleanup;
+	uint8_t confirmation_height_processor_mode;
+	bool inactive_node;
+	uintptr_t block_processor_batch_size;
+	uintptr_t block_processor_full_size;
+	uintptr_t block_processor_verification_size;
+	uintptr_t inactive_votes_cache_size;
+	uintptr_t vote_processor_capacity;
+	uintptr_t bootstrap_interval;
 };
 
 struct OpenBlockDto
@@ -494,6 +924,19 @@ struct OpenBlockDto2
 	uint8_t priv_key[32];
 	uint8_t pub_key[32];
 	uint64_t work;
+};
+
+struct PullInfoDto
+{
+	uint8_t account_or_head[32];
+	uint8_t head[32];
+	uint8_t head_original[32];
+	uint8_t end[32];
+	uint32_t count;
+	uint32_t attempts;
+	uint64_t processed;
+	uint32_t retry_limit;
+	uint64_t bootstrap_id;
 };
 
 struct ReceiveBlockDto
@@ -563,6 +1006,8 @@ struct SignatureCheckSetDto
 	int32_t * verifications;
 };
 
+using SocketConnectCallback = void (*) (void *, const ErrorCodeDto *);
+
 struct StateBlockDto
 {
 	uint8_t signature[64];
@@ -602,7 +1047,6 @@ struct StateBlockSignatureVerificationResultDto
 	const int32_t * verifications;
 	const StateBlockSignatureVerificationValueDto * items;
 	uintptr_t size;
-	StateBlockSignatureVerificationResultHandle * handle;
 };
 
 using StateBlockVerifiedCallback = void (*) (void *, const StateBlockSignatureVerificationResultDto *);
@@ -619,6 +1063,45 @@ extern "C" {
 int32_t rsn_account_decode (const char * input, uint8_t (*result)[32]);
 
 void rsn_account_encode (const uint8_t (*bytes)[32], uint8_t (*result)[65]);
+
+AccountInfoHandle * rsn_account_info_clone (AccountInfoHandle * handle);
+
+AccountInfoHandle * rsn_account_info_create (const uint8_t * head,
+const uint8_t * rep,
+const uint8_t * open_block,
+const uint8_t * balance,
+uint64_t modified,
+uint64_t block_count,
+uint8_t epoch);
+
+uintptr_t rsn_account_info_db_size ();
+
+bool rsn_account_info_deserialize (AccountInfoHandle * handle, void * stream);
+
+void rsn_account_info_destroy (AccountInfoHandle * handle);
+
+bool rsn_account_info_equals (AccountInfoHandle * handle, AccountInfoHandle * other);
+
+bool rsn_account_info_serialize (AccountInfoHandle * handle, void * stream);
+
+void rsn_account_info_values (AccountInfoHandle * handle, AccountInfoDto * values);
+
+void rsn_async_connect_callback_destroy (AsyncConnectCallbackHandle * callback);
+
+void rsn_async_connect_callback_execute (AsyncConnectCallbackHandle * callback,
+const ErrorCodeDto * ec);
+
+void rsn_async_read_callback_destroy (AsyncReadCallbackHandle * callback);
+
+void rsn_async_read_callback_execute (AsyncReadCallbackHandle * callback,
+const ErrorCodeDto * ec,
+uintptr_t size);
+
+void rsn_async_write_callback_destroy (AsyncWriteCallbackHandle * callback);
+
+void rsn_async_write_callback_execute (AsyncWriteCallbackHandle * callback,
+const ErrorCodeDto * ec,
+uintptr_t size);
 
 BandwidthLimiterHandle * rsn_bandwidth_limiter_create (double limit_burst_ratio, uintptr_t limit);
 
@@ -668,6 +1151,8 @@ bool rsn_block_has_sideband (const BlockHandle * block);
 
 void rsn_block_hash (const BlockHandle * handle, uint8_t (*hash)[32]);
 
+void rsn_block_hash_array_destroy (BlockHashArrayDto * data);
+
 void rsn_block_previous (const BlockHandle * handle, uint8_t (*result)[32]);
 
 BlockProcessorHandle * rsn_block_processor_create (void * handle);
@@ -710,19 +1195,43 @@ uint64_t rsn_block_work (const BlockHandle * handle);
 
 void rsn_block_work_set (BlockHandle * handle, uint64_t work);
 
-const char * rsn_bootstrap_attempt_bootstrap_mode (const BootstrapAttemptHandle * handle,
+uint8_t rsn_bootstrap_attempt_bootstrap_mode (const BootstrapAttemptHandle * handle);
+
+const char * rsn_bootstrap_attempt_bootstrap_mode_text (const BootstrapAttemptHandle * handle,
 uintptr_t * len);
 
-BootstrapAttemptHandle * rsn_bootstrap_attempt_create (void * logger,
+BootstrapAttemptHandle * rsn_bootstrap_attempt_create (LoggerHandle * logger,
 void * websocket_server,
 const BlockProcessorHandle * block_processor,
+const BootstrapInitiatorHandle * bootstrap_initiator,
 const LedgerHandle * ledger,
 const char * id,
-uint8_t mode);
+uint8_t mode,
+uint64_t incremental_id);
 
 void rsn_bootstrap_attempt_destroy (BootstrapAttemptHandle * handle);
 
+uint64_t rsn_bootstrap_attempt_duration_seconds (const BootstrapAttemptHandle * handle);
+
+bool rsn_bootstrap_attempt_frontiers_received (const BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_frontiers_received_set (BootstrapAttemptHandle * handle, bool received);
+
 void rsn_bootstrap_attempt_id (const BootstrapAttemptHandle * handle, StringDto * result);
+
+uint64_t rsn_bootstrap_attempt_incremental_id (const BootstrapAttemptHandle * handle);
+
+BootstrapAttemptHandle * rsn_bootstrap_attempt_lazy_create (LoggerHandle * logger,
+void * websocket_server,
+const BlockProcessorHandle * block_processor,
+const BootstrapInitiatorHandle * bootstrap_initiator,
+const LedgerHandle * ledger,
+const char * id,
+uint64_t incremental_id);
+
+BootstrapAttemptLockHandle * rsn_bootstrap_attempt_lock (BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_notifiy_all (BootstrapAttemptHandle * handle);
 
 bool rsn_bootstrap_attempt_process_block (const BootstrapAttemptHandle * handle,
 const BlockHandle * block,
@@ -732,14 +1241,156 @@ uint32_t max_blocks,
 bool block_expected,
 uint32_t retry_limit);
 
+void rsn_bootstrap_attempt_pull_finished (BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_pull_started (BootstrapAttemptHandle * handle);
+
+uint32_t rsn_bootstrap_attempt_pulling (const BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_pulling_inc (BootstrapAttemptHandle * handle);
+
+uint32_t rsn_bootstrap_attempt_requeued_pulls (const BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_requeued_pulls_inc (const BootstrapAttemptHandle * handle);
+
+bool rsn_bootstrap_attempt_set_started (BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_set_stopped (BootstrapAttemptHandle * handle);
+
 bool rsn_bootstrap_attempt_should_log (const BootstrapAttemptHandle * handle);
+
+bool rsn_bootstrap_attempt_started (const BootstrapAttemptHandle * handle);
+
+bool rsn_bootstrap_attempt_still_pulling (const BootstrapAttemptHandle * handle);
+
+void rsn_bootstrap_attempt_stop (BootstrapAttemptHandle * handle);
+
+bool rsn_bootstrap_attempt_stopped (const BootstrapAttemptHandle * handle);
 
 uint64_t rsn_bootstrap_attempt_total_blocks (const BootstrapAttemptHandle * handle);
 
 void rsn_bootstrap_attempt_total_blocks_inc (const BootstrapAttemptHandle * handle);
 
+void rsn_bootstrap_attempt_unlock (BootstrapAttemptLockHandle * handle);
+
+void rsn_bootstrap_attempt_wait (BootstrapAttemptHandle * handle, BootstrapAttemptLockHandle * lck);
+
+void rsn_bootstrap_attempt_wait_for (BootstrapAttemptHandle * handle,
+BootstrapAttemptLockHandle * lck,
+uint64_t timeout_millis);
+
+BootstrapAttemptsHandle * rsn_bootstrap_attempts_create ();
+
+void rsn_bootstrap_attempts_destroy (BootstrapAttemptsHandle * handle);
+
+uint64_t rsn_bootstrap_client_block_count (BootstrapClientHandle * handle);
+
+double rsn_bootstrap_client_block_rate (BootstrapClientHandle * handle);
+
+void rsn_bootstrap_client_channel_string (BootstrapClientHandle * handle, StringDto * result);
+
+void rsn_bootstrap_client_close_socket (BootstrapClientHandle * handle);
+
+/// `observer` is a `shared_ptr<bootstrap_client_observer>*`
+BootstrapClientHandle * rsn_bootstrap_client_create (void * observer,
+ChannelHandle * channel,
+SocketHandle * socket);
+
+void rsn_bootstrap_client_destroy (BootstrapClientHandle * handle);
+
+double rsn_bootstrap_client_elapsed_seconds (BootstrapClientHandle * handle);
+
+bool rsn_bootstrap_client_hard_stop (BootstrapClientHandle * handle);
+
+uint64_t rsn_bootstrap_client_inc_block_count (BootstrapClientHandle * handle);
+
+bool rsn_bootstrap_client_pending_stop (BootstrapClientHandle * handle);
+
+void rsn_bootstrap_client_read (BootstrapClientHandle * handle,
+uintptr_t size,
+SocketReadCallback callback,
+SocketDestroyContext destroy_context,
+void * context);
+
+void rsn_bootstrap_client_receive_buffer (BootstrapClientHandle * handle,
+uint8_t * buffer,
+uintptr_t len);
+
+uintptr_t rsn_bootstrap_client_receive_buffer_size (BootstrapClientHandle * handle);
+
+void rsn_bootstrap_client_remote_endpoint (BootstrapClientHandle * handle, EndpointDto * endpoint);
+
+double rsn_bootstrap_client_sample_block_rate (BootstrapClientHandle * handle);
+
+void rsn_bootstrap_client_send (BootstrapClientHandle * handle,
+MessageHandle * msg,
+ChannelTcpSendCallback callback,
+VoidPointerCallback delete_callback,
+void * context,
+uint8_t policy);
+
+void rsn_bootstrap_client_send_buffer (BootstrapClientHandle * handle,
+const uint8_t * buffer,
+uintptr_t len,
+ChannelTcpSendBufferCallback callback,
+VoidPointerCallback delete_callback,
+void * callback_context,
+uint8_t policy);
+
+void rsn_bootstrap_client_set_start_time (BootstrapClientHandle * handle);
+
+void rsn_bootstrap_client_set_timeout (BootstrapClientHandle * handle, uint64_t timeout_s);
+
+SocketHandle * rsn_bootstrap_client_socket (BootstrapClientHandle * handle);
+
+void rsn_bootstrap_client_stop (BootstrapClientHandle * handle, bool force);
+
+void rsn_bootstrap_client_tcp_endpoint (BootstrapClientHandle * handle, EndpointDto * endpoint);
+
 int32_t rsn_bootstrap_constants_create (const NetworkConstantsDto * network_constants,
 BootstrapConstantsDto * dto);
+
+BootstrapInitiatorHandle * rsn_bootstrap_initiator_create (void * handle);
+
+void rsn_bootstrap_initiator_destroy (BootstrapInitiatorHandle * handle);
+
+BootstrapServerWeakHandle * rsn_bootstrap_server_copy_weak (BootstrapServerWeakHandle * handle);
+
+BootstrapServerHandle * rsn_bootstrap_server_create (const CreateBootstrapServerParams * params);
+
+void rsn_bootstrap_server_destroy (BootstrapServerHandle * handle);
+
+void rsn_bootstrap_server_destroy_weak (BootstrapServerWeakHandle * handle);
+
+BootstrapServerWeakHandle * rsn_bootstrap_server_get_weak (BootstrapServerHandle * handle);
+
+bool rsn_bootstrap_server_is_stopped (BootstrapServerHandle * handle);
+
+BootstrapServerHandle * rsn_bootstrap_server_lock_weak (BootstrapServerWeakHandle * handle);
+
+void rsn_bootstrap_server_remote_endpoint (BootstrapServerHandle * handle, EndpointDto * endpoint);
+
+void rsn_bootstrap_server_set_remote_node_id (BootstrapServerHandle * handle, const uint8_t * node_id);
+
+SocketHandle * rsn_bootstrap_server_socket (BootstrapServerHandle * handle);
+
+void rsn_bootstrap_server_start (BootstrapServerHandle * handle);
+
+void rsn_bootstrap_server_stop (BootstrapServerHandle * handle);
+
+void rsn_bootstrap_server_timeout (BootstrapServerHandle * handle);
+
+uintptr_t rsn_bootstrap_server_unique_id (BootstrapServerHandle * handle);
+
+BufferHandle * rsn_buffer_create (uintptr_t len);
+
+uint8_t * rsn_buffer_data (BufferHandle * handle);
+
+void rsn_buffer_destroy (BufferHandle * handle);
+
+uintptr_t rsn_buffer_len (BufferHandle * handle);
+
+void rsn_callback_add_timed_task (AddTimedTaskCallback f);
 
 void rsn_callback_always_log (AlwaysLogCallback f);
 
@@ -749,17 +1400,131 @@ void rsn_callback_blake2b_init (Blake2BInitCallback f);
 
 void rsn_callback_blake2b_update (Blake2BUpdateCallback f);
 
+void rsn_callback_block_bootstrap_initiator_clear_pulls (BootstrapInitiatorClearPullsCallback f);
+
 void rsn_callback_block_processor_add (BlockProcessorAddCallback f);
 
+void rsn_callback_bootstrap_client_observer_closed (BootstrapClientClosedCallback f);
+
+void rsn_callback_bootstrap_client_observer_destroy (VoidPointerCallback f);
+
+void rsn_callback_bootstrap_client_observer_to_weak (BootstrapClientObserverToWeakCallback f);
+
+void rsn_callback_bootstrap_client_observer_weak_destroy (VoidPointerCallback f);
+
+void rsn_callback_bootstrap_client_weak_to_observer (BootstrapClientObserverToWeakCallback f);
+
+void rsn_callback_bootstrap_observer_bootstrap_count (BootstrapServerBootstrapCountCallback f);
+
+void rsn_callback_bootstrap_observer_destroy (VoidPointerCallback f);
+
+void rsn_callback_bootstrap_observer_exited (BootstrapServerExitedCallback f);
+
+void rsn_callback_bootstrap_observer_inc_bootstrap_count (BootstrapServerIncBootstrapCountCallback f);
+
+void rsn_callback_bootstrap_observer_inc_realtime_count (BootstrapServerIncBootstrapCountCallback f);
+
+void rsn_callback_bootstrap_observer_timeout (BootstrapServerTimeoutCallback f);
+
+void rsn_callback_buffer_destroy (VoidPointerCallback f);
+
+void rsn_callback_buffer_size (BufferSizeCallback f);
+
+void rsn_callback_channel_tcp_observer_clone_weak (ChannelTcpObserverWeakCloneCallback f);
+
+void rsn_callback_channel_tcp_observer_data_sent (ChannelTcpObserverDataSentCallback f);
+
+void rsn_callback_channel_tcp_observer_destroy (VoidPointerCallback f);
+
+void rsn_callback_channel_tcp_observer_drop_weak (VoidPointerCallback f);
+
+void rsn_callback_channel_tcp_observer_host_unreachable (ChannelTcpObserverCallback f);
+
+void rsn_callback_channel_tcp_observer_lock (ChannelTcpObserverLockWeakCallback f);
+
+void rsn_callback_channel_tcp_observer_message_dropped (ChannelTcpObserverMessageDroppedCallback f);
+
+void rsn_callback_channel_tcp_observer_message_sent (ChannelTcpObserverMessageSentCallback f);
+
+void rsn_callback_channel_tcp_observer_no_socket_drop (ChannelTcpObserverCallback f);
+
+void rsn_callback_channel_tcp_observer_write_drop (ChannelTcpObserverCallback f);
+
+void rsn_callback_destroy_thread_pool (VoidPointerCallback f);
+
 void rsn_callback_in_avail (InAvailCallback f);
+
+void rsn_callback_io_ctx_post (DispatchCallback f);
+
+void rsn_callback_is_sanitizer_build (MemoryIntensiveInstrumentationCallback f);
 
 void rsn_callback_ledger_block_or_pruned_exists (LedgerBlockOrPrunedExistsCallback f);
 
 void rsn_callback_listener_broadcast (ListenerBroadcastCallback f);
 
+void rsn_callback_logger_destroy (VoidPointerCallback f);
+
+void rsn_callback_mdb_cursor_close (MdbCursorCloseCallback f);
+
+void rsn_callback_mdb_cursor_get (MdbCursorGetCallback f);
+
+void rsn_callback_mdb_cursor_open (MdbCursorOpenCallback f);
+
+void rsn_callback_mdb_dbi_close (MdbDbiCloseCallback f);
+
+void rsn_callback_mdb_dbi_open (MdbDbiOpenCallback f);
+
+void rsn_callback_mdb_del (MdbDelCallback f);
+
+void rsn_callback_mdb_drop (MdbDropCallback f);
+
+void rsn_callback_mdb_env_close (MdbEnvCloseCallback f);
+
+void rsn_callback_mdb_env_copy (MdbEnvCopyCallback f);
+
+void rsn_callback_mdb_env_copy2 (MdbEnvCopy2Callback f);
+
+void rsn_callback_mdb_env_create (MdbEnvCreateCallback f);
+
+void rsn_callback_mdb_env_open (MdbEnvOpenCallback f);
+
+void rsn_callback_mdb_env_set_map_size (MdbEnvSetMapSizeCallback f);
+
+void rsn_callback_mdb_env_set_max_dbs (MdbEnvSetMaxDbsCallback f);
+
+void rsn_callback_mdb_env_stat (MdbEnvStatCallback f);
+
+void rsn_callback_mdb_env_sync (MdbEnvSyncCallback f);
+
+void rsn_callback_mdb_get (MdbGetCallback f);
+
+void rsn_callback_mdb_put (MdbPutCallback f);
+
+void rsn_callback_mdb_stat (MdbStatCallback f);
+
+void rsn_callback_mdb_strerror (MdbStrerrorCallback f);
+
+void rsn_callback_mdb_txn_begin (MdbTxnBeginCallback f);
+
+void rsn_callback_mdb_txn_commit (MdbTxnCommitCallback f);
+
+void rsn_callback_mdb_txn_renew (MdbTxnRenewCallback f);
+
+void rsn_callback_mdb_txn_reset (MdbTxnResetCallback f);
+
+void rsn_callback_memory_intensive_instrumentation (MemoryIntensiveInstrumentationCallback f);
+
+void rsn_callback_message_visitor_bootstrap_processed (MessageVisitorFlagCallback f);
+
+void rsn_callback_message_visitor_destroy (VoidPointerCallback f);
+
+void rsn_callback_message_visitor_visit (MessageVisitorCallback f);
+
 void rsn_callback_property_tree_add (PropertyTreePutStringCallback f);
 
 void rsn_callback_property_tree_add_child (PropertyTreePushBackCallback f);
+
+void rsn_callback_property_tree_clear (PropertyTreeClearCallback f);
 
 void rsn_callback_property_tree_create (PropertyTreeCreateTreeCallback f);
 
@@ -769,13 +1534,45 @@ void rsn_callback_property_tree_get_string (PropertyTreeGetStringCallback f);
 
 void rsn_callback_property_tree_push_back (PropertyTreePushBackCallback f);
 
+void rsn_callback_property_tree_put_child (PropertyTreePushBackCallback f);
+
 void rsn_callback_property_tree_put_string (PropertyTreePutStringCallback f);
 
 void rsn_callback_property_tree_put_u64 (PropertyTreePutU64Callback f);
 
+void rsn_callback_property_tree_to_json (PropertyTreeToJsonCallback f);
+
 void rsn_callback_read_bytes (ReadBytesCallback f);
 
 void rsn_callback_read_u8 (ReadU8Callback f);
+
+void rsn_callback_request_response_visitor_factory_bootstrap_visitor (RequestResponseVisitorFactoryCreateCallback f);
+
+void rsn_callback_request_response_visitor_factory_destroy (VoidPointerCallback f);
+
+void rsn_callback_string_chars (StringCharsCallback f);
+
+void rsn_callback_string_delete (StringDeleteCallback f);
+
+void rsn_callback_tcp_socket_async_connect (AsyncConnectCallback f);
+
+void rsn_callback_tcp_socket_async_read (AsyncReadCallback f);
+
+void rsn_callback_tcp_socket_async_read2 (AsyncRead2Callback f);
+
+void rsn_callback_tcp_socket_async_write (AsyncWriteCallback f);
+
+void rsn_callback_tcp_socket_close (CloseSocketCallback f);
+
+void rsn_callback_tcp_socket_destroy (VoidPointerCallback f);
+
+void rsn_callback_tcp_socket_dispatch (DispatchCallback f);
+
+void rsn_callback_tcp_socket_local_endpoint (SocketLocalEndpointCallback f);
+
+void rsn_callback_tcp_socket_post (DispatchCallback f);
+
+void rsn_callback_tcp_socket_remote_endpoint (RemoteEndpointCallback f);
 
 void rsn_callback_toml_array_put_str (TomlArrayPutStrCallback f);
 
@@ -801,6 +1598,12 @@ void rsn_callback_toml_put_u64 (TomlPutU64Callback f);
 
 void rsn_callback_try_log (TryLogCallback f);
 
+void rsn_callback_txn_callbacks_destroy (VoidPointerCallback f);
+
+void rsn_callback_txn_callbacks_end (TxnEndCallback f);
+
+void rsn_callback_txn_callbacks_start (TxnStartCallback f);
+
 void rsn_callback_write_bytes (WriteBytesCallback f);
 
 void rsn_callback_write_u8 (WriteU8Callback f);
@@ -821,9 +1624,96 @@ void rsn_change_block_representative_set (BlockHandle * handle, const uint8_t (*
 
 uintptr_t rsn_change_block_size ();
 
+void rsn_channel_destroy (ChannelHandle * handle);
+
+ChannelHandle * rsn_channel_fake_create (uint64_t now);
+
+uint64_t rsn_channel_get_last_bootstrap_attempt (ChannelHandle * handle);
+
+uint64_t rsn_channel_get_last_packet_received (ChannelHandle * handle);
+
+uint64_t rsn_channel_get_last_packet_sent (ChannelHandle * handle);
+
+bool rsn_channel_get_node_id (ChannelHandle * handle, uint8_t * result);
+
+ChannelHandle * rsn_channel_inproc_create (uint64_t now);
+
+bool rsn_channel_is_temporary (ChannelHandle * handle);
+
+void rsn_channel_set_last_bootstrap_attempt (ChannelHandle * handle, uint64_t instant);
+
+void rsn_channel_set_last_packet_received (ChannelHandle * handle, uint64_t instant);
+
+void rsn_channel_set_last_packet_sent (ChannelHandle * handle, uint64_t instant);
+
+void rsn_channel_set_node_id (ChannelHandle * handle, const uint8_t * id);
+
+void rsn_channel_set_temporary (ChannelHandle * handle, bool temporary);
+
+/// observer is `weak_ptr<channel_tcp_observer> *`
+/// io_ctx is `boost::asio::io_context *`
+ChannelHandle * rsn_channel_tcp_create (uint64_t now,
+SocketHandle * socket,
+void * observer,
+const BandwidthLimiterHandle * limiter,
+void * io_ctx);
+
+void rsn_channel_tcp_endpoint (ChannelHandle * handle, EndpointDto * endpoint);
+
+bool rsn_channel_tcp_eq (ChannelHandle * a, ChannelHandle * b);
+
+bool rsn_channel_tcp_max (ChannelHandle * handle);
+
+void rsn_channel_tcp_network_set_version (ChannelHandle * handle, uint8_t version);
+
+uint8_t rsn_channel_tcp_network_version (ChannelHandle * handle);
+
+void rsn_channel_tcp_peering_endpoint (ChannelHandle * handle, EndpointDto * endpoint);
+
+void rsn_channel_tcp_send (ChannelHandle * handle,
+MessageHandle * msg,
+ChannelTcpSendCallback callback,
+VoidPointerCallback delete_callback,
+void * context,
+uint8_t policy);
+
+void rsn_channel_tcp_send_buffer (ChannelHandle * handle,
+const uint8_t * buffer,
+uintptr_t buffer_len,
+ChannelTcpSendBufferCallback callback,
+VoidPointerCallback delete_callback,
+void * callback_context,
+uint8_t policy);
+
+void rsn_channel_tcp_set_endpoint (ChannelHandle * handle);
+
+void rsn_channel_tcp_set_peering_endpoint (ChannelHandle * handle, const EndpointDto * endpoint);
+
+SocketHandle * rsn_channel_tcp_socket (ChannelHandle * handle);
+
+ChannelTcpWrapperHandle * rsn_channel_tcp_wrapper_create (ChannelHandle * channel,
+SocketHandle * socket,
+BootstrapServerHandle * response_server);
+
+void rsn_channel_tcp_wrapper_destroy (ChannelTcpWrapperHandle * handle);
+
+ChannelHandle * rsn_channel_udp_create (uint64_t now);
+
+void rsn_confirmation_height_info_create (ConfirmationHeightInfoDto * result);
+
+void rsn_confirmation_height_info_create2 (uint64_t height,
+const uint8_t * hash,
+ConfirmationHeightInfoDto * result);
+
+bool rsn_confirmation_height_info_deserialize (ConfirmationHeightInfoDto * info, void * stream);
+
+bool rsn_confirmation_height_info_serialize (const ConfirmationHeightInfoDto * info, void * stream);
+
 int32_t rsn_daemon_config_create (DaemonConfigDto * dto, const NetworkParamsDto * network_params);
 
 int32_t rsn_daemon_config_serialize_toml (const DaemonConfigDto * dto, void * toml);
+
+BlockHandle * rsn_deserialize_block (uint8_t block_type, void * stream, BlockUniquerHandle * uniquer);
 
 BlockHandle * rsn_deserialize_block_json (const void * ptree);
 
@@ -848,11 +1738,48 @@ void rsn_epochs_link (const EpochsHandle * handle, uint8_t epoch, uint8_t * link
 
 void rsn_epochs_signer (const EpochsHandle * handle, uint8_t epoch, uint8_t * signer);
 
+StatLogSinkHandle * rsn_file_writer_create (const int8_t * filename);
+
 void rsn_from_topic (uint8_t topic, StringDto * result);
+
+bool rsn_generate_cache_account_count (GenerateCacheHandle * handle);
+
+bool rsn_generate_cache_block_count (GenerateCacheHandle * handle);
+
+bool rsn_generate_cache_cemented_count (GenerateCacheHandle * handle);
+
+GenerateCacheHandle * rsn_generate_cache_clone (GenerateCacheHandle * handle);
+
+GenerateCacheHandle * rsn_generate_cache_create ();
+
+void rsn_generate_cache_destroy (GenerateCacheHandle * handle);
+
+void rsn_generate_cache_enable_all (GenerateCacheHandle * handle);
+
+bool rsn_generate_cache_reps (GenerateCacheHandle * handle);
+
+void rsn_generate_cache_set_account_count (GenerateCacheHandle * handle, bool enable);
+
+void rsn_generate_cache_set_cemented_count (GenerateCacheHandle * handle, bool enable);
+
+void rsn_generate_cache_set_reps (GenerateCacheHandle * handle, bool enable);
+
+void rsn_generate_cache_set_unchecked_count (GenerateCacheHandle * handle, bool enable);
+
+bool rsn_generate_cache_unchecked_count (GenerateCacheHandle * handle);
 
 void rsn_hardened_constants_get (uint8_t * not_an_account, uint8_t * random_128);
 
+/// handle is a `boost::asio::io_context *`
+IoContextHandle * rsn_io_ctx_create (void * handle);
+
+void rsn_io_ctx_destroy (IoContextHandle * handle);
+
+void * rsn_io_ctx_get_ctx (IoContextHandle * handle);
+
 int32_t rsn_ipc_config_create (IpcConfigDto * dto, const NetworkConstantsDto * network_constants);
+
+StatLogSinkHandle * rsn_json_writer_create ();
 
 int32_t rsn_ledger_constants_create (LedgerConstantsDto * dto,
 const WorkThresholdsDto * work,
@@ -862,7 +1789,481 @@ LedgerHandle * rsn_ledger_create (void * handle);
 
 void rsn_ledger_destroy (LedgerHandle * handle);
 
+uint32_t rsn_lmdb_account_store_accounts_handle (LmdbAccountStoreHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_account_store_begin (LmdbAccountStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_account_store_begin_account (LmdbAccountStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account);
+
+uintptr_t rsn_lmdb_account_store_count (LmdbAccountStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_account_store_del (LmdbAccountStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account);
+
+void rsn_lmdb_account_store_destroy (LmdbAccountStoreHandle * handle);
+
+void rsn_lmdb_account_store_for_each_par (LmdbAccountStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+bool rsn_lmdb_account_store_get (LmdbAccountStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account,
+AccountInfoHandle * info);
+
+void rsn_lmdb_account_store_put (LmdbAccountStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account,
+const AccountInfoHandle * info);
+
+LmdbIteratorHandle * rsn_lmdb_account_store_rbegin (LmdbAccountStoreHandle * handle,
+TransactionHandle * txn);
+
+void rsn_lmdb_block_store_account (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash,
+uint8_t * result);
+
+void rsn_lmdb_block_store_account_calculated (LmdbBlockStoreHandle * handle,
+const BlockHandle * block,
+uint8_t * result);
+
+uint64_t rsn_lmdb_block_store_account_height (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_block_store_balance (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash,
+uint8_t * balance);
+
+void rsn_lmdb_block_store_balance_calculated (LmdbBlockStoreHandle * handle,
+const BlockHandle * block,
+uint8_t * balance);
+
+LmdbIteratorHandle * rsn_lmdb_block_store_begin (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_block_store_begin_at_hash (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+uint32_t rsn_lmdb_block_store_blocks_handle (LmdbBlockStoreHandle * handle);
+
+uint64_t rsn_lmdb_block_store_count (LmdbBlockStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_block_store_del (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_block_store_destroy (LmdbBlockStoreHandle * handle);
+
+bool rsn_lmdb_block_store_exists (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_block_store_for_each_par (LmdbBlockStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+BlockHandle * rsn_lmdb_block_store_get (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+BlockHandle * rsn_lmdb_block_store_get_no_sideband (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_block_store_put (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash,
+BlockHandle * block);
+
+BlockHandle * rsn_lmdb_block_store_random (LmdbBlockStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_block_store_raw_put (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * data,
+uintptr_t len,
+const uint8_t * hash);
+
+void rsn_lmdb_block_store_successor (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash,
+uint8_t * result);
+
+void rsn_lmdb_block_store_successor_clear (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+uint8_t rsn_lmdb_block_store_version (LmdbBlockStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
 void rsn_lmdb_config_create (LmdbConfigDto * dto);
+
+LmdbIteratorHandle * rsn_lmdb_confirmation_height_store_begin (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_confirmation_height_store_begin_at_account (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account);
+
+void rsn_lmdb_confirmation_height_store_clear (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn);
+
+uint64_t rsn_lmdb_confirmation_height_store_count (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn);
+
+void rsn_lmdb_confirmation_height_store_del (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account);
+
+void rsn_lmdb_confirmation_height_store_destroy (LmdbConfirmationHeightStoreHandle * handle);
+
+bool rsn_lmdb_confirmation_height_store_exists (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account);
+
+void rsn_lmdb_confirmation_height_store_for_each_par (LmdbConfirmationHeightStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+bool rsn_lmdb_confirmation_height_store_get (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account,
+ConfirmationHeightInfoDto * info);
+
+void rsn_lmdb_confirmation_height_store_put (LmdbConfirmationHeightStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account,
+const ConfirmationHeightInfoDto * info);
+
+uint32_t rsn_lmdb_confirmation_height_store_table_handle (LmdbConfirmationHeightStoreHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_final_vote_store_begin (LmdbFinalVoteStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_final_vote_store_begin_at_root (LmdbFinalVoteStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * root);
+
+void rsn_lmdb_final_vote_store_clear (LmdbFinalVoteStoreHandle * handle, TransactionHandle * txn);
+
+uintptr_t rsn_lmdb_final_vote_store_count (LmdbFinalVoteStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_final_vote_store_del (LmdbFinalVoteStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * root);
+
+void rsn_lmdb_final_vote_store_destroy (LmdbFinalVoteStoreHandle * handle);
+
+void rsn_lmdb_final_vote_store_for_each_par (LmdbFinalVoteStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+void rsn_lmdb_final_vote_store_get (LmdbFinalVoteStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * root,
+BlockHashArrayDto * result);
+
+bool rsn_lmdb_final_vote_store_put (LmdbFinalVoteStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * root,
+const uint8_t * hash);
+
+uint32_t rsn_lmdb_final_vote_store_table_handle (LmdbFinalVoteStoreHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_frontier_store_begin (LmdbFrontierStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_frontier_store_begin_at_hash (LmdbFrontierStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_frontier_store_del (LmdbFrontierStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_frontier_store_destroy (LmdbFrontierStoreHandle * handle);
+
+void rsn_lmdb_frontier_store_for_each_par (LmdbFrontierStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+void rsn_lmdb_frontier_store_get (LmdbFrontierStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash,
+uint8_t * account);
+
+void rsn_lmdb_frontier_store_put (LmdbFrontierStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash,
+const uint8_t * account);
+
+uint32_t rsn_lmdb_frontier_store_table_handle (LmdbFrontierStoreHandle * handle);
+
+void rsn_lmdb_iterator_clear (LmdbIteratorHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_iterator_create (MdbTxn * txn,
+uint32_t dbi,
+const MdbVal * val,
+bool direction_asc,
+uintptr_t expected_value_size);
+
+void rsn_lmdb_iterator_current (LmdbIteratorHandle * handle, MdbVal * key, MdbVal * value);
+
+MdbCursor * rsn_lmdb_iterator_cursor (LmdbIteratorHandle * handle);
+
+void rsn_lmdb_iterator_destroy (LmdbIteratorHandle * handle);
+
+void rsn_lmdb_iterator_next (LmdbIteratorHandle * handle);
+
+void rsn_lmdb_iterator_previous (LmdbIteratorHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_online_weight_store_begin (LmdbOnlineWeightStoreHandle * handle,
+TransactionHandle * txn);
+
+void rsn_lmdb_online_weight_store_clear (LmdbOnlineWeightStoreHandle * handle,
+TransactionHandle * txn);
+
+uintptr_t rsn_lmdb_online_weight_store_count (LmdbOnlineWeightStoreHandle * handle,
+TransactionHandle * txn);
+
+void rsn_lmdb_online_weight_store_del (LmdbOnlineWeightStoreHandle * handle,
+TransactionHandle * txn,
+uint64_t time);
+
+void rsn_lmdb_online_weight_store_destroy (LmdbOnlineWeightStoreHandle * handle);
+
+void rsn_lmdb_online_weight_store_put (LmdbOnlineWeightStoreHandle * handle,
+TransactionHandle * txn,
+uint64_t time,
+const uint8_t * amount);
+
+LmdbIteratorHandle * rsn_lmdb_online_weight_store_rbegin (LmdbOnlineWeightStoreHandle * handle,
+TransactionHandle * txn);
+
+uint32_t rsn_lmdb_online_weight_store_table_handle (LmdbOnlineWeightStoreHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_peer_store_begin (LmdbPeerStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_peer_store_clear (LmdbPeerStoreHandle * handle, TransactionHandle * txn);
+
+uintptr_t rsn_lmdb_peer_store_count (LmdbPeerStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_peer_store_del (LmdbPeerStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * address,
+uint16_t port);
+
+void rsn_lmdb_peer_store_destroy (LmdbPeerStoreHandle * handle);
+
+bool rsn_lmdb_peer_store_exists (LmdbPeerStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * address,
+uint16_t port);
+
+void rsn_lmdb_peer_store_put (LmdbPeerStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * address,
+uint16_t port);
+
+uint32_t rsn_lmdb_peer_store_table_handle (LmdbPeerStoreHandle * handle);
+
+bool rsn_lmdb_pending_store_any (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * account);
+
+LmdbIteratorHandle * rsn_lmdb_pending_store_begin (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_pending_store_begin_at_key (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn,
+const PendingKeyDto * key);
+
+void rsn_lmdb_pending_store_del (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn,
+const PendingKeyDto * key);
+
+void rsn_lmdb_pending_store_destroy (LmdbPendingStoreHandle * handle);
+
+bool rsn_lmdb_pending_store_exists (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn,
+const PendingKeyDto * key);
+
+void rsn_lmdb_pending_store_for_each_par (LmdbPendingStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+bool rsn_lmdb_pending_store_get (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn,
+const PendingKeyDto * key,
+PendingInfoDto * pending);
+
+void rsn_lmdb_pending_store_put (LmdbPendingStoreHandle * handle,
+TransactionHandle * txn,
+const PendingKeyDto * key,
+const PendingInfoDto * pending);
+
+uint32_t rsn_lmdb_pending_store_table_handle (LmdbPendingStoreHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_pruned_store_begin (LmdbPrunedStoreHandle * handle,
+TransactionHandle * txn);
+
+LmdbIteratorHandle * rsn_lmdb_pruned_store_begin_at_hash (LmdbPrunedStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_pruned_store_clear (LmdbPrunedStoreHandle * handle, TransactionHandle * txn);
+
+uintptr_t rsn_lmdb_pruned_store_count (LmdbPrunedStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_pruned_store_del (LmdbPrunedStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_pruned_store_destroy (LmdbPrunedStoreHandle * handle);
+
+bool rsn_lmdb_pruned_store_exists (LmdbPrunedStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_pruned_store_for_each_par (LmdbPrunedStoreHandle * handle,
+ForEachParCallback action,
+void * context,
+VoidPointerCallback delete_context);
+
+void rsn_lmdb_pruned_store_put (LmdbPrunedStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * hash);
+
+void rsn_lmdb_pruned_store_random (LmdbPrunedStoreHandle * handle,
+TransactionHandle * txn,
+uint8_t * hash);
+
+uint32_t rsn_lmdb_pruned_store_table_handle (LmdbPrunedStoreHandle * handle);
+
+TransactionHandle * rsn_lmdb_read_txn_create (uint64_t txn_id, MdbEnv * env, void * callbacks);
+
+void rsn_lmdb_read_txn_destroy (TransactionHandle * handle);
+
+MdbTxn * rsn_lmdb_read_txn_handle (TransactionHandle * handle);
+
+void rsn_lmdb_read_txn_refresh (TransactionHandle * handle);
+
+void rsn_lmdb_read_txn_renew (TransactionHandle * handle);
+
+void rsn_lmdb_read_txn_reset (TransactionHandle * handle);
+
+LmdbAccountStoreHandle * rsn_lmdb_store_account (LmdbStoreHandle * handle);
+
+LmdbBlockStoreHandle * rsn_lmdb_store_block (LmdbStoreHandle * handle);
+
+LmdbConfirmationHeightStoreHandle * rsn_lmdb_store_confirmation_height (LmdbStoreHandle * handle);
+
+bool rsn_lmdb_store_copy_db (LmdbStoreHandle * handle, const int8_t * path);
+
+LmdbStoreHandle * rsn_lmdb_store_create (bool * error,
+const int8_t * path,
+const LmdbConfigDto * lmdb_config,
+bool use_no_mem_init,
+LoggerHandle * logger,
+const TxnTrackingConfigDto * txn_config,
+uint64_t block_processor_batch_max_time_ms,
+bool backup_before_upgrade);
+
+bool rsn_lmdb_store_create_backup_file (LmdbEnvHandle * env,
+const int8_t * path,
+LoggerHandle * logger);
+
+void rsn_lmdb_store_destroy (LmdbStoreHandle * handle);
+
+LmdbEnvHandle * rsn_lmdb_store_env (LmdbStoreHandle * handle);
+
+LmdbFinalVoteStoreHandle * rsn_lmdb_store_final_vote (LmdbStoreHandle * handle);
+
+LmdbFrontierStoreHandle * rsn_lmdb_store_frontier (LmdbStoreHandle * handle);
+
+LmdbOnlineWeightStoreHandle * rsn_lmdb_store_online_weight (LmdbStoreHandle * handle);
+
+LmdbPeerStoreHandle * rsn_lmdb_store_peer (LmdbStoreHandle * handle);
+
+LmdbPendingStoreHandle * rsn_lmdb_store_pending (LmdbStoreHandle * handle);
+
+LmdbPrunedStoreHandle * rsn_lmdb_store_pruned (LmdbStoreHandle * handle);
+
+void rsn_lmdb_store_rebuild_db (LmdbStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_store_serialize_memory_stats (LmdbStoreHandle * handle, void * ptree);
+
+LmdbUncheckedStoreHandle * rsn_lmdb_store_unchecked (LmdbStoreHandle * handle);
+
+LmdbVersionStoreHandle * rsn_lmdb_store_version (LmdbStoreHandle * handle);
+
+LmdbIteratorHandle * rsn_lmdb_unchecked_store_begin (LmdbUncheckedStoreHandle * handle,
+TransactionHandle * txn);
+
+void rsn_lmdb_unchecked_store_clear (LmdbUncheckedStoreHandle * handle, TransactionHandle * txn);
+
+uintptr_t rsn_lmdb_unchecked_store_count (LmdbUncheckedStoreHandle * handle, TransactionHandle * txn);
+
+void rsn_lmdb_unchecked_store_del (LmdbUncheckedStoreHandle * handle,
+TransactionHandle * txn,
+const UncheckedKeyDto * key);
+
+void rsn_lmdb_unchecked_store_destroy (LmdbUncheckedStoreHandle * handle);
+
+bool rsn_lmdb_unchecked_store_exists (LmdbUncheckedStoreHandle * handle,
+TransactionHandle * txn,
+const UncheckedKeyDto * key);
+
+LmdbIteratorHandle * rsn_lmdb_unchecked_store_lower_bound (LmdbUncheckedStoreHandle * handle,
+TransactionHandle * txn,
+const UncheckedKeyDto * key);
+
+void rsn_lmdb_unchecked_store_put (LmdbUncheckedStoreHandle * handle,
+TransactionHandle * txn,
+const uint8_t * dependency,
+UncheckedInfoHandle * info);
+
+uint32_t rsn_lmdb_unchecked_store_table_handle (LmdbUncheckedStoreHandle * handle);
+
+void rsn_lmdb_version_store_destroy (LmdbVersionStoreHandle * handle);
+
+int32_t rsn_lmdb_version_store_get (LmdbVersionStoreHandle * handle, TransactionHandle * txn);
+
+bool rsn_lmdb_version_store_open_db (LmdbVersionStoreHandle * handle,
+TransactionHandle * txn,
+uint32_t flags);
+
+void rsn_lmdb_version_store_put (LmdbVersionStoreHandle * handle,
+TransactionHandle * txn,
+int32_t version);
+
+uint32_t rsn_lmdb_version_store_table_handle (LmdbVersionStoreHandle * handle);
+
+void rsn_lmdb_write_txn_commit (TransactionHandle * handle);
+
+TransactionHandle * rsn_lmdb_write_txn_create (uint64_t txn_id, MdbEnv * env, void * callbacks);
+
+void rsn_lmdb_write_txn_destroy (TransactionHandle * handle);
+
+MdbTxn * rsn_lmdb_write_txn_handle (TransactionHandle * handle);
+
+void rsn_lmdb_write_txn_refresh (TransactionHandle * handle);
+
+void rsn_lmdb_write_txn_renew (TransactionHandle * handle);
 
 void rsn_local_vote_history_add (LocalVoteHistoryHandle * handle,
 const uint8_t * root,
@@ -891,7 +2292,44 @@ LocalVotesResult * result);
 
 void rsn_local_vote_history_votes_destroy (LocalVotesResultHandle * handle);
 
+/// logger is a pointer to a shared_ptr<logger_mt>
+LoggerHandle * rsn_logger_create (void * logger);
+
 void rsn_logging_create (LoggingDto * dto);
+
+void rsn_mdb_env_close (LmdbEnvHandle * handle);
+
+LmdbEnvHandle * rsn_mdb_env_create (bool * error,
+const int8_t * path,
+const LmdbConfigDto * lmdb_config,
+bool use_no_mem_init);
+
+LmdbEnvHandle * rsn_mdb_env_create2 (bool * error,
+const int8_t * path,
+const LmdbConfigDto * lmdb_config,
+bool use_no_mem_init,
+LoggerHandle * logger,
+const TxnTrackingConfigDto * txn_config,
+uint64_t block_processor_batch_max_time_ms);
+
+void rsn_mdb_env_destroy (LmdbEnvHandle * handle);
+
+void * rsn_mdb_env_get_env (LmdbEnvHandle * handle);
+
+void rsn_mdb_env_init (LmdbEnvHandle * handle,
+bool * error,
+const int8_t * path,
+const LmdbConfigDto * lmdb_config,
+bool use_no_mem_init);
+
+void rsn_mdb_env_serialize_txn_tracker (LmdbEnvHandle * handle,
+void * ptree,
+uint64_t min_read_time_ms,
+uint64_t min_write_time_ms);
+
+TransactionHandle * rsn_mdb_env_tx_begin_read (LmdbEnvHandle * handle);
+
+TransactionHandle * rsn_mdb_env_tx_begin_write (LmdbEnvHandle * handle);
 
 void rsn_message_builder_bootstrap_exited (const char * id,
 const char * mode,
@@ -900,6 +2338,304 @@ uint64_t total_blocks,
 MessageDto * result);
 
 void rsn_message_builder_bootstrap_started (const char * id, const char * mode, MessageDto * result);
+
+void rsn_message_bulk_pull_account_account (MessageHandle * handle, uint8_t * account);
+
+MessageHandle * rsn_message_bulk_pull_account_clone (MessageHandle * other);
+
+MessageHandle * rsn_message_bulk_pull_account_create (NetworkConstantsDto * constants);
+
+MessageHandle * rsn_message_bulk_pull_account_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_bulk_pull_account_deserialize (MessageHandle * handle, void * stream);
+
+uint8_t rsn_message_bulk_pull_account_flags (MessageHandle * handle);
+
+void rsn_message_bulk_pull_account_minimum_amount (MessageHandle * handle, uint8_t * amount);
+
+bool rsn_message_bulk_pull_account_serialize (MessageHandle * handle, void * stream);
+
+void rsn_message_bulk_pull_account_set_account (MessageHandle * handle, const uint8_t * account);
+
+void rsn_message_bulk_pull_account_set_flags (MessageHandle * handle, uint8_t flags);
+
+void rsn_message_bulk_pull_account_set_minimum_amount (MessageHandle * handle, const uint8_t * amount);
+
+uintptr_t rsn_message_bulk_pull_account_size ();
+
+uint32_t rsn_message_bulk_pull_count (MessageHandle * handle);
+
+MessageHandle * rsn_message_bulk_pull_create (NetworkConstantsDto * constants);
+
+MessageHandle * rsn_message_bulk_pull_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_bulk_pull_deserialize (MessageHandle * handle, void * stream);
+
+void rsn_message_bulk_pull_end (MessageHandle * handle, uint8_t * end);
+
+bool rsn_message_bulk_pull_is_ascending (MessageHandle * handle);
+
+bool rsn_message_bulk_pull_is_count_present (MessageHandle * handle);
+
+MessageHandle * rsn_message_bulk_pull_req_clone (MessageHandle * other);
+
+bool rsn_message_bulk_pull_serialize (MessageHandle * handle, void * stream);
+
+void rsn_message_bulk_pull_set_ascending (MessageHandle * handle);
+
+void rsn_message_bulk_pull_set_count (MessageHandle * handle, uint32_t count);
+
+void rsn_message_bulk_pull_set_count_present (MessageHandle * handle, bool present);
+
+void rsn_message_bulk_pull_set_end (MessageHandle * handle, const uint8_t * end);
+
+void rsn_message_bulk_pull_set_start (MessageHandle * handle, const uint8_t * start);
+
+void rsn_message_bulk_pull_start (MessageHandle * handle, uint8_t * start);
+
+MessageHandle * rsn_message_bulk_push_create (NetworkConstantsDto * constants);
+
+MessageHandle * rsn_message_bulk_push_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_bulk_push_deserialize (MessageHandle * handle, void * stream);
+
+bool rsn_message_bulk_push_serialize (MessageHandle * handle, void * stream);
+
+MessageHandle * rsn_message_confirm_ack_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_confirm_ack_create (NetworkConstantsDto * constants, VoteHandle * vote);
+
+MessageHandle * rsn_message_confirm_ack_create2 (MessageHeaderHandle * header,
+void * stream,
+VoteUniquerHandle * uniquer,
+bool * is_error);
+
+bool rsn_message_confirm_ack_serialize (MessageHandle * handle, void * stream);
+
+uintptr_t rsn_message_confirm_ack_size (uintptr_t count);
+
+VoteHandle * rsn_message_confirm_ack_vote (MessageHandle * handle);
+
+BlockHandle * rsn_message_confirm_req_block (MessageHandle * handle);
+
+MessageHandle * rsn_message_confirm_req_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_confirm_req_create (NetworkConstantsDto * constants,
+BlockHandle * block,
+const HashRootPair * roots_hashes,
+uintptr_t roots_hashes_count);
+
+MessageHandle * rsn_message_confirm_req_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_confirm_req_deserialize (MessageHandle * handle,
+void * stream,
+BlockUniquerHandle * uniquer);
+
+bool rsn_message_confirm_req_equals (MessageHandle * handle_a, MessageHandle * handle_b);
+
+void rsn_message_confirm_req_roots_hashes (MessageHandle * handle, HashRootPair * result);
+
+uintptr_t rsn_message_confirm_req_roots_hashes_count (MessageHandle * handle);
+
+void rsn_message_confirm_req_roots_string (MessageHandle * handle, StringDto * result);
+
+bool rsn_message_confirm_req_serialize (MessageHandle * handle, void * stream);
+
+uintptr_t rsn_message_confirm_req_size (uint8_t block_type, uintptr_t count);
+
+MessageDeserializerHandle * rsn_message_deserializer_create (const NetworkConstantsDto * network_constants,
+NetworkFilterHandle * network_filter,
+BlockUniquerHandle * block_uniquer,
+VoteUniquerHandle * vote_uniquer);
+
+void rsn_message_deserializer_destroy (MessageDeserializerHandle * handle);
+
+uint8_t rsn_message_deserializer_parse_status_to_stat_detail (MessageDeserializerHandle * handle);
+
+void rsn_message_deserializer_parse_status_to_string (MessageDeserializerHandle * handle,
+StringDto * result);
+
+void rsn_message_deserializer_read (MessageDeserializerHandle * handle,
+SocketHandle * socket,
+MessageDeserializedCallback callback,
+VoidPointerCallback destroy_callback,
+void * context);
+
+uint8_t rsn_message_deserializer_status (MessageDeserializerHandle * handle);
+
+void rsn_message_destroy (MessageHandle * handle);
+
+uint32_t rsn_message_frontier_req_age (MessageHandle * handle);
+
+MessageHandle * rsn_message_frontier_req_clone (MessageHandle * other);
+
+uint32_t rsn_message_frontier_req_count (MessageHandle * handle);
+
+MessageHandle * rsn_message_frontier_req_create (NetworkConstantsDto * constants);
+
+MessageHandle * rsn_message_frontier_req_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_frontier_req_deserialize (MessageHandle * handle, void * stream);
+
+bool rsn_message_frontier_req_is_confirmed_present (MessageHandle * handle);
+
+bool rsn_message_frontier_req_serialize (MessageHandle * handle, void * stream);
+
+void rsn_message_frontier_req_set_age (MessageHandle * handle, uint32_t age);
+
+void rsn_message_frontier_req_set_count (MessageHandle * handle, uint32_t count);
+
+void rsn_message_frontier_req_set_start (MessageHandle * handle, const uint8_t * account);
+
+void rsn_message_frontier_req_start (MessageHandle * handle, uint8_t * account);
+
+uintptr_t rsn_message_frontier_size ();
+
+MessageHeaderHandle * rsn_message_header (MessageHandle * handle);
+
+uint8_t rsn_message_header_block_type (MessageHeaderHandle * handle);
+
+MessageHeaderHandle * rsn_message_header_clone (MessageHeaderHandle * handle);
+
+uint8_t rsn_message_header_count (MessageHeaderHandle * handle);
+
+MessageHeaderHandle * rsn_message_header_create (const NetworkConstantsDto * constants,
+uint8_t message_type,
+int16_t version_using);
+
+bool rsn_message_header_deserialize (MessageHeaderHandle * handle, void * stream);
+
+void rsn_message_header_destroy (MessageHeaderHandle * handle);
+
+MessageHeaderHandle * rsn_message_header_empty ();
+
+uint16_t rsn_message_header_extensions (MessageHeaderHandle * handle);
+
+bool rsn_message_header_is_valid_message_type (MessageHeaderHandle * handle);
+
+uint16_t rsn_message_header_network (MessageHeaderHandle * handle);
+
+uintptr_t rsn_message_header_payload_length (MessageHeaderHandle * handle);
+
+bool rsn_message_header_serialize (MessageHeaderHandle * handle, void * stream);
+
+void rsn_message_header_set_block_type (MessageHeaderHandle * handle, uint8_t block_type);
+
+void rsn_message_header_set_count (MessageHeaderHandle * handle, uint8_t count);
+
+void rsn_message_header_set_extension (MessageHeaderHandle * handle, uintptr_t position, bool value);
+
+void rsn_message_header_set_extensions (MessageHeaderHandle * handle, uint16_t value);
+
+void rsn_message_header_set_network (MessageHeaderHandle * handle, uint16_t network);
+
+void rsn_message_header_set_version_using (MessageHeaderHandle * handle, uint8_t version);
+
+uintptr_t rsn_message_header_size ();
+
+bool rsn_message_header_test_extension (MessageHeaderHandle * handle, uintptr_t position);
+
+void rsn_message_header_to_string (MessageHeaderHandle * handle, StringDto * result);
+
+uint8_t rsn_message_header_type (MessageHeaderHandle * handle);
+
+uint8_t rsn_message_header_version_max (MessageHeaderHandle * handle);
+
+uint8_t rsn_message_header_version_min (MessageHeaderHandle * handle);
+
+uint8_t rsn_message_header_version_using (MessageHeaderHandle * handle);
+
+MessageHandle * rsn_message_keepalive_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_keepalive_create (NetworkConstantsDto * constants, int16_t version_using);
+
+MessageHandle * rsn_message_keepalive_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_keepalive_deserialize (MessageHandle * handle, void * stream);
+
+void rsn_message_keepalive_peers (MessageHandle * handle, EndpointDto * result);
+
+bool rsn_message_keepalive_serialize (MessageHandle * handle, void * stream);
+
+void rsn_message_keepalive_set_peers (MessageHandle * handle, const EndpointDto * result);
+
+uintptr_t rsn_message_keepalive_size ();
+
+MessageHandle * rsn_message_node_id_handshake_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_node_id_handshake_create (NetworkConstantsDto * constants,
+const uint8_t * query,
+const uint8_t * resp_account,
+const uint8_t * resp_signature);
+
+MessageHandle * rsn_message_node_id_handshake_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_node_id_handshake_deserialize (MessageHandle * handle, void * stream);
+
+bool rsn_message_node_id_handshake_query (MessageHandle * handle, uint8_t * result);
+
+bool rsn_message_node_id_handshake_response (MessageHandle * handle,
+uint8_t * account,
+uint8_t * signature);
+
+bool rsn_message_node_id_handshake_serialize (MessageHandle * handle, void * stream);
+
+uintptr_t rsn_message_node_id_handshake_size (MessageHeaderHandle * header);
+
+BlockHandle * rsn_message_publish_block (MessageHandle * handle);
+
+MessageHandle * rsn_message_publish_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_publish_create (NetworkConstantsDto * constants, BlockHandle * block);
+
+MessageHandle * rsn_message_publish_create2 (MessageHeaderHandle * header, const uint8_t * digest);
+
+bool rsn_message_publish_deserialize (MessageHandle * handle,
+void * stream,
+BlockUniquerHandle * uniquer);
+
+void rsn_message_publish_digest (MessageHandle * handle, uint8_t * result);
+
+bool rsn_message_publish_serialize (MessageHandle * handle, void * stream);
+
+void rsn_message_publish_set_digest (MessageHandle * handle, const uint8_t * digest);
+
+void rsn_message_set_header (MessageHandle * handle, MessageHeaderHandle * header);
+
+MessageHandle * rsn_message_telemetry_ack_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_telemetry_ack_create (NetworkConstantsDto * constants,
+const TelemetryDataHandle * data);
+
+MessageHandle * rsn_message_telemetry_ack_create2 (MessageHeaderHandle * header);
+
+TelemetryDataHandle * rsn_message_telemetry_ack_data (MessageHandle * handle);
+
+bool rsn_message_telemetry_ack_deserialize (MessageHandle * handle, void * stream);
+
+bool rsn_message_telemetry_ack_is_empty_payload (MessageHandle * handle);
+
+bool rsn_message_telemetry_ack_serialize (MessageHandle * handle, void * stream);
+
+uint16_t rsn_message_telemetry_ack_size (MessageHandle * handle);
+
+uint16_t rsn_message_telemetry_ack_size_from_header (const MessageHeaderHandle * header);
+
+MessageHandle * rsn_message_telemetry_req_clone (MessageHandle * handle);
+
+MessageHandle * rsn_message_telemetry_req_create (NetworkConstantsDto * constants);
+
+MessageHandle * rsn_message_telemetry_req_create2 (MessageHeaderHandle * header);
+
+bool rsn_message_telemetry_req_deserialize (MessageHandle * handle, void * stream);
+
+bool rsn_message_telemetry_req_serialize (MessageHandle * handle, void * stream);
+
+uint8_t rsn_message_type (MessageHandle * handle);
+
+uint8_t rsn_message_type_to_stat_detail (uint8_t message_type);
+
+void rsn_message_type_to_string (uint8_t msg_type, StringDto * result);
 
 uint16_t rsn_network_constants_active_network ();
 
@@ -923,7 +2659,35 @@ bool rsn_network_constants_is_live_network (const NetworkConstantsDto * dto);
 
 bool rsn_network_constants_is_test_network (const NetworkConstantsDto * dto);
 
+bool rsn_network_filter_apply (NetworkFilterHandle * handle,
+const uint8_t * bytes,
+uintptr_t size,
+uint8_t * digest);
+
+void rsn_network_filter_clear (NetworkFilterHandle * handle, const uint8_t (*digest)[16]);
+
+void rsn_network_filter_clear_all (NetworkFilterHandle * handle);
+
+void rsn_network_filter_clear_bytes (NetworkFilterHandle * handle,
+const uint8_t * bytes,
+uintptr_t count);
+
+void rsn_network_filter_clear_many (NetworkFilterHandle * handle,
+const uint8_t (*digests)[16],
+uintptr_t count);
+
+NetworkFilterHandle * rsn_network_filter_create (uintptr_t size);
+
+void rsn_network_filter_destroy (NetworkFilterHandle * handle);
+
+void rsn_network_filter_hash (NetworkFilterHandle * handle,
+const uint8_t * bytes,
+uintptr_t count,
+uint8_t (*digest)[16]);
+
 int32_t rsn_network_params_create (NetworkParamsDto * dto, uint16_t network);
+
+void rsn_network_to_string (uint16_t network, StringDto * result);
 
 int32_t rsn_node_config_create (NodeConfigDto * dto,
 uint16_t peering_port,
@@ -935,6 +2699,36 @@ int32_t rsn_node_config_serialize_toml (const NodeConfigDto * dto, void * toml);
 
 int32_t rsn_node_constants_create (const NetworkConstantsDto * network_constants,
 NodeConstantsDto * dto);
+
+NodeFlagsHandle * rsn_node_flags_clone (NodeFlagsHandle * handle);
+
+uintptr_t rsn_node_flags_config_overrides (NodeFlagsHandle * handle,
+StringDto * result,
+uintptr_t size);
+
+void rsn_node_flags_config_set_overrides (NodeFlagsHandle * handle,
+const int8_t * const * overrides,
+uintptr_t size);
+
+NodeFlagsHandle * rsn_node_flags_create ();
+
+void rsn_node_flags_destroy (NodeFlagsHandle * handle);
+
+GenerateCacheHandle * rsn_node_flags_generate_cache (NodeFlagsHandle * handle);
+
+void rsn_node_flags_generate_set_cache (NodeFlagsHandle * handle, GenerateCacheHandle * cache);
+
+void rsn_node_flags_get (NodeFlagsHandle * handle, NodeFlagsDto * result);
+
+uintptr_t rsn_node_flags_rpc_config_overrides (NodeFlagsHandle * handle,
+StringDto * result,
+uintptr_t size);
+
+void rsn_node_flags_rpc_config_set_overrides (NodeFlagsHandle * handle,
+const int8_t * const * overrides,
+uintptr_t size);
+
+void rsn_node_flags_set (NodeFlagsHandle * handle, const NodeFlagsDto * flags);
 
 int32_t rsn_node_rpc_config_create (NodeRpcConfigDto * dto);
 
@@ -960,8 +2754,40 @@ void rsn_open_block_source (const BlockHandle * handle, uint8_t (*result)[32]);
 
 void rsn_open_block_source_set (BlockHandle * handle, const uint8_t (*source)[32]);
 
+uint64_t rsn_peer_exclusion_add (PeerExclusionHandle * handle,
+const EndpointDto * endpoint,
+uintptr_t network_peers_count);
+
+bool rsn_peer_exclusion_check (PeerExclusionHandle * handle, const EndpointDto * endpoint);
+
+bool rsn_peer_exclusion_contains (PeerExclusionHandle * handle, const EndpointDto * endpoint);
+
+PeerExclusionHandle * rsn_peer_exclusion_create ();
+
+void rsn_peer_exclusion_destroy (PeerExclusionHandle * handle);
+
+uintptr_t rsn_peer_exclusion_element_size ();
+
+void rsn_peer_exclusion_remove (PeerExclusionHandle * handle, const EndpointDto * endpoint);
+
+uintptr_t rsn_peer_exclusion_size (PeerExclusionHandle * handle);
+
 int32_t rsn_portmapping_constants_create (const NetworkConstantsDto * network_constants,
 PortmappingConstantsDto * dto);
+
+void rsn_pulls_cache_add (PullsCacheHandle * handle, const PullInfoDto * pull);
+
+PullsCacheHandle * rsn_pulls_cache_create ();
+
+void rsn_pulls_cache_destroy (PullsCacheHandle * handle);
+
+uintptr_t rsn_pulls_cache_element_size ();
+
+void rsn_pulls_cache_remove (PullsCacheHandle * handle, const PullInfoDto * pull);
+
+uintptr_t rsn_pulls_cache_size (PullsCacheHandle * handle);
+
+void rsn_pulls_cache_update_pull (PullsCacheHandle * handle, PullInfoDto * pull);
 
 BlockHandle * rsn_receive_block_create (const ReceiveBlockDto * dto);
 
@@ -980,8 +2806,6 @@ void rsn_receive_block_source (const BlockHandle * handle, uint8_t (*result)[32]
 void rsn_receive_block_source_set (BlockHandle * handle, const uint8_t (*previous)[32]);
 
 void rsn_remove_temporary_directories ();
-
-void rsn_rocksdb_config_create (RocksDbConfigDto * dto);
 
 int32_t rsn_rpc_config_create (RpcConfigDto * dto, const NetworkConstantsDto * network_constants);
 
@@ -1010,13 +2834,9 @@ void rsn_send_block_destination_set (BlockHandle * handle, const uint8_t (*desti
 
 void rsn_send_block_previous_set (BlockHandle * handle, const uint8_t (*previous)[32]);
 
-uintptr_t rsn_send_block_size ();
-
 bool rsn_send_block_valid_predecessor (uint8_t block_type);
 
 void rsn_send_block_zero (BlockHandle * handle);
-
-void rsn_shared_block_enum_handle_destroy (BlockHandle * handle);
 
 int32_t rsn_sign_message (const uint8_t (*priv_key)[32],
 const uint8_t (*pub_key)[32],
@@ -1030,14 +2850,136 @@ SignatureCheckerHandle * rsn_signature_checker_create (uintptr_t num_threads);
 
 void rsn_signature_checker_destroy (SignatureCheckerHandle * handle);
 
-void rsn_signature_checker_flush (const SignatureCheckerHandle * handle);
+bool rsn_signature_checker_flush (const SignatureCheckerHandle * handle);
 
 void rsn_signature_checker_stop (SignatureCheckerHandle * handle);
 
 void rsn_signature_checker_verify (const SignatureCheckerHandle * handle,
 SignatureCheckSetDto * check_set);
 
-void rsn_stat_config_create (StatConfigDto * dto);
+void rsn_socket_async_connect (SocketHandle * handle,
+const EndpointDto * endpoint,
+SocketConnectCallback callback,
+SocketDestroyContext destroy_context,
+void * context);
+
+void rsn_socket_async_read (SocketHandle * handle,
+void * buffer,
+uintptr_t size,
+SocketReadCallback callback,
+SocketDestroyContext destroy_context,
+void * context);
+
+void rsn_socket_async_read2 (SocketHandle * handle,
+BufferHandle * buffer,
+uintptr_t size,
+SocketReadCallback callback,
+SocketDestroyContext destroy_context,
+void * context);
+
+void rsn_socket_async_write (SocketHandle * handle,
+const uint8_t * buffer,
+uintptr_t buffer_len,
+SocketReadCallback callback,
+SocketDestroyContext destroy_context,
+void * context);
+
+void rsn_socket_checkup (SocketHandle * handle);
+
+void rsn_socket_close (SocketHandle * handle);
+
+void rsn_socket_close_internal (SocketHandle * handle);
+
+SocketHandle * rsn_socket_create (uint8_t endpoint_type,
+void * tcp_facade,
+StatHandle * stats_handle,
+void * thread_pool,
+uint64_t default_timeout_s,
+uint64_t silent_connection_tolerance_time_s,
+bool network_timeout_logging,
+LoggerHandle * logger);
+
+uint64_t rsn_socket_default_timeout_value (SocketHandle * handle);
+
+void rsn_socket_destroy (SocketHandle * handle);
+
+uint8_t rsn_socket_endpoint_type (SocketHandle * handle);
+
+void * rsn_socket_facade (SocketHandle * handle);
+
+bool rsn_socket_full (SocketHandle * handle);
+
+uintptr_t rsn_socket_get_queue_size (SocketHandle * handle);
+
+void rsn_socket_get_remote (SocketHandle * handle, EndpointDto * result);
+
+bool rsn_socket_has_timed_out (SocketHandle * handle);
+
+const void * rsn_socket_inner_ptr (SocketHandle * handle);
+
+bool rsn_socket_is_bootstrap_connection (SocketHandle * handle);
+
+bool rsn_socket_is_closed (SocketHandle * handle);
+
+void rsn_socket_local_endpoint (SocketHandle * handle, EndpointDto * endpoint);
+
+bool rsn_socket_max (SocketHandle * handle);
+
+void rsn_socket_set_default_timeout_value (SocketHandle * handle, uint64_t timeout_s);
+
+void rsn_socket_set_remote_endpoint (SocketHandle * handle, const EndpointDto * endpoint);
+
+void rsn_socket_set_silent_connection_tolerance_time (SocketHandle * handle, uint64_t time_s);
+
+void rsn_socket_set_timeout (SocketHandle * handle, uint64_t timeout_s);
+
+void rsn_socket_set_type (SocketHandle * handle, uint8_t socket_type);
+
+SocketWeakHandle * rsn_socket_to_weak_handle (SocketHandle * handle);
+
+uint8_t rsn_socket_type (SocketHandle * handle);
+
+void rsn_socket_type_to_string (uint8_t socket_type, StringDto * result);
+
+void rsn_stat_add (StatHandle * handle,
+uint8_t stat_type,
+uint8_t detail,
+uint8_t dir,
+uint64_t value,
+bool detail_only);
+
+void rsn_stat_clear (StatHandle * handle);
+
+void rsn_stat_configure (StatHandle * handle,
+uint8_t stat_type,
+uint8_t detail,
+uint8_t dir,
+uintptr_t interval,
+uintptr_t capacity);
+
+uint64_t rsn_stat_count (StatHandle * handle, uint8_t stat_type, uint8_t detail, uint8_t dir);
+
+StatHandle * rsn_stat_create (const StatConfigDto * config);
+
+void rsn_stat_destroy (StatHandle * handle);
+
+uintptr_t rsn_stat_detail_to_string (uint8_t key, const uint8_t ** result);
+
+uintptr_t rsn_stat_dir_to_string (uint8_t key, const uint8_t ** result);
+
+uint64_t rsn_stat_last_reset_s (StatHandle * handle);
+
+void rsn_stat_log_counters (StatHandle * handle, StatLogSinkHandle * sink_handle);
+
+void rsn_stat_log_samples (StatHandle * handle, StatLogSinkHandle * sink_handle);
+
+void rsn_stat_log_sink_destroy (StatLogSinkHandle * handle);
+
+void * rsn_stat_log_sink_to_object (StatLogSinkHandle * handle);
+
+void rsn_stat_stop (StatHandle * handle);
+
+uintptr_t rsn_stat_type_to_string (uint8_t key, const uint8_t ** result);
 
 void rsn_state_block_account (const BlockHandle * handle, uint8_t (*result)[32]);
 
@@ -1070,15 +3012,13 @@ const StateBlockSignatureVerificationValueDto * block);
 
 StateBlockSignatureVerificationHandle * rsn_state_block_signature_verification_create (const SignatureCheckerHandle * checker,
 const EpochsHandle * epochs,
-void * logger,
+LoggerHandle * logger,
 bool timing_logging,
 uintptr_t verification_size);
 
 void rsn_state_block_signature_verification_destroy (StateBlockSignatureVerificationHandle * handle);
 
 bool rsn_state_block_signature_verification_is_active (const StateBlockSignatureVerificationHandle * handle);
-
-void rsn_state_block_signature_verification_result_destroy (StateBlockSignatureVerificationResultHandle * handle);
 
 uintptr_t rsn_state_block_signature_verification_size (const StateBlockSignatureVerificationHandle * handle);
 
@@ -1096,6 +3036,163 @@ uintptr_t rsn_state_block_size ();
 
 void rsn_string_destroy (StringHandle * handle);
 
+bool rsn_syn_cookies_assign (SynCookiesHandle * handle, const EndpointDto * endpoint, uint8_t * result);
+
+uintptr_t rsn_syn_cookies_cookie_info_size ();
+
+uintptr_t rsn_syn_cookies_cookies_count (SynCookiesHandle * handle);
+
+uintptr_t rsn_syn_cookies_cookies_per_ip_count (SynCookiesHandle * handle);
+
+uintptr_t rsn_syn_cookies_cookies_per_ip_size ();
+
+SynCookiesHandle * rsn_syn_cookies_create (uintptr_t max_cookies_per_ip);
+
+void rsn_syn_cookies_destroy (SynCookiesHandle * handle);
+
+void rsn_syn_cookies_purge (SynCookiesHandle * handle, uint32_t cutoff_s);
+
+bool rsn_syn_cookies_validate (SynCookiesHandle * handle,
+const EndpointDto * endpoint,
+const uint8_t * node_id,
+const uint8_t * signature);
+
+TcpChannelsHandle * rsn_tcp_channels_create ();
+
+void rsn_tcp_channels_destroy (TcpChannelsHandle * handle);
+
+TcpMessageItemHandle * rsn_tcp_message_item_clone (TcpMessageItemHandle * handle);
+
+TcpMessageItemHandle * rsn_tcp_message_item_create (const MessageHandle * message,
+const EndpointDto * endpoint,
+const uint8_t * node_id,
+const SocketHandle * socket);
+
+void rsn_tcp_message_item_destroy (TcpMessageItemHandle * handle);
+
+TcpMessageItemHandle * rsn_tcp_message_item_empty ();
+
+void rsn_tcp_message_item_endpoint (TcpMessageItemHandle * handle, EndpointDto * endpoint);
+
+MessageHandle * rsn_tcp_message_item_message (TcpMessageItemHandle * handle);
+
+void rsn_tcp_message_item_node_id (TcpMessageItemHandle * handle, uint8_t * node_id);
+
+SocketHandle * rsn_tcp_message_item_socket (TcpMessageItemHandle * handle);
+
+TcpMessageManagerHandle * rsn_tcp_message_manager_create (uintptr_t incoming_connections_max);
+
+void rsn_tcp_message_manager_destroy (TcpMessageManagerHandle * handle);
+
+TcpMessageItemHandle * rsn_tcp_message_manager_get_message (TcpMessageManagerHandle * handle);
+
+void rsn_tcp_message_manager_put_message (TcpMessageManagerHandle * handle,
+const TcpMessageItemHandle * msg);
+
+void rsn_tcp_message_manager_stop (TcpMessageManagerHandle * handle);
+
+uint64_t rsn_telemetry_cache_cutoffs_dev ();
+
+uint64_t rsn_telemetry_cache_cutoffs_network_to_time_s (const NetworkConstantsDto * network);
+
+TelemetryDataHandle * rsn_telemetry_data_clone (TelemetryDataHandle * handle);
+
+TelemetryDataHandle * rsn_telemetry_data_create ();
+
+bool rsn_telemetry_data_deserialize (TelemetryDataHandle * handle,
+void * stream,
+uint16_t payload_len);
+
+void rsn_telemetry_data_destroy (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_account_count (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_active_difficulty (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_bandwidth_cap (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_block_count (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_cemented_count (TelemetryDataHandle * handle);
+
+void rsn_telemetry_data_get_genesis_block (TelemetryDataHandle * handle, uint8_t * block);
+
+uint8_t rsn_telemetry_data_get_major_version (TelemetryDataHandle * handle);
+
+uint8_t rsn_telemetry_data_get_maker (TelemetryDataHandle * handle);
+
+uint8_t rsn_telemetry_data_get_minor_version (TelemetryDataHandle * handle);
+
+void rsn_telemetry_data_get_node_id (TelemetryDataHandle * handle, uint8_t * node_id);
+
+uint8_t rsn_telemetry_data_get_patch_version (TelemetryDataHandle * handle);
+
+uint32_t rsn_telemetry_data_get_peer_count (TelemetryDataHandle * handle);
+
+uint8_t rsn_telemetry_data_get_pre_release_version (TelemetryDataHandle * handle);
+
+uint8_t rsn_telemetry_data_get_protocol_version (TelemetryDataHandle * handle);
+
+void rsn_telemetry_data_get_signature (TelemetryDataHandle * handle, uint8_t * signature);
+
+uint64_t rsn_telemetry_data_get_timestamp_ms (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_unchecked_count (TelemetryDataHandle * handle);
+
+void rsn_telemetry_data_get_unknown_data (TelemetryDataHandle * handle, uint8_t * data);
+
+uintptr_t rsn_telemetry_data_get_unknown_data_len (TelemetryDataHandle * handle);
+
+uint64_t rsn_telemetry_data_get_uptime (TelemetryDataHandle * handle);
+
+bool rsn_telemetry_data_serialize (TelemetryDataHandle * handle, void * stream);
+
+void rsn_telemetry_data_set_account_count (TelemetryDataHandle * handle, uint64_t count);
+
+void rsn_telemetry_data_set_active_difficulty (TelemetryDataHandle * handle, uint64_t difficulty);
+
+void rsn_telemetry_data_set_bandwidth_cap (TelemetryDataHandle * handle, uint64_t cap);
+
+void rsn_telemetry_data_set_block_count (TelemetryDataHandle * handle, uint64_t count);
+
+void rsn_telemetry_data_set_cemented_count (TelemetryDataHandle * handle, uint64_t count);
+
+void rsn_telemetry_data_set_genesis_block (TelemetryDataHandle * handle, const uint8_t * block);
+
+void rsn_telemetry_data_set_major_version (TelemetryDataHandle * handle, uint8_t version);
+
+void rsn_telemetry_data_set_maker (TelemetryDataHandle * handle, uint8_t maker);
+
+void rsn_telemetry_data_set_minor_version (TelemetryDataHandle * handle, uint8_t version);
+
+void rsn_telemetry_data_set_node_id (TelemetryDataHandle * handle, const uint8_t * node_id);
+
+void rsn_telemetry_data_set_patch_version (TelemetryDataHandle * handle, uint8_t version);
+
+void rsn_telemetry_data_set_peer_count (TelemetryDataHandle * handle, uint32_t count);
+
+void rsn_telemetry_data_set_pre_release_version (TelemetryDataHandle * handle, uint8_t version);
+
+void rsn_telemetry_data_set_protocol_version (TelemetryDataHandle * handle, uint8_t version);
+
+void rsn_telemetry_data_set_signature (TelemetryDataHandle * handle, const uint8_t * signature);
+
+void rsn_telemetry_data_set_timestamp (TelemetryDataHandle * handle, uint64_t timestamp_ms);
+
+void rsn_telemetry_data_set_unchecked_count (TelemetryDataHandle * handle, uint64_t count);
+
+void rsn_telemetry_data_set_unknown_data (TelemetryDataHandle * handle,
+const uint8_t * data,
+uintptr_t len);
+
+void rsn_telemetry_data_set_uptime (TelemetryDataHandle * handle, uint64_t uptime);
+
+bool rsn_telemetry_data_sign (TelemetryDataHandle * handle, const uint8_t * prv_key);
+
+uintptr_t rsn_telemetry_data_size ();
+
+bool rsn_telemetry_data_validate_signature (TelemetryDataHandle * handle);
+
 uint16_t rsn_test_node_port ();
 
 uint8_t rsn_to_topic (const char * topic);
@@ -1104,11 +3201,7 @@ void rsn_txn_tracking_config_create (TxnTrackingConfigDto * dto);
 
 void rsn_unchecked_info_account (const UncheckedInfoHandle * handle, uint8_t * result);
 
-void rsn_unchecked_info_account_set (UncheckedInfoHandle * handle, const uint8_t * account);
-
 BlockHandle * rsn_unchecked_info_block (const UncheckedInfoHandle * handle);
-
-void rsn_unchecked_info_block_set (UncheckedInfoHandle * handle, BlockHandle * block);
 
 UncheckedInfoHandle * rsn_unchecked_info_clone (const UncheckedInfoHandle * handle);
 
@@ -1118,19 +3211,19 @@ UncheckedInfoHandle * rsn_unchecked_info_create2 (const BlockHandle * block,
 const uint8_t * account,
 uint8_t verified);
 
+bool rsn_unchecked_info_deserialize (UncheckedInfoHandle * handle, void * stream);
+
 void rsn_unchecked_info_destroy (UncheckedInfoHandle * handle);
 
 uint64_t rsn_unchecked_info_modified (const UncheckedInfoHandle * handle);
 
-void rsn_unchecked_info_modified_set (UncheckedInfoHandle * handle, uint64_t modified);
+bool rsn_unchecked_info_serialize (UncheckedInfoHandle * handle, void * stream);
 
 uint8_t rsn_unchecked_info_verified (const UncheckedInfoHandle * handle);
 
 void rsn_unchecked_info_verified_set (UncheckedInfoHandle * handle, uint8_t verified);
 
 int32_t rsn_unique_path (uint16_t network, uint8_t * result, uintptr_t size);
-
-bool rsn_using_rocksdb_in_tests ();
 
 bool rsn_validate_batch (const uint8_t * const * messages,
 const uintptr_t * message_lengths,
@@ -1143,6 +3236,10 @@ bool rsn_validate_message (const uint8_t (*pub_key)[32],
 const uint8_t * message,
 uintptr_t len,
 const uint8_t (*signature)[64]);
+
+void rsn_void_fn_callback_call (VoidFnCallbackHandle * f);
+
+void rsn_void_fn_callback_destroy (VoidFnCallbackHandle * f);
 
 void rsn_vote_account (const VoteHandle * handle, uint8_t * result);
 
@@ -1177,8 +3274,6 @@ VoteHashesDto rsn_vote_hashes (const VoteHandle * handle);
 
 void rsn_vote_hashes_destroy (VoteHashesHandle * hashes);
 
-void rsn_vote_hashes_set (VoteHandle * handle, const uint8_t (*hashes)[32], uintptr_t count);
-
 StringDto rsn_vote_hashes_string (const VoteHandle * handle);
 
 const void * rsn_vote_rust_data_pointer (const VoteHandle * handle);
@@ -1191,11 +3286,17 @@ void rsn_vote_signature (const VoteHandle * handle, uint8_t * result);
 
 void rsn_vote_signature_set (VoteHandle * handle, const uint8_t * signature);
 
+VoteSpacingHandle * rsn_vote_spacing_create (uint64_t delay_ms);
+
+void rsn_vote_spacing_destroy (VoteSpacingHandle * handle);
+
+void rsn_vote_spacing_flag (VoteSpacingHandle * handle, const uint8_t * root, const uint8_t * hash);
+
+uintptr_t rsn_vote_spacing_len (VoteSpacingHandle * handle);
+
+bool rsn_vote_spacing_votable (VoteSpacingHandle * handle, const uint8_t * root, const uint8_t * hash);
+
 uint64_t rsn_vote_timestamp (const VoteHandle * handle);
-
-uint64_t rsn_vote_timestamp_raw (const VoteHandle * handle);
-
-void rsn_vote_timestamp_raw_set (VoteHandle * handle, uint64_t timestamp);
 
 VoteUniquerHandle * rsn_vote_uniquer_create ();
 
@@ -1209,6 +3310,12 @@ bool rsn_vote_validate (const VoteHandle * handle);
 
 int32_t rsn_voting_constants_create (const NetworkConstantsDto * network_constants,
 VotingConstantsDto * dto);
+
+void rsn_weak_socket_destroy (SocketWeakHandle * handle);
+
+bool rsn_weak_socket_expired (SocketWeakHandle * handle);
+
+SocketHandle * rsn_weak_socket_to_socket (SocketWeakHandle * handle);
 
 int32_t rsn_websocket_config_create (WebsocketConfigDto * dto, const NetworkConstantsDto * network);
 
@@ -1225,8 +3332,11 @@ uint64_t threshold);
 
 uint64_t rsn_work_thresholds_difficulty (const WorkThresholdsDto * dto,
 uint8_t work_version,
-const uint8_t (*root)[32],
+const uint8_t * root,
 uint64_t work);
+
+uint64_t rsn_work_thresholds_difficulty_block (const WorkThresholdsDto * dto,
+const BlockHandle * block);
 
 double rsn_work_thresholds_normalized_multiplier (const WorkThresholdsDto * dto,
 double multiplier,
@@ -1255,14 +3365,32 @@ uint8_t block_type);
 
 bool rsn_work_thresholds_validate_entry (const WorkThresholdsDto * dto,
 uint8_t work_version,
-const uint8_t (*root)[32],
+const uint8_t * root,
 uint64_t work);
+
+bool rsn_work_thresholds_validate_entry_block (const WorkThresholdsDto * dto, BlockHandle * block);
 
 uint64_t rsn_work_thresholds_value (const WorkThresholdsDto * dto,
 const uint8_t (*root)[32],
 uint64_t work);
 
 int32_t rsn_working_path (uint16_t network, uint8_t * result, uintptr_t size);
+
+bool rsn_write_database_queue_contains (WriteDatabaseQueueHandle * handle, uint8_t writer);
+
+WriteDatabaseQueueHandle * rsn_write_database_queue_create (bool use_noop);
+
+void rsn_write_database_queue_destroy (WriteDatabaseQueueHandle * handle);
+
+WriteGuardHandle * rsn_write_database_queue_pop (WriteDatabaseQueueHandle * handle);
+
+bool rsn_write_database_queue_process (WriteDatabaseQueueHandle * handle, uint8_t writer);
+
+WriteGuardHandle * rsn_write_database_queue_wait (WriteDatabaseQueueHandle * handle, uint8_t writer);
+
+void rsn_write_guard_destroy (WriteGuardHandle * handle);
+
+void rsn_write_guard_release (WriteGuardHandle * handle);
 
 } // extern "C"
 

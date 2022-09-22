@@ -1,7 +1,7 @@
 use anyhow::Result;
 use num::FromPrimitive;
 
-use crate::{Epoch, Stream};
+use crate::{utils::Stream, Epoch};
 
 // Epoch is bit packed in BlockDetails. That's why it's max is limited to 4 bits
 const_assert!((Epoch::MAX as u8) < (1 << 5));
@@ -32,7 +32,7 @@ impl BlockDetails {
         stream.write_u8(self.packed())
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<BlockDetails> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<BlockDetails> {
         BlockDetails::unpack(stream.read_u8()?)
     }
 

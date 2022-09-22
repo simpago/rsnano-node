@@ -10,42 +10,24 @@ template <typename T, typename U>
 class mdb_iterator : public store_iterator_impl<T, U>
 {
 public:
-	mdb_iterator (nano::transaction const & transaction_a, MDB_dbi db_a, MDB_val const & val_a = MDB_val{}, bool const direction_asc = true)
+	mdb_iterator (nano::transaction const & transaction_a, MDB_dbi db_a, MDB_val const & val_a = MDB_val{}, bool const direction_asc = true) :
+		handle{ rsnano::rsn_lmdb_iterator_create (static_cast<rsnano::MdbTxn *> (transaction_a.get_handle ()), db_a, reinterpret_cast<const rsnano::MdbVal *> (&val_a), direction_asc, sizeof (T)) }
 	{
-		auto status (mdb_cursor_open (tx (transaction_a), db_a, &cursor));
-		release_assert (status == 0);
-		auto operation (MDB_SET_RANGE);
-		if (val_a.mv_size != 0)
-		{
-			current.first = val_a;
-		}
-		else
-		{
-			operation = direction_asc ? MDB_FIRST : MDB_LAST;
-		}
-		auto status2 (mdb_cursor_get (cursor, &current.first.value, &current.second.value, operation));
-		release_assert (status2 == 0 || status2 == MDB_NOTFOUND);
-		if (status2 != MDB_NOTFOUND)
-		{
-			auto status3 (mdb_cursor_get (cursor, &current.first.value, &current.second.value, MDB_GET_CURRENT));
-			release_assert (status3 == 0 || status3 == MDB_NOTFOUND);
-			if (current.first.size () != sizeof (T))
-			{
-				clear ();
-			}
-		}
-		else
-		{
-			clear ();
-		}
+		load_current ();
+	}
+
+	mdb_iterator (rsnano::LmdbIteratorHandle * handle_a) :
+		handle{ handle_a }
+	{
+		load_current ();
 	}
 
 	mdb_iterator () = default;
 
 	mdb_iterator (nano::mdb_iterator<T, U> && other_a)
 	{
-		cursor = other_a.cursor;
-		other_a.cursor = nullptr;
+		handle = other_a.handle;
+		other_a.handle = nullptr;
 		current = other_a.current;
 	}
 
@@ -53,41 +35,23 @@ public:
 
 	~mdb_iterator ()
 	{
-		if (cursor != nullptr)
+		if (handle != nullptr)
 		{
-			mdb_cursor_close (cursor);
+			rsnano::rsn_lmdb_iterator_destroy (handle);
 		}
 	}
 
 	nano::store_iterator_impl<T, U> & operator++ () override
 	{
-		debug_assert (cursor != nullptr);
-		auto status (mdb_cursor_get (cursor, &current.first.value, &current.second.value, MDB_NEXT));
-		release_assert (status == 0 || status == MDB_NOTFOUND);
-		if (status == MDB_NOTFOUND)
-		{
-			clear ();
-		}
-		if (current.first.size () != sizeof (T))
-		{
-			clear ();
-		}
+		rsnano::rsn_lmdb_iterator_next (handle);
+		load_current ();
 		return *this;
 	}
 
 	nano::store_iterator_impl<T, U> & operator-- () override
 	{
-		debug_assert (cursor != nullptr);
-		auto status (mdb_cursor_get (cursor, &current.first.value, &current.second.value, MDB_PREV));
-		release_assert (status == 0 || status == MDB_NOTFOUND);
-		if (status == MDB_NOTFOUND)
-		{
-			clear ();
-		}
-		if (current.first.size () != sizeof (T))
-		{
-			clear ();
-		}
+		rsnano::rsn_lmdb_iterator_previous (handle);
+		load_current ();
 		return *this;
 	}
 
@@ -131,32 +95,39 @@ public:
 	}
 	void clear ()
 	{
-		current.first = nano::db_val<MDB_val> ();
-		current.second = nano::db_val<MDB_val> ();
-		debug_assert (is_end_sentinal ());
+		rsnano::rsn_lmdb_iterator_clear (handle);
+		load_current ();
 	}
 
 	nano::mdb_iterator<T, U> & operator= (nano::mdb_iterator<T, U> && other_a)
 	{
-		if (cursor != nullptr)
+		if (handle != nullptr)
 		{
-			mdb_cursor_close (cursor);
+			rsnano::rsn_lmdb_iterator_destroy (handle);
 		}
-		cursor = other_a.cursor;
-		other_a.cursor = nullptr;
+		handle = other_a.handle;
+		other_a.handle = nullptr;
 		current = other_a.current;
-		other_a.clear ();
 		return *this;
 	}
 
 	nano::store_iterator_impl<T, U> & operator= (nano::store_iterator_impl<T, U> const &) = delete;
-	MDB_cursor * cursor{ nullptr };
-	std::pair<nano::db_val<MDB_val>, nano::db_val<MDB_val>> current;
+	MDB_cursor * get_cursor ()
+	{
+		return reinterpret_cast<MDB_cursor *> (rsnano::rsn_lmdb_iterator_cursor (handle));
+	}
+	std::pair<nano::db_val<MDB_val>, nano::db_val<MDB_val>> get_current ()
+	{
+		return current;
+	}
 
 private:
-	MDB_txn * tx (nano::transaction const & transaction_a) const
+	rsnano::LmdbIteratorHandle * handle{ nullptr };
+	std::pair<nano::db_val<MDB_val>, nano::db_val<MDB_val>> current;
+
+	void load_current ()
 	{
-		return static_cast<MDB_txn *> (transaction_a.get_handle ());
+		rsnano::rsn_lmdb_iterator_current (handle, reinterpret_cast<rsnano::MdbVal *> (&current.first.value), reinterpret_cast<rsnano::MdbVal *> (&current.second.value));
 	}
 };
 
@@ -263,7 +234,7 @@ private:
 		}
 		else
 		{
-			auto key_cmp (mdb_cmp (mdb_cursor_txn (impl1->cursor), mdb_cursor_dbi (impl1->cursor), impl1->current.first, impl2->current.first));
+			auto key_cmp (mdb_cmp (mdb_cursor_txn (impl1->get_cursor ()), mdb_cursor_dbi (impl1->get_cursor ()), impl1->get_current ().first, impl2->get_current ().first));
 
 			if (key_cmp < 0)
 			{
@@ -277,7 +248,7 @@ private:
 			}
 			else
 			{
-				auto val_cmp (mdb_cmp (mdb_cursor_txn (impl1->cursor), mdb_cursor_dbi (impl1->cursor), impl1->current.second, impl2->current.second));
+				auto val_cmp (mdb_cmp (mdb_cursor_txn (impl1->get_cursor ()), mdb_cursor_dbi (impl1->get_cursor ()), impl1->get_current ().second, impl2->get_current ().second));
 				result = val_cmp < 0 ? impl1.get () : impl2.get ();
 				from_first_database = (result == impl1.get ());
 			}

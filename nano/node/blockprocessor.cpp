@@ -10,7 +10,7 @@
 
 std::chrono::milliseconds constexpr nano::block_processor::confirmation_request_delay;
 
-nano::block_post_events::block_post_events (std::function<nano::read_transaction ()> && get_transaction_a) :
+nano::block_post_events::block_post_events (std::function<std::unique_ptr<nano::read_transaction> ()> && get_transaction_a) :
 	get_transaction (std::move (get_transaction_a))
 {
 }
@@ -21,24 +21,25 @@ nano::block_post_events::~block_post_events ()
 	auto transaction (get_transaction ());
 	for (auto const & i : events)
 	{
-		i (transaction);
+		i (*transaction);
 	}
 }
 
 nano::block_processor::block_processor (nano::node & node_a, nano::write_database_queue & write_database_queue_a) :
 	next_log (std::chrono::steady_clock::now ()),
-	logger (node_a.logger),
+	logger (*node_a.logger),
 	checker (node_a.checker),
-	config (node_a.config),
-	state_block_signature_verification (checker, config.network_params.ledger.epochs, config.logging.timing_logging (), logger, node_a.flags.block_processor_verification_size),
+	config (*node_a.config),
+	state_block_signature_verification (checker, config.network_params.ledger.epochs, config.logging.timing_logging (), node_a.logger, node_a.flags.block_processor_verification_size ()),
 	network_params (node_a.network_params),
 	history (node_a.history),
 	ledger (node_a.ledger),
 	flags (node_a.flags),
-	network (node_a.network),
+	network (*node_a.network),
+	inactive_vote_cache (node_a.inactive_vote_cache),
 	active_transactions (node_a.active),
 	store (node_a.store),
-	stats (node_a.stats),
+	stats (*node_a.stats),
 	scheduler (node_a.scheduler),
 	websocket_server (node_a.websocket_server),
 	block_arrival (node_a.block_arrival),
@@ -112,12 +113,12 @@ std::size_t nano::block_processor::size ()
 
 bool nano::block_processor::full ()
 {
-	return size () >= flags.block_processor_full_size;
+	return size () >= flags.block_processor_full_size ();
 }
 
 bool nano::block_processor::half_full ()
 {
-	return size () >= flags.block_processor_full_size / 2;
+	return size () >= flags.block_processor_full_size () / 2;
 }
 
 void nano::block_processor::add (std::shared_ptr<nano::block> const & block_a)
@@ -264,7 +265,7 @@ void nano::block_processor::process_batch (nano::unique_lock<nano::mutex> & lock
 	// Processing blocks
 	unsigned number_of_blocks_processed (0), number_of_forced_processed (0);
 	auto deadline_reached = [&timer_l, deadline = config.block_processor_batch_max_time] { return timer_l.after_deadline (deadline); };
-	auto processor_batch_reached = [&number_of_blocks_processed, max = flags.block_processor_batch_size] { return number_of_blocks_processed >= max; };
+	auto processor_batch_reached = [&number_of_blocks_processed, max = flags.block_processor_batch_size ()] { return number_of_blocks_processed >= max; };
 	auto store_batch_reached = [&number_of_blocks_processed, max = store.max_block_write_batch_num ()] { return number_of_blocks_processed >= max; };
 	while (have_blocks_ready () && (!deadline_reached () || !processor_batch_reached ()) && !awaiting_write && !store_batch_reached ())
 	{
@@ -292,7 +293,7 @@ void nano::block_processor::process_batch (nano::unique_lock<nano::mutex> & lock
 		lock_a.unlock ();
 		if (force)
 		{
-			auto successor (ledger.successor (transaction, info.get_block ()->qualified_root ()));
+			auto successor (ledger.successor (*transaction, info.get_block ()->qualified_root ()));
 			if (successor != nullptr && successor->hash () != hash)
 			{
 				// Replace our block with the winner and roll back any dependent blocks
@@ -301,7 +302,7 @@ void nano::block_processor::process_batch (nano::unique_lock<nano::mutex> & lock
 					logger.always_log (boost::str (boost::format ("Rolling back %1% and replacing with %2%") % successor->hash ().to_string () % hash.to_string ()));
 				}
 				std::vector<std::shared_ptr<nano::block>> rollback_list;
-				if (ledger.rollback (transaction, successor->hash (), rollback_list))
+				if (ledger.rollback (*transaction, successor->hash (), rollback_list))
 				{
 					stats.inc (nano::stat::type::ledger, nano::stat::detail::rollback_failed);
 					logger.always_log (nano::severity_level::error, boost::str (boost::format ("Failed to roll back %1% because it or a successor was confirmed") % successor->hash ().to_string ()));
@@ -323,7 +324,7 @@ void nano::block_processor::process_batch (nano::unique_lock<nano::mutex> & lock
 			}
 		}
 		number_of_blocks_processed++;
-		process_one (transaction, post_events, info, force);
+		process_one (*transaction, post_events, info, force);
 		lock_a.lock ();
 	}
 	awaiting_write = false;
@@ -343,17 +344,16 @@ void nano::block_processor::process_live (nano::transaction const & transaction_
 		auto account = block_a->account ().is_zero () ? block_a->sideband ().account () : block_a->account ();
 		scheduler.activate (account, transaction_a);
 	}
-	else
-	{
-		active_transactions.trigger_inactive_votes_cache_election (block_a);
-	}
+
+	// Notify inactive vote cache about a new live block
+	inactive_vote_cache.trigger (block_a->hash ());
 
 	// Announce block contents to the network
 	if (origin_a == nano::block_origin::local)
 	{
 		network.flood_block_initial (block_a);
 	}
-	else if (!flags.disable_block_processor_republishing)
+	else if (!flags.disable_block_processor_republishing ())
 	{
 		network.flood_block (block_a, nano::buffer_drop_policy::limiter);
 	}
@@ -370,11 +370,14 @@ nano::process_return nano::block_processor::process_one (nano::write_transaction
 	auto block (info_a.get_block ());
 	auto hash (block->hash ());
 	result = ledger.process (transaction_a, *block, info_a.get_verified ());
+	events_a.events.emplace_back ([this, result, block = info_a.get_block ()] (nano::transaction const & tx) {
+		processed.notify (tx, result, *block);
+	});
 	switch (result.code)
 	{
 		case nano::process_result::progress:
 		{
-			release_assert (info_a.get_account ().is_zero () || info_a.get_account () == store.block.account_calculated (*block));
+			release_assert (info_a.get_account ().is_zero () || info_a.get_account () == store.block ().account_calculated (*block));
 			if (config.logging.ledger_logging ())
 			{
 				std::string block_string;
@@ -404,7 +407,10 @@ nano::process_return nano::block_processor::process_one (nano::write_transaction
 				logger.try_log (boost::str (boost::format ("Gap previous for: %1%") % hash.to_string ()));
 			}
 			info_a.set_verified (result.verified);
+
+			debug_assert (info_a.modified () != 0);
 			unchecked.put (block->previous (), info_a);
+
 			events_a.events.emplace_back ([this, hash] (nano::transaction const & /* unused */) { this->gap_cache.add (hash); });
 			stats.inc (nano::stat::type::ledger, nano::stat::detail::gap_previous);
 			break;
@@ -416,7 +422,10 @@ nano::process_return nano::block_processor::process_one (nano::write_transaction
 				logger.try_log (boost::str (boost::format ("Gap source for: %1%") % hash.to_string ()));
 			}
 			info_a.set_verified (result.verified);
+
+			debug_assert (info_a.modified () != 0);
 			unchecked.put (ledger.block_source (transaction_a, *(block)), info_a);
+
 			events_a.events.emplace_back ([this, hash] (nano::transaction const & /* unused */) { this->gap_cache.add (hash); });
 			stats.inc (nano::stat::type::ledger, nano::stat::detail::gap_source);
 			break;
@@ -428,7 +437,10 @@ nano::process_return nano::block_processor::process_one (nano::write_transaction
 				logger.try_log (boost::str (boost::format ("Gap pending entries for epoch open: %1%") % hash.to_string ()));
 			}
 			info_a.set_verified (result.verified);
+
+			debug_assert (info_a.modified () != 0);
 			unchecked.put (block->account (), info_a); // Specific unchecked key starting with epoch open block account public key
+
 			stats.inc (nano::stat::type::ledger, nano::stat::detail::gap_source);
 			break;
 		}

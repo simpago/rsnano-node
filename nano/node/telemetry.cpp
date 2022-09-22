@@ -58,7 +58,7 @@ void nano::telemetry::set (nano::telemetry_ack const & message_a, nano::transpor
 		}
 
 		recent_or_initial_request_telemetry_data.modify (it, [&message_a] (nano::telemetry_info & telemetry_info_a) {
-			telemetry_info_a.data = message_a.data;
+			telemetry_info_a.data = message_a.get_data ();
 		});
 
 		// This can also remove the peer
@@ -68,7 +68,7 @@ void nano::telemetry::set (nano::telemetry_ack const & message_a, nano::transpor
 		{
 			// Received telemetry data from a peer which hasn't disabled providing telemetry metrics and there's no errors with the data
 			lk.unlock ();
-			observers.notify (message_a.data, endpoint);
+			observers.notify (message_a.get_data (), endpoint);
 			lk.lock ();
 		}
 		channel_processed (endpoint, error);
@@ -85,15 +85,15 @@ bool nano::telemetry::verify_message (nano::telemetry_ack const & message_a, nan
 	auto remove_channel = false;
 	// We want to ensure that the node_id of the channel matches that in the message before attempting to
 	// use the data to remove any peers.
-	auto node_id_mismatch = (channel_a.get_node_id () != message_a.data.node_id);
+	auto node_id_mismatch = (channel_a.get_node_id () != message_a.get_data ().get_node_id ());
 	if (!node_id_mismatch)
 	{
 		// The data could be correctly signed but for a different node id
-		remove_channel = message_a.data.validate_signature ();
+		remove_channel = message_a.get_data ().validate_signature ();
 		if (!remove_channel)
 		{
 			// Check for different genesis blocks
-			remove_channel = (message_a.data.genesis_block != network_params.ledger.genesis->hash ());
+			remove_channel = (message_a.get_data ().get_genesis_block () != network_params.ledger.genesis->hash ());
 			if (remove_channel)
 			{
 				stats.inc (nano::stat::type::telemetry, nano::stat::detail::different_genesis_hash);
@@ -515,27 +515,27 @@ nano::telemetry_data nano::consolidate_telemetry_data (std::vector<nano::telemet
 
 	for (auto const & telemetry_data : telemetry_datas)
 	{
-		account_counts.insert (telemetry_data.account_count);
-		block_counts.insert (telemetry_data.block_count);
-		cemented_counts.insert (telemetry_data.cemented_count);
+		account_counts.insert (telemetry_data.get_account_count ());
+		block_counts.insert (telemetry_data.get_block_count ());
+		cemented_counts.insert (telemetry_data.get_cemented_count ());
 
 		std::ostringstream ss;
-		ss << telemetry_data.major_version << "." << telemetry_data.minor_version << "." << telemetry_data.patch_version << "." << telemetry_data.pre_release_version << "." << telemetry_data.maker;
+		ss << telemetry_data.get_major_version () << "." << telemetry_data.get_minor_version () << "." << telemetry_data.get_patch_version () << "." << telemetry_data.get_pre_release_version () << "." << telemetry_data.get_maker ();
 		++vendor_versions[ss.str ()];
-		timestamps.insert (std::chrono::duration_cast<std::chrono::milliseconds> (telemetry_data.timestamp.time_since_epoch ()).count ());
-		++protocol_versions[telemetry_data.protocol_version];
-		peer_counts.insert (telemetry_data.peer_count);
-		unchecked_counts.insert (telemetry_data.unchecked_count);
-		uptimes.insert (telemetry_data.uptime);
+		timestamps.insert (std::chrono::duration_cast<std::chrono::milliseconds> (telemetry_data.get_timestamp ().time_since_epoch ()).count ());
+		++protocol_versions[telemetry_data.get_protocol_version ()];
+		peer_counts.insert (telemetry_data.get_peer_count ());
+		unchecked_counts.insert (telemetry_data.get_unchecked_count ());
+		uptimes.insert (telemetry_data.get_uptime ());
 		// 0 has a special meaning (unlimited), don't include it in the average as it will be heavily skewed
-		if (telemetry_data.bandwidth_cap != 0)
+		if (telemetry_data.get_bandwidth_cap () != 0)
 		{
-			bandwidths.insert (telemetry_data.bandwidth_cap);
+			bandwidths.insert (telemetry_data.get_bandwidth_cap ());
 		}
 
-		++bandwidth_caps[telemetry_data.bandwidth_cap];
-		++genesis_blocks[telemetry_data.genesis_block];
-		active_difficulties.insert (telemetry_data.active_difficulty);
+		++bandwidth_caps[telemetry_data.get_bandwidth_cap ()];
+		++genesis_blocks[telemetry_data.get_genesis_block ()];
+		active_difficulties.insert (telemetry_data.get_active_difficulty ());
 	}
 
 	// Remove 10% of the results from the lower and upper bounds to catch any outliers. Need at least 10 responses before any are removed.
@@ -564,67 +564,66 @@ nano::telemetry_data nano::consolidate_telemetry_data (std::vector<nano::telemet
 
 	nano::telemetry_data consolidated_data;
 	auto size = telemetry_datas.size () - num_either_side_to_remove * 2;
-	consolidated_data.account_count = boost::numeric_cast<decltype (consolidated_data.account_count)> (account_sum / size);
-	consolidated_data.block_count = boost::numeric_cast<decltype (consolidated_data.block_count)> (block_sum / size);
-	consolidated_data.cemented_count = boost::numeric_cast<decltype (consolidated_data.cemented_count)> (cemented_sum / size);
-	consolidated_data.peer_count = boost::numeric_cast<decltype (consolidated_data.peer_count)> (peer_sum / size);
-	consolidated_data.uptime = boost::numeric_cast<decltype (consolidated_data.uptime)> (uptime_sum / size);
-	consolidated_data.unchecked_count = boost::numeric_cast<decltype (consolidated_data.unchecked_count)> (unchecked_sum / size);
-	consolidated_data.active_difficulty = boost::numeric_cast<decltype (consolidated_data.unchecked_count)> (active_difficulty_sum / size);
+	consolidated_data.set_account_count (boost::numeric_cast<decltype (consolidated_data.get_account_count ())> (account_sum / size));
+	consolidated_data.set_block_count (boost::numeric_cast<decltype (consolidated_data.get_block_count ())> (block_sum / size));
+	consolidated_data.set_cemented_count (boost::numeric_cast<decltype (consolidated_data.get_cemented_count ())> (cemented_sum / size));
+	consolidated_data.set_peer_count (boost::numeric_cast<decltype (consolidated_data.get_peer_count ())> (peer_sum / size));
+	consolidated_data.set_uptime (boost::numeric_cast<decltype (consolidated_data.get_uptime ())> (uptime_sum / size));
+	consolidated_data.set_unchecked_count (boost::numeric_cast<decltype (consolidated_data.get_unchecked_count ())> (unchecked_sum / size));
+	consolidated_data.set_active_difficulty (boost::numeric_cast<decltype (consolidated_data.get_unchecked_count ())> (active_difficulty_sum / size));
 
 	if (!timestamps.empty ())
 	{
 		auto timestamp_sum = strip_outliers_and_sum (timestamps);
-		consolidated_data.timestamp = std::chrono::system_clock::time_point (std::chrono::milliseconds (boost::numeric_cast<uint64_t> (timestamp_sum / timestamps.size ())));
+		consolidated_data.set_timestamp (std::chrono::system_clock::time_point (std::chrono::milliseconds (boost::numeric_cast<uint64_t> (timestamp_sum / timestamps.size ()))));
 	}
 
-	auto set_mode_or_average = [] (auto const & collection, auto & var, auto const & sum, std::size_t size) {
+	auto get_mode_or_average = [] (auto const & collection, auto const & sum, std::size_t size) -> uint64_t {
 		auto max = std::max_element (collection.begin (), collection.end (), [] (auto const & lhs, auto const & rhs) {
 			return lhs.second < rhs.second;
 		});
 		if (max->second > 1)
 		{
-			var = max->first;
+			return max->first;
 		}
 		else
 		{
-			var = (sum / size).template convert_to<std::remove_reference_t<decltype (var)>> ();
+			return (sum / size).template convert_to<uint64_t> ();
 		}
 	};
 
-	auto set_mode = [] (auto const & collection, auto & var, std::size_t size) {
+	auto get_mode = [] (auto const & collection, std::size_t size) {
 		auto max = std::max_element (collection.begin (), collection.end (), [] (auto const & lhs, auto const & rhs) {
 			return lhs.second < rhs.second;
 		});
 		if (max->second > 1)
 		{
-			var = max->first;
+			return max->first;
 		}
 		else
 		{
 			// Just pick the first one
-			var = collection.begin ()->first;
+			return collection.begin ()->first;
 		}
 	};
 
 	// Use the mode of protocol version and vendor version. Also use it for bandwidth cap if there is 2 or more of the same cap.
-	set_mode_or_average (bandwidth_caps, consolidated_data.bandwidth_cap, bandwidth_sum, size);
-	set_mode (protocol_versions, consolidated_data.protocol_version, size);
-	set_mode (genesis_blocks, consolidated_data.genesis_block, size);
+	consolidated_data.set_bandwidth_cap (get_mode_or_average (bandwidth_caps, bandwidth_sum, size));
+	consolidated_data.set_protocol_version (get_mode (protocol_versions, size));
+	consolidated_data.set_genesis_block (get_mode (genesis_blocks, size));
 
 	// Vendor version, needs to be parsed out of the string
-	std::string version;
-	set_mode (vendor_versions, version, size);
+	std::string version = get_mode (vendor_versions, size);
 
 	// May only have major version, but check for optional parameters as well, only output if all are used
 	std::vector<std::string> version_fragments;
 	boost::split (version_fragments, version, boost::is_any_of ("."));
 	debug_assert (version_fragments.size () == 5);
-	consolidated_data.major_version = boost::lexical_cast<uint8_t> (version_fragments.front ());
-	consolidated_data.minor_version = boost::lexical_cast<uint8_t> (version_fragments[1]);
-	consolidated_data.patch_version = boost::lexical_cast<uint8_t> (version_fragments[2]);
-	consolidated_data.pre_release_version = boost::lexical_cast<uint8_t> (version_fragments[3]);
-	consolidated_data.maker = boost::lexical_cast<uint8_t> (version_fragments[4]);
+	consolidated_data.set_major_version (boost::lexical_cast<uint8_t> (version_fragments.front ()));
+	consolidated_data.set_minor_version (boost::lexical_cast<uint8_t> (version_fragments[1]));
+	consolidated_data.set_patch_version (boost::lexical_cast<uint8_t> (version_fragments[2]));
+	consolidated_data.set_pre_release_version (boost::lexical_cast<uint8_t> (version_fragments[3]));
+	consolidated_data.set_maker (boost::lexical_cast<uint8_t> (version_fragments[4]));
 
 	return consolidated_data;
 }
@@ -632,23 +631,26 @@ nano::telemetry_data nano::consolidate_telemetry_data (std::vector<nano::telemet
 nano::telemetry_data nano::local_telemetry_data (nano::ledger const & ledger_a, nano::network & network_a, nano::unchecked_map const & unchecked, uint64_t bandwidth_limit_a, nano::network_params const & network_params_a, std::chrono::steady_clock::time_point statup_time_a, uint64_t active_difficulty_a, nano::keypair const & node_id_a)
 {
 	nano::telemetry_data telemetry_data;
-	telemetry_data.node_id = node_id_a.pub;
-	telemetry_data.block_count = ledger_a.cache.block_count;
-	telemetry_data.cemented_count = ledger_a.cache.cemented_count;
-	telemetry_data.bandwidth_cap = bandwidth_limit_a;
-	telemetry_data.protocol_version = network_params_a.network.protocol_version;
-	telemetry_data.uptime = std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - statup_time_a).count ();
-	telemetry_data.unchecked_count = unchecked.count (ledger_a.store.tx_begin_read ());
-	telemetry_data.genesis_block = network_params_a.ledger.genesis->hash ();
-	telemetry_data.peer_count = nano::narrow_cast<decltype (telemetry_data.peer_count)> (network_a.size ());
-	telemetry_data.account_count = ledger_a.cache.account_count;
-	telemetry_data.major_version = nano::get_major_node_version ();
-	telemetry_data.minor_version = nano::get_minor_node_version ();
-	telemetry_data.patch_version = nano::get_patch_node_version ();
-	telemetry_data.pre_release_version = nano::get_pre_release_node_version ();
-	telemetry_data.maker = static_cast<std::underlying_type_t<telemetry_maker>> (ledger_a.pruning ? telemetry_maker::nf_pruned_node : telemetry_maker::nf_node);
-	telemetry_data.timestamp = std::chrono::system_clock::now ();
-	telemetry_data.active_difficulty = active_difficulty_a;
+	telemetry_data.set_node_id (node_id_a.pub);
+	telemetry_data.set_block_count (ledger_a.cache.block_count);
+	telemetry_data.set_cemented_count (ledger_a.cache.cemented_count);
+	telemetry_data.set_bandwidth_cap (bandwidth_limit_a);
+	telemetry_data.set_protocol_version (network_params_a.network.protocol_version);
+	telemetry_data.set_uptime (std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - statup_time_a).count ());
+	{
+		auto tx{ ledger_a.store.tx_begin_read () };
+		telemetry_data.set_unchecked_count (unchecked.count (*tx));
+	}
+	telemetry_data.set_genesis_block (network_params_a.ledger.genesis->hash ());
+	telemetry_data.set_peer_count (nano::narrow_cast<decltype (telemetry_data.get_peer_count ())> (network_a.size ()));
+	telemetry_data.set_account_count (ledger_a.cache.account_count);
+	telemetry_data.set_major_version (nano::get_major_node_version ());
+	telemetry_data.set_minor_version (nano::get_minor_node_version ());
+	telemetry_data.set_patch_version (nano::get_patch_node_version ());
+	telemetry_data.set_pre_release_version (nano::get_pre_release_node_version ());
+	telemetry_data.set_maker (static_cast<std::underlying_type_t<telemetry_maker>> (ledger_a.pruning ? telemetry_maker::nf_pruned_node : telemetry_maker::nf_node));
+	telemetry_data.set_timestamp (std::chrono::system_clock::now ());
+	telemetry_data.set_active_difficulty (active_difficulty_a);
 	// Make sure this is the final operation!
 	telemetry_data.sign (node_id_a);
 	return telemetry_data;

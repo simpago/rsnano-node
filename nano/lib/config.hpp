@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <optional>
 #include <string>
 
 namespace boost
@@ -32,18 +33,54 @@ char const * const NANO_PRE_RELEASE_VERSION_STRING = xstr (PRE_RELEASE_VERSION_S
 
 char const * const BUILD_INFO = xstr (GIT_COMMIT_HASH BOOST_COMPILER) " \"BOOST " xstr (BOOST_VERSION) "\" BUILT " xstr (__DATE__);
 
-/** Is TSAN/ASAN dev build */
 #if defined(__has_feature)
-#if __has_feature(thread_sanitizer) || __has_feature(address_sanitizer)
-bool const is_sanitizer_build = true;
+#if __has_feature(address_sanitizer)
+inline bool is_asan_build ()
+{
+	return true;
+}
 #else
-bool const is_sanitizer_build = false;
+inline bool is_asan_build ()
+{
+	return false;
+}
 #endif
 // GCC builds
-#elif defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)
-const bool is_sanitizer_build = true;
+#elif defined(__SANITIZE_ADDRESS__)
+inline bool is_asan_build ()
+{
+	return true;
+}
 #else
-bool const is_sanitizer_build = false;
+inline bool is_asan_build ()
+{
+	return false;
+}
+#endif
+
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+inline bool is_tsan_build ()
+{
+	return true;
+}
+#else
+inline bool is_tsan_build ()
+{
+	return false;
+}
+#endif
+// GCC builds
+#elif defined(__SANITIZE_THREAD__)
+inline bool is_tsan_build ()
+{
+	return true;
+}
+#else
+inline bool is_tsan_build ()
+{
+	return false;
+}
 #endif
 
 namespace nano
@@ -53,7 +90,22 @@ uint8_t get_minor_node_version ();
 uint8_t get_patch_node_version ();
 uint8_t get_pre_release_node_version ();
 
+/*
+ * Environment variables
+ */
+
+/*
+ * Get environment variable as string or none if variable is not present
+ */
+std::optional<std::string> get_env (char const * variable_name);
+/*
+ * Get environment variable as string or `default_value` if variable is not present
+ */
 std::string get_env_or_default (char const * variable_name, std::string const default_value);
+/*
+ * Get environment variable as int or `default_value` if variable is not present
+ */
+int get_env_int_or_default (char const * variable_name, int const default_value);
 uint64_t get_env_threshold_or_default (char const * variable_name, uint64_t const default_value);
 
 uint16_t test_node_port ();
@@ -61,6 +113,10 @@ uint16_t test_rpc_port ();
 uint16_t test_ipc_port ();
 uint16_t test_websocket_port ();
 std::array<uint8_t, 2> test_magic_number ();
+/*
+ * How often to scan for representatives in local wallet, in milliseconds
+ */
+uint32_t test_scan_wallet_reps_delay ();
 
 /**
  * Network variants with different genesis blocks and network parameters
@@ -129,7 +185,7 @@ public:
 class network_constants
 {
 public:
-	//network_constants () = default;
+	// network_constants () = default;
 	network_constants (nano::work_thresholds work, nano::networks network_a);
 	network_constants (rsnano::NetworkConstantsDto const & dto);
 	void read_dto (rsnano::NetworkConstantsDto const & dto);
@@ -205,6 +261,17 @@ std::string get_tls_toml_config_path (boost::filesystem::path const & data_path)
 
 /** Checks if we are running inside a valgrind instance */
 bool running_within_valgrind ();
+
+/** Checks if we are running with instrumentation that significantly affects memory consumption and can cause large virtual memory allocations to fail
+	Returns true if running within Valgrind or with ThreadSanitizer tooling*/
+bool memory_intensive_instrumentation ();
+
+/** Check if we're running with instrumentation that can greatly affect performance
+	Returns true if running within Valgrind or with ThreadSanitizer tooling*/
+bool slow_instrumentation ();
+
+/** Checks if we are running with either AddressSanitizer or ThreadSanitizer*/
+bool is_sanitizer_build ();
 
 /** Set the active network to the dev network */
 void force_nano_dev_network ();

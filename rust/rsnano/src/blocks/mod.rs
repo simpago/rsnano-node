@@ -21,8 +21,9 @@ pub use send_block::*;
 pub use state_block::*;
 
 use crate::{
-    Account, Amount, BlockHash, BlockHashBuilder, Epoch, FullHash, Link, PropertyTreeReader,
-    PropertyTreeWriter, Signature, Stream, Uniquer,
+    utils::{Deserialize, PropertyTreeReader, PropertyTreeWriter, Serialize, Stream},
+    Account, Amount, BlockHash, BlockHashBuilder, Epoch, FullHash, Link, Root, Signature, Uniquer,
+    WorkVersion,
 };
 
 #[repr(u8)]
@@ -126,7 +127,21 @@ impl BlockSideband {
         Ok(())
     }
 
-    pub fn deserialize(&mut self, stream: &mut impl Stream, block_type: BlockType) -> Result<()> {
+    pub fn from_stream(stream: &mut dyn Stream, block_type: BlockType) -> Result<Self> {
+        let mut result = Self {
+            height: 0,
+            timestamp: 0,
+            successor: BlockHash::new(),
+            account: Account::new(),
+            balance: Amount::zero(),
+            details: BlockDetails::new(Epoch::Epoch0, false, false, false),
+            source_epoch: Epoch::Epoch0,
+        };
+        result.deserialize(stream, block_type)?;
+        Ok(result)
+    }
+
+    pub fn deserialize(&mut self, stream: &mut dyn Stream, block_type: BlockType) -> Result<()> {
         self.successor = BlockHash::deserialize(stream)?;
 
         if block_type != BlockType::State && block_type != BlockType::Open {
@@ -259,6 +274,11 @@ pub trait Block: FullHash {
     fn previous(&self) -> &BlockHash;
     fn serialize(&self, stream: &mut dyn Stream) -> Result<()>;
     fn serialize_json(&self, writer: &mut dyn PropertyTreeWriter) -> Result<()>;
+    fn work_version(&self) -> WorkVersion {
+        WorkVersion::Work1
+    }
+    fn root(&self) -> Root;
+    fn visit(&self, visitor: &mut dyn BlockVisitor);
 }
 
 impl<T: Block> FullHash for T {
@@ -289,4 +309,70 @@ impl FullHash for RwLock<BlockEnum> {
     }
 }
 
-pub(crate) type BlockUniquer = Uniquer<RwLock<BlockEnum>>;
+pub type BlockUniquer = Uniquer<RwLock<BlockEnum>>;
+
+pub fn deserialize_block(
+    block_type: BlockType,
+    stream: &mut dyn Stream,
+    uniquer: Option<&BlockUniquer>,
+) -> Result<Arc<RwLock<BlockEnum>>> {
+    let block = deserialize_block_enum_with_type(block_type, stream)?;
+
+    let mut block = Arc::new(RwLock::new(block));
+
+    if let Some(uniquer) = uniquer {
+        block = uniquer.unique(&block)
+    }
+
+    Ok(block)
+}
+
+pub fn serialize_block_enum(stream: &mut dyn Stream, block: &BlockEnum) -> Result<()> {
+    let block_type = block.block_type() as u8;
+    stream.write_u8(block_type)?;
+    block.as_block().serialize(stream)
+}
+
+pub fn deserialize_block_enum(stream: &mut dyn Stream) -> Result<BlockEnum> {
+    let block_type =
+        BlockType::from_u8(stream.read_u8()?).ok_or_else(|| anyhow!("invalid block type"))?;
+    deserialize_block_enum_with_type(block_type, stream)
+}
+
+pub fn deserialize_block_enum_with_type(
+    block_type: BlockType,
+    stream: &mut dyn Stream,
+) -> Result<BlockEnum> {
+    let block = match block_type {
+        BlockType::Receive => BlockEnum::Receive(ReceiveBlock::deserialize(stream)?),
+        BlockType::Open => BlockEnum::Open(OpenBlock::deserialize(stream)?),
+        BlockType::Change => BlockEnum::Change(ChangeBlock::deserialize(stream)?),
+        BlockType::State => BlockEnum::State(StateBlock::deserialize(stream)?),
+        BlockType::Send => BlockEnum::Send(SendBlock::deserialize(stream)?),
+        BlockType::Invalid | BlockType::NotABlock => bail!("invalid block type"),
+    };
+    Ok(block)
+}
+
+pub trait BlockVisitor {
+    fn send_block(&mut self, block: &SendBlock);
+    fn receive_block(&mut self, block: &ReceiveBlock);
+    fn open_block(&mut self, block: &OpenBlock);
+    fn change_block(&mut self, block: &ChangeBlock);
+    fn state_block(&mut self, block: &StateBlock);
+}
+
+pub struct BlockWithSideband {
+    pub block: BlockEnum,
+    pub sideband: BlockSideband,
+}
+
+impl Deserialize for BlockWithSideband {
+    type Target = Self;
+    fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Self> {
+        let mut block = deserialize_block_enum(stream)?;
+        let sideband = BlockSideband::from_stream(stream, block.block_type())?;
+        block.as_block_mut().set_sideband(sideband.clone());
+        Ok(BlockWithSideband { block, sideband })
+    }
+}

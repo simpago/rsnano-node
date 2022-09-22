@@ -3,10 +3,10 @@
 
 #include <nano/lib/numbers.hpp>
 
-#include <crypto/cryptopp/seckey.h>
-#include <crypto/cryptopp/siphash.h>
-
-#include <mutex>
+namespace rsnano
+{
+class NetworkFilterHandle;
+}
 
 namespace nano
 {
@@ -21,6 +21,9 @@ class network_filter final
 public:
 	network_filter () = delete;
 	network_filter (size_t size_a);
+	network_filter (rsnano::NetworkFilterHandle * handle_a);
+	network_filter (nano::network_filter const &) = delete;
+	~network_filter ();
 	/**
 	 * Reads \p count_a bytes starting from \p bytes_a and inserts the siphash digest in the filter.
 	 * @param \p digest_a if given, will be set to the resulting siphash digest
@@ -61,25 +64,6 @@ public:
 	 */
 	template <typename OBJECT>
 	nano::uint128_t hash (OBJECT const & object_a) const;
-
-private:
-	using siphash_t = CryptoPP::SipHash<2, 4, true>;
-
-	/**
-	 * Get element from digest.
-	 * @note must have a lock on mutex
-	 * @return a reference to the element with key \p hash_a
-	 **/
-	nano::uint128_t & get_element (nano::uint128_t const & hash_a);
-
-	/**
-	 * Hashes \p count_a bytes starting from \p bytes_a .
-	 * @return the siphash digest of the contents in \p bytes_a .
-	 **/
-	nano::uint128_t hash (uint8_t const * bytes_a, size_t count_a) const;
-
-	std::vector<nano::uint128_t> items;
-	CryptoPP::SecByteBlock key{ siphash_t::KEYLENGTH };
-	nano::mutex mutex{ mutex_identifier (mutexes::network_filter) };
+	rsnano::NetworkFilterHandle * handle;
 };
 }

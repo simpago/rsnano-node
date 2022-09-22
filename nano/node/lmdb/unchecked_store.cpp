@@ -2,33 +2,50 @@
 #include <nano/node/lmdb/unchecked_store.hpp>
 #include <nano/secure/parallel_traversal.hpp>
 
-nano::lmdb::unchecked_store::unchecked_store (nano::lmdb::store & store_a) :
-	store (store_a){};
+namespace
+{
+nano::store_iterator<nano::unchecked_key, nano::unchecked_info> to_iterator (rsnano::LmdbIteratorHandle * it_handle)
+{
+	if (it_handle == nullptr)
+	{
+		return { nullptr };
+	}
+
+	return { std::make_unique<nano::mdb_iterator<nano::unchecked_key, nano::unchecked_info>> (it_handle) };
+}
+}
+
+nano::lmdb::unchecked_store::unchecked_store (rsnano::LmdbUncheckedStoreHandle * handle_a) :
+	handle{ handle_a }
+{
+}
+
+nano::lmdb::unchecked_store::~unchecked_store ()
+{
+	if (handle != nullptr)
+		rsnano::rsn_lmdb_unchecked_store_destroy (handle);
+}
 
 void nano::lmdb::unchecked_store::clear (nano::write_transaction const & transaction_a)
 {
-	auto status = store.drop (transaction_a, tables::unchecked);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_unchecked_store_clear (handle, transaction_a.get_rust_handle ());
 }
 
 void nano::lmdb::unchecked_store::put (nano::write_transaction const & transaction_a, nano::hash_or_account const & dependency, nano::unchecked_info const & info)
 {
-	auto status = store.put (transaction_a, tables::unchecked, nano::unchecked_key{ dependency, info.get_block ()->hash () }, info);
-	store.release_assert_success (status);
+	rsnano::rsn_lmdb_unchecked_store_put (handle, transaction_a.get_rust_handle (), dependency.bytes.data (), info.handle);
 }
 
 bool nano::lmdb::unchecked_store::exists (nano::transaction const & transaction_a, nano::unchecked_key const & key)
 {
-	nano::mdb_val value;
-	auto status = store.get (transaction_a, tables::unchecked, key, value);
-	release_assert (store.success (status) || store.not_found (status));
-	return store.success (status);
+	auto key_dto{ key.to_dto () };
+	return rsnano::rsn_lmdb_unchecked_store_exists (handle, transaction_a.get_rust_handle (), &key_dto);
 }
 
 void nano::lmdb::unchecked_store::del (nano::write_transaction const & transaction_a, nano::unchecked_key const & key_a)
 {
-	auto status (store.del (transaction_a, tables::unchecked, key_a));
-	store.release_assert_success (status);
+	auto key_dto{ key_a.to_dto () };
+	rsnano::rsn_lmdb_unchecked_store_del (handle, transaction_a.get_rust_handle (), &key_dto);
 }
 
 nano::store_iterator<nano::unchecked_key, nano::unchecked_info> nano::lmdb::unchecked_store::end () const
@@ -38,26 +55,23 @@ nano::store_iterator<nano::unchecked_key, nano::unchecked_info> nano::lmdb::unch
 
 nano::store_iterator<nano::unchecked_key, nano::unchecked_info> nano::lmdb::unchecked_store::begin (nano::transaction const & transaction) const
 {
-	return store.make_iterator<nano::unchecked_key, nano::unchecked_info> (transaction, tables::unchecked);
+	auto it_handle{ rsnano::rsn_lmdb_unchecked_store_begin (handle, transaction.get_rust_handle ()) };
+	return to_iterator (it_handle);
 }
 
 nano::store_iterator<nano::unchecked_key, nano::unchecked_info> nano::lmdb::unchecked_store::lower_bound (nano::transaction const & transaction, nano::unchecked_key const & key) const
 {
-	return store.make_iterator<nano::unchecked_key, nano::unchecked_info> (transaction, tables::unchecked, key);
+	auto key_dto{ key.to_dto () };
+	auto it_handle{ rsnano::rsn_lmdb_unchecked_store_lower_bound (handle, transaction.get_rust_handle (), &key_dto) };
+	return to_iterator (it_handle);
 }
 
 size_t nano::lmdb::unchecked_store::count (nano::transaction const & transaction_a)
 {
-	return store.count (transaction_a, tables::unchecked);
+	return rsnano::rsn_lmdb_unchecked_store_count (handle, transaction_a.get_rust_handle ());
 }
 
-void nano::lmdb::unchecked_store::for_each_par (std::function<void (nano::read_transaction const &, nano::store_iterator<nano::unchecked_key, nano::unchecked_info>, nano::store_iterator<nano::unchecked_key, nano::unchecked_info>)> const & action_a) const
+MDB_dbi nano::lmdb::unchecked_store::table_handle () const
 {
-	parallel_traversal<nano::uint512_t> (
-	[&action_a, this] (nano::uint512_t const & start, nano::uint512_t const & end, bool const is_last) {
-		nano::unchecked_key key_start (start);
-		nano::unchecked_key key_end (end);
-		auto transaction (this->store.tx_begin_read ());
-		action_a (transaction, this->lower_bound (transaction, key_start), !is_last ? this->lower_bound (transaction, key_end) : this->end ());
-	});
+	return rsnano::rsn_lmdb_unchecked_store_table_handle (handle);
 }

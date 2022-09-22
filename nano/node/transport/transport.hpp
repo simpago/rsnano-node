@@ -10,6 +10,7 @@
 namespace rsnano
 {
 class BandwidthLimiterHandle;
+class ChannelHandle;
 }
 namespace nano
 {
@@ -18,17 +19,69 @@ class bandwidth_limiter final
 public:
 	// initialize with limit 0 = unbounded
 	bandwidth_limiter (double, std::size_t);
+	explicit bandwidth_limiter (rsnano::BandwidthLimiterHandle * handle_a);
+	bandwidth_limiter (bandwidth_limiter && other_a);
+	bandwidth_limiter (bandwidth_limiter const &) = delete;
 	~bandwidth_limiter ();
 	bool should_drop (std::size_t const &);
 	void reset (double, std::size_t);
 
-private:
-	bandwidth_limiter (const bandwidth_limiter &);
+public:
 	rsnano::BandwidthLimiterHandle * handle;
 };
 
 namespace transport
 {
+	class callback_visitor : public nano::message_visitor
+	{
+	public:
+		void keepalive (nano::keepalive const & message_a) override
+		{
+			result = nano::stat::detail::keepalive;
+		}
+		void publish (nano::publish const & message_a) override
+		{
+			result = nano::stat::detail::publish;
+		}
+		void confirm_req (nano::confirm_req const & message_a) override
+		{
+			result = nano::stat::detail::confirm_req;
+		}
+		void confirm_ack (nano::confirm_ack const & message_a) override
+		{
+			result = nano::stat::detail::confirm_ack;
+		}
+		void bulk_pull (nano::bulk_pull const & message_a) override
+		{
+			result = nano::stat::detail::bulk_pull;
+		}
+		void bulk_pull_account (nano::bulk_pull_account const & message_a) override
+		{
+			result = nano::stat::detail::bulk_pull_account;
+		}
+		void bulk_push (nano::bulk_push const & message_a) override
+		{
+			result = nano::stat::detail::bulk_push;
+		}
+		void frontier_req (nano::frontier_req const & message_a) override
+		{
+			result = nano::stat::detail::frontier_req;
+		}
+		void node_id_handshake (nano::node_id_handshake const & message_a) override
+		{
+			result = nano::stat::detail::node_id_handshake;
+		}
+		void telemetry_req (nano::telemetry_req const & message_a) override
+		{
+			result = nano::stat::detail::telemetry_req;
+		}
+		void telemetry_ack (nano::telemetry_ack const & message_a) override
+		{
+			result = nano::stat::detail::telemetry_ack;
+		}
+		nano::stat::detail result;
+	};
+
 	nano::endpoint map_endpoint_to_v6 (nano::endpoint const &);
 	nano::endpoint map_tcp_to_endpoint (nano::tcp_endpoint const &);
 	nano::tcp_endpoint map_endpoint_to_tcp (nano::endpoint const &);
@@ -46,16 +99,20 @@ namespace transport
 		undefined = 0,
 		udp = 1,
 		tcp = 2,
-		loopback = 3
+		loopback = 3,
+		fake = 4
 	};
 	class channel
 	{
 	public:
-		explicit channel (nano::node &);
-		virtual ~channel () = default;
+		channel (rsnano::ChannelHandle * handle_a);
+		channel (nano::transport::channel const &) = delete;
+		virtual ~channel ();
 		virtual std::size_t hash_code () const = 0;
 		virtual bool operator== (nano::transport::channel const &) const = 0;
-		void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter);
+		bool is_temporary () const;
+		void set_temporary (bool temporary);
+		virtual void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter) = 0;
 		// TODO: investigate clang-tidy warning about default parameters on virtual/override functions
 		//
 		virtual void send_buffer (nano::shared_const_buffer const &, std::function<void (boost::system::error_code const &, std::size_t)> const & = nullptr, nano::buffer_drop_policy = nano::buffer_drop_policy::limiter) = 0;
@@ -68,88 +125,25 @@ namespace transport
 			return false;
 		}
 
-		std::chrono::steady_clock::time_point get_last_bootstrap_attempt () const
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			return last_bootstrap_attempt;
-		}
+		std::chrono::steady_clock::time_point get_last_bootstrap_attempt () const;
+		void set_last_bootstrap_attempt (std::chrono::steady_clock::time_point const time_a);
 
-		void set_last_bootstrap_attempt (std::chrono::steady_clock::time_point const time_a)
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			last_bootstrap_attempt = time_a;
-		}
+		std::chrono::steady_clock::time_point get_last_packet_received () const;
+		void set_last_packet_received (std::chrono::steady_clock::time_point const time_a);
 
-		std::chrono::steady_clock::time_point get_last_packet_received () const
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			return last_packet_received;
-		}
+		std::chrono::steady_clock::time_point get_last_packet_sent () const;
+		void set_last_packet_sent (std::chrono::steady_clock::time_point const time_a);
 
-		void set_last_packet_received (std::chrono::steady_clock::time_point const time_a)
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			last_packet_received = time_a;
-		}
+		boost::optional<nano::account> get_node_id_optional () const;
+		nano::account get_node_id () const;
+		void set_node_id (nano::account node_id_a);
 
-		std::chrono::steady_clock::time_point get_last_packet_sent () const
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			return last_packet_sent;
-		}
+		virtual uint8_t get_network_version () const = 0;
+		virtual void set_network_version (uint8_t network_version_a) = 0;
 
-		void set_last_packet_sent (std::chrono::steady_clock::time_point const time_a)
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			last_packet_sent = time_a;
-		}
-
-		boost::optional<nano::account> get_node_id_optional () const
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			return node_id;
-		}
-
-		nano::account get_node_id () const
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			if (node_id.is_initialized ())
-			{
-				return node_id.get ();
-			}
-			else
-			{
-				return 0;
-			}
-		}
-
-		void set_node_id (nano::account node_id_a)
-		{
-			nano::lock_guard<nano::mutex> lk (channel_mutex);
-			node_id = node_id_a;
-		}
-
-		uint8_t get_network_version () const
-		{
-			return network_version;
-		}
-
-		void set_network_version (uint8_t network_version_a)
-		{
-			network_version = network_version_a;
-		}
-
-		mutable nano::mutex channel_mutex;
-
-	private:
-		std::chrono::steady_clock::time_point last_bootstrap_attempt{ std::chrono::steady_clock::time_point () };
-		std::chrono::steady_clock::time_point last_packet_received{ std::chrono::steady_clock::now () };
-		std::chrono::steady_clock::time_point last_packet_sent{ std::chrono::steady_clock::now () };
-		boost::optional<nano::account> node_id{ boost::none };
-		std::atomic<uint8_t> network_version{ 0 };
-
-	protected:
-		nano::node & node;
+		virtual nano::endpoint get_peering_endpoint () const = 0;
+		virtual void set_peering_endpoint (nano::endpoint endpoint) = 0;
+		rsnano::ChannelHandle * handle;
 	};
 } // namespace transport
 } // namespace nano

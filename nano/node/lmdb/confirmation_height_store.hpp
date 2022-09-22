@@ -11,10 +11,13 @@ namespace lmdb
 	class store;
 	class confirmation_height_store : public nano::confirmation_height_store
 	{
-		nano::lmdb::store & store;
+		rsnano::LmdbConfirmationHeightStoreHandle * handle;
 
 	public:
-		explicit confirmation_height_store (nano::lmdb::store & store_a);
+		explicit confirmation_height_store (rsnano::LmdbConfirmationHeightStoreHandle * handle_a);
+		~confirmation_height_store ();
+		confirmation_height_store (confirmation_height_store const &) = delete;
+		confirmation_height_store (confirmation_height_store &&) = delete;
 		void put (nano::write_transaction const & transaction_a, nano::account const & account_a, nano::confirmation_height_info const & confirmation_height_info_a) override;
 		bool get (nano::transaction const & transaction_a, nano::account const & account_a, nano::confirmation_height_info & confirmation_height_info_a) override;
 		bool exists (nano::transaction const & transaction_a, nano::account const & account_a) const override;
@@ -31,7 +34,7 @@ namespace lmdb
 		 * Confirmation height of an account, and the hash for the block at that height
 		 * nano::account -> uint64_t, nano::block_hash
 		 */
-		MDB_dbi confirmation_height_handle{ 0 };
+		MDB_dbi table_handle () const;
 	};
 }
 }

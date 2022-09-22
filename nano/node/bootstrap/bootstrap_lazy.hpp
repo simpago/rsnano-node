@@ -42,7 +42,7 @@ public:
 	bool lazy_finished ();
 	bool lazy_has_expired () const;
 	uint32_t lazy_batch_size ();
-	void lazy_pull_flush (nano::unique_lock<nano::mutex> & lock_a);
+	rsnano::BootstrapAttemptLockHandle * lazy_pull_flush (rsnano::BootstrapAttemptLockHandle * lock_a);
 	bool process_block_lazy (std::shared_ptr<nano::block> const &, nano::account const &, uint64_t, nano::bulk_pull::count_t, unsigned);
 	void lazy_block_state (std::shared_ptr<nano::block> const &, unsigned);
 	void lazy_block_state_backlog_check (std::shared_ptr<nano::block> const &, nano::block_hash const &);
@@ -53,6 +53,9 @@ public:
 	bool lazy_processed_or_exists (nano::block_hash const &);
 	unsigned lazy_retry_limit_confirmed ();
 	void get_information (boost::property_tree::ptree &) override;
+
+private:
+	std::shared_ptr<nano::node> node;
 	std::unordered_set<std::size_t> lazy_blocks;
 	std::unordered_map<nano::block_hash, nano::lazy_state_backlog_item> lazy_state_backlog;
 	std::unordered_set<nano::block_hash> lazy_undefined_links;
@@ -74,13 +77,14 @@ class bootstrap_attempt_wallet final : public bootstrap_attempt
 public:
 	explicit bootstrap_attempt_wallet (std::shared_ptr<nano::node> const & node_a, uint64_t incremental_id_a, std::string id_a = "");
 	~bootstrap_attempt_wallet ();
-	void request_pending (nano::unique_lock<nano::mutex> &);
+	rsnano::BootstrapAttemptLockHandle * request_pending (rsnano::BootstrapAttemptLockHandle * lock_a);
 	void requeue_pending (nano::account const &);
 	void run () override;
 	void wallet_start (std::deque<nano::account> &);
 	bool wallet_finished ();
 	std::size_t wallet_size ();
 	void get_information (boost::property_tree::ptree &) override;
+	std::shared_ptr<nano::node> node;
 	std::deque<nano::account> wallet_accounts;
 };
 }

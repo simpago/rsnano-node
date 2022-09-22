@@ -25,20 +25,20 @@ void nano::election_scheduler::activate (nano::account const & account_a, nano::
 {
 	debug_assert (!account_a.is_zero ());
 	nano::account_info account_info;
-	if (!node.store.account.get (transaction, account_a, account_info))
+	if (!node.store.account ().get (transaction, account_a, account_info))
 	{
 		nano::confirmation_height_info conf_info;
-		node.store.confirmation_height.get (transaction, account_a, conf_info);
-		if (conf_info.height < account_info.block_count)
+		node.store.confirmation_height ().get (transaction, account_a, conf_info);
+		if (conf_info.height () < account_info.block_count ())
 		{
-			debug_assert (conf_info.frontier != account_info.head);
-			auto hash = conf_info.height == 0 ? account_info.open_block : node.store.block.successor (transaction, conf_info.frontier);
-			auto block = node.store.block.get (transaction, hash);
+			debug_assert (conf_info.frontier () != account_info.head ());
+			auto hash = conf_info.height () == 0 ? account_info.open_block () : node.store.block ().successor (transaction, conf_info.frontier ());
+			auto block = node.store.block ().get (transaction, hash);
 			debug_assert (block != nullptr);
 			if (node.ledger.dependents_confirmed (transaction, *block))
 			{
 				nano::lock_guard<nano::mutex> lock{ mutex };
-				priority.push (account_info.modified, block);
+				priority.push (account_info.modified (), block);
 				notify ();
 			}
 		}
@@ -99,7 +99,12 @@ bool nano::election_scheduler::manual_queue_predicate () const
 
 bool nano::election_scheduler::overfill_predicate () const
 {
-	return node.active.vacancy () < 0;
+	/*
+	 * Both normal and hinted election schedulers are well-behaved, meaning they first check for AEC vacancy before inserting new elections.
+	 * However, it is possible that AEC will be temporarily overfilled in case it's running at full capacity and election hinting or manual queue kicks in.
+	 * That case will lead to unwanted churning of elections, so this allows for AEC to be overfilled to 125% until erasing of elections happens.
+	 */
+	return node.active.vacancy () < -(node.active.limit () / 4);
 }
 
 void nano::election_scheduler::run ()
@@ -125,7 +130,7 @@ void nano::election_scheduler::run ()
 				manual_queue.pop_front ();
 				lock.unlock ();
 				nano::unique_lock<nano::mutex> lock2 (node.active.mutex);
-				node.active.insert_impl (lock2, block, previous_balance, election_behavior, confirmation_action);
+				node.active.insert_impl (lock2, block, election_behavior, confirmation_action);
 			}
 			else if (priority_queue_predicate ())
 			{

@@ -1,7 +1,8 @@
 use crate::{
-    from_string_hex, sign_message, to_string_hex, Account, Amount, Block, BlockHash,
-    BlockHashBuilder, BlockSideband, BlockType, LazyBlockHash, Link, PropertyTreeReader,
-    PropertyTreeWriter, PublicKey, RawKey, Signature, Stream,
+    from_string_hex, sign_message, to_string_hex,
+    utils::{Deserialize, PropertyTreeReader, PropertyTreeWriter, Serialize, Stream},
+    Account, Amount, Block, BlockHash, BlockHashBuilder, BlockSideband, BlockType, LazyBlockHash,
+    Link, PublicKey, RawKey, Root, Signature,
 };
 
 use anyhow::Result;
@@ -116,13 +117,17 @@ impl StateBlock {
         Account::zero()
     }
 
+    pub fn balance(&self) -> Amount {
+        self.hashables.balance
+    }
+
     fn sign(&mut self, prv_key: &RawKey, pub_key: &PublicKey) -> Result<()> {
         let signature = sign_message(prv_key, pub_key, self.hash().as_bytes())?;
         self.signature = signature;
         Ok(())
     }
 
-    pub const fn serialized_size() -> usize {
+    pub fn serialized_size() -> usize {
         Account::serialized_size() // Account
             + BlockHash::serialized_size() // Previous
             + Account::serialized_size() // Representative
@@ -132,7 +137,7 @@ impl StateBlock {
             + std::mem::size_of::<u64>() // Work
     }
 
-    pub fn deserialize(stream: &mut impl Stream) -> Result<Self> {
+    pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let account = Account::deserialize(stream)?;
         let previous = BlockHash::deserialize(stream)?;
         let representative = Account::deserialize(stream)?;
@@ -165,7 +170,7 @@ impl StateBlock {
         let account = Account::decode_account(reader.get_string("account")?)?;
         let previous = BlockHash::decode_hex(reader.get_string("previous")?)?;
         let representative = Account::decode_account(reader.get_string("representative")?)?;
-        let balance = Amount::decode_hex(reader.get_string("balance")?)?;
+        let balance = Amount::decode_dec(reader.get_string("balance")?)?;
         let link = Link::decode_hex(reader.get_string("link")?)?;
         let work = from_string_hex(reader.get_string("work")?)?;
         let signature = Signature::decode_hex(reader.get_string("signature")?)?;
@@ -259,7 +264,7 @@ impl Block for StateBlock {
             "representative",
             &self.hashables.representative.encode_account(),
         )?;
-        writer.put_string("balance", &self.hashables.balance.encode_hex())?;
+        writer.put_string("balance", &self.hashables.balance.to_string_dec())?;
         writer.put_string("link", &self.hashables.link.encode_hex())?;
         writer.put_string(
             "link_as_account",
@@ -269,13 +274,25 @@ impl Block for StateBlock {
         writer.put_string("work", &to_string_hex(self.work))?;
         Ok(())
     }
+
+    fn root(&self) -> Root {
+        if !self.previous().is_zero() {
+            self.previous().into()
+        } else {
+            self.account().into()
+        }
+    }
+
+    fn visit(&self, visitor: &mut dyn crate::BlockVisitor) {
+        visitor.state_block(self)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         blocks::{BlockBuilder, StateBlockBuilder},
-        utils::{TestPropertyTree, TestStream},
+        utils::{MemoryStream, TestPropertyTree},
     };
 
     use super::*;
@@ -284,7 +301,7 @@ mod tests {
     #[test]
     fn serialization() -> Result<()> {
         let block1 = BlockBuilder::state().work(5).build()?;
-        let mut stream = TestStream::new();
+        let mut stream = MemoryStream::new();
         block1.serialize(&mut stream)?;
         assert_eq!(StateBlock::serialized_size(), stream.bytes_written());
         assert_eq!(stream.byte_at(215), 0x5); // Ensure work is serialized big-endian

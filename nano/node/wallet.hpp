@@ -234,10 +234,10 @@ public:
 	static nano::uint128_t const generate_priority;
 	static nano::uint128_t const high_priority;
 	/** Start read-write transaction */
-	nano::write_transaction tx_begin_write ();
+	std::unique_ptr<nano::write_transaction> tx_begin_write ();
 
 	/** Start read-only transaction */
-	nano::read_transaction tx_begin_read ();
+	std::unique_ptr<nano::read_transaction> tx_begin_read ();
 
 private:
 	mutable nano::mutex reps_cache_mutex;

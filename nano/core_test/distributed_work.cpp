@@ -8,14 +8,14 @@ using namespace std::chrono_literals;
 
 TEST (distributed_work, stopped)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	system.nodes[0]->distributed_work.stop ();
 	ASSERT_TRUE (system.nodes[0]->distributed_work.make (nano::work_version::work_1, nano::block_hash (), {}, nano::dev::network_params.work.get_base (), {}));
 }
 
 TEST (distributed_work, no_peers)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	auto node (system.nodes[0]);
 	nano::block_hash hash{ 1 };
 	boost::optional<uint64_t> work;
@@ -25,7 +25,7 @@ TEST (distributed_work, no_peers)
 		work = work_a;
 		done = true;
 	};
-	ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, node->config.work_peers, node->network_params.work.get_base (), callback, nano::account ()));
+	ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, node->config->work_peers, node->network_params.work.get_base (), callback, nano::account ()));
 	ASSERT_TIMELY (5s, done);
 	ASSERT_GE (nano::dev::network_params.work.difficulty (nano::work_version::work_1, hash, *work), node->network_params.work.get_base ());
 	// should only be removed after cleanup
@@ -39,17 +39,17 @@ TEST (distributed_work, no_peers)
 
 TEST (distributed_work, no_peers_disabled)
 {
-	nano::system system;
-	nano::node_config node_config (nano::get_available_port (), system.logging);
+	nano::test::system system;
+	nano::node_config node_config (nano::test::get_available_port (), system.logging);
 	node_config.work_threads = 0;
 	auto & node = *system.add_node (node_config);
-	ASSERT_TRUE (node.distributed_work.make (nano::work_version::work_1, nano::block_hash (), node.config.work_peers, nano::dev::network_params.work.get_base (), {}));
+	ASSERT_TRUE (node.distributed_work.make (nano::work_version::work_1, nano::block_hash (), node.config->work_peers, nano::dev::network_params.work.get_base (), {}));
 }
 
 TEST (distributed_work, no_peers_cancel)
 {
-	nano::system system;
-	nano::node_config node_config (nano::get_available_port (), system.logging);
+	nano::test::system system;
+	nano::node_config node_config (nano::test::get_available_port (), system.logging);
 	node_config.max_work_generate_multiplier = 1e6;
 	auto & node = *system.add_node (node_config);
 	nano::block_hash hash{ 1 };
@@ -58,7 +58,7 @@ TEST (distributed_work, no_peers_cancel)
 		ASSERT_FALSE (work_a.is_initialized ());
 		done = true;
 	};
-	ASSERT_FALSE (node.distributed_work.make (nano::work_version::work_1, hash, node.config.work_peers, nano::difficulty::from_multiplier (1e6, node.network_params.work.get_base ()), callback_to_cancel));
+	ASSERT_FALSE (node.distributed_work.make (nano::work_version::work_1, hash, node.config->work_peers, nano::difficulty::from_multiplier (1e6, node.network_params.work.get_base ()), callback_to_cancel));
 	ASSERT_EQ (1, node.distributed_work.size ());
 	// cleanup should not cancel or remove an ongoing work
 	node.distributed_work.cleanup_finished ();
@@ -70,7 +70,7 @@ TEST (distributed_work, no_peers_cancel)
 
 	// now using observer
 	done = false;
-	ASSERT_FALSE (node.distributed_work.make (nano::work_version::work_1, hash, node.config.work_peers, nano::difficulty::from_multiplier (1e6, node.network_params.work.get_base ()), callback_to_cancel));
+	ASSERT_FALSE (node.distributed_work.make (nano::work_version::work_1, hash, node.config->work_peers, nano::difficulty::from_multiplier (1e6, node.network_params.work.get_base ()), callback_to_cancel));
 	ASSERT_EQ (1, node.distributed_work.size ());
 	node.observers.work_cancel.notify (hash);
 	ASSERT_TIMELY (20s, done && node.distributed_work.size () == 0);
@@ -78,7 +78,7 @@ TEST (distributed_work, no_peers_cancel)
 
 TEST (distributed_work, no_peers_multi)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	auto node (system.nodes[0]);
 	nano::block_hash hash{ 1 };
 	unsigned total{ 10 };
@@ -90,7 +90,7 @@ TEST (distributed_work, no_peers_multi)
 	// Test many works for the same root
 	for (unsigned i{ 0 }; i < total; ++i)
 	{
-		ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, node->config.work_peers, nano::difficulty::from_multiplier (10, node->network_params.work.get_base ()), callback));
+		ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, node->config->work_peers, nano::difficulty::from_multiplier (10, node->network_params.work.get_base ()), callback));
 	}
 	ASSERT_TIMELY (5s, count == total);
 	system.deadline_set (5s);
@@ -104,7 +104,7 @@ TEST (distributed_work, no_peers_multi)
 	for (unsigned i{ 0 }; i < total; ++i)
 	{
 		nano::block_hash hash_i (i + 1);
-		ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash_i, node->config.work_peers, node->network_params.work.get_base (), callback));
+		ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash_i, node->config->work_peers, node->network_params.work.get_base (), callback));
 	}
 	ASSERT_TIMELY (5s, count == total);
 	system.deadline_set (5s);
@@ -117,9 +117,9 @@ TEST (distributed_work, no_peers_multi)
 
 TEST (distributed_work, peer)
 {
-	nano::system system;
+	nano::test::system system;
 	nano::node_config node_config;
-	node_config.peering_port = nano::get_available_port ();
+	node_config.peering_port = nano::test::get_available_port ();
 	// Disable local work generation
 	node_config.work_threads = 0;
 	auto node (system.add_node (node_config));
@@ -132,9 +132,9 @@ TEST (distributed_work, peer)
 		work = work_a;
 		done = true;
 	};
-	auto work_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::get_available_port (), work_peer_type::good));
+	auto work_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::test::get_available_port (), work_peer_type::good));
 	work_peer->start ();
-	decltype (node->config.work_peers) peers;
+	decltype (node->config->work_peers) peers;
 	peers.emplace_back ("::ffff:127.0.0.1", work_peer->port ());
 	ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, peers, node->network_params.work.get_base (), callback, nano::account ()));
 	ASSERT_TIMELY (5s, done);
@@ -147,7 +147,7 @@ TEST (distributed_work, peer)
 
 TEST (distributed_work, peer_malicious)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	auto node (system.nodes[0]);
 	ASSERT_TRUE (node->local_work_generation_enabled ());
 	nano::block_hash hash{ 1 };
@@ -158,9 +158,9 @@ TEST (distributed_work, peer_malicious)
 		work = work_a;
 		done = true;
 	};
-	auto malicious_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::get_available_port (), work_peer_type::malicious));
+	auto malicious_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::test::get_available_port (), work_peer_type::malicious));
 	malicious_peer->start ();
-	decltype (node->config.work_peers) peers;
+	decltype (node->config->work_peers) peers;
 	peers.emplace_back ("::ffff:127.0.0.1", malicious_peer->port ());
 	ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, peers, node->network_params.work.get_base (), callback, nano::account ()));
 	ASSERT_TIMELY (5s, done);
@@ -174,9 +174,9 @@ TEST (distributed_work, peer_malicious)
 	// this peer should not receive a cancel
 	ASSERT_EQ (0, malicious_peer->cancels);
 	// Test again with no local work generation enabled to make sure the malicious peer is sent more than one request
-	node->config.work_threads = 0;
+	node->config->work_threads = 0;
 	ASSERT_FALSE (node->local_work_generation_enabled ());
-	auto malicious_peer2 (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::get_available_port (), work_peer_type::malicious));
+	auto malicious_peer2 (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::test::get_available_port (), work_peer_type::malicious));
 	malicious_peer2->start ();
 	peers[0].second = malicious_peer2->port ();
 	ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, peers, node->network_params.work.get_base (), {}, nano::account ()));
@@ -190,7 +190,7 @@ TEST (distributed_work, peer_malicious)
 // Issue for investigating it: https://github.com/nanocurrency/nano-node/issues/3630
 TEST (distributed_work, DISABLED_peer_multi)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	auto node (system.nodes[0]);
 	ASSERT_TRUE (node->local_work_generation_enabled ());
 	nano::block_hash hash{ 1 };
@@ -201,13 +201,13 @@ TEST (distributed_work, DISABLED_peer_multi)
 		work = work_a;
 		done = true;
 	};
-	auto good_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::get_available_port (), work_peer_type::good));
-	auto malicious_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::get_available_port (), work_peer_type::malicious));
-	auto slow_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::get_available_port (), work_peer_type::slow));
+	auto good_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::test::get_available_port (), work_peer_type::good));
+	auto malicious_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::test::get_available_port (), work_peer_type::malicious));
+	auto slow_peer (std::make_shared<fake_work_peer> (node->work, node->io_ctx, nano::test::get_available_port (), work_peer_type::slow));
 	good_peer->start ();
 	malicious_peer->start ();
 	slow_peer->start ();
-	decltype (node->config.work_peers) peers;
+	decltype (node->config->work_peers) peers;
 	peers.emplace_back ("localhost", malicious_peer->port ());
 	peers.emplace_back ("localhost", slow_peer->port ());
 	peers.emplace_back ("localhost", good_peer->port ());
@@ -230,7 +230,7 @@ TEST (distributed_work, DISABLED_peer_multi)
 
 TEST (distributed_work, fail_resolve)
 {
-	nano::system system (1);
+	nano::test::system system (1);
 	auto node (system.nodes[0]);
 	nano::block_hash hash{ 1 };
 	boost::optional<uint64_t> work;
@@ -240,7 +240,7 @@ TEST (distributed_work, fail_resolve)
 		work = work_a;
 		done = true;
 	};
-	decltype (node->config.work_peers) peers;
+	decltype (node->config->work_peers) peers;
 	peers.emplace_back ("beeb.boop.123z", 0);
 	ASSERT_FALSE (node->distributed_work.make (nano::work_version::work_1, hash, peers, node->network_params.work.get_base (), callback, nano::account ()));
 	ASSERT_TIMELY (5s, done);

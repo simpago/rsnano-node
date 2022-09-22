@@ -23,14 +23,15 @@ public:
 	void run () override;
 	bool consume_future (std::future<bool> &);
 	void stop () override;
-	bool request_frontier (nano::unique_lock<nano::mutex> &, bool = false);
-	void request_push (nano::unique_lock<nano::mutex> &);
+	bool request_frontier (rsnano::BootstrapAttemptLockHandle **, bool = false);
+	rsnano::BootstrapAttemptLockHandle * request_push (rsnano::BootstrapAttemptLockHandle *);
 	void add_frontier (nano::pull_info const &);
 	void add_bulk_push_target (nano::block_hash const &, nano::block_hash const &);
 	bool request_bulk_push_target (std::pair<nano::block_hash, nano::block_hash> &);
 	void set_start_account (nano::account const &);
-	void run_start (nano::unique_lock<nano::mutex> &);
+	rsnano::BootstrapAttemptLockHandle * run_start (rsnano::BootstrapAttemptLockHandle *);
 	void get_information (boost::property_tree::ptree &) override;
+	std::shared_ptr<nano::node> node;
 	nano::tcp_endpoint endpoint_frontier_request;
 	std::weak_ptr<nano::frontier_req_client> frontiers;
 	std::weak_ptr<nano::bulk_push_client> push;

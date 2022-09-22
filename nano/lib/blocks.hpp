@@ -87,6 +87,7 @@ private:
 class block
 {
 public:
+	virtual ~block ();
 	// Return a digest of the hashables in this block.
 	nano::block_hash const & hash () const;
 	// Return a digest of hashables and non-hashables in this block.
@@ -122,7 +123,6 @@ public:
 	virtual nano::signature block_signature () const;
 	virtual void signature_set (nano::signature const &);
 	virtual void sign_zero ();
-	virtual ~block () = default;
 	virtual bool valid_predecessor (nano::block const &) const = 0;
 	// Serialized size
 	static size_t size (nano::block_type);
@@ -151,7 +151,6 @@ public:
 	send_block (const send_block &);
 	send_block (send_block && other);
 	send_block (rsnano::BlockHandle * handle_a);
-	virtual ~send_block ();
 	using nano::block::hash;
 	nano::account destination () const override;
 	nano::root root () const override;
@@ -178,7 +177,6 @@ public:
 	receive_block (const nano::receive_block &);
 	receive_block (nano::receive_block &&);
 	receive_block (rsnano::BlockHandle * handle_a);
-	virtual ~receive_block ();
 	using nano::block::hash;
 	void previous_set (nano::block_hash previous_a);
 	nano::block_hash source () const override;
@@ -203,7 +201,6 @@ public:
 	open_block (const nano::open_block &);
 	open_block (nano::open_block &&);
 	open_block (rsnano::BlockHandle * handle_a);
-	virtual ~open_block ();
 	using nano::block::hash;
 	nano::account account () const override;
 	nano::block_hash source () const override;
@@ -230,7 +227,6 @@ public:
 	change_block (const nano::change_block &);
 	change_block (nano::change_block &&);
 	change_block (rsnano::BlockHandle * handle_a);
-	virtual ~change_block ();
 	using nano::block::hash;
 	nano::root root () const override;
 	nano::account representative () const override;
@@ -254,7 +250,6 @@ public:
 	state_block (const nano::state_block &);
 	state_block (nano::state_block &&);
 	state_block (rsnano::BlockHandle * handle_a);
-	virtual ~state_block ();
 	using nano::block::hash;
 	nano::account account () const override;
 	nano::root root () const override;
@@ -311,8 +306,6 @@ public:
 	size_t size ();
 
 	block_uniquer & operator= (block_uniquer const &) = delete;
-
-private:
 	rsnano::BlockUniquerHandle * handle;
 };
 

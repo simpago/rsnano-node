@@ -1,4 +1,4 @@
-use crate::{test_node_port, NetworkConstants, WorkThresholds};
+use crate::{test_node_port, NetworkConstants, TelemetryCacheCutoffs, WorkThresholds};
 use num::FromPrimitive;
 use std::{convert::TryFrom, ffi::CStr, os::raw::c_char};
 
@@ -160,4 +160,17 @@ impl TryFrom<&NetworkConstantsDto> for NetworkConstants {
             silent_connection_tolerance_time_s: value.silent_connection_tolerance_time_s,
         })
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_telemetry_cache_cutoffs_dev() -> u64 {
+    TelemetryCacheCutoffs::DEV.as_secs()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_telemetry_cache_cutoffs_network_to_time_s(
+    network: *const NetworkConstantsDto,
+) -> u64 {
+    let network = NetworkConstants::try_from(&*network).unwrap();
+    TelemetryCacheCutoffs::network_to_time(&network).as_secs()
 }
