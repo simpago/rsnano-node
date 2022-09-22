@@ -14,7 +14,7 @@ use blake2::digest::{Update, VariableOutput};
 pub use difficulty::*;
 use once_cell::sync::Lazy;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Hash)]
 pub struct PublicKey {
     value: [u8; 32], // big endian
 }

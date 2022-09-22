@@ -20,6 +20,7 @@ mod toml;
 mod unchecked_info;
 mod voting;
 mod websocket;
+mod rep_weights;
 
 use std::{ffi::CString, os::raw::c_char};
 

@@ -32,6 +32,7 @@ mod uniquer;
 mod utils;
 mod voting;
 mod websocket;
+mod rep_weights;
 
 pub use bandwidth_limiter::*;
 pub(crate) use block_arrival::*;

@@ -125,7 +125,7 @@ TEST (thread_pool_alarm, top_execution)
 	ASSERT_EQ (2, value2);
 }
 
-TEST (filesystem, remove_all_files)
+/*TEST (filesystem, remove_all_files)
 {
 	auto path = nano::unique_path ();
 	auto dummy_directory = path / "tmp";
@@ -173,7 +173,7 @@ TEST (filesystem, move_all_files)
 	ASSERT_TRUE (boost::filesystem::exists (path / "my_file2.txt"));
 	ASSERT_FALSE (boost::filesystem::exists (dummy_file1));
 	ASSERT_FALSE (boost::filesystem::exists (dummy_file2));
-}
+}*/
 
 TEST (relaxed_atomic_integral, basic)
 {
