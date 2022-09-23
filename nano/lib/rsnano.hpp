@@ -147,6 +147,10 @@ struct PeerExclusionHandle;
 
 struct PullsCacheHandle;
 
+struct RepAmountsRawData;
+
+struct RepWeightsHandle;
+
 struct SignatureCheckerHandle;
 
 struct SocketHandle;
@@ -954,6 +958,19 @@ struct ReceiveBlockDto2
 	uint8_t priv_key[32];
 	uint8_t pub_key[32];
 	uint64_t work;
+};
+
+struct RepAmountItemDto
+{
+	uint8_t account[32];
+	uint8_t amount[16];
+};
+
+struct RepAmountsDto
+{
+	const RepAmountItemDto * items;
+	uintptr_t count;
+	RepAmountsRawData * raw_data;
 };
 
 struct RpcProcessConfigDto
@@ -2806,6 +2823,14 @@ void rsn_receive_block_source (const BlockHandle * handle, uint8_t (*result)[32]
 void rsn_receive_block_source_set (BlockHandle * handle, const uint8_t (*previous)[32]);
 
 void rsn_remove_temporary_directories ();
+
+RepWeightsHandle * rsn_rep_weights_create ();
+
+void rsn_rep_weights_destroy (RepWeightsHandle * handle);
+
+void rsn_rep_weights_destroy_amounts_dto (RepAmountsDto * amounts);
+
+void rsn_rep_weights_get_rep_amounts (RepWeightsHandle * handle, RepAmountsDto * result);
 
 int32_t rsn_rpc_config_create (RpcConfigDto * dto, const NetworkConstantsDto * network_constants);
 

@@ -1,6 +1,16 @@
 #include <nano/lib/rep_weights.hpp>
 #include <nano/secure/store.hpp>
 
+nano::rep_weights::rep_weights () :
+	handle{ rsnano::rsn_rep_weights_create () }
+{
+}
+
+nano::rep_weights::~rep_weights ()
+{
+	rsnano::rsn_rep_weights_destroy (handle);
+}
+
 void nano::rep_weights::representation_add (nano::account const & source_rep_a, nano::uint128_t const & amount_a)
 {
 	nano::lock_guard<nano::mutex> guard (mutex);
@@ -39,8 +49,24 @@ nano::uint128_t nano::rep_weights::representation_get (nano::account const & acc
 /** Makes a copy */
 std::unordered_map<nano::account, nano::uint128_t> nano::rep_weights::get_rep_amounts () const
 {
-	nano::lock_guard<nano::mutex> guard (mutex);
-	return rep_amounts;
+	rsnano::RepAmountsDto amounts_dto;
+	rsnano::rsn_rep_weights_get_rep_amounts(handle, &amounts_dto);
+	std::unordered_map<nano::account, nano::uint128_t> result;
+	rsnano::RepAmountItemDto const * current;
+	int i;
+	for (i = 0, current = amounts_dto.items; i < amounts_dto.count ; ++i)
+	{
+		nano::account account;
+		nano::uint128_t amount;
+		std::copy(std::begin(current->account), std::end(current->account), std::begin(account.bytes));
+		boost::multiprecision::import_bits (amount, std::begin(current->amount), std::end(current->amount), true);
+		result.insert({account, amount});
+		current++;
+	}
+
+	rsnano::rsn_rep_weights_destroy_amounts_dto(&amounts_dto);
+
+	return result;
 }
 
 void nano::rep_weights::copy_from (nano::rep_weights & other_a)
