@@ -82,20 +82,15 @@ void nano::rep_weights::copy_from (nano::rep_weights & other_a)
 
 void nano::rep_weights::put (nano::account const & account_a, nano::uint128_union const & representation_a)
 {
-	auto it = rep_amounts.find (account_a);
-	auto amount = representation_a.number ();
-	if (it != rep_amounts.end ())
-	{
-		it->second = amount;
-	}
-	else
-	{
-		rep_amounts.emplace (account_a, amount);
-	}
+	rsnano::RepAmountItemDto dto;
+	std::copy (std::begin (account_a.bytes), std::end (account_a.bytes), std::begin (dto.amount));
+	std::copy (std::begin (representation_a.bytes), std::end (representation_a.bytes), std::begin (dto.account));
+	rsnano::rsn_rep_weights_put_rep_amounts(handle, dto);
 }
 
 nano::uint128_t nano::rep_weights::get (nano::account const & account_a) const
 {
+	auto rep_amounts = get_rep_amounts();
 	auto it = rep_amounts.find (account_a);
 	if (it != rep_amounts.end ())
 	{

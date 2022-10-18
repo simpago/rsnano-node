@@ -1,4 +1,4 @@
-use crate::RepWeights;
+use crate::{Account, RepWeights};
 
 pub struct RepWeightsHandle(RepWeights);
 
@@ -28,6 +28,15 @@ pub struct RepAmountsDto {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn rsn_rep_weights_put_rep_amounts(
+    handle: *mut RepWeightsHandle,
+    result: *mut RepAmountItemDto,
+) {
+    let mut amounts = (*handle).0.get_rep_amounts();
+    amounts.insert(Account::from_bytes(result.account), u128::from_be_bytes(result.amount));
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn rsn_rep_weights_get_rep_amounts(
     handle: *mut RepWeightsHandle,
     result: *mut RepAmountsDto,
@@ -42,7 +51,7 @@ pub unsafe extern "C" fn rsn_rep_weights_get_rep_amounts(
         .collect();
     let raw_data = Box::new(RepAmountsRawData(items));
     (*result).count = raw_data.0.len();
-    (*result).items = raw_data.0.as_ptr();
+    (*result).items = items.as_ptr();
     (*result).raw_data = Box::into_raw(raw_data);
 }
 

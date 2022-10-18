@@ -2832,6 +2832,8 @@ void rsn_rep_weights_destroy_amounts_dto (RepAmountsDto * amounts);
 
 void rsn_rep_weights_get_rep_amounts (RepWeightsHandle * handle, RepAmountsDto * result);
 
+rsn_rep_weights_put_rep_amounts (RepWeightsHandle * handle, RepAmountItemDto);
+
 int32_t rsn_rpc_config_create (RpcConfigDto * dto, const NetworkConstantsDto * network_constants);
 
 int32_t rsn_rpc_config_create2 (RpcConfigDto * dto,
