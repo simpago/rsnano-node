@@ -81,9 +81,6 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 		case nano::thread_role::name::epoch_upgrader:
 			thread_role_name_string = "Epoch upgrader";
 			break;
-		case nano::thread_role::name::db_parallel_traversal:
-			thread_role_name_string = "DB par traversl";
-			break;
 		case nano::thread_role::name::election_scheduler:
 			thread_role_name_string = "Election Sched";
 			break;
@@ -95,6 +92,12 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 			break;
 		case nano::thread_role::name::election_hinting:
 			thread_role_name_string = "Hinting";
+			break;
+		case nano::thread_role::name::vote_generator_queue:
+			thread_role_name_string = "Voting que";
+			break;
+		case nano::thread_role::name::bootstrap_server:
+			thread_role_name_string = "Bootstrp serv";
 			break;
 		default:
 			debug_assert (false && "nano::thread_role::get_string unhandled thread role");
@@ -316,4 +319,17 @@ unsigned int nano::hardware_concurrency ()
 		return std::thread::hardware_concurrency ();
 	}
 	return value;
+}
+
+bool nano::join_or_pass (std::thread & thread)
+{
+	if (thread.joinable ())
+	{
+		thread.join ();
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }

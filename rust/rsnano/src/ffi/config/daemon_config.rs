@@ -4,8 +4,9 @@ use super::{
     OpenclConfigDto,
 };
 use crate::{
-    ffi::{secure::NetworkParamsDto, toml::FfiToml},
-    DaemonConfig, NetworkParams,
+    config::DaemonConfig,
+    ffi::{secure::NetworkParamsDto, utils::FfiToml},
+    NetworkParams,
 };
 use std::{
     convert::{TryFrom, TryInto},

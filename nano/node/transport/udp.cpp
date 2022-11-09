@@ -2,10 +2,9 @@
 #include <nano/boost/asio/dispatch.hpp>
 #include <nano/crypto_lib/random_pool.hpp>
 #include <nano/lib/stats.hpp>
+#include <nano/node/messages.hpp>
 #include <nano/node/node.hpp>
 #include <nano/node/transport/udp.hpp>
-
-#include <crypto/cryptopp/config.h>
 
 #include <boost/format.hpp>
 
@@ -13,7 +12,7 @@ nano::transport::channel_udp::channel_udp (nano::transport::udp_channels & chann
 	channel (rsnano::rsn_channel_udp_create (std::chrono::steady_clock::now ().time_since_epoch ().count ())),
 	stats (*channels_a.node.stats),
 	logger (*channels_a.node.logger),
-	limiter (channels_a.node.network->limiter),
+	limiter (channels_a.node.outbound_limiter),
 	io_ctx (channels_a.node.io_ctx),
 	network_packet_logging (channels_a.node.config->logging.network_packet_logging ()),
 	endpoint (endpoint_a),
@@ -40,13 +39,13 @@ bool nano::transport::channel_udp::operator== (nano::transport::channel const & 
 	return result;
 }
 
-void nano::transport::channel_udp::send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a, nano::buffer_drop_policy drop_policy_a)
+void nano::transport::channel_udp::send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a, nano::buffer_drop_policy drop_policy_a, nano::bandwidth_limit_type limiter_type)
 {
 	auto buffer (message_a.to_shared_const_buffer ());
-	auto detail = nano::message_type_to_stat_detail (message_a.get_header ().get_type ());
+	auto detail = nano::to_stat_detail (message_a.get_header ().get_type ());
 	auto is_droppable_by_limiter = drop_policy_a == nano::buffer_drop_policy::limiter;
-	auto should_drop (limiter.should_drop (buffer.size ()));
-	if (!is_droppable_by_limiter || !should_drop)
+	auto should_pass (limiter.should_pass (buffer.size (), limiter_type));
+	if (!is_droppable_by_limiter || should_pass)
 	{
 		send_buffer (buffer, callback_a, drop_policy_a);
 		stats.inc (nano::stat::type::message, detail, nano::stat::dir::out);
@@ -210,7 +209,7 @@ std::unordered_set<std::shared_ptr<nano::transport::channel>> nano::transport::u
 	{
 		for (auto i (0); i < random_cutoff && result.size () < count_a; ++i)
 		{
-			auto index (nano::random_pool::generate_word32 (0, static_cast<CryptoPP::word32> (peers_size - 1)));
+			auto index (nano::random_pool::generate_word32 (0, static_cast<uint32_t> (peers_size - 1)));
 			auto channel = channels.get<random_access_tag> ()[index].channel;
 			if (channel->get_network_version () >= min_version)
 			{

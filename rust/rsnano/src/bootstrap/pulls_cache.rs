@@ -7,7 +7,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::{BlockHash, HashOrAccount};
+use crate::core::{BlockHash, HashOrAccount};
 
 type AccountHead = [u8; 64];
 
@@ -236,9 +236,9 @@ mod tests {
     fn test_pull(id: u8) -> PullInfo {
         PullInfo {
             account_or_head: HashOrAccount::from_bytes([id; 32]),
-            head: BlockHash::new(),
-            head_original: BlockHash::new(),
-            end: BlockHash::new(),
+            head: BlockHash::zero(),
+            head_original: BlockHash::zero(),
+            end: BlockHash::zero(),
             count: 0,
             attempts: 0,
             processed: 1000,

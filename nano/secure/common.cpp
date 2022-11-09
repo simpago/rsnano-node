@@ -6,16 +6,10 @@
 #include <nano/secure/common.hpp>
 #include <nano/secure/store.hpp>
 
-#include <crypto/cryptopp/words.h>
-
 #include <boost/endian/conversion.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include <boost/variant/get.hpp>
 
-#include <limits>
 #include <queue>
-
-#include <crypto/ed25519-donna/ed25519.h>
 
 namespace
 {
@@ -102,7 +96,7 @@ rsnano::LedgerConstantsDto nano::ledger_constants::to_dto () const
 	dto.nano_live_genesis = nano_live_genesis->clone_handle ();
 	dto.nano_test_genesis = nano_test_genesis->clone_handle ();
 	dto.genesis = genesis->clone_handle ();
-	boost::multiprecision::export_bits (genesis_amount, std::begin (dto.genesis_amount), 8);
+	boost::multiprecision::export_bits (genesis_amount, std::rbegin (dto.genesis_amount), 8, false);
 	std::copy (std::begin (burn_account.bytes), std::end (burn_account.bytes), std::begin (dto.burn_account));
 	std::copy (std::begin (nano_dev_final_votes_canary_account.bytes), std::end (nano_dev_final_votes_canary_account.bytes), std::begin (dto.nano_dev_final_votes_canary_account));
 	std::copy (std::begin (nano_beta_final_votes_canary_account.bytes), std::end (nano_beta_final_votes_canary_account.bytes), std::begin (dto.nano_beta_final_votes_canary_account));
@@ -182,15 +176,6 @@ nano::hardened_constants::hardened_constants () :
 	rsnano::rsn_hardened_constants_get (not_an_account.bytes.data (), random_128.bytes.data ());
 }
 
-nano::node_constants::node_constants (nano::network_constants & network_constants)
-{
-	rsnano::NodeConstantsDto dto;
-	auto network_dto{ network_constants.to_dto () };
-	if (rsnano::rsn_node_constants_create (&network_dto, &dto) < 0)
-		throw std::runtime_error ("could not create node constants");
-	read_dto (dto);
-}
-
 nano::node_constants::node_constants (rsnano::NodeConstantsDto const & dto)
 {
 	read_dto (dto);
@@ -216,16 +201,6 @@ rsnano::NodeConstantsDto nano::node_constants::to_dto () const
 	dto.max_weight_samples = max_weight_samples;
 	dto.weight_period = weight_period;
 	return dto;
-}
-
-nano::voting_constants::voting_constants (nano::network_constants & network_constants)
-{
-	auto network_dto{ network_constants.to_dto () };
-	rsnano::VotingConstantsDto dto;
-	if (rsnano::rsn_voting_constants_create (&network_dto, &dto) < 0)
-		throw std::runtime_error ("could not create voting constants");
-	max_cache = dto.max_cache;
-	delay = std::chrono::seconds (dto.delay_s);
 }
 
 nano::voting_constants::voting_constants (rsnano::VotingConstantsDto const & dto)
@@ -266,15 +241,6 @@ rsnano::PortmappingConstantsDto nano::portmapping_constants::to_dto () const
 	return dto;
 }
 
-nano::bootstrap_constants::bootstrap_constants (nano::network_constants & network_constants)
-{
-	auto network_dto{ network_constants.to_dto () };
-	rsnano::BootstrapConstantsDto dto;
-	if (rsnano::rsn_bootstrap_constants_create (&network_dto, &dto) < 0)
-		throw std::runtime_error ("could not create bootstrap constants");
-	read_dto (dto);
-}
-
 nano::bootstrap_constants::bootstrap_constants (rsnano::BootstrapConstantsDto const & dto)
 {
 	read_dto (dto);
@@ -307,23 +273,20 @@ void nano::bootstrap_constants::read_dto (rsnano::BootstrapConstantsDto const & 
 // Create a new random keypair
 nano::keypair::keypair ()
 {
-	random_pool::generate_block (prv.bytes.data (), prv.bytes.size ());
-	ed25519_publickey (prv.bytes.data (), pub.bytes.data ());
+	rsnano::rsn_keypair_create (prv.bytes.data (), pub.bytes.data ());
 }
 
 // Create a keypair given a private key
 nano::keypair::keypair (nano::raw_key && prv_a) :
 	prv (std::move (prv_a))
 {
-	ed25519_publickey (prv.bytes.data (), pub.bytes.data ());
+	rsnano::rsn_keypair_create_from_prv_key (prv.bytes.data (), pub.bytes.data ());
 }
 
 // Create a keypair given a hex string of the private key
 nano::keypair::keypair (std::string const & prv_a)
 {
-	[[maybe_unused]] auto error (prv.decode_hex (prv_a));
-	debug_assert (!error);
-	ed25519_publickey (prv.bytes.data (), pub.bytes.data ());
+	rsnano::rsn_keypair_create_from_hex_str (prv_a.c_str (), prv.bytes.data (), pub.bytes.data ());
 }
 
 nano::keypair::keypair (nano::raw_key const & priv_key_a, nano::public_key const & pub_key_a) :
@@ -338,12 +301,6 @@ nano::keypair::keypair (const nano::keypair & other_a) :
 {
 }
 
-// Serialize a block prefixed with an 8-bit typecode
-void nano::serialize_block (nano::stream & stream_a, nano::block const & block_a)
-{
-	write (stream_a, block_a.type ());
-	block_a.serialize (stream_a);
-}
 nano::account_info::account_info () :
 	account_info (0, 0, 0, 0, 0, 0, nano::epoch::epoch_0)
 {
@@ -696,15 +653,6 @@ void nano::vote::serialize_json (boost::property_tree::ptree & tree) const
 	rsnano::rsn_vote_serialize_json (handle, &tree);
 }
 
-std::string nano::vote::to_json () const
-{
-	std::stringstream stream;
-	boost::property_tree::ptree tree;
-	serialize_json (tree);
-	boost::property_tree::write_json (stream, tree);
-	return stream.str ();
-}
-
 /**
  * Returns the timestamp of the vote (with the duration bits masked, set to zero)
  * If it is a final vote, all the bits including duration bits are returned as they are, all FF
@@ -902,9 +850,7 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (vo
 nano::wallet_id nano::random_wallet_id ()
 {
 	nano::wallet_id wallet_id;
-	nano::uint256_union dummy_secret;
-	random_pool::generate_block (dummy_secret.bytes.data (), dummy_secret.bytes.size ());
-	ed25519_publickey (dummy_secret.bytes.data (), wallet_id.bytes.data ());
+	rsnano::rsn_random_wallet_id (wallet_id.bytes.data ());
 	return wallet_id;
 }
 
@@ -1026,10 +972,6 @@ void nano::generate_cache::enable_cemented_count (bool enable)
 {
 	rsnano::rsn_generate_cache_set_cemented_count (handle, enable);
 }
-bool nano::generate_cache::unchecked_count () const
-{
-	return rsnano::rsn_generate_cache_unchecked_count (handle);
-}
 void nano::generate_cache::enable_unchecked_count (bool enable)
 {
 	rsnano::rsn_generate_cache_set_unchecked_count (handle, enable);
@@ -1049,4 +991,140 @@ bool nano::generate_cache::block_count () const
 void nano::generate_cache::enable_block_count (bool enable)
 {
 	rsnano::rsn_generate_cache_set_account_count (handle, enable);
+}
+
+nano::stat::detail nano::to_stat_detail (nano::process_result process_result)
+{
+	nano::stat::detail result;
+	switch (process_result)
+	{
+		case process_result::progress:
+			return nano::stat::detail::progress;
+			break;
+		case process_result::bad_signature:
+			return nano::stat::detail::bad_signature;
+			break;
+		case process_result::old:
+			return nano::stat::detail::old;
+			break;
+		case process_result::negative_spend:
+			return nano::stat::detail::negative_spend;
+			break;
+		case process_result::fork:
+			return nano::stat::detail::fork;
+			break;
+		case process_result::unreceivable:
+			return nano::stat::detail::unreceivable;
+			break;
+		case process_result::gap_previous:
+			return nano::stat::detail::gap_previous;
+			break;
+		case process_result::gap_source:
+			return nano::stat::detail::gap_source;
+			break;
+		case process_result::gap_epoch_open_pending:
+			return nano::stat::detail::gap_epoch_open_pending;
+			break;
+		case process_result::opened_burn_account:
+			return nano::stat::detail::opened_burn_account;
+			break;
+		case process_result::balance_mismatch:
+			return nano::stat::detail::balance_mismatch;
+			break;
+		case process_result::representative_mismatch:
+			return nano::stat::detail::representative_mismatch;
+			break;
+		case process_result::block_position:
+			return nano::stat::detail::block_position;
+			break;
+		case process_result::insufficient_work:
+			return nano::stat::detail::insufficient_work;
+			break;
+	}
+	return result;
+}
+
+nano::ledger_cache::ledger_cache () :
+	handle{ rsnano::rsn_ledger_cache_create () }, rep_weights_m{ rsnano::rsn_ledger_cache_weights (handle) }
+{
+}
+
+nano::ledger_cache::ledger_cache (rsnano::LedgerCacheHandle * handle_a) :
+	handle{ handle_a }, rep_weights_m{ rsnano::rsn_ledger_cache_weights (handle) }
+{
+}
+
+nano::ledger_cache::ledger_cache (ledger_cache && other_a) :
+	handle{ other_a.handle }, rep_weights_m{ rsnano::rsn_ledger_cache_weights (handle) }
+{
+	other_a.handle = nullptr;
+}
+
+nano::ledger_cache::~ledger_cache ()
+{
+	if (handle != nullptr)
+		rsnano::rsn_ledger_cache_destroy (handle);
+}
+
+nano::ledger_cache & nano::ledger_cache::operator= (nano::ledger_cache && other_a)
+{
+	if (handle != nullptr)
+		rsnano::rsn_ledger_cache_destroy (handle);
+	handle = other_a.handle;
+	other_a.handle = nullptr;
+	rep_weights_m = std::move (other_a.rep_weights_m);
+	return *this;
+}
+
+nano::rep_weights & nano::ledger_cache::rep_weights ()
+{
+	return rep_weights_m;
+}
+uint64_t nano::ledger_cache::cemented_count () const
+{
+	return rsnano::rsn_ledger_cache_cemented_count (handle);
+}
+uint64_t nano::ledger_cache::block_count () const
+{
+	return rsnano::rsn_ledger_cache_block_count (handle);
+}
+uint64_t nano::ledger_cache::pruned_count () const
+{
+	return rsnano::rsn_ledger_cache_pruned_count (handle);
+}
+uint64_t nano::ledger_cache::account_count () const
+{
+	return rsnano::rsn_ledger_cache_account_count (handle);
+}
+bool nano::ledger_cache::final_votes_confirmation_canary () const
+{
+	return rsnano::rsn_ledger_cache_final_votes_confirmation_canary (handle);
+}
+void nano::ledger_cache::add_cemented (uint64_t count)
+{
+	rsnano::rsn_ledger_cache_add_cemented (handle, count);
+}
+void nano::ledger_cache::add_blocks (uint64_t count)
+{
+	rsnano::rsn_ledger_cache_add_blocks (handle, count);
+}
+void nano::ledger_cache::add_pruned (uint64_t count)
+{
+	rsnano::rsn_ledger_cache_add_pruned (handle, count);
+}
+void nano::ledger_cache::add_accounts (uint64_t count)
+{
+	rsnano::rsn_ledger_cache_add_accounts (handle, count);
+}
+void nano::ledger_cache::set_final_votes_confirmation_canary (bool canary)
+{
+	rsnano::rsn_ledger_cache_set_final_votes_confirmation_canary (handle, canary);
+}
+void nano::ledger_cache::remove_blocks (uint64_t count)
+{
+	rsnano::rsn_ledger_cache_remove_blocks (handle, count);
+}
+void nano::ledger_cache::remove_accounts (uint64_t count)
+{
+	rsnano::rsn_ledger_cache_remove_accounts (handle, count);
 }

@@ -18,6 +18,8 @@ add_library(
   active_transactions.cpp
   backlog_population.hpp
   backlog_population.cpp
+  bandwidth_limiter.hpp
+  bandwidth_limiter.cpp
   block_arrival.hpp
   block_arrival.cpp
   blockprocessor.hpp
@@ -38,12 +40,10 @@ add_library(
   bootstrap/bootstrap_lazy.cpp
   bootstrap/bootstrap_legacy.hpp
   bootstrap/bootstrap_legacy.cpp
-  bootstrap/bootstrap_server.hpp
-  bootstrap/bootstrap_server.cpp
   bootstrap/bootstrap.hpp
   bootstrap/bootstrap.cpp
-  bootstrap/message_deserializer.hpp
-  bootstrap/message_deserializer.cpp
+  bootstrap/bootstrap_server.hpp
+  bootstrap/bootstrap_server.cpp
   cli.hpp
   cli.cpp
   common.hpp
@@ -167,8 +167,12 @@ add_library(
   transport/fake.cpp
   transport/inproc.hpp
   transport/inproc.cpp
+  transport/message_deserializer.hpp
+  transport/message_deserializer.cpp
   transport/tcp.hpp
   transport/tcp.cpp
+  transport/tcp_server.hpp
+  transport/tcp_server.cpp
   transport/transport.hpp
   transport/transport.cpp
   transport/udp.hpp
@@ -191,6 +195,8 @@ add_library(
   websocket_stream.cpp
   write_database_queue.hpp
   write_database_queue.cpp
+  messages.hpp
+  messages.cpp
   xorshift.hpp)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -203,8 +209,6 @@ target_link_libraries(
   secure
   nano_lib
   libminiupnpc-static
-  argon2
-  lmdb
   Boost::filesystem
   Boost::log_setup
   Boost::log

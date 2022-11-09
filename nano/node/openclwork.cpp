@@ -442,21 +442,20 @@ nano::opencl_work::~opencl_work ()
 	}
 }
 
-boost::optional<uint64_t> nano::opencl_work::generate_work (nano::work_version const version_a, nano::root const & root_a, uint64_t const difficulty_a)
+boost::optional<uint64_t> nano::opencl_work::generate_work (nano::work_version const version_a, nano::root const root_a, uint64_t const difficulty_a)
 {
-	std::atomic<int> ticket_l{ 0 };
-	return generate_work (version_a, root_a, difficulty_a, ticket_l);
+	nano::work_ticket ticket{};
+	return generate_work (version_a, root_a, difficulty_a, ticket);
 }
 
-boost::optional<uint64_t> nano::opencl_work::generate_work (nano::work_version const version_a, nano::root const & root_a, uint64_t const difficulty_a, std::atomic<int> & ticket_a)
+boost::optional<uint64_t> nano::opencl_work::generate_work (nano::work_version const version_a, nano::root const root_a, uint64_t const difficulty_a, nano::work_ticket ticket_a)
 {
 	nano::lock_guard<nano::mutex> lock (mutex);
 	bool error (false);
-	int ticket_l (ticket_a);
 	uint64_t result (0);
 	unsigned thread_count (config.threads);
 	std::size_t work_size[] = { thread_count, 0, 0 };
-	while (work.difficulty (version_a, root_a, result) < difficulty_a && !error && ticket_a == ticket_l)
+	while (work.difficulty (version_a, root_a, result) < difficulty_a && !error && !ticket_a.expired ())
 	{
 		result = rand.next ();
 		cl_int write_error1 = clEnqueueWriteBuffer (queue, attempt_buffer, false, 0, sizeof (uint64_t), &result, 0, nullptr, nullptr);

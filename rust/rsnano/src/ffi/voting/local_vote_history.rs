@@ -1,4 +1,7 @@
-use crate::{voting::LocalVoteHistory, BlockHash, Root};
+use crate::{
+    core::{BlockHash, Root},
+    voting::LocalVoteHistory,
+};
 
 use super::vote::VoteHandle;
 

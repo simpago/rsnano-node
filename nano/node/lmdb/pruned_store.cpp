@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/lmdb.hpp>
 #include <nano/node/lmdb/pruned_store.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 namespace
 {
@@ -94,9 +93,4 @@ void nano::lmdb::pruned_store::for_each_par (std::function<void (nano::read_tran
 {
 	auto context = (void *)&action_a;
 	rsnano::rsn_lmdb_pruned_store_for_each_par (handle, for_each_par_wrapper, context, for_each_par_delete_context);
-}
-
-MDB_dbi nano::lmdb::pruned_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_pruned_store_table_handle (handle);
 }

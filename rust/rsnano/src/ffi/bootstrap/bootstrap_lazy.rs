@@ -6,7 +6,12 @@ use std::{
 
 use crate::{
     bootstrap::{BootstrapAttemptLazy, BootstrapStrategy},
-    ffi::{datastore::LedgerHandle, BlockProcessorHandle, FfiListener, LoggerHandle, LoggerMT},
+    ffi::{
+        block_processing::BlockProcessorHandle,
+        ledger::datastore::LedgerHandle,
+        utils::{LoggerHandle, LoggerMT},
+        FfiListener,
+    },
     websocket::{Listener, NullListener},
 };
 

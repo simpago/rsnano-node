@@ -257,14 +257,12 @@ else()
     else()
       add_compile_options(-fsanitize=address,undefined)
     endif()
-    add_definitions(-DED25519_NO_INLINE_ASM)
   elseif(${USING_TSAN})
     add_compile_options(-fsanitize=thread)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       add_compile_options(
         "-fsanitize-blacklist=${PROJECT_SOURCE_DIR}/tsan_clang_blacklist")
     endif()
-    add_definitions(-DED25519_NO_INLINE_ASM)
   endif()
 
   if(NANO_FUZZER_TEST)
@@ -279,12 +277,9 @@ else()
       add_compile_options(-msse4)
       if(ENABLE_AES)
         add_compile_options(-maes)
-      else()
-        add_definitions(-DCRYPTOPP_DISABLE_AESNI)
       endif()
     elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
       add_compile_options(-msse2)
-      add_definitions(-DCRYPTOPP_DISABLE_SSSE3 -DCRYPTOPP_DISABLE_AESNI)
     endif()
 
   elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -292,7 +287,6 @@ else()
       add_compile_options(-march=armv8-a+crc+crypto)
     else()
       add_compile_options(-march=armv8-a)
-      add_definitions(-DCRYPTOPP_DISABLE_ASM)
     endif()
   endif()
 endif()
@@ -399,7 +393,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 include_directories(cpptoml/include)
-add_subdirectory(crypto/ed25519-donna)
 
 add_subdirectory(nano/ipc_flatbuffers_lib)
 add_subdirectory(nano/ipc_flatbuffers_test)
@@ -418,118 +411,10 @@ set(BUILD_TESTING
 set(USE_INTERMEDIATE_OBJECTS_TARGET
     OFF
     CACHE BOOL "")
-set(CRYPTOPP_EXTRA "")
-if(WIN32)
-  set(CRYPTOPP_EXTRA crypto/cryptopp/x64dll.asm crypto/cryptopp/x64masm.asm)
-  enable_language(ASM)
-  enable_language(ASM_MASM)
-  # similar to SSE2 settings
-  add_definitions(-DCRYPTOPP_DISABLE_SSSE3 -DCRYPTOPP_DISABLE_AESNI)
-elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"
-       AND (NANO_SIMD_OPTIMIZATIONS OR RAIBLOCKS_SIMD_OPTIMIZATIONS))
-  set(CRYPTOPP_EXTRA
-      crypto/cryptopp/crc_simd.cpp crypto/cryptopp/gcm_simd.cpp
-      crypto/cryptopp/gf2n_simd.cpp crypto/cryptopp/neon_simd.cpp)
-  add_definitions(-DCRYPTOPP_NO_CPU_FEATURE_PROBES)
-endif()
-# Some Clang cannot handle mixed asm with positional arguments, where the body
-# is Intel style with no prefix and the templates are AT&T style. See:
-# crypto/cryptopp/config.h Also see https://bugs.llvm.org/show_bug.cgi?id=39895
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_definitions(-DCRYPTOPP_DISABLE_MIXED_ASM -DCRYPTOPP_DISABLE_ASM)
-  message(
-    "CryptoPP with disabled ASM for ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
-  )
-endif()
-add_definitions(-DCRYPTOPP_DISABLE_SHANI)
-# Fix failing builds after commit
-# https://github.com/weidai11/cryptopp/commit/df9fa62205f2d341e2b1b26595a3a1b6377c60c5
-add_definitions(-DCRYPTOPP_DISABLE_CLMUL)
-
-set(CRYPTOPP_LIBRARY cryptopp)
-add_library(
-  cryptopp
-  crypto/cryptopp/algparam.cpp
-  crypto/cryptopp/allocate.cpp
-  crypto/cryptopp/asn.cpp
-  crypto/cryptopp/basecode.cpp
-  crypto/cryptopp/cpu.cpp
-  crypto/cryptopp/cryptlib.cpp
-  crypto/cryptopp/default.cpp
-  crypto/cryptopp/des.cpp
-  crypto/cryptopp/dessp.cpp
-  crypto/cryptopp/dll.cpp
-  crypto/cryptopp/ec2n.cpp
-  crypto/cryptopp/ecp.cpp
-  crypto/cryptopp/filters.cpp
-  crypto/cryptopp/fips140.cpp
-  crypto/cryptopp/gcm.cpp
-  crypto/cryptopp/gf2n.cpp
-  crypto/cryptopp/gfpcrypt.cpp
-  crypto/cryptopp/hex.cpp
-  crypto/cryptopp/hmac.cpp
-  crypto/cryptopp/hrtimer.cpp
-  crypto/cryptopp/integer.cpp
-  crypto/cryptopp/iterhash.cpp
-  crypto/cryptopp/misc.cpp
-  crypto/cryptopp/modes.cpp
-  crypto/cryptopp/mqueue.cpp
-  crypto/cryptopp/nbtheory.cpp
-  crypto/cryptopp/oaep.cpp
-  crypto/cryptopp/osrng.cpp
-  crypto/cryptopp/pubkey.cpp
-  crypto/cryptopp/queue.cpp
-  crypto/cryptopp/randpool.cpp
-  crypto/cryptopp/rdtables.cpp
-  crypto/cryptopp/rijndael.cpp
-  crypto/cryptopp/rijndael_simd.cpp
-  crypto/cryptopp/rng.cpp
-  crypto/cryptopp/sha.cpp
-  crypto/cryptopp/sha_simd.cpp
-  crypto/cryptopp/simple.cpp
-  crypto/cryptopp/sse_simd.cpp
-  ${CRYPTOPP_EXTRA})
-
-if(WIN32 OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86(_64)?)$")
-  set(ARGON_CORE crypto/phc-winner-argon2/src/opt.c)
-else()
-  set(ARGON_CORE crypto/phc-winner-argon2/src/ref.c)
-endif()
-
-add_library(
-  argon2
-  crypto/phc-winner-argon2/src/argon2.c
-  crypto/phc-winner-argon2/include/argon2.h
-  crypto/phc-winner-argon2/src/core.c
-  crypto/phc-winner-argon2/src/thread.c
-  crypto/phc-winner-argon2/src/encoding.c
-  ${ARGON_CORE})
-
-target_include_directories(argon2 PUBLIC crypto/phc-winner-argon2/include)
-target_include_directories(argon2 PUBLIC crypto/phc-winner-argon2/src)
-target_include_directories(argon2 PUBLIC crypto/blake2)
-
-add_library(lmdb lmdb/libraries/liblmdb/lmdb.h lmdb/libraries/liblmdb/mdb.c
-                 lmdb/libraries/liblmdb/midl.c)
 
 if(WIN32)
-  target_link_libraries(lmdb ntdll)
+  target_link_libraries(ntdll)
 endif()
-
-if(WIN32)
-  set(BLAKE2_IMPLEMENTATION "crypto/blake2/blake2b.c")
-else()
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86(_64)?)$")
-    set(BLAKE2_IMPLEMENTATION "crypto/blake2/blake2b.c")
-  else()
-    set(BLAKE2_IMPLEMENTATION "crypto/blake2/blake2b-ref.c")
-  endif()
-endif()
-
-add_library(blake2 crypto/blake2/blake2-config.h crypto/blake2/blake2-impl.h
-                   crypto/blake2/blake2.h ${BLAKE2_IMPLEMENTATION})
-
-target_compile_definitions(blake2 PRIVATE -D__SSE2__)
 
 if(NANO_POW_SERVER)
   add_subdirectory(nano-pow-server)

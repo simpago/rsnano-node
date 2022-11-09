@@ -1,9 +1,9 @@
 use std::ffi::c_void;
 
+use crate::utils::{Deserialize, Serialize};
 use crate::{
-    ffi::FfiStream,
-    utils::{Deserialize, Serialize},
-    BlockHash, ConfirmationHeightInfo,
+    core::{BlockHash, ConfirmationHeightInfo},
+    ffi::utils::FfiStream,
 };
 
 #[repr(C)]
@@ -60,7 +60,7 @@ impl From<ConfirmationHeightInfo> for ConfirmationHeightInfoDto {
     fn from(info: ConfirmationHeightInfo) -> Self {
         ConfirmationHeightInfoDto {
             height: info.height,
-            frontier: info.frontier.to_bytes(),
+            frontier: *info.frontier.as_bytes(),
         }
     }
 }

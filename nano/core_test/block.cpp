@@ -6,63 +6,17 @@
 
 #include <boost/property_tree/json_parser.hpp>
 
-#include <crypto/ed25519-donna/ed25519.h>
-
-TEST (sign_message, sign_in_cpp_and_validate_in_rust)
-{
-	nano::keypair key;
-	nano::signature signature;
-	nano::uint256_union msg{ 0 };
-	ed25519_sign (msg.bytes.data (), msg.bytes.size (), key.prv.bytes.data (), key.pub.bytes.data (), signature.bytes.data ());
-
-	uint8_t priv_key[32];
-	uint8_t pub_key[32];
-	uint8_t message[32]{ 0 };
-	uint8_t rsnano_sig[64]{ 0 };
-	uint8_t sig_bytes[64];
-	std::copy (std::begin (key.prv.bytes), std::end (key.prv.bytes), std::begin (priv_key));
-	std::copy (std::begin (key.pub.bytes), std::end (key.pub.bytes), std::begin (pub_key));
-	std::copy (std::begin (signature.bytes), std::end (signature.bytes), std::begin (sig_bytes));
-
-	auto validate_result = rsnano::rsn_validate_message (&pub_key, message, 32, &sig_bytes);
-	ASSERT_EQ (validate_result, false);
-
-	message[31] = 1;
-	validate_result = rsnano::rsn_validate_message (&pub_key, message, 32, &sig_bytes);
-	ASSERT_EQ (validate_result, true);
-}
-
 TEST (sign_message, sign_multiple_times)
 {
 	uint8_t data[] = { 1, 2, 3, 4 };
 	nano::keypair key;
 	auto signature_a{ nano::sign_message (key.prv, key.pub, &data[0], 4) };
 	auto signature_b{ nano::sign_message (key.prv, key.pub, &data[0], 4) };
-	ASSERT_NE (signature_a, signature_b);
+	ASSERT_EQ (signature_a, signature_b);
 	bool res_a = nano::validate_message (key.pub, &data[0], 4, signature_a);
 	bool res_b = nano::validate_message (key.pub, &data[0], 4, signature_b);
 	ASSERT_EQ (res_a, false);
 	ASSERT_EQ (res_b, false);
-}
-
-TEST (sign_message, sign_in_rust_and_validate_in_cpp)
-{
-	nano::keypair key;
-
-	uint8_t priv_key[32];
-	uint8_t pub_key[32];
-	uint8_t message[32]{ 0 };
-	uint8_t rsnano_sig[64]{ 0 };
-	std::copy (std::begin (key.prv.bytes), std::end (key.prv.bytes), std::begin (priv_key));
-	std::copy (std::begin (key.pub.bytes), std::end (key.pub.bytes), std::begin (pub_key));
-
-	auto result{ rsnano::rsn_sign_message (&priv_key, &pub_key, message, 32, &rsnano_sig) };
-	ASSERT_EQ (result, 0);
-
-	nano::signature actual;
-	std::copy (std::begin (rsnano_sig), std::end (rsnano_sig), std::begin (actual.bytes));
-	bool valid = ed25519_sign_open (&message[0], 32, key.pub.bytes.data (), actual.bytes.data ()) == 0;
-	ASSERT_EQ (valid, true);
 }
 
 TEST (uint512_union, parse_zero)

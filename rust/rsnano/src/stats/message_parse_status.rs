@@ -1,4 +1,4 @@
-use crate::bootstrap::ParseStatus;
+use crate::transport::ParseStatus;
 
 use super::DetailType;
 
@@ -19,6 +19,8 @@ impl From<ParseStatus> for DetailType {
             ParseStatus::InvalidBulkPullMessage => Self::InvalidBulkPullMessage,
             ParseStatus::InvalidBulkPullAccountMessage => Self::InvalidBulkPullAccountMessage,
             ParseStatus::InvalidFrontierReqMessage => Self::InvalidFrontierReqMessage,
+            ParseStatus::InvalidAscPullReqMessage => Self::InvalidAscPullReqMessage,
+            ParseStatus::InvalidAscPullAckMessage => Self::InvalidAscPullAckMessage,
             ParseStatus::InvalidNetwork => Self::InvalidNetwork,
             ParseStatus::OutdatedVersion => Self::OutdatedVersion,
             ParseStatus::DuplicatePublishMessage => Self::DuplicatePublish,

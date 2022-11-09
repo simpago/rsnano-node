@@ -45,18 +45,6 @@ void nano::mdb_env::serialize_txn_tracker (boost::property_tree::ptree & json, s
 	rsnano::rsn_mdb_env_serialize_txn_tracker (handle, &json, min_read_time.count (), min_write_time.count ());
 }
 
-void nano::mdb_env::init (bool & error_a, boost::filesystem::path const & path_a, nano::mdb_env::options options_a)
-{
-	auto path_string{ path_a.string () };
-	auto config_dto{ options_a.config.to_dto () };
-	rsnano::rsn_mdb_env_init (handle, &error_a, reinterpret_cast<const int8_t *> (path_string.c_str ()), &config_dto, options_a.use_no_mem_init);
-}
-
-nano::mdb_env::operator MDB_env * () const
-{
-	return env ();
-}
-
 std::unique_ptr<nano::read_transaction> nano::mdb_env::tx_begin_read () const
 {
 	return std::make_unique<nano::read_mdb_txn> (rsnano::rsn_mdb_env_tx_begin_read (handle));
@@ -65,38 +53,4 @@ std::unique_ptr<nano::read_transaction> nano::mdb_env::tx_begin_read () const
 std::unique_ptr<nano::write_transaction> nano::mdb_env::tx_begin_write () const
 {
 	return std::make_unique<nano::write_mdb_txn> (rsnano::rsn_mdb_env_tx_begin_write (handle));
-}
-
-MDB_txn * nano::mdb_env::tx (nano::transaction const & transaction_a) const
-{
-	return to_mdb_txn (transaction_a);
-}
-
-MDB_env * nano::mdb_env::env () const
-{
-	if (handle == nullptr)
-		return nullptr;
-
-	return static_cast<MDB_env *> (rsnano::rsn_mdb_env_get_env (handle));
-}
-
-void nano::mdb_env::close_env ()
-{
-	if (handle != nullptr)
-	{
-		rsnano::rsn_mdb_env_close (handle);
-	}
-}
-
-MDB_txn * nano::to_mdb_txn (nano::transaction const & transaction_a)
-{
-	return static_cast<MDB_txn *> (transaction_a.get_handle ());
-}
-
-void nano::assert_success (int const status)
-{
-	if (status != MDB_SUCCESS)
-	{
-		release_assert (false, mdb_strerror (status));
-	}
 }

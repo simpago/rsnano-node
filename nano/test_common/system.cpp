@@ -1,10 +1,7 @@
-#include <nano/crypto_lib/random_pool.hpp>
 #include <nano/node/common.hpp>
 #include <nano/node/transport/udp.hpp>
 #include <nano/test_common/system.hpp>
 #include <nano/test_common/testutil.hpp>
-
-#include <crypto/cryptopp/config.h>
 
 #include <boost/property_tree/json_parser.hpp>
 
@@ -37,7 +34,7 @@ std::shared_ptr<nano::node> nano::test::system::add_node (nano::node_flags node_
 }
 
 /** Returns the node added. */
-std::shared_ptr<nano::node> nano::test::system::add_node (nano::node_config const & node_config_a, nano::node_flags node_flags_a, nano::transport::transport_type type_a)
+std::shared_ptr<nano::node> nano::test::system::add_node (nano::node_config const & node_config_a, nano::node_flags node_flags_a, nano::transport::transport_type type_a, std::optional<nano::keypair> const & rep)
 {
 	auto node (std::make_shared<nano::node> (io_ctx, nano::unique_path (), node_config_a, work, node_flags_a, node_sequence++));
 	for (auto i : initialization_blocks)
@@ -47,8 +44,12 @@ std::shared_ptr<nano::node> nano::test::system::add_node (nano::node_config cons
 		debug_assert (result.code == nano::process_result::progress);
 	}
 	debug_assert (!node->init_error ());
+	auto wallet = node->wallets.create (nano::random_wallet_id ());
+	if (rep)
+	{
+		wallet->insert_adhoc (rep->prv);
+	}
 	node->start ();
-	node->wallets.create (nano::random_wallet_id ());
 	nodes.reserve (nodes.size () + 1);
 	nodes.push_back (node);
 	if (nodes.size () > 1)
@@ -63,8 +64,8 @@ std::shared_ptr<nano::node> nano::test::system::add_node (nano::node_config cons
 			auto starting_size_1 = node1->network->size ();
 			auto starting_size_2 = node2->network->size ();
 
-			auto starting_realtime_1 = node1->bootstrap->get_realtime_count ();
-			auto starting_realtime_2 = node2->bootstrap->get_realtime_count ();
+			auto starting_realtime_1 = node1->tcp_listener->get_realtime_count ();
+			auto starting_realtime_2 = node2->tcp_listener->get_realtime_count ();
 
 			auto starting_keepalives_1 = node1->stats->count (stat::type::message, stat::detail::keepalive, stat::dir::in);
 			auto starting_keepalives_2 = node2->stats->count (stat::type::message, stat::detail::keepalive, stat::dir::in);
@@ -94,8 +95,8 @@ std::shared_ptr<nano::node> nano::test::system::add_node (nano::node_config cons
 				{
 					// Wait for initial connection finish
 					auto ec = poll_until_true (3s, [&node1, &node2, starting_realtime_1, starting_realtime_2] () {
-						auto realtime_1 = node1->bootstrap->get_realtime_count ();
-						auto realtime_2 = node2->bootstrap->get_realtime_count ();
+						auto realtime_1 = node1->tcp_listener->get_realtime_count ();
+						auto realtime_2 = node2->tcp_listener->get_realtime_count ();
 						return realtime_1 > starting_realtime_1 && realtime_2 > starting_realtime_2;
 					});
 					debug_assert (!ec);
@@ -226,7 +227,7 @@ uint64_t nano::test::system::work_generate_limited (nano::block_hash const & roo
 	do
 	{
 		result = *work.generate (root_a, min_a);
-	} while (work.network_constants.work.difficulty (nano::work_version::work_1, root_a, result) >= max_a);
+	} while (nano::dev::network_params.network.work.difficulty (nano::work_version::work_1, root_a, result) >= max_a);
 	return result;
 }
 
@@ -250,7 +251,7 @@ std::unique_ptr<nano::state_block> nano::test::upgrade_epoch (nano::work_pool & 
 				 .link (ledger_a.epoch_link (epoch_a))
 				 .representative (dev_genesis_key.pub)
 				 .sign (dev_genesis_key.prv, dev_genesis_key.pub)
-				 .work (*pool_a.generate (latest, pool_a.network_constants.work.threshold (nano::work_version::work_1, nano::block_details (epoch_a, false, false, true))))
+				 .work (*pool_a.generate (latest, nano::dev::network_params.network.work.threshold (nano::work_version::work_1, nano::block_details (epoch_a, false, false, true))))
 				 .build (ec);
 
 	bool error{ true };
@@ -396,8 +397,8 @@ void nano::test::system::generate_usage_traffic (uint32_t count_a, uint32_t wait
 void nano::test::system::generate_rollback (nano::node & node_a, std::vector<nano::account> & accounts_a)
 {
 	auto transaction (node_a.store.tx_begin_write ());
-	debug_assert (std::numeric_limits<CryptoPP::word32>::max () > accounts_a.size ());
-	auto index (random_pool::generate_word32 (0, static_cast<CryptoPP::word32> (accounts_a.size () - 1)));
+	debug_assert (std::numeric_limits<uint32_t>::max () > accounts_a.size ());
+	auto index (random_pool::generate_word32 (0, static_cast<uint32_t> (accounts_a.size () - 1)));
 	auto account (accounts_a[index]);
 	nano::account_info info;
 	auto error (node_a.store.account ().get (*transaction, account, info));
@@ -472,8 +473,8 @@ void nano::test::system::generate_activity (nano::node & node_a, std::vector<nan
 
 nano::account nano::test::system::get_random_account (std::vector<nano::account> & accounts_a)
 {
-	debug_assert (std::numeric_limits<CryptoPP::word32>::max () > accounts_a.size ());
-	auto index (random_pool::generate_word32 (0, static_cast<CryptoPP::word32> (accounts_a.size () - 1)));
+	debug_assert (std::numeric_limits<uint32_t>::max () > accounts_a.size ());
+	auto index (random_pool::generate_word32 (0, static_cast<uint32_t> (accounts_a.size () - 1)));
 	auto result (accounts_a[index]);
 	return result;
 }
@@ -571,7 +572,7 @@ void nano::test::system::generate_mass_activity (uint32_t count_a, nano::node & 
 		{
 			auto now (std::chrono::steady_clock::now ());
 			auto us (std::chrono::duration_cast<std::chrono::microseconds> (now - previous).count ());
-			auto count = node_a.ledger.cache.block_count.load ();
+			auto count = node_a.ledger.cache.block_count ();
 			std::cerr << boost::str (boost::format ("Mass activity iteration %1% us %2% us/t %3% block count: %4%\n") % i % us % (us / 256) % count);
 			previous = now;
 		}

@@ -22,8 +22,6 @@
 
 #include <boost/optional.hpp>
 
-#include <lmdb/libraries/liblmdb/lmdb.h>
-
 namespace boost
 {
 namespace filesystem
@@ -34,7 +32,7 @@ namespace filesystem
 
 namespace nano
 {
-using mdb_val = db_val<MDB_val>;
+using mdb_val = db_val<rsnano::MdbVal>;
 
 class transaction;
 
@@ -47,8 +45,11 @@ namespace lmdb
 	{
 	private:
 		bool error{ false };
+
+	public:
 		rsnano::LmdbStoreHandle * handle;
-		nano::mdb_env env_m;
+
+	private:
 		nano::lmdb::account_store account_store;
 		nano::lmdb::block_store block_store;
 		nano::lmdb::confirmation_height_store confirmation_height_store;
@@ -80,6 +81,7 @@ namespace lmdb
 		store (store &&) = delete;
 		std::unique_ptr<nano::write_transaction> tx_begin_write (std::vector<nano::tables> const & tables_requiring_lock = {}, std::vector<nano::tables> const & tables_no_lock = {}) override;
 		std::unique_ptr<nano::read_transaction> tx_begin_read () const override;
+		void initialize (nano::write_transaction const & transaction_a, nano::ledger_cache & ledger_cache_a, nano::ledger_constants & constants) override;
 		std::string vendor_get () const override;
 		void serialize_mdb_tracker (boost::property_tree::ptree &, std::chrono::milliseconds, std::chrono::milliseconds) override;
 		void serialize_memory_stats (boost::property_tree::ptree &) override;
@@ -98,6 +100,7 @@ namespace lmdb
 		bool copy_db (boost::filesystem::path const & destination_file) override;
 		void rebuild_db (nano::write_transaction const & transaction_a) override;
 		bool init_error () const override;
+		rsnano::LmdbStoreHandle * get_handle () const override;
 
 	private:
 		friend class mdb_block_store_supported_version_upgrades_Test;

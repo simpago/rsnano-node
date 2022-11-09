@@ -2,7 +2,9 @@
 
 #include <nano/lib/locks.hpp>
 #include <nano/lib/stats.hpp>
+#include <nano/node/bandwidth_limiter.hpp>
 #include <nano/node/common.hpp>
+#include <nano/node/messages.hpp>
 #include <nano/node/socket.hpp>
 
 #include <boost/asio/ip/network_v6.hpp>
@@ -14,22 +16,6 @@ class ChannelHandle;
 }
 namespace nano
 {
-class bandwidth_limiter final
-{
-public:
-	// initialize with limit 0 = unbounded
-	bandwidth_limiter (double, std::size_t);
-	explicit bandwidth_limiter (rsnano::BandwidthLimiterHandle * handle_a);
-	bandwidth_limiter (bandwidth_limiter && other_a);
-	bandwidth_limiter (bandwidth_limiter const &) = delete;
-	~bandwidth_limiter ();
-	bool should_drop (std::size_t const &);
-	void reset (double, std::size_t);
-
-public:
-	rsnano::BandwidthLimiterHandle * handle;
-};
-
 namespace transport
 {
 	class callback_visitor : public nano::message_visitor
@@ -112,7 +98,7 @@ namespace transport
 		virtual bool operator== (nano::transport::channel const &) const = 0;
 		bool is_temporary () const;
 		void set_temporary (bool temporary);
-		virtual void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter) = 0;
+		virtual void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter, nano::bandwidth_limit_type = nano::bandwidth_limit_type::standard) = 0;
 		// TODO: investigate clang-tidy warning about default parameters on virtual/override functions
 		//
 		virtual void send_buffer (nano::shared_const_buffer const &, std::function<void (boost::system::error_code const &, std::size_t)> const & = nullptr, nano::buffer_drop_policy = nano::buffer_drop_policy::limiter) = 0;

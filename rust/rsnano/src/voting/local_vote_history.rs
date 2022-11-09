@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::{BlockHash, Root};
+use crate::core::{BlockHash, Root};
 
 use super::Vote;
 
@@ -168,7 +168,7 @@ fn clean(data: &mut LocalVoteHistoryData, max_cache: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Account, KeyPair};
+    use crate::core::{Account, KeyPair};
 
     #[test]
     fn empty_history() {

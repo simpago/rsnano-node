@@ -89,7 +89,7 @@ void nano::confirmation_height_bounded::process (std::shared_ptr<nano::block> or
 
 		if (!block)
 		{
-			if (ledger.pruning && ledger.store.pruned ().exists (*transaction, current))
+			if (ledger.pruning_enabled () && ledger.store.pruned ().exists (*transaction, current))
 			{
 				if (!receive_source_pairs.empty ())
 				{
@@ -381,18 +381,7 @@ void nano::confirmation_height_bounded::cement_blocks (nano::write_guard & scope
 			auto const & account = pending.account;
 
 			auto write_confirmation_height = [&account, &ledger = ledger, &transaction] (uint64_t num_blocks_cemented, uint64_t confirmation_height, nano::block_hash const & confirmed_frontier) {
-#ifndef NDEBUG
-				// Extra debug checks
-				nano::confirmation_height_info confirmation_height_info;
-				ledger.store.confirmation_height ().get (*transaction, account, confirmation_height_info);
-				auto block (ledger.store.block ().get (*transaction, confirmed_frontier));
-				debug_assert (block != nullptr);
-				debug_assert (block->sideband ().height () == confirmation_height_info.height () + num_blocks_cemented);
-#endif
-				ledger.store.confirmation_height ().put (*transaction, account, nano::confirmation_height_info{ confirmation_height, confirmed_frontier });
-				ledger.cache.cemented_count += num_blocks_cemented;
-				ledger.stats.add (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed, nano::stat::dir::in, num_blocks_cemented);
-				ledger.stats.add (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed_bounded, nano::stat::dir::in, num_blocks_cemented);
+				ledger.write_confirmation_height (*transaction, account, num_blocks_cemented, confirmation_height, confirmed_frontier);
 			};
 
 			nano::confirmation_height_info confirmation_height_info;

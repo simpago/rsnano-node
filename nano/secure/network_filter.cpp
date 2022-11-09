@@ -33,7 +33,7 @@ bool nano::network_filter::apply (uint8_t const * bytes_a, size_t count_a, nano:
 void nano::network_filter::clear (nano::uint128_t const & digest_a)
 {
 	std::uint8_t digest_bytes[16];
-	boost::multiprecision::export_bits (digest_a, std::begin (digest_bytes), 8, true);
+	boost::multiprecision::export_bits (digest_a, std::rbegin (digest_bytes), 8, false);
 	rsnano::rsn_network_filter_clear (handle, &digest_bytes);
 }
 
@@ -43,7 +43,7 @@ void nano::network_filter::clear (std::vector<nano::uint128_t> const & digests_a
 	auto i = 0;
 	for (auto d : digests_a)
 	{
-		boost::multiprecision::export_bits (d, digest_bytes[i], 8, true);
+		boost::multiprecision::export_bits (d, std::rbegin (digest_bytes[i]), 8, false);
 		++i;
 	}
 

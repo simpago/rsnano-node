@@ -662,7 +662,7 @@ TEST (rpc, wallet_password_enter)
 	while (password_l == 0)
 	{
 		ASSERT_NO_ERROR (system.poll ());
-		system.wallet (0)->store.password.value (password_l);
+		system.wallet (0)->store.password (password_l);
 	}
 	boost::property_tree::ptree request;
 	std::string wallet;
@@ -1456,7 +1456,7 @@ TEST (rpc, history_pruning)
 		election->force_confirm ();
 	}
 	ASSERT_TIMELY (2s, node0->active.empty () && node0->block_confirmed (uchange->hash ()));
-	ASSERT_TIMELY (2s, node0->ledger.cache.cemented_count == 7 && node0->confirmation_height_processor.current ().is_zero () && node0->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (2s, node0->ledger.cache.cemented_count () == 7 && node0->confirmation_height_processor.current ().is_zero () && node0->confirmation_height_processor.awaiting_processing_size () == 0);
 	// Pruning action
 	{
 		auto transaction (node0->store.tx_begin_write ());
@@ -1900,11 +1900,11 @@ TEST (rpc, keepalive)
 	auto port (boost::str (boost::format ("%1%") % node1->network->endpoint ().port ()));
 	request.put ("address", address);
 	request.put ("port", port);
-	ASSERT_EQ (nullptr, node0->network->tcp_channels->find_channel (nano::transport::map_endpoint_to_tcp (node1->network->endpoint ())));
+	ASSERT_EQ (nullptr, node0->network->tcp_channels->find_node_id (node1->get_node_id ()));
 	ASSERT_EQ (0, node0->network->size ());
 	auto response (wait_response (system, rpc_ctx, request));
 	system.deadline_set (10s);
-	while (node0->network->find_channel (node1->network->endpoint ()) == nullptr)
+	while (node0->network->find_node_id (node1->get_node_id ()) == nullptr)
 	{
 		ASSERT_EQ (0, node0->network->size ());
 		ASSERT_NO_ERROR (system.poll ());
@@ -1954,7 +1954,7 @@ TEST (rpc, pending)
 	auto block1 (system.wallet (0)->send_action (nano::dev::genesis_key.pub, key1.pub, 100));
 	node->scheduler.flush ();
 	ASSERT_TIMELY (5s, !node->active.active (*block1));
-	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count () == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
 	auto const rpc_ctx = add_rpc (system, node);
 	boost::property_tree::ptree request;
 	request.put ("action", "pending");
@@ -2233,7 +2233,7 @@ TEST (rpc, pending_burn)
 	auto const rpc_ctx = add_rpc (system, node);
 	node->scheduler.flush ();
 	ASSERT_TIMELY (5s, !node->active.active (*block1));
-	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count () == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
 	boost::property_tree::ptree request;
 	request.put ("action", "pending");
 	request.put ("account", nano::dev::constants.burn_account.to_account ());
@@ -2782,7 +2782,7 @@ TEST (rpc, block_count_pruning)
 	node1->process_active (receive1);
 	node1->block_processor.flush ();
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
-	ASSERT_TIMELY (5s, node1->ledger.cache.cemented_count == 3 && node1->confirmation_height_processor.current ().is_zero () && node1->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node1->ledger.cache.cemented_count () == 3 && node1->confirmation_height_processor.current ().is_zero () && node1->confirmation_height_processor.awaiting_processing_size () == 0);
 	// Pruning action
 	{
 		auto transaction (node1->store.tx_begin_write ());
@@ -3643,7 +3643,7 @@ TEST (rpc, accounts_receivable)
 	auto block1 (system.wallet (0)->send_action (nano::dev::genesis_key.pub, key1.pub, 100));
 	node->scheduler.flush ();
 	ASSERT_TIMELY (5s, !node->active.active (*block1));
-	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count () == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
 
 	auto const rpc_ctx = add_rpc (system, node);
 	boost::property_tree::ptree request;
@@ -3762,19 +3762,19 @@ TEST (rpc, wallet_info)
 	system.wallet (0)->insert_adhoc (key.prv);
 
 	// at first, 1 block and 1 confirmed -- the genesis
-	ASSERT_EQ (1, node->ledger.cache.block_count);
-	ASSERT_EQ (1, node->ledger.cache.cemented_count);
+	ASSERT_EQ (1, node->ledger.cache.block_count ());
+	ASSERT_EQ (1, node->ledger.cache.cemented_count ());
 
 	auto send (system.wallet (0)->send_action (nano::dev::genesis_key.pub, key.pub, nano::Gxrb_ratio));
 	// after the send, expect 2 blocks immediately, then 2 confirmed in a timely manner,
 	// and finally 3 blocks and 3 confirmed after the wallet generates the receive block for this send
-	ASSERT_EQ (2, node->ledger.cache.block_count);
-	ASSERT_TIMELY (5s, 2 == node->ledger.cache.cemented_count);
-	ASSERT_TIMELY (5s, 3 == node->ledger.cache.block_count && 3 == node->ledger.cache.cemented_count);
+	ASSERT_EQ (2, node->ledger.cache.block_count ());
+	ASSERT_TIMELY (5s, 2 == node->ledger.cache.cemented_count ());
+	ASSERT_TIMELY (5s, 3 == node->ledger.cache.block_count () && 3 == node->ledger.cache.cemented_count ());
 
 	// do another send to be able to expect some "pending" down below
 	auto send2 (system.wallet (0)->send_action (nano::dev::genesis_key.pub, key.pub, 1));
-	ASSERT_TIMELY (5s, 4 == node->ledger.cache.block_count && 4 == node->ledger.cache.cemented_count);
+	ASSERT_TIMELY (5s, 4 == node->ledger.cache.block_count () && 4 == node->ledger.cache.cemented_count ());
 
 	nano::account account (system.wallet (0)->deterministic_insert ());
 	{
@@ -3852,7 +3852,7 @@ TEST (rpc, pending_exists)
 	auto block1 (system.wallet (0)->send_action (nano::dev::genesis_key.pub, key1.pub, 100));
 	node->scheduler.flush ();
 	ASSERT_TIMELY (5s, !node->active.active (*block1));
-	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node->ledger.cache.cemented_count () == 2 && node->confirmation_height_processor.current ().is_zero () && node->confirmation_height_processor.awaiting_processing_size () == 0);
 
 	auto const rpc_ctx = add_rpc (system, node);
 	boost::property_tree::ptree request;
@@ -3913,7 +3913,7 @@ TEST (rpc, wallet_receivable)
 	auto iterations (0);
 	auto block1 (system0.wallet (0)->send_action (nano::dev::genesis_key.pub, key1.pub, 100));
 	node->scheduler.flush ();
-	while (node->active.active (*block1) || node->ledger.cache.cemented_count < 2 || !node->confirmation_height_processor.current ().is_zero () || node->confirmation_height_processor.awaiting_processing_size () != 0)
+	while (node->active.active (*block1) || node->ledger.cache.cemented_count () < 2 || !node->confirmation_height_processor.current ().is_zero () || node->confirmation_height_processor.awaiting_processing_size () != 0)
 	{
 		system0.poll ();
 		++iterations;
@@ -4860,7 +4860,7 @@ TEST (rpc, block_info_pruning)
 	node1->process_active (receive1);
 	node1->block_processor.flush ();
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
-	ASSERT_TIMELY (5s, node1->ledger.cache.cemented_count == 3 && node1->confirmation_height_processor.current ().is_zero () && node1->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node1->ledger.cache.cemented_count () == 3 && node1->confirmation_height_processor.current ().is_zero () && node1->confirmation_height_processor.awaiting_processing_size () == 0);
 	// Pruning action
 	{
 		auto transaction (node1->store.tx_begin_write ());
@@ -4927,7 +4927,7 @@ TEST (rpc, pruned_exists)
 	node1->process_active (receive1);
 	node1->block_processor.flush ();
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
-	ASSERT_TIMELY (5s, node1->ledger.cache.cemented_count == 3 && node1->confirmation_height_processor.current ().is_zero () && node1->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node1->ledger.cache.cemented_count () == 3 && node1->confirmation_height_processor.current ().is_zero () && node1->confirmation_height_processor.awaiting_processing_size () == 0);
 	// Pruning action
 	{
 		auto transaction (node1->store.tx_begin_write ());
@@ -7259,12 +7259,12 @@ TEST (rpc, receive_pruned)
 	// Extra send frontier
 	auto send3 (wallet1->send_action (nano::dev::genesis_key.pub, key1.pub, node2->config->receive_minimum.number (), *node2->work_generate_blocking (send1->hash ())));
 	// Pruning
-	ASSERT_TIMELY (5s, node2->ledger.cache.cemented_count == 6 && node2->confirmation_height_processor.current ().is_zero () && node2->confirmation_height_processor.awaiting_processing_size () == 0);
+	ASSERT_TIMELY (5s, node2->ledger.cache.cemented_count () == 6 && node2->confirmation_height_processor.current ().is_zero () && node2->confirmation_height_processor.awaiting_processing_size () == 0);
 	{
 		auto transaction (node2->store.tx_begin_write ());
 		ASSERT_EQ (2, node2->ledger.pruning_action (*transaction, send2->hash (), 1));
 	}
-	ASSERT_EQ (2, node2->ledger.cache.pruned_count);
+	ASSERT_EQ (2, node2->ledger.cache.pruned_count ());
 	ASSERT_TRUE (node2->ledger.block_or_pruned_exists (send1->hash ()));
 	ASSERT_FALSE (node2->store.block ().exists (*node2->store.tx_begin_read (), send1->hash ()));
 	ASSERT_TRUE (node2->ledger.block_or_pruned_exists (send2->hash ()));
@@ -7369,7 +7369,7 @@ TEST (rpc, telemetry_all)
 	// First need to set up the cached data
 	std::atomic<bool> done{ false };
 	auto node = system.nodes.front ();
-	node1->telemetry->get_metrics_single_peer_async (node1->network->find_channel (node->network->endpoint ()), [&done] (nano::telemetry_data_response const & telemetry_data_response_a) {
+	node1->telemetry->get_metrics_single_peer_async (node1->network->find_node_id (node->get_node_id ()), [&done] (nano::telemetry_data_response const & telemetry_data_response_a) {
 		ASSERT_FALSE (telemetry_data_response_a.error);
 		done = true;
 	});

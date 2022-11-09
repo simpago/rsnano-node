@@ -2,9 +2,11 @@ use anyhow::Result;
 use std::{sync::RwLock, time::Duration};
 
 use crate::{
-    sign_message,
+    core::{
+        sign_message, validate_message, Account, BlockHash, BlockHashBuilder, FullHash, RawKey,
+        Signature,
+    },
     utils::{Deserialize, PropertyTreeWriter, Serialize, Stream},
-    validate_message, Account, BlockHash, BlockHashBuilder, FullHash, RawKey, Signature,
 };
 
 #[derive(Clone)]
@@ -27,7 +29,7 @@ impl Vote {
     pub(crate) fn null() -> Self {
         Self {
             timestamp: 0,
-            voting_account: Account::new(),
+            voting_account: Account::zero(),
             signature: Signature::new(),
             hashes: Vec::new(),
         }
@@ -46,11 +48,8 @@ impl Vote {
             signature: Signature::new(),
             hashes,
         };
-        result.signature = sign_message(
-            prv,
-            &result.voting_account.public_key,
-            result.hash().as_bytes(),
-        )?;
+        result.signature =
+            sign_message(prv, &result.voting_account.into(), result.hash().as_bytes())?;
         Ok(result)
     }
 
@@ -136,7 +135,7 @@ impl Vote {
 
     pub(crate) fn validate(&self) -> Result<()> {
         validate_message(
-            &self.voting_account.public_key,
+            &self.voting_account.into(),
             self.hash().as_bytes(),
             &self.signature,
         )

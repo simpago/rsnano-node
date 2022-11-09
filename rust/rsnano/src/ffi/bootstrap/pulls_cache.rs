@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use crate::{
     bootstrap::{PullInfo, PullsCache},
-    BlockHash, HashOrAccount,
+    core::{BlockHash, HashOrAccount},
 };
 
 pub struct PullsCacheHandle(Mutex<PullsCache>);
@@ -39,10 +39,10 @@ impl From<&PullInfoDto> for PullInfo {
 impl From<&PullInfo> for PullInfoDto {
     fn from(pull: &PullInfo) -> Self {
         Self {
-            account_or_head: pull.account_or_head.to_bytes(),
-            head: pull.head.to_bytes(),
-            head_original: pull.head_original.to_bytes(),
-            end: pull.end.to_bytes(),
+            account_or_head: *pull.account_or_head.as_bytes(),
+            head: *pull.head.as_bytes(),
+            head_original: *pull.head_original.as_bytes(),
+            end: *pull.end.as_bytes(),
             count: pull.count,
             attempts: pull.attempts,
             processed: pull.processed,

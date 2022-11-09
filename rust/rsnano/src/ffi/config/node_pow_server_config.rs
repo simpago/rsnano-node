@@ -1,5 +1,6 @@
-use crate::NodePowServerConfig;
 use std::os::unix::prelude::OsStrExt;
+
+use crate::config::NodePowServerConfig;
 
 #[repr(C)]
 pub struct NodePowServerConfigDto {

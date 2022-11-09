@@ -1,22 +1,21 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use crate::{
-    bootstrap::BootstrapServer,
-    network::{Channel, ChannelTcp, SocketImpl},
-    Account,
+    core::Account,
+    transport::{Channel, ChannelTcp, SocketImpl, TcpServer},
 };
 
 pub struct ChannelTcpWrapper {
     pub channel: Arc<ChannelTcp>,
     socket: Arc<SocketImpl>,
-    pub response_server: Option<Arc<BootstrapServer>>,
+    pub response_server: Option<Arc<TcpServer>>,
 }
 
 impl ChannelTcpWrapper {
     pub fn new(
         channel: Arc<ChannelTcp>,
         socket: Arc<SocketImpl>,
-        response_server: Option<Arc<BootstrapServer>>,
+        response_server: Option<Arc<TcpServer>>,
     ) -> Self {
         Self {
             channel,

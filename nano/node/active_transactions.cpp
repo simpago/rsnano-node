@@ -18,8 +18,6 @@ nano::active_transactions::active_transactions (nano::node & node_a, nano::confi
 	scheduler{ node_a.scheduler }, // Move dependencies requiring this circular reference
 	confirmation_height_processor{ confirmation_height_processor_a },
 	node{ node_a },
-	generator{ *node_a.config, node_a.ledger, node_a.wallets, node_a.vote_processor, node_a.history, *node_a.network, *node_a.stats, false },
-	final_generator{ *node_a.config, node_a.ledger, node_a.wallets, node_a.vote_processor, node_a.history, *node_a.network, *node_a.stats, true },
 	recently_confirmed{ 65536 },
 	recently_cemented{ node.config->confirmation_history_size },
 	election_time_to_live{ node_a.network_params.network.is_dev_network () ? 0s : 2s },
@@ -119,13 +117,13 @@ void nano::active_transactions::block_cemented_callback (std::shared_ptr<nano::b
 
 		auto account (!block_a->account ().is_zero () ? block_a->account () : block_a->sideband ().account ());
 		debug_assert (!account.is_zero ());
-		if (!node.ledger.cache.final_votes_confirmation_canary.load () && account == node.network_params.ledger.final_votes_canary_account && block_a->sideband ().height () >= node.network_params.ledger.final_votes_canary_height)
+		if (!node.ledger.cache.final_votes_confirmation_canary () && account == node.network_params.ledger.final_votes_canary_account && block_a->sideband ().height () >= node.network_params.ledger.final_votes_canary_height)
 		{
-			node.ledger.cache.final_votes_confirmation_canary.store (true);
+			node.ledger.cache.set_final_votes_confirmation_canary (true);
 		}
 
 		// Next-block activations are done after cementing hardcoded bootstrap count to allow confirming very large chains without interference
-		bool const cemented_bootstrap_count_reached{ node.ledger.cache.cemented_count >= node.ledger.bootstrap_weight_max_blocks };
+		bool const cemented_bootstrap_count_reached{ node.ledger.cache.cemented_count () >= node.ledger.get_bootstrap_weight_max_blocks () };
 
 		// Next-block activations are only done for blocks with previously active elections
 		bool const was_active{ *election_status_type == nano::election_status_type::active_confirmed_quorum || *election_status_type == nano::election_status_type::active_confirmation_height };
@@ -202,8 +200,8 @@ void nano::active_transactions::request_confirm (nano::unique_lock<nano::mutex> 
 
 	nano::confirmation_solicitor solicitor (*node.network, *node.config);
 	solicitor.prepare (node.rep_crawler.principal_representatives (std::numeric_limits<std::size_t>::max ()));
-	nano::vote_generator_session generator_session (generator);
-	nano::vote_generator_session final_generator_session (generator);
+	nano::vote_generator_session generator_session (node.generator);
+	nano::vote_generator_session final_generator_session (node.final_generator);
 
 	std::size_t unconfirmed_count_l (0);
 	nano::timer<std::chrono::milliseconds> elapsed (nano::timer_state::started);
@@ -313,7 +311,7 @@ std::vector<std::shared_ptr<nano::election>> nano::active_transactions::list_act
 	std::vector<std::shared_ptr<nano::election>> result_l;
 	result_l.reserve (std::min (max_a, roots.size ()));
 	{
-		auto & sorted_roots_l (roots.get<tag_random_access> ());
+		auto & sorted_roots_l (roots.get<tag_sequenced> ());
 		std::size_t count_l{ 0 };
 		for (auto i = sorted_roots_l.begin (), n = sorted_roots_l.end (); i != n && count_l < max_a; ++i, ++count_l)
 		{
@@ -338,15 +336,6 @@ void nano::active_transactions::request_loop ()
 
 	while (!stopped && !node.flags.disable_request_loop ())
 	{
-		// If many votes are queued, ensure at least the currently active ones finish processing
-		lock.unlock ();
-		condition.notify_all ();
-		if (node.vote_processor.half_full ())
-		{
-			node.vote_processor.flush ();
-		}
-		lock.lock ();
-
 		auto const stamp_l = std::chrono::steady_clock::now ();
 
 		request_confirm (lock);
@@ -375,8 +364,6 @@ void nano::active_transactions::stop ()
 	{
 		thread.join ();
 	}
-	generator.stop ();
-	final_generator.stop ();
 	lock.lock ();
 	roots.clear ();
 }
@@ -590,7 +577,7 @@ void nano::active_transactions::erase_oldest ()
 	if (!roots.empty ())
 	{
 		node.stats->inc (nano::stat::type::election, nano::stat::detail::election_drop_overflow);
-		auto item = roots.get<tag_random_access> ().front ();
+		auto item = roots.get<tag_sequenced> ().front ();
 		cleanup_election (lock, item.election);
 	}
 }
@@ -690,25 +677,24 @@ std::size_t nano::active_transactions::election_winner_details_size ()
 
 void nano::active_transactions::clear ()
 {
-	nano::lock_guard<nano::mutex> guard{ mutex };
-	blocks.clear ();
-	roots.clear ();
+	{
+		nano::lock_guard<nano::mutex> guard{ mutex };
+		blocks.clear ();
+		roots.clear ();
+	}
+	vacancy_update ();
 }
 
 std::unique_ptr<nano::container_info_component> nano::collect_container_info (active_transactions & active_transactions, std::string const & name)
 {
 	std::size_t roots_count;
 	std::size_t blocks_count;
-	std::size_t recently_confirmed_count;
-	std::size_t recently_cemented_count;
 	std::size_t hinted_count;
 
 	{
 		nano::lock_guard<nano::mutex> guard (active_transactions.mutex);
 		roots_count = active_transactions.roots.size ();
 		blocks_count = active_transactions.blocks.size ();
-		recently_confirmed_count = active_transactions.recently_confirmed.size ();
-		recently_cemented_count = active_transactions.recently_cemented.size ();
 		hinted_count = active_transactions.active_hinted_elections_count;
 	}
 
@@ -717,7 +703,6 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (ac
 	composite->add_component (std::make_unique<container_info_leaf> (container_info{ "blocks", blocks_count, sizeof (decltype (active_transactions.blocks)::value_type) }));
 	composite->add_component (std::make_unique<container_info_leaf> (container_info{ "election_winner_details", active_transactions.election_winner_details_size (), sizeof (decltype (active_transactions.election_winner_details)::value_type) }));
 	composite->add_component (std::make_unique<container_info_leaf> (container_info{ "hinted", hinted_count, 0 }));
-	composite->add_component (collect_container_info (active_transactions.generator, "generator"));
 
 	composite->add_component (active_transactions.recently_confirmed.collect_container_info ("recently_confirmed"));
 	composite->add_component (active_transactions.recently_cemented.collect_container_info ("recently_cemented"));

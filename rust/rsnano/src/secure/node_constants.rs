@@ -1,4 +1,4 @@
-use crate::NetworkConstants;
+use crate::config::NetworkConstants;
 
 pub struct NodeConstants {
     pub backup_interval_m: i64,

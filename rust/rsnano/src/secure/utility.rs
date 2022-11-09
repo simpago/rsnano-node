@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use std::{path::PathBuf, sync::Mutex};
 use uuid::Uuid;
 
-use crate::{NetworkConstants, Networks};
+use crate::{config::NetworkConstants, core::Networks};
 
 //todo refactor: this global state thing is not a good solution
 static ALL_UNIQUE_PATHS: Lazy<Mutex<Vec<PathBuf>>> = Lazy::new(|| Mutex::new(Vec::new()));

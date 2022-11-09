@@ -127,9 +127,8 @@ class active_transactions final
 
 	// clang-format off
 	class tag_account {};
-	class tag_random_access {};
 	class tag_root {};
-	class tag_sequence {};
+	class tag_sequenced {};
 	class tag_uncemented {};
 	class tag_arrival {};
 	class tag_hash {};
@@ -139,13 +138,12 @@ public:
 	// clang-format off
 	using ordered_roots = boost::multi_index_container<conflict_info,
 	mi::indexed_by<
-		mi::random_access<mi::tag<tag_random_access>>,
+		mi::sequenced<mi::tag<tag_sequenced>>,
 		mi::hashed_unique<mi::tag<tag_root>,
 			mi::member<conflict_info, nano::qualified_root, &conflict_info::root>>
 	>>;
 	// clang-format on
 	ordered_roots roots;
-	using roots_iterator = active_transactions::ordered_roots::index_iterator<tag_root>::type;
 
 	explicit active_transactions (nano::node &, nano::confirmation_height_processor &);
 	~active_transactions ();
@@ -205,9 +203,6 @@ public:
 	std::size_t election_winner_details_size ();
 	void add_election_winner_details (nano::block_hash const &, std::shared_ptr<nano::election> const &);
 	void remove_election_winner_details (nano::block_hash const &);
-
-	nano::vote_generator generator;
-	nano::vote_generator final_generator;
 
 	recently_confirmed_cache recently_confirmed;
 	recently_cemented_cache recently_cemented;

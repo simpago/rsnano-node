@@ -4,8 +4,6 @@
 #include <nano/node/node.hpp>
 #include <nano/node/transport/tcp.hpp>
 
-#include <crypto/cryptopp/config.h>
-
 #include <boost/format.hpp>
 
 #include <algorithm>

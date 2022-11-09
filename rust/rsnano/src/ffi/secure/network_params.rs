@@ -2,15 +2,16 @@ use std::convert::{TryFrom, TryInto};
 
 use super::{
     bootstrap_constants::{fill_bootstrap_constants_dto, BootstrapConstantsDto},
-    ledger_constants::{fill_ledger_constants_dto, LedgerConstantsDto},
     node_constants::{fill_node_constants_dto, NodeConstantsDto},
     portmapping_constants::{fill_portmapping_constants_dto, PortmappingConstantsDto},
     voting_constants::{fill_voting_constants_dto, VotingConstantsDto},
 };
 use crate::{
     ffi::{
-        fill_network_constants_dto, fill_work_thresholds_dto, NetworkConstantsDto,
-        WorkThresholdsDto,
+        fill_network_constants_dto,
+        ledger::{fill_ledger_constants_dto, LedgerConstantsDto},
+        work::{fill_work_thresholds_dto, WorkThresholdsDto},
+        NetworkConstantsDto,
     },
     NetworkParams,
 };

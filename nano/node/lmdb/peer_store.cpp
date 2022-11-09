@@ -60,8 +60,3 @@ nano::store_iterator<nano::endpoint_key, nano::no_value> nano::lmdb::peer_store:
 {
 	return nano::store_iterator<nano::endpoint_key, nano::no_value> (nullptr);
 }
-
-MDB_dbi nano::lmdb::peer_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_peer_store_table_handle (handle);
-}

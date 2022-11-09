@@ -75,7 +75,7 @@ TEST (ledger_walker, genesis_account_longer)
 		auto const send = system.wallet (0)->send_action (nano::dev::genesis_key.pub, nano::dev::genesis_key.pub, 1);
 		ASSERT_TRUE (send);
 		EXPECT_EQ (get_number_of_walked_blocks (send->hash ()), 1 + itr * 2 - 1);
-		ASSERT_TIMELY (3s, 1 + itr * 2 == node->ledger.cache.cemented_count);
+		ASSERT_TIMELY (3s, 1 + itr * 2 == node->ledger.cache.cemented_count ());
 		ASSERT_FALSE (node->ledger.store.account ().get (*transaction, nano::dev::genesis_key.pub, genesis_account_info));
 		// TODO: check issue with account head
 		// EXPECT_EQ(get_number_of_walked_blocks (genesis_account_info.head), 1 + itr * 2);
@@ -99,12 +99,12 @@ TEST (ledger_walker, cross_account)
 
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	ASSERT_TRUE (system.wallet (0)->send_action (nano::dev::genesis_key.pub, nano::dev::genesis_key.pub, 1));
-	ASSERT_TIMELY (3s, 3 == node->ledger.cache.cemented_count);
+	ASSERT_TIMELY (3s, 3 == node->ledger.cache.cemented_count ());
 
 	nano::keypair key{};
 	system.wallet (0)->insert_adhoc (key.prv);
 	ASSERT_TRUE (system.wallet (0)->send_action (nano::dev::genesis_key.pub, key.pub, 1));
-	ASSERT_TIMELY (3s, 5 == node->ledger.cache.cemented_count);
+	ASSERT_TIMELY (3s, 5 == node->ledger.cache.cemented_count ());
 
 	auto const transaction = node->ledger.store.tx_begin_read ();
 	nano::account_info account_info{};
@@ -155,7 +155,7 @@ TEST (ledger_walker, DISABLED_ladder_geometry)
 		system.wallet (0)->insert_adhoc (keys[itr].prv);
 		auto const block = system.wallet (0)->send_action (nano::dev::genesis_key.pub, keys[itr].pub, 1000);
 		ASSERT_TRUE (block);
-		ASSERT_TIMELY (3s, 1 + (itr + 1) * 2 == node->ledger.cache.cemented_count);
+		ASSERT_TIMELY (3s, 1 + (itr + 1) * 2 == node->ledger.cache.cemented_count ());
 	}
 
 	std::vector<nano::uint128_t> amounts_to_send (10);
@@ -170,7 +170,7 @@ TEST (ledger_walker, DISABLED_ladder_geometry)
 
 		auto const send = system.wallet (0)->send_action (keys[source_index].pub, keys[destination_index].pub, amounts_to_send[itr]);
 		ASSERT_TRUE (send);
-		ASSERT_TIMELY (3s, 1 + keys.size () * 2 + (itr + 1) * 2 == node->ledger.cache.cemented_count);
+		ASSERT_TIMELY (3s, 1 + keys.size () * 2 + (itr + 1) * 2 == node->ledger.cache.cemented_count ());
 	}
 
 	ASSERT_TRUE (last_destination);

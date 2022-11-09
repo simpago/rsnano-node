@@ -8,8 +8,9 @@
 
 #include <numeric>
 
-nano::confirmation_height_unbounded::confirmation_height_unbounded (nano::ledger & ledger_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, nano::logger_mt & logger_a, std::atomic<bool> & stopped_a, uint64_t & batch_write_size_a, std::function<void (std::vector<std::shared_ptr<nano::block>> const &)> const & notify_observers_callback_a, std::function<void (nano::block_hash const &)> const & notify_block_already_cemented_observers_callback_a, std::function<uint64_t ()> const & awaiting_processing_size_callback_a) :
+nano::confirmation_height_unbounded::confirmation_height_unbounded (nano::ledger & ledger_a, nano::stat & stats_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, nano::logger_mt & logger_a, std::atomic<bool> & stopped_a, uint64_t & batch_write_size_a, std::function<void (std::vector<std::shared_ptr<nano::block>> const &)> const & notify_observers_callback_a, std::function<void (nano::block_hash const &)> const & notify_block_already_cemented_observers_callback_a, std::function<uint64_t ()> const & awaiting_processing_size_callback_a) :
 	ledger (ledger_a),
+	stats (stats_a),
 	write_database_queue (write_database_queue_a),
 	batch_separate_pending_min_time (batch_separate_pending_min_time_a),
 	logging (logging_a),
@@ -378,12 +379,12 @@ void nano::confirmation_height_unbounded::cement_blocks (nano::write_guard & sco
 			if (pending.height > confirmation_height)
 			{
 				auto block = ledger.store.block ().get (*transaction, pending.hash);
-				debug_assert (ledger.pruning || block != nullptr);
-				debug_assert (ledger.pruning || block->sideband ().height () == pending.height);
+				debug_assert (ledger.pruning_enabled () || block != nullptr);
+				debug_assert (ledger.pruning_enabled () || block->sideband ().height () == pending.height);
 
 				if (!block)
 				{
-					if (ledger.pruning && ledger.store.pruned ().exists (*transaction, pending.hash))
+					if (ledger.pruning_enabled () && ledger.store.pruned ().exists (*transaction, pending.hash))
 					{
 						pending_writes.erase (pending_writes.begin ());
 						--pending_writes_size;
@@ -398,11 +399,11 @@ void nano::confirmation_height_unbounded::cement_blocks (nano::write_guard & sco
 						break;
 					}
 				}
-				ledger.stats.add (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed, nano::stat::dir::in, pending.height - confirmation_height);
-				ledger.stats.add (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed_unbounded, nano::stat::dir::in, pending.height - confirmation_height);
+				stats.add (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed, nano::stat::dir::in, pending.height - confirmation_height);
+				stats.add (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed_unbounded, nano::stat::dir::in, pending.height - confirmation_height);
 				debug_assert (pending.num_blocks_confirmed == pending.height - confirmation_height);
 				confirmation_height = pending.height;
-				ledger.cache.cemented_count += pending.num_blocks_confirmed;
+				ledger.cache.add_cemented (pending.num_blocks_confirmed);
 				ledger.store.confirmation_height ().put (*transaction, pending.account, { confirmation_height, pending.hash });
 
 				// Reverse it so that the callbacks start from the lowest newly cemented block and move upwards

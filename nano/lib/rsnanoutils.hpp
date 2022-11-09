@@ -3,6 +3,7 @@
 #include <nano/boost/asio/ip/tcp.hpp>
 #include <nano/boost/asio/ip/udp.hpp>
 #include <nano/lib/rsnano.hpp>
+#include <nano/node/messages.hpp>
 
 namespace nano
 {
@@ -33,4 +34,7 @@ public:
 private:
 	rsnano::IoContextHandle * handle_m;
 };
+
+void read_block_array_dto (rsnano::BlockArrayDto & dto, std::vector<std::shared_ptr<nano::block>> & list_a);
+rsnano::BlockArrayDto to_block_array_dto (std::vector<std::shared_ptr<nano::block>> & list_a);
 }

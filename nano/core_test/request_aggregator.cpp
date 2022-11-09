@@ -11,7 +11,7 @@ using namespace std::chrono_literals;
 
 std::shared_ptr<nano::transport::channel> create_dummy_channel (nano::node & node, std::shared_ptr<nano::socket> client)
 {
-	return std::make_shared<nano::transport::channel_tcp> (node.io_ctx, node.network->limiter, node.network_params.network, client, node.network->tcp_channels);
+	return std::make_shared<nano::transport::channel_tcp> (node.io_ctx, node.outbound_limiter, node.network_params.network, client, node.network->tcp_channels);
 }
 
 TEST (request_aggregator, one)
@@ -279,7 +279,7 @@ TEST (request_aggregator, split)
 	auto election (node.active.election (blocks.back ()->qualified_root ()));
 	ASSERT_NE (nullptr, election);
 	election->force_confirm ();
-	ASSERT_TIMELY (5s, max_vbh + 2 == node.ledger.cache.cemented_count);
+	ASSERT_TIMELY (5s, max_vbh + 2 == node.ledger.cache.cemented_count ());
 	ASSERT_EQ (max_vbh + 1, request.size ());
 	auto client = nano::create_client_socket (node);
 	std::shared_ptr<nano::transport::channel> dummy_channel = create_dummy_channel (node, client);

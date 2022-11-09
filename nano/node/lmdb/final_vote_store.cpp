@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/final_vote_store.hpp>
 #include <nano/node/lmdb/lmdb.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 namespace
 {
@@ -105,9 +104,4 @@ void nano::lmdb::final_vote_store::for_each_par (std::function<void (nano::read_
 {
 	auto context = (void *)&action_a;
 	rsnano::rsn_lmdb_final_vote_store_for_each_par (handle, for_each_par_wrapper, context, for_each_par_delete_context);
-}
-
-MDB_dbi nano::lmdb::final_vote_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_final_vote_store_table_handle (handle);
 }

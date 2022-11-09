@@ -61,8 +61,3 @@ void nano::lmdb::online_weight_store::clear (nano::write_transaction const & tra
 {
 	return rsnano::rsn_lmdb_online_weight_store_clear (handle, transaction.get_rust_handle ());
 }
-
-MDB_dbi nano::lmdb::online_weight_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_online_weight_store_table_handle (handle);
-}

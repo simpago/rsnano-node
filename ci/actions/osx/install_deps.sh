@@ -2,8 +2,8 @@
 
 brew update
 brew install coreutils
-brew install rust
 brew cask install xquartz
+curl https://sh.rustup.rs -sSf | bash -s -- -y
 sudo util/build_prep/fetch_boost.sh
 util/build_prep/macosx/build_qt.sh
 git clone https://github.com/corrosion-rs/corrosion.git

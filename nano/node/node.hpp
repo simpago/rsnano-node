@@ -5,6 +5,7 @@
 #include <nano/lib/work.hpp>
 #include <nano/node/active_transactions.hpp>
 #include <nano/node/backlog_population.hpp>
+#include <nano/node/bandwidth_limiter.hpp>
 #include <nano/node/block_arrival.hpp>
 #include <nano/node/blockprocessor.hpp>
 #include <nano/node/bootstrap/bootstrap.hpp>
@@ -25,6 +26,7 @@
 #include <nano/node/request_aggregator.hpp>
 #include <nano/node/signatures.hpp>
 #include <nano/node/telemetry.hpp>
+#include <nano/node/transport/tcp_server.hpp>
 #include <nano/node/unchecked_map.hpp>
 #include <nano/node/vote_cache.hpp>
 #include <nano/node/vote_processor.hpp>
@@ -56,6 +58,7 @@ std::unique_ptr<container_info_component> collect_container_info (rep_crawler & 
 backlog_population::config nodeconfig_to_backlog_population_config (node_config const &);
 vote_cache::config nodeconfig_to_vote_cache_config (node_config const &, node_flags const &);
 hinted_scheduler::config nodeconfig_to_hinted_scheduler_config (node_config const &);
+outbound_bandwidth_limiter::config outbound_bandwidth_limiter_config (node_config const &);
 
 class node final : public std::enable_shared_from_this<nano::node>
 {
@@ -123,12 +126,13 @@ public:
 	bool init_error () const;
 	bool epoch_upgrader (nano::raw_key const &, nano::epoch, uint64_t, uint64_t);
 	void set_bandwidth_params (std::size_t limit, double ratio);
-	std::pair<uint64_t, decltype (nano::ledger::bootstrap_weights)> get_bootstrap_weights () const;
+	std::pair<uint64_t, std::unordered_map<nano::account, nano::uint128_t>> get_bootstrap_weights () const;
 	uint64_t get_confirmation_height (nano::transaction const &, nano::account &);
 	/*
 	 * Attempts to bootstrap block. This is the best effort, there is no guarantee that the block will be bootstrapped.
 	 */
 	void bootstrap_block (nano::block_hash const &);
+	nano::account get_node_id () const;
 	nano::write_database_queue write_database_queue;
 	boost::asio::io_context & io_ctx;
 	boost::latch node_initialized_latch;
@@ -151,10 +155,12 @@ public:
 	nano::gap_cache gap_cache;
 	nano::ledger ledger;
 	nano::signature_checker checker;
+	nano::outbound_bandwidth_limiter outbound_limiter;
 	std::shared_ptr<nano::network> network;
 	std::shared_ptr<nano::telemetry> telemetry;
 	nano::bootstrap_initiator bootstrap_initiator;
-	std::shared_ptr<nano::bootstrap_listener> bootstrap;
+	nano::bootstrap_server bootstrap_server;
+	std::shared_ptr<nano::transport::tcp_listener> tcp_listener;
 	boost::filesystem::path application_path;
 	nano::node_observers observers;
 	nano::port_mapping port_mapping;
@@ -169,6 +175,8 @@ public:
 	nano::vote_uniquer vote_uniquer;
 	nano::confirmation_height_processor confirmation_height_processor;
 	nano::vote_cache inactive_vote_cache;
+	nano::vote_generator generator;
+	nano::vote_generator final_generator;
 	nano::active_transactions active;
 	nano::election_scheduler scheduler;
 	nano::hinted_scheduler hinting;
@@ -197,6 +205,7 @@ public: // Testing convenience functions
 		Transaction is comitted before function return
 	 */
 	[[nodiscard]] nano::process_return process (nano::block & block);
+	[[nodiscard]] nano::process_return process (nano::write_transaction const &, nano::block & block);
 	nano::block_hash latest (nano::account const &);
 	nano::uint128_t balance (nano::account const &);
 

@@ -1,8 +1,8 @@
 use std::{sync::Arc, thread};
 
 use rsnano::{
-    Account, Amount, Block, BlockHash, KeyPair, Link, PublicKey, Signature, SignatureCheckSet,
-    SignatureChecker, StateBlock,
+    core::{Account, Amount, Block, BlockHash, KeyPair, Link, PublicKey, Signature, StateBlock},
+    signatures::{SignatureCheckSet, SignatureChecker},
 };
 
 // original test: signature_checker.bulk_single_thread
@@ -23,8 +23,8 @@ fn bulk_single_thread() {
         let hash = block.hash();
         hashes.push(hash);
         messages.push(hash.as_bytes().to_vec());
-        accounts.push(*block.account());
-        pub_keys.push(block.account().public_key);
+        accounts.push(block.account());
+        pub_keys.push(block.account().into());
         signatures.push(block.signature.clone())
     }
     let mut check = SignatureCheckSet {
@@ -48,15 +48,15 @@ fn many_multi_threaded() {
         let block = test_state_block(&key);
 
         let block_hash = block.hash();
-        let block_account = *block.account();
+        let block_account = block.account();
         let block_signature = block.signature;
 
         let mut invalid_block = test_state_block(&key);
-        let mut sig_bytes = invalid_block.signature.to_be_bytes();
+        let mut sig_bytes = *invalid_block.signature.as_bytes();
         sig_bytes[31] ^= 1;
         invalid_block.signature = Signature::from_bytes(sig_bytes);
         let invalid_block_hash = invalid_block.hash();
-        let invalid_block_account = *invalid_block.account();
+        let invalid_block_account = invalid_block.account();
         let invalid_block_signature = invalid_block.signature.clone();
         const NUM_CHECK_SIZES: usize = 18;
         const CHECK_SIZES: &'static [usize; NUM_CHECK_SIZES] = &[
@@ -73,8 +73,8 @@ fn many_multi_threaded() {
             let mut messages = vec![block_hash.as_bytes().to_vec(); check_size];
             messages[last_signature_index] = invalid_block_hash.as_bytes().to_vec();
 
-            let mut pub_keys = vec![block_account.public_key; check_size];
-            pub_keys[last_signature_index] = invalid_block_account.public_key;
+            let mut pub_keys = vec![block_account.into(); check_size];
+            pub_keys[last_signature_index] = invalid_block_account.into();
 
             let mut signatures = Vec::with_capacity(check_size);
             for _ in 0..check_size - 1 {
@@ -140,7 +140,7 @@ fn boundary_checks() {
         let extra_size = size - last_size;
         for _ in 0..extra_size {
             check.messages.push(block.hash().as_bytes().to_vec());
-            check.pub_keys.push(block.hashables.account.public_key);
+            check.pub_keys.push(block.hashables.account.into());
             check.signatures.push(block.signature.clone());
             check.verifications.push(-1);
         }
@@ -154,10 +154,10 @@ fn boundary_checks() {
 fn test_state_block(key: &KeyPair) -> StateBlock {
     let block = StateBlock::new(
         key.public_key().into(),
-        *BlockHash::zero(),
+        BlockHash::zero(),
         key.public_key().into(),
         Amount::zero(),
-        Link::new(),
+        Link::zero(),
         &key.private_key(),
         &key.public_key(),
         0,

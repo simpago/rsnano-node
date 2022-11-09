@@ -39,11 +39,12 @@ namespace thread_role
 		bootstrap_worker,
 		request_aggregator,
 		epoch_upgrader,
-		db_parallel_traversal,
 		election_scheduler,
 		unchecked,
 		backlog_population,
-		election_hinting
+		election_hinting,
+		vote_generator_queue,
+		bootstrap_server,
 	};
 
 	/*
@@ -201,8 +202,13 @@ private:
 
 std::unique_ptr<nano::container_info_component> collect_container_info (thread_pool & thread_pool, std::string const & name);
 
-/*
+/**
  * Number of available logical processor cores. Might be overridden by setting `NANO_HARDWARE_CONCURRENCY` environment variable
  */
 unsigned int hardware_concurrency ();
+
+/**
+ * If thread is joinable joins it, otherwise does nothing
+ */
+bool join_or_pass (std::thread &);
 }

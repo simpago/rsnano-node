@@ -13,34 +13,24 @@
 #include <mutex>
 #include <thread>
 #include <unordered_set>
+namespace rsnano
+{
+class KdfHandle;
+}
 namespace nano
 {
 class node;
 class node_config;
 class wallets;
-// The fan spreads a key out over the heap to decrease the likelihood of it being recovered by memory inspection
-class fan final
-{
-public:
-	fan (nano::raw_key const &, std::size_t);
-	void value (nano::raw_key &);
-	void value_set (nano::raw_key const &);
-	std::vector<std::unique_ptr<nano::raw_key>> values;
-
-private:
-	nano::mutex mutex;
-	void value_get (nano::raw_key &);
-};
 class kdf final
 {
 public:
-	kdf (unsigned & kdf_work) :
-		kdf_work{ kdf_work }
-	{
-	}
+	kdf (unsigned kdf_work);
+	kdf (kdf const &) = delete;
+	kdf (kdf &&) = delete;
+	~kdf ();
 	void phs (nano::raw_key &, std::string const &, nano::uint256_union const &);
-	nano::mutex mutex;
-	unsigned & kdf_work;
+	rsnano::KdfHandle * handle;
 };
 enum class key_type
 {
@@ -54,12 +44,16 @@ class wallet_store final
 public:
 	wallet_store (bool &, nano::kdf &, nano::transaction &, nano::account, unsigned, std::string const &);
 	wallet_store (bool &, nano::kdf &, nano::transaction &, nano::account, unsigned, std::string const &, std::string const &);
+	~wallet_store ();
+	wallet_store (wallet_store const &) = delete;
+	bool is_open () const;
+	void lock ();
+	void password (nano::raw_key & password_a) const;
+	void set_password (nano::raw_key const & password_a);
 	std::vector<nano::account> accounts (nano::transaction const &);
-	void initialize (nano::transaction const &, bool &, std::string const &);
 	nano::uint256_union check (nano::transaction const &);
 	bool rekey (nano::transaction const &, std::string const &);
 	bool valid_password (nano::transaction const &);
-	bool valid_public_key (nano::public_key const &);
 	bool attempt_password (nano::transaction const &, std::string const &);
 	void wallet_key (nano::raw_key &, nano::transaction const &);
 	void seed (nano::raw_key &, nano::transaction const &);
@@ -78,8 +72,6 @@ public:
 	nano::public_key insert_adhoc (nano::transaction const &, nano::raw_key const &);
 	bool insert_watch (nano::transaction const &, nano::account const &);
 	void erase (nano::transaction const &, nano::account const &);
-	nano::wallet_value entry_get_raw (nano::transaction const &, nano::account const &);
-	void entry_put_raw (nano::transaction const &, nano::account const &, nano::wallet_value const &);
 	bool fetch (nano::transaction const &, nano::account const &, nano::raw_key &);
 	bool exists (nano::transaction const &, nano::account const &);
 	void destroy (nano::transaction const &);
@@ -95,30 +87,15 @@ public:
 	bool work_get (nano::transaction const &, nano::public_key const &, uint64_t &);
 	void work_put (nano::transaction const &, nano::public_key const &, uint64_t);
 	unsigned version (nano::transaction const &);
-	void version_put (nano::transaction const &, unsigned);
-	nano::fan password;
-	nano::fan wallet_key_mem;
-	static unsigned const version_1 = 1;
-	static unsigned const version_2 = 2;
-	static unsigned const version_3 = 3;
 	static unsigned const version_4 = 4;
 	static unsigned constexpr version_current = version_4;
-	static nano::account const version_special;
-	static nano::account const wallet_key_special;
-	static nano::account const salt_special;
-	static nano::account const check_special;
-	static nano::account const representative_special;
-	static nano::account const seed_special;
-	static nano::account const deterministic_index_special;
-	static std::size_t const check_iv_index;
-	static std::size_t const seed_iv_index;
 	static int const special_count;
 	nano::kdf & kdf;
-	std::atomic<MDB_dbi> handle{ 0 };
 	std::recursive_mutex mutex;
+	unsigned fanout;
 
 private:
-	MDB_txn * tx (nano::transaction const &) const;
+	rsnano::LmdbWalletStoreHandle * rust_handle;
 };
 // A wallet is a set of account keys encrypted by a common encryption key
 class wallet final : public std::enable_shared_from_this<nano::wallet>
@@ -151,14 +128,12 @@ public:
 	// Schedule work generation after a few seconds
 	void work_ensure (nano::account const &, nano::root const &);
 	bool search_receivable (nano::transaction const &);
-	void init_free_accounts (nano::transaction const &);
 	uint32_t deterministic_check (nano::transaction const & transaction_a, uint32_t index);
 	/** Changes the wallet seed and returns the first account */
 	nano::public_key change_seed (nano::transaction const & transaction_a, nano::raw_key const & prv_a, uint32_t count = 0);
 	void deterministic_restore (nano::transaction const & transaction_a);
 	bool live ();
-	std::unordered_set<nano::account> free_accounts;
-	std::function<void (bool, bool)> lock_observer;
+
 	nano::wallet_store store;
 	nano::wallets & wallets;
 	nano::mutex representatives_mutex;
@@ -213,9 +188,10 @@ public:
 	bool check_rep (nano::account const &, nano::uint128_t const &, bool const = true);
 	void compute_reps ();
 	void ongoing_compute_reps ();
-	void split_if_needed (nano::transaction &, nano::store &);
-	void move_table (std::string const &, MDB_txn *, MDB_txn *);
+	std::vector<nano::wallet_id> get_wallet_ids (nano::transaction const & transaction_a);
 	std::unordered_map<nano::wallet_id, std::shared_ptr<nano::wallet>> get_wallets ();
+	nano::block_hash get_block_hash (bool & error_a, nano::transaction const & transaction_a, std::string const & id_a);
+	bool set_block_hash (nano::transaction const & transaction_a, std::string const & id_a, nano::block_hash const & hash);
 	nano::network_params & network_params;
 	std::function<void (bool)> observer;
 	std::unordered_map<nano::wallet_id, std::shared_ptr<nano::wallet>> items;
@@ -225,8 +201,6 @@ public:
 	nano::mutex action_mutex;
 	nano::condition_variable condition;
 	nano::kdf kdf;
-	MDB_dbi handle;
-	MDB_dbi send_action_ids;
 	nano::node & node;
 	nano::mdb_env & env;
 	std::atomic<bool> stopped;
@@ -242,6 +216,9 @@ public:
 private:
 	mutable nano::mutex reps_cache_mutex;
 	nano::wallet_representatives representatives;
+
+public:
+	rsnano::LmdbWalletsHandle * rust_handle;
 };
 
 std::unique_ptr<container_info_component> collect_container_info (wallets & wallets, std::string const & name);

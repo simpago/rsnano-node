@@ -1,4 +1,4 @@
-use crate::Logging;
+use crate::config::Logging;
 
 #[repr(C)]
 pub struct LoggingDto {

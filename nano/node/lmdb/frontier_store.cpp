@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/frontier_store.hpp>
 #include <nano/node/lmdb/lmdb.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 nano::lmdb::frontier_store::frontier_store (rsnano::LmdbFrontierStoreHandle * handle_a) :
 	handle{ handle_a }
@@ -79,9 +78,4 @@ void nano::lmdb::frontier_store::for_each_par (std::function<void (nano::read_tr
 {
 	auto context = (void *)&action_a;
 	rsnano::rsn_lmdb_frontier_store_for_each_par (handle, for_each_par_wrapper, context, for_each_par_delete_context);
-}
-
-MDB_dbi nano::lmdb::frontier_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_frontier_store_table_handle (handle);
 }

@@ -380,32 +380,12 @@ private:
 class transaction;
 class store;
 
-/**
- * Determine the representative for this block
- */
-class representative_visitor final : public nano::block_visitor
-{
-public:
-	representative_visitor (nano::transaction const & transaction_a, nano::store & store_a);
-	~representative_visitor () = default;
-	void compute (nano::block_hash const & hash_a);
-	void send_block (nano::send_block const & block_a) override;
-	void receive_block (nano::receive_block const & block_a) override;
-	void open_block (nano::open_block const & block_a) override;
-	void change_block (nano::change_block const & block_a) override;
-	void state_block (nano::state_block const & block_a) override;
-	nano::transaction const & transaction;
-	nano::store & store;
-	nano::block_hash current;
-	nano::block_hash result;
-};
 template <typename T, typename U>
 class store_iterator_impl
 {
 public:
 	virtual ~store_iterator_impl () = default;
 	virtual nano::store_iterator_impl<T, U> & operator++ () = 0;
-	virtual nano::store_iterator_impl<T, U> & operator-- () = 0;
 	virtual bool operator== (nano::store_iterator_impl<T, U> const & other_a) const = 0;
 	virtual bool is_end_sentinal () const = 0;
 	virtual void fill (std::pair<T, U> &) const = 0;
@@ -442,12 +422,6 @@ public:
 	nano::store_iterator<T, U> & operator++ ()
 	{
 		++*impl;
-		impl->fill (current);
-		return *this;
-	}
-	nano::store_iterator<T, U> & operator-- ()
-	{
-		--*impl;
 		impl->fill (current);
 		return *this;
 	}
@@ -497,7 +471,6 @@ class transaction
 {
 public:
 	virtual ~transaction () = default;
-	virtual void * get_handle () const = 0;
 	virtual rsnano::TransactionHandle * get_rust_handle () const = 0;
 };
 
@@ -552,12 +525,12 @@ public:
 	virtual ~account_store (){};
 	virtual void put (nano::write_transaction const &, nano::account const &, nano::account_info const &) = 0;
 	virtual bool get (nano::transaction const &, nano::account const &, nano::account_info &) = 0;
+	std::optional<nano::account_info> get (nano::transaction const &, nano::account const &);
 	virtual void del (nano::write_transaction const &, nano::account const &) = 0;
 	virtual bool exists (nano::transaction const &, nano::account const &) = 0;
 	virtual size_t count (nano::transaction const &) = 0;
 	virtual nano::store_iterator<nano::account, nano::account_info> begin (nano::transaction const &, nano::account const &) const = 0;
 	virtual nano::store_iterator<nano::account, nano::account_info> begin (nano::transaction const &) const = 0;
-	virtual nano::store_iterator<nano::account, nano::account_info> rbegin (nano::transaction const &) const = 0;
 	virtual nano::store_iterator<nano::account, nano::account_info> end () const = 0;
 	virtual void for_each_par (std::function<void (nano::read_transaction const &, nano::store_iterator<nano::account, nano::account_info>, nano::store_iterator<nano::account, nano::account_info>)> const &) const = 0;
 };
@@ -641,7 +614,7 @@ public:
 	 *  Ruturns true on error, false on success.
 	 */
 	virtual bool get (nano::transaction const & transaction_a, nano::account const & account_a, nano::confirmation_height_info & confirmation_height_info_a) = 0;
-
+	std::optional<nano::confirmation_height_info> get (nano::transaction const & transaction_a, nano::account const & account_a);
 	virtual bool exists (nano::transaction const & transaction_a, nano::account const & account_a) const = 0;
 	virtual void del (nano::write_transaction const & transaction_a, nano::account const & account_a) = 0;
 	virtual uint64_t count (nano::transaction const & transaction_a) = 0;
@@ -740,7 +713,7 @@ class store
 {
 public:
 	virtual ~store () = default;
-	void initialize (nano::write_transaction const & transaction_a, nano::ledger_cache & ledger_cache_a, nano::ledger_constants & constants);
+	virtual void initialize (nano::write_transaction const & transaction_a, nano::ledger_cache & ledger_cache_a, nano::ledger_constants & constants) = 0;
 	virtual block_store & block () = 0;
 	virtual frontier_store & frontier () = 0;
 	virtual account_store & account () = 0;
@@ -773,6 +746,7 @@ public:
 	virtual std::unique_ptr<nano::read_transaction> tx_begin_read () const = 0;
 
 	virtual std::string vendor_get () const = 0;
+	virtual rsnano::LmdbStoreHandle * get_handle () const = 0;
 
 	friend class unchecked_map;
 };

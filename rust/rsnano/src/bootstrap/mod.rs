@@ -3,18 +3,11 @@ mod bootstrap_attempts;
 mod bootstrap_client;
 mod bootstrap_initiator;
 mod bootstrap_lazy;
-mod bootstrap_server;
 mod channel_tcp_wrapper;
-mod message_deserializer;
 mod pulls_cache;
 
 pub(crate) use bootstrap_attempt::*;
 pub(crate) use bootstrap_initiator::*;
-pub use bootstrap_server::{
-    BootstrapMessageVisitor, BootstrapServer, BootstrapServerExt, BootstrapServerObserver,
-    HandshakeMessageVisitor, HandshakeMessageVisitorImpl, RealtimeMessageVisitor,
-    RealtimeMessageVisitorImpl, RequestResponseVisitorFactory,
-};
 
 pub use bootstrap_client::{
     BootstrapClient, BootstrapClientObserver, BootstrapClientObserverWeakPtr,
@@ -23,7 +16,6 @@ pub use bootstrap_client::{
 pub use bootstrap_attempts::BootstrapAttempts;
 pub use bootstrap_lazy::BootstrapAttemptLazy;
 pub use channel_tcp_wrapper::ChannelTcpWrapper;
-pub use message_deserializer::{MessageDeserializer, MessageDeserializerExt, ParseStatus};
 pub use pulls_cache::{PullInfo, PullsCache};
 
 pub mod bootstrap_limits {

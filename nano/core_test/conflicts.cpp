@@ -26,7 +26,7 @@ TEST (conflicts, start_stop)
 	ASSERT_EQ (nano::process_result::progress, node1.process (*send1).code);
 	ASSERT_EQ (0, node1.active.size ());
 	node1.scheduler.activate (nano::dev::genesis_key.pub, *node1.store.tx_begin_read ());
-	node1.scheduler.flush ();
+	ASSERT_TIMELY (5s, node1.active.election (send1->qualified_root ()));
 	auto election1 = node1.active.election (send1->qualified_root ());
 	ASSERT_EQ (1, node1.active.size ());
 	ASSERT_NE (nullptr, election1);
@@ -143,12 +143,12 @@ TEST (conflicts, add_two)
 	ASSERT_TRUE (send1.has_value () && receive1.has_value ());
 	// both blocks having been fully confirmed, we expect 1 (genesis) + 2 (send/receive) = 3 cemented blocks
 	//
-	ASSERT_EQ (3, node->ledger.cache.cemented_count);
+	ASSERT_EQ (3, node->ledger.cache.cemented_count ());
 
 	nano::keypair account2{};
 	auto const [send2, receive2] = do_send ((*send1)->hash (), nano::dev::genesis_key, account2);
 	ASSERT_TRUE (send2.has_value () && receive2.has_value ());
-	ASSERT_EQ (5, node->ledger.cache.cemented_count);
+	ASSERT_EQ (5, node->ledger.cache.cemented_count ());
 
 	// send from account1 to account3 but do not receive it on account3 and do not force-confirm the send block
 	//
@@ -157,11 +157,11 @@ TEST (conflicts, add_two)
 	ASSERT_TRUE (send3.has_value ());
 	// expect the number of cemented blocks not to have changed since the last operation
 	//
-	ASSERT_EQ (5, node->ledger.cache.cemented_count);
+	ASSERT_EQ (5, node->ledger.cache.cemented_count ());
 
 	auto const [send4, dummy2] = do_send ((*receive2)->hash (), account2, account3, false);
 	ASSERT_TRUE (send4.has_value ());
-	ASSERT_EQ (5, node->ledger.cache.cemented_count);
+	ASSERT_EQ (5, node->ledger.cache.cemented_count ());
 
 	// activate elections for the previous two send blocks (to account3) that we did not forcefully confirm
 	//

@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/lmdb.hpp>
 #include <nano/node/lmdb/unchecked_store.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 namespace
 {
@@ -69,9 +68,4 @@ nano::store_iterator<nano::unchecked_key, nano::unchecked_info> nano::lmdb::unch
 size_t nano::lmdb::unchecked_store::count (nano::transaction const & transaction_a)
 {
 	return rsnano::rsn_lmdb_unchecked_store_count (handle, transaction_a.get_rust_handle ());
-}
-
-MDB_dbi nano::lmdb::unchecked_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_unchecked_store_table_handle (handle);
 }

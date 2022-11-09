@@ -1,6 +1,4 @@
-use std::convert::TryFrom;
-
-use crate::{ffi::NetworkConstantsDto, NetworkConstants, NodeConstants};
+use crate::NodeConstants;
 
 #[repr(C)]
 pub struct NodeConstantsDto {
@@ -10,20 +8,6 @@ pub struct NodeConstantsDto {
     pub process_confirmed_interval_ms: i64,
     pub max_weight_samples: u64,
     pub weight_period: u64,
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_node_constants_create(
-    network_constants: &NetworkConstantsDto,
-    dto: *mut NodeConstantsDto,
-) -> i32 {
-    let network_constants = match NetworkConstants::try_from(network_constants) {
-        Ok(n) => n,
-        Err(_) => return -1,
-    };
-    let node = NodeConstants::new(&network_constants);
-    fill_node_constants_dto(&mut (*dto), &node);
-    0
 }
 
 pub fn fill_node_constants_dto(dto: &mut NodeConstantsDto, node: &NodeConstants) {

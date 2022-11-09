@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::{ffi::NetworkConstantsDto, NetworkConstants, PortmappingConstants};
+use crate::{config::NetworkConstants, ffi::NetworkConstantsDto, PortmappingConstants};
 
 #[repr(C)]
 pub struct PortmappingConstantsDto {

@@ -99,6 +99,8 @@ public:
 	std::size_t bandwidth_limit;
 	/** By default, allow bursts of 15MB/s (not sustainable) */
 	double bandwidth_limit_burst_ratio{ 3. };
+	std::size_t bootstrap_bandwidth_limit;
+	double bootstrap_bandwidth_burst_ratio;
 	std::chrono::milliseconds conf_height_processor_batch_min_time;
 	bool backup_before_upgrade{ false };
 	double max_work_generate_multiplier;

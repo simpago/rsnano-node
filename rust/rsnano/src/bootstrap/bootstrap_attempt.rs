@@ -1,11 +1,11 @@
 use crate::{
-    block_processor::BlockProcessor,
-    datastore::Ledger,
-    encode_hex,
-    logger_mt::Logger,
-    unchecked_info::UncheckedInfo,
+    block_processing::BlockProcessor,
+    core::{
+        encode_hex, Account, BlockEnum, HardenedConstants, SignatureVerification, UncheckedInfo,
+    },
+    ledger::Ledger,
+    utils::Logger,
     websocket::{Listener, MessageBuilder},
-    Account, BlockEnum, HardenedConstants,
 };
 use anyhow::Result;
 use std::{
@@ -144,7 +144,7 @@ impl BootstrapAttempt {
             stop_pull = true;
         } else {
             let unchecked_info =
-                UncheckedInfo::new(block, known_account, crate::SignatureVerification::Unknown);
+                UncheckedInfo::new(block, known_account, SignatureVerification::Unknown);
             if let Some(p) = self.block_processor.upgrade() {
                 p.add(&unchecked_info);
             }

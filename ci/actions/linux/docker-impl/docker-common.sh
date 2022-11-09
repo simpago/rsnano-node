@@ -59,7 +59,7 @@ docker_deploy()
         if [[ "$GITHUB_WORKFLOW" = "Develop" ]]; then
             "$scripts"/custom-timeout.sh 30 docker push "simpago/rsnano-env:base"
             "$scripts"/custom-timeout.sh 30 docker push "simpago/rsnano-env:gcc"
-            "$scripts"/custom-timeout.sh 30 docker push "simpago/rsnano-env:clang-6"
+            "$scripts"/custom-timeout.sh 30 docker push "simpago/rsnano-env:clang"
             echo "Deployed nano-env"
             exit 0
         else

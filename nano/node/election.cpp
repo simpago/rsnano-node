@@ -32,7 +32,7 @@ nano::election::election (nano::node & node_a, std::shared_ptr<nano::block> cons
 	last_blocks.emplace (block_a->hash (), block_a);
 	if (node.config->enable_voting && node.wallets.reps ().voting > 0)
 	{
-		node.active.generator.add (root, block_a->hash ());
+		node.generator.add (root, block_a->hash ());
 	}
 }
 
@@ -53,8 +53,10 @@ void nano::election::confirm_once (nano::unique_lock<nano::mutex> & lock_a, nano
 		status.type = type_a;
 		auto const status_l = status;
 		lock_a.unlock ();
-		node.process_confirmed (status_l);
+
 		node.background ([node_l = node.shared (), status_l, confirmation_action_l = confirmation_action] () {
+			node_l->process_confirmed (status_l);
+
 			if (confirmation_action_l)
 			{
 				confirmation_action_l (status_l.winner);
@@ -316,14 +318,14 @@ void nano::election::confirm_if_quorum (nano::unique_lock<nano::mutex> & lock_a)
 	}
 	if (have_quorum (tally_l))
 	{
-		if (node.ledger.cache.final_votes_confirmation_canary.load () && !is_quorum.exchange (true) && node.config->enable_voting && node.wallets.reps ().voting > 0)
+		if (node.ledger.cache.final_votes_confirmation_canary () && !is_quorum.exchange (true) && node.config->enable_voting && node.wallets.reps ().voting > 0)
 		{
 			auto hash = status.winner->hash ();
 			lock_a.unlock ();
-			node.active.final_generator.add (root, hash);
+			node.final_generator.add (root, hash);
 			lock_a.lock ();
 		}
-		if (!node.ledger.cache.final_votes_confirmation_canary.load () || final_weight >= node.online_reps.delta ())
+		if (!node.ledger.cache.final_votes_confirmation_canary () || final_weight >= node.online_reps.delta ())
 		{
 			if (node.config->logging.vote_logging () || (node.config->logging.election_fork_tally_logging () && last_blocks.size () > 1))
 			{
@@ -486,12 +488,12 @@ void nano::election::generate_votes () const
 		{
 			auto hash = status.winner->hash ();
 			lock.unlock ();
-			node.active.final_generator.add (root, hash);
+			node.final_generator.add (root, hash);
 			lock.lock ();
 		}
 		else
 		{
-			node.active.generator.add (root, status.winner->hash ());
+			node.generator.add (root, status.winner->hash ());
 		}
 	}
 }
@@ -619,7 +621,7 @@ std::vector<nano::vote_with_weight_info> nano::election::votes_with_weight () co
 	{
 		if (vote_l.first != nullptr)
 		{
-			auto amount (node.ledger.cache.rep_weights.representation_get (vote_l.first));
+			auto amount (node.ledger.cache.rep_weights ().representation_get (vote_l.first));
 			nano::vote_with_weight_info vote_info{ vote_l.first, vote_l.second.time, vote_l.second.timestamp, vote_l.second.hash, amount };
 			sorted_votes.emplace (std::move (amount), vote_info);
 		}

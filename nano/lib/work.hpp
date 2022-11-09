@@ -12,6 +12,11 @@
 #include <atomic>
 #include <memory>
 
+namespace rsnano
+{
+class WorkPoolHandle;
+class WorkTicketHandle;
+}
 namespace nano
 {
 std::string to_string (nano::work_version const version_a);
@@ -33,12 +38,24 @@ public:
 	uint64_t const difficulty;
 	std::function<void (boost::optional<uint64_t> const &)> const callback;
 };
+class work_ticket
+{
+public:
+	work_ticket ();
+	work_ticket (rsnano::WorkTicketHandle * handle_a);
+	work_ticket (work_ticket const &);
+	work_ticket (work_ticket && other_a);
+	~work_ticket ();
+	bool expired () const;
+	rsnano::WorkTicketHandle * handle;
+};
 class work_pool final
 {
 public:
-	work_pool (nano::network_constants & network_constants, unsigned, std::chrono::nanoseconds = std::chrono::nanoseconds (0), std::function<boost::optional<uint64_t> (nano::work_version const, nano::root const &, uint64_t, std::atomic<int> &)> = nullptr);
+	work_pool (nano::network_constants & network_constants, unsigned, std::chrono::nanoseconds = std::chrono::nanoseconds (0), std::function<boost::optional<uint64_t> (nano::work_version const, nano::root const, uint64_t, nano::work_ticket)> = nullptr);
+	work_pool (work_pool const &) = delete;
+	work_pool (work_pool &&) = delete;
 	~work_pool ();
-	void loop (uint64_t);
 	void stop ();
 	void cancel (nano::root const &);
 	void generate (nano::work_version const, nano::root const &, uint64_t, std::function<void (boost::optional<uint64_t> const &)>);
@@ -47,16 +64,15 @@ public:
 	boost::optional<uint64_t> generate (nano::root const &);
 	boost::optional<uint64_t> generate (nano::root const &, uint64_t);
 	size_t size ();
-	nano::network_constants & network_constants;
-	std::atomic<int> ticket;
-	bool done;
-	std::vector<boost::thread> threads;
-	std::list<nano::work_item> pending;
-	nano::mutex mutex{ mutex_identifier (mutexes::work_pool) };
-	nano::condition_variable producer_condition;
-	std::chrono::nanoseconds pow_rate_limiter;
-	std::function<boost::optional<uint64_t> (nano::work_version const, nano::root const &, uint64_t, std::atomic<int> &)> opencl;
-	nano::observer_set<bool> work_observers;
+	size_t pending_size ();
+	size_t pending_value_size () const;
+	size_t thread_count () const;
+	bool has_opencl () const;
+	uint64_t threshold_base (nano::work_version const version_a) const;
+	uint64_t difficulty (nano::work_version const version_a, nano::root const & root_a, uint64_t const work_a) const;
+
+private:
+	rsnano::WorkPoolHandle * handle;
 };
 
 std::unique_ptr<container_info_component> collect_container_info (work_pool & work_pool, std::string const & name);

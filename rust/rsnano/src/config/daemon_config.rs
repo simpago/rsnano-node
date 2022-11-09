@@ -1,8 +1,7 @@
-use crate::{
-    utils::TomlWriter, Logging, NetworkParams, NodeConfig, NodePowServerConfig, NodeRpcConfig,
-    OpenclConfig,
-};
+use crate::{utils::TomlWriter, NetworkParams};
 use anyhow::Result;
+
+use super::{Logging, NodeConfig, NodePowServerConfig, NodeRpcConfig, OpenclConfig};
 
 pub struct DaemonConfig {
     pub rpc_enable: bool,

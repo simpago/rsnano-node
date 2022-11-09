@@ -1,14 +1,8 @@
-#include <nano/crypto/blake2/blake2.h>
 #include <nano/crypto_lib/random_pool.hpp>
 #include <nano/crypto_lib/secure_memory.hpp>
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/utility.hpp>
 #include <nano/secure/common.hpp>
-
-#include <crypto/cryptopp/aes.h>
-#include <crypto/cryptopp/modes.h>
-
-#include <crypto/ed25519-donna/ed25519.h>
 
 void nano::public_key::encode_account (std::string & destination_a) const
 {
@@ -74,9 +68,7 @@ bool nano::uint256_union::operator== (nano::uint256_union const & other_a) const
 // Construct a uint256_union = AES_ENC_CTR (cleartext, key, iv)
 void nano::uint256_union::encrypt (nano::raw_key const & cleartext, nano::raw_key const & key, uint128_union const & iv)
 {
-	CryptoPP::AES::Encryption alg (key.bytes.data (), sizeof (key.bytes));
-	CryptoPP::CTR_Mode_ExternalCipher::Encryption enc (alg, iv.bytes.data ());
-	enc.ProcessData (bytes.data (), cleartext.bytes.data (), sizeof (cleartext.bytes));
+	rsnano::rsn_raw_key_encrypt (bytes.data (), cleartext.bytes.data (), key.bytes.data (), iv.bytes.data ());
 }
 
 bool nano::uint256_union::is_zero () const
@@ -311,37 +303,30 @@ nano::raw_key::~raw_key ()
 	secure_wipe_memory (bytes.data (), bytes.size ());
 }
 
-// This this = AES_DEC_CTR (ciphertext, key, iv)
 void nano::raw_key::decrypt (nano::uint256_union const & ciphertext, nano::raw_key const & key_a, uint128_union const & iv)
 {
-	CryptoPP::AES::Encryption alg (key_a.bytes.data (), sizeof (key_a.bytes));
-	CryptoPP::CTR_Mode_ExternalCipher::Decryption dec (alg, iv.bytes.data ());
-	dec.ProcessData (bytes.data (), ciphertext.bytes.data (), sizeof (ciphertext.bytes));
+	rsnano::rsn_raw_key_decrypt (bytes.data (), ciphertext.bytes.data (), key_a.bytes.data (), iv.bytes.data ());
 }
 
 nano::raw_key nano::deterministic_key (nano::raw_key const & seed_a, uint32_t index_a)
 {
 	nano::raw_key prv_key;
-	blake2b_state hash;
-	blake2b_init (&hash, prv_key.bytes.size ());
-	blake2b_update (&hash, seed_a.bytes.data (), seed_a.bytes.size ());
-	nano::uint256_union index (index_a);
-	blake2b_update (&hash, reinterpret_cast<uint8_t *> (&index.dwords[7]), sizeof (uint32_t));
-	blake2b_final (&hash, prv_key.bytes.data (), prv_key.bytes.size ());
+	rsnano::rsn_deterministic_key (seed_a.bytes.data (), index_a, prv_key.bytes.data ());
 	return prv_key;
 }
 
 nano::public_key nano::pub_key (nano::raw_key const & raw_key_a)
 {
 	nano::public_key result;
-	ed25519_publickey (raw_key_a.bytes.data (), result.bytes.data ());
+	rsnano::rsn_pub_key (raw_key_a.bytes.data (), result.bytes.data ());
 	return result;
 }
 
 nano::signature nano::sign_message (nano::raw_key const & private_key, nano::public_key const & public_key, uint8_t const * data, size_t size)
 {
 	nano::signature result;
-	ed25519_sign (data, size, private_key.bytes.data (), public_key.bytes.data (), result.bytes.data ());
+	if (rsnano::rsn_sign_message (private_key.bytes.data (), public_key.bytes.data (), data, size, result.bytes.data ()) != 0)
+		throw std::runtime_error ("could not sign message");
 	return result;
 }
 

@@ -1,14 +1,18 @@
 use std::net::Ipv6Addr;
 
 use crate::{
-    get_env_or_default_string, is_sanitizer_build,
+    core::{Account, Amount, GXRB_RATIO, XRB_RATIO},
+    is_sanitizer_build,
     stats::StatConfig,
     utils::{get_cpu_count, TomlWriter},
-    Account, Amount, DiagnosticsConfig, IpcConfig, LmdbConfig, Logging, NetworkParams, Networks,
-    WebsocketConfig, GXRB_RATIO, XRB_RATIO,
+    IpcConfig, NetworkParams,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
+
+use super::{
+    get_env_or_default_string, DiagnosticsConfig, LmdbConfig, Logging, Networks, WebsocketConfig,
+};
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -53,6 +57,8 @@ pub struct NodeConfig {
     pub active_elections_hinted_limit_percentage: usize, // Limit of hinted elections as percentage of active_elections_size
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
+    pub bootstrap_bandwidth_limit: usize,
+    pub bootstrap_bandwidth_burst_ratio: f64,
     pub conf_height_processor_batch_min_time_ms: i64,
     pub backup_before_upgrade: bool,
     pub max_work_generate_multiplier: f64,
@@ -122,7 +128,7 @@ impl NodeConfig {
             Networks::NanoDevNetwork => {
                 enable_voting = true;
                 preconfigured_representatives.push(
-                    *network_params
+                    network_params
                         .ledger
                         .genesis
                         .read()
@@ -194,7 +200,7 @@ impl NodeConfig {
             Networks::NanoTestNetwork => {
                 preconfigured_peers.push(DEFAULT_TEST_PEER_NETWORK.clone());
                 preconfigured_representatives.push(
-                    *network_params
+                    network_params
                         .ledger
                         .genesis
                         .read()
@@ -253,6 +259,10 @@ impl NodeConfig {
             bandwidth_limit: 10 * 1024 * 1024,
             /** By default, allow bursts of 15MB/s (not sustainable) */
             bandwidth_limit_burst_ratio: 3_f64,
+            /** Default boostrap outbound traffic limit is 16MB/s ~ 128Mbit/s */
+            bootstrap_bandwidth_limit: 16 * 1024 * 1024,
+            /** Bootstrap traffic does not need bursts */
+            bootstrap_bandwidth_burst_ratio: 1.,
             conf_height_processor_batch_min_time_ms: 50,
             backup_before_upgrade: false,
             max_work_generate_multiplier: 64_f64,
@@ -328,12 +338,21 @@ impl NodeConfig {
         toml.put_bool("use_memory_pools", self.use_memory_pools, "If true, allocate memory from memory pools. Enabling this may improve performance. Memory is never released to the OS.\ntype:bool")?;
         toml.put_usize("confirmation_history_size", self.confirmation_history_size, "Maximum confirmation history size. If tracking the rate of block confirmations, the websocket feature is recommended instead.\ntype:uint64")?;
         toml.put_usize("active_elections_size", self.active_elections_size, "Number of active elections. Elections beyond this limit have limited survival time.\nWarning: modifying this value may result in a lower confirmation rate.\ntype:uint64,[250..]")?;
+
         toml.put_usize("bandwidth_limit", self.bandwidth_limit, "Outbound traffic limit in bytes/sec after which messages will be dropped.\nNote: changing to unlimited bandwidth (0) is not recommended for limited connections.\ntype:uint64")?;
         toml.put_f64(
             "bandwidth_limit_burst_ratio",
             self.bandwidth_limit_burst_ratio,
             "Burst ratio for outbound traffic shaping.\ntype:double",
         )?;
+
+        toml.put_usize("bootstrap_bandwidth_limit", self.bootstrap_bandwidth_limit, "Outbound bootstrap traffic limit in bytes/sec after which messages will be dropped.\nNote: changing to unlimited bandwidth (0) is not recommended for limited connections.\ntype:uint64")?;
+        toml.put_f64(
+            "bootstrap_bandwidth_burst_ratio",
+            self.bootstrap_bandwidth_burst_ratio,
+            "Burst ratio for outbound bootstrap traffic.\ntype:double",
+        )?;
+
         toml.put_i64("conf_height_processor_batch_min_time", self.conf_height_processor_batch_min_time_ms, "Minimum write batching time when there are blocks pending confirmation height.\ntype:milliseconds")?;
         toml.put_bool("backup_before_upgrade", self.backup_before_upgrade, "Backup the ledger database before performing upgrades.\nWarning: uses more disk storage and increases startup time when upgrading.\ntype:bool")?;
         toml.put_f64(

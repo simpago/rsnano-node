@@ -61,7 +61,7 @@ TEST (network, construction_with_specified_port)
 	auto const node = system.add_node (nano::node_config{ port, system.logging });
 	EXPECT_EQ (port, node->network->port);
 	EXPECT_EQ (port, node->network->endpoint ().port ());
-	EXPECT_EQ (port, node->bootstrap->endpoint ().port ());
+	EXPECT_EQ (port, node->tcp_listener->endpoint ().port ());
 }
 
 TEST (network, construction_without_specified_port)
@@ -71,7 +71,7 @@ TEST (network, construction_without_specified_port)
 	auto const port = node->network->port.load ();
 	EXPECT_NE (0, port);
 	EXPECT_EQ (port, node->network->endpoint ().port ());
-	EXPECT_EQ (port, node->bootstrap->endpoint ().port ());
+	EXPECT_EQ (port, node->tcp_listener->endpoint ().port ());
 }
 
 TEST (network, self_discard)
@@ -139,10 +139,10 @@ TEST (network, send_node_id_handshake_tcp)
 	ASSERT_EQ (1, node1->network->size ());
 	auto list1 (node0->network->list (1));
 	ASSERT_EQ (nano::transport::transport_type::tcp, list1[0]->get_type ());
-	ASSERT_EQ (node1->network->endpoint (), list1[0]->get_endpoint ());
+	ASSERT_EQ (node1->get_node_id (), list1[0]->get_node_id ());
 	auto list2 (node1->network->list (1));
 	ASSERT_EQ (nano::transport::transport_type::tcp, list2[0]->get_type ());
-	ASSERT_EQ (node0->network->endpoint (), list2[0]->get_endpoint ());
+	ASSERT_EQ (node0->get_node_id (), list2[0]->get_node_id ());
 	node1->stop ();
 }
 
@@ -385,7 +385,8 @@ TEST (network, send_insufficient_work)
 				  .work (0)
 				  .build_shared ();
 	nano::publish publish1{ nano::dev::network_params.network, block1 };
-	auto tcp_channel (node1.network->tcp_channels->find_channel (nano::transport::map_endpoint_to_tcp (node2.network->endpoint ())));
+	auto tcp_channel (node1.network->tcp_channels->find_node_id (node2.get_node_id ()));
+	ASSERT_NE (nullptr, tcp_channel);
 	tcp_channel->send (publish1, [] (boost::system::error_code const & ec, size_t size) {});
 	ASSERT_EQ (0, node1.stats->count (nano::stat::type::error, nano::stat::detail::insufficient_work));
 	ASSERT_TIMELY (10s, node2.stats->count (nano::stat::type::error, nano::stat::detail::insufficient_work) != 0);
@@ -899,7 +900,7 @@ TEST (tcp_listener, tcp_node_id_handshake)
 {
 	nano::test::system system (1);
 	auto socket (create_client_socket (*system.nodes[0]));
-	auto bootstrap_endpoint (system.nodes[0]->bootstrap->endpoint ());
+	auto bootstrap_endpoint (system.nodes[0]->tcp_listener->endpoint ());
 	auto cookie (system.nodes[0]->network->syn_cookies->assign (nano::transport::map_tcp_to_endpoint (bootstrap_endpoint)));
 	nano::node_id_handshake node_id_handshake{ nano::dev::network_params.network, cookie, boost::none };
 	auto input (node_id_handshake.to_shared_const_buffer ());
@@ -936,7 +937,7 @@ TEST (tcp_listener, DISABLED_tcp_listener_timeout_empty)
 	auto node0 (system.nodes[0]);
 	auto socket (create_client_socket (*node0));
 	std::atomic<bool> connected (false);
-	socket->async_connect (node0->bootstrap->endpoint (), [&connected] (boost::system::error_code const & ec) {
+	socket->async_connect (node0->tcp_listener->endpoint (), [&connected] (boost::system::error_code const & ec) {
 		ASSERT_FALSE (ec);
 		connected = true;
 	});
@@ -946,8 +947,8 @@ TEST (tcp_listener, DISABLED_tcp_listener_timeout_empty)
 	while (!disconnected)
 	{
 		{
-			nano::lock_guard<nano::mutex> guard (node0->bootstrap->mutex);
-			disconnected = node0->bootstrap->connections.empty ();
+			nano::lock_guard<nano::mutex> guard (node0->tcp_listener->mutex);
+			disconnected = node0->tcp_listener->connections.empty ();
 		}
 		ASSERT_NO_ERROR (system.poll ());
 	}
@@ -958,10 +959,10 @@ TEST (tcp_listener, tcp_listener_timeout_node_id_handshake)
 	nano::test::system system (1);
 	auto node0 (system.nodes[0]);
 	auto socket (create_client_socket (*node0));
-	auto cookie (node0->network->syn_cookies->assign (nano::transport::map_tcp_to_endpoint (node0->bootstrap->endpoint ())));
+	auto cookie (node0->network->syn_cookies->assign (nano::transport::map_tcp_to_endpoint (node0->tcp_listener->endpoint ())));
 	nano::node_id_handshake node_id_handshake{ nano::dev::network_params.network, cookie, boost::none };
-	auto channel = std::make_shared<nano::transport::channel_tcp> (node0->io_ctx, node0->network->limiter, node0->config->network_params.network, socket, node0->network->tcp_channels);
-	socket->async_connect (node0->bootstrap->endpoint (), [&node_id_handshake, channel] (boost::system::error_code const & ec) {
+	auto channel = std::make_shared<nano::transport::channel_tcp> (node0->io_ctx, node0->outbound_limiter, node0->config->network_params.network, socket, node0->network->tcp_channels);
+	socket->async_connect (node0->tcp_listener->endpoint (), [&node_id_handshake, channel] (boost::system::error_code const & ec) {
 		ASSERT_FALSE (ec);
 		channel->send (node_id_handshake, [] (boost::system::error_code const & ec, size_t size_a) {
 			ASSERT_FALSE (ec);
@@ -969,16 +970,16 @@ TEST (tcp_listener, tcp_listener_timeout_node_id_handshake)
 	});
 	ASSERT_TIMELY (5s, node0->stats->count (nano::stat::type::message, nano::stat::detail::node_id_handshake) != 0);
 	{
-		nano::lock_guard<nano::mutex> guard (node0->bootstrap->mutex);
-		ASSERT_EQ (node0->bootstrap->connections.size (), 1);
+		nano::lock_guard<nano::mutex> guard (node0->tcp_listener->mutex);
+		ASSERT_EQ (node0->tcp_listener->connections.size (), 1);
 	}
 	bool disconnected (false);
 	system.deadline_set (std::chrono::seconds (20));
 	while (!disconnected)
 	{
 		{
-			nano::lock_guard<nano::mutex> guard (node0->bootstrap->mutex);
-			disconnected = node0->bootstrap->connections.empty ();
+			nano::lock_guard<nano::mutex> guard (node0->tcp_listener->mutex);
+			disconnected = node0->tcp_listener->connections.empty ();
 		}
 		ASSERT_NO_ERROR (system.poll ());
 	}
@@ -1080,7 +1081,8 @@ TEST (network, duplicate_detection)
 	ASSERT_TIMELY (2s, node1.stats->count (nano::stat::type::filter, nano::stat::detail::duplicate_publish) == 1);
 
 	// Publish duplicate detection through TCP
-	auto tcp_channel (node0.network->tcp_channels->find_channel (nano::transport::map_endpoint_to_tcp (node1.network->endpoint ())));
+	auto tcp_channel (node0.network->tcp_channels->find_node_id (node1.get_node_id ()));
+	ASSERT_NE (nullptr, tcp_channel);
 	ASSERT_EQ (1, node1.stats->count (nano::stat::type::filter, nano::stat::detail::duplicate_publish));
 	tcp_channel->send (publish);
 	ASSERT_TIMELY (2s, node1.stats->count (nano::stat::type::filter, nano::stat::detail::duplicate_publish) == 2);
@@ -1149,7 +1151,7 @@ TEST (network, bandwidth_limiter)
 	ASSERT_TIMELY (1s, 1 == node.stats->count (nano::stat::type::drop, nano::stat::detail::publish, nano::stat::dir::out));
 
 	// change the bandwidth settings, 2 packets will be dropped
-	node.network->set_bandwidth_params (1.1, message_size * 2);
+	node.set_bandwidth_params (message_size * 2, 1.1);
 	channel1->send (message);
 	channel2->send (message);
 	channel1->send (message);
@@ -1157,7 +1159,7 @@ TEST (network, bandwidth_limiter)
 	ASSERT_TIMELY (1s, 3 == node.stats->count (nano::stat::type::drop, nano::stat::detail::publish, nano::stat::dir::out));
 
 	// change the bandwidth settings, no packet will be dropped
-	node.network->set_bandwidth_params (4, message_size);
+	node.set_bandwidth_params (message_size, 4);
 	channel1->send (message);
 	channel2->send (message);
 	channel1->send (message);
@@ -1196,8 +1198,7 @@ TEST (network, tcp_no_connect_excluded_peers)
 	auto node1 (std::make_shared<nano::node> (system.io_ctx, nano::test::get_available_port (), nano::unique_path (), system.logging, system.work));
 	node1->start ();
 	system.nodes.push_back (node1);
-	auto endpoint1 (node1->network->endpoint ());
-	auto endpoint1_tcp (nano::transport::map_endpoint_to_tcp (endpoint1));
+	auto endpoint1_tcp (nano::transport::map_endpoint_to_tcp (node1->network->endpoint ()));
 	while (!node0->network->excluded_peers.check (endpoint1_tcp))
 	{
 		node0->network->excluded_peers.add (endpoint1_tcp, 1);
@@ -1205,10 +1206,10 @@ TEST (network, tcp_no_connect_excluded_peers)
 	ASSERT_EQ (0, node0->stats->count (nano::stat::type::tcp, nano::stat::detail::tcp_excluded));
 	node1->network->merge_peer (node0->network->endpoint ());
 	ASSERT_TIMELY (5s, node0->stats->count (nano::stat::type::tcp, nano::stat::detail::tcp_excluded) >= 1);
-	ASSERT_EQ (nullptr, node0->network->find_channel (endpoint1));
+	ASSERT_EQ (nullptr, node0->network->find_node_id (node1->get_node_id ()));
 
 	// Should not actively reachout to excluded peers
-	ASSERT_TRUE (node0->network->reachout (endpoint1, true));
+	ASSERT_TRUE (node0->network->reachout (node1->network->endpoint (), true));
 
 	// Erasing from excluded peers should allow a connection
 	node0->network->excluded_peers.remove (endpoint1_tcp);
@@ -1288,7 +1289,7 @@ TEST (network, filter_invalid_network_bytes)
 	auto & node2 = *system.nodes[1];
 
 	// find the comms channel that goes from node2 to node1
-	auto channel = node2.network->find_channel (node1.network->endpoint ());
+	auto channel = node2.network->find_node_id (node1.get_node_id ());
 	ASSERT_NE (nullptr, channel);
 
 	// send a keepalive, from node2 to node1, with the wrong network bytes
@@ -1309,7 +1310,7 @@ TEST (network, filter_invalid_version_using)
 	auto & node2 = *system.nodes[1];
 
 	// find the comms channel that goes from node2 to node1
-	auto channel = node2.network->find_channel (node1.network->endpoint ());
+	auto channel = node2.network->find_node_id (node1.get_node_id ());
 	ASSERT_NE (nullptr, channel);
 
 	// send a keepalive, from node2 to node1, with the wrong version_using

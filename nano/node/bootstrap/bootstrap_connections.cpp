@@ -77,10 +77,10 @@ std::string nano::bootstrap_client::channel_string () const
 	return rsnano::convert_dto_to_string (dto);
 }
 
-void nano::bootstrap_client::send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a, nano::buffer_drop_policy drop_policy_a)
+void nano::bootstrap_client::send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a, nano::buffer_drop_policy drop_policy_a, nano::bandwidth_limit_type limit_type_a)
 {
 	auto callback_pointer = new std::function<void (boost::system::error_code const &, std::size_t)> (callback_a);
-	rsnano::rsn_bootstrap_client_send (handle, message_a.handle, nano::transport::channel_tcp_send_callback, nano::transport::delete_send_buffer_callback, callback_pointer, static_cast<uint8_t> (drop_policy_a));
+	rsnano::rsn_bootstrap_client_send (handle, message_a.handle, nano::transport::channel_tcp_send_callback, nano::transport::delete_send_buffer_callback, callback_pointer, static_cast<uint8_t> (drop_policy_a), static_cast<uint8_t> (limit_type_a));
 }
 
 void nano::bootstrap_client::send_buffer (nano::shared_const_buffer const & buffer_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a, nano::buffer_drop_policy policy_a)
@@ -230,7 +230,7 @@ void nano::bootstrap_connections::connect_client (nano::tcp_endpoint const & end
 			{
 				this_l->node.logger->try_log (boost::str (boost::format ("Connection established to %1%") % endpoint_a));
 			}
-			auto client (std::make_shared<nano::bootstrap_client> (this_l, std::make_shared<nano::transport::channel_tcp> (this_l->node.io_ctx, this_l->node.network->limiter, this_l->node.config->network_params.network, socket, this_l->node.network->tcp_channels), socket));
+			auto client (std::make_shared<nano::bootstrap_client> (this_l, std::make_shared<nano::transport::channel_tcp> (this_l->node.io_ctx, this_l->node.outbound_limiter, this_l->node.config->network_params.network, socket, this_l->node.network->tcp_channels), socket));
 			this_l->connections_count++;
 			this_l->pool_connection (client, true, push_front);
 		}

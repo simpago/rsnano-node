@@ -4,8 +4,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::generate_cache::GenerateCacheHandle;
-use crate::{ffi::StringDto, ConfirmationHeightMode, NodeFlags};
+use crate::{
+    config::{ConfirmationHeightMode, NodeFlags},
+    ffi::{ledger::GenerateCacheHandle, StringDto},
+};
 use num_traits::FromPrimitive;
 
 pub struct NodeFlagsHandle(Arc<Mutex<NodeFlags>>);

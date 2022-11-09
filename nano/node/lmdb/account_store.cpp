@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/account_store.hpp>
 #include <nano/node/lmdb/lmdb.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 nano::lmdb::account_store::account_store (rsnano::LmdbAccountStoreHandle * handle_a) :
 	handle{ handle_a }
@@ -63,12 +62,6 @@ nano::store_iterator<nano::account, nano::account_info> nano::lmdb::account_stor
 	return to_account_iterator (it_handle);
 }
 
-nano::store_iterator<nano::account, nano::account_info> nano::lmdb::account_store::rbegin (nano::transaction const & transaction_a) const
-{
-	auto it_handle{ rsnano::rsn_lmdb_account_store_rbegin (handle, transaction_a.get_rust_handle ()) };
-	return to_account_iterator (it_handle);
-}
-
 nano::store_iterator<nano::account, nano::account_info> nano::lmdb::account_store::end () const
 {
 	return nano::store_iterator<nano::account, nano::account_info> (nullptr);
@@ -93,9 +86,4 @@ void nano::lmdb::account_store::for_each_par (std::function<void (nano::read_tra
 {
 	auto context = (void *)&action_a;
 	rsnano::rsn_lmdb_account_store_for_each_par (handle, for_each_par_wrapper, context, for_each_par_delete_context);
-}
-
-MDB_dbi nano::lmdb::account_store::get_accounts_handle () const
-{
-	return rsnano::rsn_lmdb_account_store_accounts_handle (handle);
 }

@@ -149,3 +149,12 @@ std::unique_ptr<nano::message> rsnano::message_handle_to_message (rsnano::Messag
 			throw std::runtime_error ("invalid message type");
 	}
 }
+
+void rsnano::read_block_array_dto (rsnano::BlockArrayDto & dto, std::vector<std::shared_ptr<nano::block>> & list_a)
+{
+	for (int i = 0; i < dto.count; ++i)
+	{
+		list_a.push_back (nano::block_handle_to_block (dto.blocks[i]));
+	}
+	rsnano::rsn_block_array_destroy (&dto);
+}

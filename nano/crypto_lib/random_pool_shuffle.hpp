@@ -2,13 +2,12 @@
 
 #include <nano/crypto_lib/random_pool.hpp>
 
-#include <crypto/cryptopp/osrng.h>
-
 namespace nano
 {
 template <class Iter>
 void random_pool_shuffle (Iter begin, Iter end)
 {
-	random_pool::get_pool ().Shuffle (begin, end);
+	for (; begin != end; ++begin)
+		std::iter_swap (begin, begin + random_pool::generate_word32 (0, static_cast<uint32_t> (end - begin - 1)));
 }
 }

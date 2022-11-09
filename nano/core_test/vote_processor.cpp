@@ -150,7 +150,7 @@ TEST (vote_processor, weights)
 	system.wallet (0)->send_sync (nano::dev::genesis_key.pub, key2.pub, level2);
 
 	// Wait for representatives
-	ASSERT_TIMELY (10s, node.ledger.cache.rep_weights.get_rep_amounts ().size () == 4);
+	ASSERT_TIMELY (10s, node.ledger.cache.rep_weights ().get_rep_amounts ().size () == 4);
 	node.vote_processor.calculate_weights ();
 
 	ASSERT_EQ (node.vote_processor.representatives_1.end (), node.vote_processor.representatives_1.find (key0.pub));

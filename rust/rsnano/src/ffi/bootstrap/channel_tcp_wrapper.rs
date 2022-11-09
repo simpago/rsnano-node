@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use crate::{
     bootstrap::ChannelTcpWrapper,
-    ffi::network::{as_tcp_channel, ChannelHandle, SocketHandle},
+    ffi::transport::{as_tcp_channel, ChannelHandle, SocketHandle},
 };
 
-use super::bootstrap_server::BootstrapServerHandle;
+use super::bootstrap_server::TcpServerHandle;
 
 pub struct ChannelTcpWrapperHandle(ChannelTcpWrapper);
 
@@ -19,7 +19,7 @@ impl ChannelTcpWrapperHandle {
 pub unsafe extern "C" fn rsn_channel_tcp_wrapper_create(
     channel: *mut ChannelHandle,
     socket: *mut SocketHandle,
-    response_server: *mut BootstrapServerHandle,
+    response_server: *mut TcpServerHandle,
 ) -> *mut ChannelTcpWrapperHandle {
     let channel = as_tcp_channel(channel);
     let response_server = if response_server.is_null() {

@@ -55,6 +55,7 @@ add_library(
   numbers.cpp
   observer_set.hpp
   optional_ptr.hpp
+  processing_queue.hpp
   rep_weights.hpp
   rep_weights.cpp
   rpc_handler_interface.hpp
@@ -86,13 +87,10 @@ add_library(
 
 target_link_libraries(
   nano_lib
-  ed25519
   crypto_lib
-  blake2
   secure
   ipc_flatbuffers_lib
   rsnano
-  ${CRYPTOPP_LIBRARY}
   ${CMAKE_DL_LIBS}
   Boost::boost
   Boost::program_options)

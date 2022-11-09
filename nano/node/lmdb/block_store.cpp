@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/block_store.hpp>
 #include <nano/node/lmdb/lmdb.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 nano::store_iterator<nano::block_hash, nano::block_w_sideband> to_block_iterator (rsnano::LmdbIteratorHandle * it_handle)
 {
@@ -160,9 +159,4 @@ void nano::lmdb::block_store::for_each_par (std::function<void (nano::read_trans
 uint64_t nano::lmdb::block_store::account_height (nano::transaction const & transaction_a, nano::block_hash const & hash_a) const
 {
 	return rsnano::rsn_lmdb_block_store_account_height (handle, transaction_a.get_rust_handle (), hash_a.bytes.data ());
-}
-
-MDB_dbi nano::lmdb::block_store::get_blocks_handle () const
-{
-	return rsnano::rsn_lmdb_block_store_blocks_handle (handle);
 }

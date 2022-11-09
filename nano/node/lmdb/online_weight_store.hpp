@@ -2,8 +2,6 @@
 
 #include <nano/secure/store.hpp>
 
-#include <lmdb/libraries/liblmdb/lmdb.h>
-
 namespace nano
 {
 namespace lmdb
@@ -25,8 +23,6 @@ namespace lmdb
 		nano::store_iterator<uint64_t, nano::amount> end () const override;
 		size_t count (nano::transaction const & transaction_a) const override;
 		void clear (nano::write_transaction const & transaction_a) override;
-
-		MDB_dbi table_handle () const;
 	};
 }
 }

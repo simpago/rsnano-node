@@ -1,4 +1,3 @@
-#include <nano/crypto/blake2/blake2.h>
 #include <nano/lib/config.hpp>
 #include <nano/lib/logger_mt.hpp>
 #include <nano/lib/rsnano.hpp>
@@ -8,10 +7,10 @@
 #include <nano/lib/tomlconfig.hpp>
 #include <nano/node/blockprocessor.hpp>
 #include <nano/node/bootstrap/bootstrap.hpp>
-#include <nano/node/bootstrap/bootstrap_server.hpp>
 #include <nano/node/lmdb/lmdb_txn.hpp>
 #include <nano/node/rsnano_callbacks.hpp>
 #include <nano/node/transport/tcp.hpp>
+#include <nano/node/transport/tcp_server.hpp>
 #include <nano/node/websocket.hpp>
 
 #include <boost/property_tree/json_parser.hpp>
@@ -383,14 +382,6 @@ void blockprocessor_add (void * handle_a, rsnano::UncheckedInfoHandle * info_a)
 	processor->add (info);
 }
 
-bool ledger_block_or_pruned_exists (void * handle_a, uint8_t const * block_hash_a)
-{
-	auto ledger{ static_cast<nano::ledger *> (handle_a) };
-	nano::block_hash hash;
-	std::copy (block_hash_a, block_hash_a + 32, std::begin (hash.bytes));
-	return ledger->block_or_pruned_exists (hash);
-}
-
 void bootstrap_initiator_clear_pulls (void * handle_a, uint64_t bootstrap_id_a)
 {
 	auto bootstrap_initiator{ static_cast<nano::bootstrap_initiator *> (handle_a) };
@@ -687,52 +678,52 @@ void message_visitor_destroy (void * handle_a)
 
 void bootstrap_observer_destroy (void * handle_a)
 {
-	auto observer = static_cast<std::shared_ptr<nano::bootstrap_server_observer> *> (handle_a);
+	auto observer = static_cast<std::shared_ptr<nano::tcp_server_observer> *> (handle_a);
 	delete observer;
 }
 
 std::size_t bootstrap_observer_bootstrap_count (void * handle_a)
 {
-	auto observer = static_cast<std::shared_ptr<nano::bootstrap_server_observer> *> (handle_a);
+	auto observer = static_cast<std::shared_ptr<nano::tcp_server_observer> *> (handle_a);
 	return (*observer)->get_bootstrap_count ();
 }
 
 void bootstrap_observer_exited (void * handle_a, uint8_t socket_type_a, uintptr_t inner_ptr_a, const rsnano::EndpointDto * endpoint_a)
 {
-	auto observer = static_cast<std::shared_ptr<nano::bootstrap_server_observer> *> (handle_a);
+	auto observer = static_cast<std::shared_ptr<nano::tcp_server_observer> *> (handle_a);
 	auto socket_type = static_cast<nano::socket::type_t> (socket_type_a);
 	auto endpoint = rsnano::dto_to_endpoint (*endpoint_a);
-	(*observer)->boostrap_server_exited (socket_type, inner_ptr_a, endpoint);
+	(*observer)->tcp_server_exited (socket_type, inner_ptr_a, endpoint);
 }
 
 void bootstrap_observer_inc_bootstrap_count (void * handle_a)
 {
-	auto observer = static_cast<std::shared_ptr<nano::bootstrap_server_observer> *> (handle_a);
+	auto observer = static_cast<std::shared_ptr<nano::tcp_server_observer> *> (handle_a);
 	(*observer)->inc_bootstrap_count ();
 }
 
 void bootstrap_observer_inc_realtime_count (void * handle_a)
 {
-	auto observer = static_cast<std::shared_ptr<nano::bootstrap_server_observer> *> (handle_a);
+	auto observer = static_cast<std::shared_ptr<nano::tcp_server_observer> *> (handle_a);
 	(*observer)->inc_realtime_count ();
 }
 
 void bootstrap_observer_timeout (void * handle_a, uintptr_t inner_ptr_a)
 {
-	auto observer = static_cast<std::shared_ptr<nano::bootstrap_server_observer> *> (handle_a);
-	(*observer)->bootstrap_server_timeout (inner_ptr_a);
+	auto observer = static_cast<std::shared_ptr<nano::tcp_server_observer> *> (handle_a);
+	(*observer)->tcp_server_timeout (inner_ptr_a);
 }
 
 void request_response_visitor_factory_destroy (void * handle_a)
 {
-	auto factory = static_cast<std::shared_ptr<nano::request_response_visitor_factory> *> (handle_a);
+	auto factory = static_cast<std::shared_ptr<nano::transport::request_response_visitor_factory> *> (handle_a);
 	delete factory;
 }
 
-void * request_response_visitor_factory_bootstrap_visitor (void * factory_a, rsnano::BootstrapServerHandle * connection_a)
+void * request_response_visitor_factory_bootstrap_visitor (void * factory_a, rsnano::TcpServerHandle * connection_a)
 {
-	auto factory = static_cast<std::shared_ptr<nano::request_response_visitor_factory> *> (factory_a);
-	auto connection = std::make_shared<nano::bootstrap_server> (connection_a);
+	auto factory = static_cast<std::shared_ptr<nano::transport::request_response_visitor_factory> *> (factory_a);
+	auto connection = std::make_shared<nano::transport::tcp_server> (connection_a);
 	auto visitor{ (*factory)->create_bootstrap (connection) };
 	return new std::shared_ptr<nano::message_visitor> (visitor);
 }
@@ -860,7 +851,7 @@ void txn_callbacks_end (void * handle_a, uint64_t txn_id_a)
 bool message_visitor_bootstrap_processed (void * handle_a)
 {
 	auto visitor = static_cast<std::shared_ptr<nano::message_visitor> *> (handle_a);
-	return (static_cast<nano::bootstrap_server::bootstrap_message_visitor *> (visitor->get ()))->processed;
+	return (static_cast<nano::transport::tcp_server::bootstrap_message_visitor *> (visitor->get ()))->processed;
 }
 
 static bool callbacks_set = false;
@@ -875,10 +866,6 @@ void rsnano::set_rsnano_callbacks ()
 	rsnano::rsn_callback_read_u8 (read_u8);
 	rsnano::rsn_callback_read_bytes (read_bytes);
 	rsnano::rsn_callback_in_avail (in_avail);
-
-	rsnano::rsn_callback_blake2b_init (reinterpret_cast<Blake2BInitCallback> (blake2b_init));
-	rsnano::rsn_callback_blake2b_update (reinterpret_cast<Blake2BUpdateCallback> (blake2b_update));
-	rsnano::rsn_callback_blake2b_final (reinterpret_cast<Blake2BFinalCallback> (blake2b_final));
 
 	rsnano::rsn_callback_property_tree_put_string (ptree_put_string);
 	rsnano::rsn_callback_property_tree_put_u64 (ptree_put_u64);
@@ -911,7 +898,6 @@ void rsnano::set_rsnano_callbacks ()
 	rsnano::rsn_callback_always_log (logger_always_log);
 	rsnano::rsn_callback_listener_broadcast (listener_broadcast);
 	rsnano::rsn_callback_block_processor_add (blockprocessor_add);
-	rsnano::rsn_callback_ledger_block_or_pruned_exists (ledger_block_or_pruned_exists);
 	rsnano::rsn_callback_block_bootstrap_initiator_clear_pulls (bootstrap_initiator_clear_pulls);
 	rsnano::rsn_callback_add_timed_task (add_timed_task);
 	rsnano::rsn_callback_destroy_thread_pool (destroy_thread_pool);
@@ -970,31 +956,6 @@ void rsnano::set_rsnano_callbacks ()
 	rsnano::rsn_callback_message_visitor_bootstrap_processed (message_visitor_bootstrap_processed);
 	rsnano::rsn_callback_memory_intensive_instrumentation (nano::memory_intensive_instrumentation);
 	rsnano::rsn_callback_is_sanitizer_build (nano::is_sanitizer_build);
-
-	rsnano::rsn_callback_mdb_txn_begin (reinterpret_cast<rsnano::MdbTxnBeginCallback> (mdb_txn_begin));
-	rsnano::rsn_callback_mdb_txn_commit (reinterpret_cast<rsnano::MdbTxnCommitCallback> (mdb_txn_commit));
-	rsnano::rsn_callback_mdb_txn_reset (reinterpret_cast<rsnano::MdbTxnResetCallback> (mdb_txn_reset));
-	rsnano::rsn_callback_mdb_txn_renew (reinterpret_cast<rsnano::MdbTxnRenewCallback> (mdb_txn_renew));
-	rsnano::rsn_callback_mdb_strerror (mdb_strerror);
-	rsnano::rsn_callback_mdb_cursor_open (reinterpret_cast<rsnano::MdbCursorOpenCallback> (mdb_cursor_open));
-	rsnano::rsn_callback_mdb_cursor_get (reinterpret_cast<rsnano::MdbCursorGetCallback> (mdb_cursor_get));
-	rsnano::rsn_callback_mdb_cursor_close (reinterpret_cast<rsnano::MdbCursorCloseCallback> (mdb_cursor_close));
-	rsnano::rsn_callback_mdb_dbi_open (reinterpret_cast<rsnano::MdbDbiOpenCallback> (mdb_dbi_open));
-	rsnano::rsn_callback_mdb_put (reinterpret_cast<rsnano::MdbPutCallback> (mdb_put));
-	rsnano::rsn_callback_mdb_get (reinterpret_cast<rsnano::MdbGetCallback> (mdb_get));
-	rsnano::rsn_callback_mdb_del (reinterpret_cast<rsnano::MdbDelCallback> (mdb_del));
-	rsnano::rsn_callback_mdb_env_create (reinterpret_cast<rsnano::MdbEnvCreateCallback> (mdb_env_create));
-	rsnano::rsn_callback_mdb_env_set_max_dbs (reinterpret_cast<rsnano::MdbEnvSetMaxDbsCallback> (mdb_env_set_maxdbs));
-	rsnano::rsn_callback_mdb_env_set_map_size (reinterpret_cast<rsnano::MdbEnvSetMapSizeCallback> (mdb_env_set_mapsize));
-	rsnano::rsn_callback_mdb_env_open (reinterpret_cast<rsnano::MdbEnvOpenCallback> (mdb_env_open));
-	rsnano::rsn_callback_mdb_env_sync (reinterpret_cast<rsnano::MdbEnvSyncCallback> (mdb_env_sync));
-	rsnano::rsn_callback_mdb_env_close (reinterpret_cast<rsnano::MdbEnvCloseCallback> (mdb_env_close));
-	rsnano::rsn_callback_mdb_stat (reinterpret_cast<rsnano::MdbStatCallback> (mdb_stat));
-	rsnano::rsn_callback_mdb_drop (reinterpret_cast<rsnano::MdbDropCallback> (mdb_drop));
-	rsnano::rsn_callback_mdb_env_copy (reinterpret_cast<rsnano::MdbEnvCopyCallback> (mdb_env_copy));
-	rsnano::rsn_callback_mdb_env_copy2 (reinterpret_cast<rsnano::MdbEnvCopy2Callback> (mdb_env_copy2));
-	rsnano::rsn_callback_mdb_env_stat (reinterpret_cast<rsnano::MdbEnvStatCallback> (mdb_env_stat));
-	rsnano::rsn_callback_mdb_dbi_close (reinterpret_cast<rsnano::MdbDbiCloseCallback> (mdb_dbi_close));
 
 	callbacks_set = true;
 }

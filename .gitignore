@@ -84,6 +84,6 @@ util/build_prep/*/prep.sh
 
 .cargo
 cargo
-build*
+build_*
 cmake-build-debug/
 rust/target

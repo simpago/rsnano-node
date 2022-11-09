@@ -22,7 +22,6 @@ nano::network::network (nano::node & node_a, uint16_t port_a) :
 	} },
 	buffer_container (*node_a.stats, nano::network::buffer_size, 4096), // 2Mb receive buffer
 	resolver (node_a.io_ctx),
-	limiter (node_a.config->bandwidth_limit_burst_ratio, node_a.config->bandwidth_limit),
 	tcp_message_manager (node_a.config->tcp_incoming_connections_max),
 	node (node_a),
 	publish_filter{ std::make_shared<nano::network_filter> (256 * 1024) },
@@ -424,13 +423,14 @@ public:
 		channel (channel_a)
 	{
 	}
+
 	void keepalive (nano::keepalive const & message_a) override
 	{
 		if (node.config->logging.network_keepalive_logging ())
 		{
 			node.logger->try_log (boost::str (boost::format ("Received keepalive message from %1%") % channel->to_string ()));
 		}
-		node.stats->inc (nano::stat::type::message, nano::stat::detail::keepalive, nano::stat::dir::in);
+
 		node.network->merge_peers (message_a.get_peers ());
 
 		// Check for special node port data
@@ -444,13 +444,14 @@ public:
 			channel->set_peering_endpoint (new_endpoint);
 		}
 	}
+
 	void publish (nano::publish const & message_a) override
 	{
 		if (node.config->logging.network_message_logging ())
 		{
 			node.logger->try_log (boost::str (boost::format ("Publish message from %1% for %2%") % channel->to_string () % message_a.get_block ()->hash ().to_string ()));
 		}
-		node.stats->inc (nano::stat::type::message, nano::stat::detail::publish, nano::stat::dir::in);
+
 		if (!node.block_processor.full ())
 		{
 			auto block{ message_a.get_block () };
@@ -462,6 +463,7 @@ public:
 			node.stats->inc (nano::stat::type::drop, nano::stat::detail::publish, nano::stat::dir::in);
 		}
 	}
+
 	void confirm_req (nano::confirm_req const & message_a) override
 	{
 		if (node.config->logging.network_message_logging ())
@@ -475,7 +477,7 @@ public:
 				node.logger->try_log (boost::str (boost::format ("Confirm_req message from %1% for %2%") % channel->to_string () % message_a.get_block ()->hash ().to_string ()));
 			}
 		}
-		node.stats->inc (nano::stat::type::message, nano::stat::detail::confirm_req, nano::stat::dir::in);
+
 		// Don't load nodes with disabled voting
 		if (node.config->enable_voting && node.wallets.reps ().voting > 0)
 		{
@@ -489,45 +491,51 @@ public:
 			}
 		}
 	}
+
 	void confirm_ack (nano::confirm_ack const & message_a) override
 	{
 		if (node.config->logging.network_message_logging ())
 		{
 			node.logger->try_log (boost::str (boost::format ("Received confirm_ack message from %1% for %2% timestamp %3%") % channel->to_string () % message_a.get_vote ()->hashes_string () % std::to_string (message_a.get_vote ()->timestamp ())));
 		}
-		node.stats->inc (nano::stat::type::message, nano::stat::detail::confirm_ack, nano::stat::dir::in);
+
 		if (!message_a.get_vote ()->account ().is_zero ())
 		{
 			node.vote_processor.vote (message_a.get_vote (), channel);
 		}
 	}
+
 	void bulk_pull (nano::bulk_pull const &) override
 	{
 		debug_assert (false);
 	}
+
 	void bulk_pull_account (nano::bulk_pull_account const &) override
 	{
 		debug_assert (false);
 	}
+
 	void bulk_push (nano::bulk_push const &) override
 	{
 		debug_assert (false);
 	}
+
 	void frontier_req (nano::frontier_req const &) override
 	{
 		debug_assert (false);
 	}
+
 	void node_id_handshake (nano::node_id_handshake const & message_a) override
 	{
 		node.stats->inc (nano::stat::type::message, nano::stat::detail::node_id_handshake, nano::stat::dir::in);
 	}
+
 	void telemetry_req (nano::telemetry_req const & message_a) override
 	{
 		if (node.config->logging.network_telemetry_logging ())
 		{
 			node.logger->try_log (boost::str (boost::format ("Telemetry_req message from %1%") % channel->to_string ()));
 		}
-		node.stats->inc (nano::stat::type::message, nano::stat::detail::telemetry_req, nano::stat::dir::in);
 
 		// Send an empty telemetry_ack if we do not want, just to acknowledge that we have received the message to
 		// remove any timeouts on the server side waiting for a message.
@@ -539,27 +547,42 @@ public:
 		}
 		channel->send (telemetry_ack, nullptr, nano::buffer_drop_policy::no_socket_drop);
 	}
+
 	void telemetry_ack (nano::telemetry_ack const & message_a) override
 	{
 		if (node.config->logging.network_telemetry_logging ())
 		{
 			node.logger->try_log (boost::str (boost::format ("Received telemetry_ack message from %1%") % channel->to_string ()));
 		}
-		node.stats->inc (nano::stat::type::message, nano::stat::detail::telemetry_ack, nano::stat::dir::in);
+
 		if (node.telemetry)
 		{
 			node.telemetry->set (message_a, *channel);
 		}
 	}
+
+	void asc_pull_req (nano::asc_pull_req const & message) override
+	{
+		node.bootstrap_server.request (message, channel);
+	}
+
+	void asc_pull_ack (nano::asc_pull_ack const & message) override
+	{
+		// TODO: Process in ascending bootstrap client
+	}
+
+private:
 	nano::node & node;
 	std::shared_ptr<nano::transport::channel> channel;
 };
 }
 
-void nano::network::process_message (nano::message const & message_a, std::shared_ptr<nano::transport::channel> const & channel_a)
+void nano::network::process_message (nano::message const & message, std::shared_ptr<nano::transport::channel> const & channel)
 {
-	network_message_visitor visitor (node, channel_a);
-	message_a.visit (visitor);
+	node.stats->inc (nano::stat::type::message, nano::to_stat_detail (message.type ()), nano::stat::dir::in);
+
+	network_message_visitor visitor (node, channel);
+	message.visit (visitor);
 }
 
 // Send keepalives to all the peers we've been notified of
@@ -742,7 +765,7 @@ std::shared_ptr<nano::transport::channel> nano::network::find_node_id (nano::acc
 	return result;
 }
 
-nano::endpoint nano::network::endpoint ()
+nano::endpoint nano::network::endpoint () const
 {
 	return nano::endpoint (boost::asio::ip::address_v6::loopback (), port);
 }
@@ -821,11 +844,6 @@ void nano::network::erase (nano::transport::channel const & channel_a)
 		udp_channels.erase (channel_a.get_endpoint ());
 		udp_channels.clean_node_id (channel_a.get_node_id ());
 	}
-}
-
-void nano::network::set_bandwidth_params (double limit_burst_ratio_a, std::size_t limit_a)
-{
-	limiter.reset (limit_burst_ratio_a, limit_a);
 }
 
 nano::message_buffer_manager::message_buffer_manager (nano::stat & stats_a, std::size_t size, std::size_t count) :

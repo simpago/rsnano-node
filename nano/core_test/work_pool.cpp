@@ -13,83 +13,6 @@
 
 #include <future>
 
-TEST (work, one)
-{
-	nano::work_pool pool{ nano::dev::network_params.network, std::numeric_limits<unsigned>::max () };
-	nano::keypair key1;
-	nano::block_builder builder;
-	auto block = builder
-				 .change ()
-				 .previous (1)
-				 .representative (1)
-				 .sign (key1.prv, key1.pub)
-				 .work (4)
-				 .build ();
-	block->block_work_set (*pool.generate (block->root ()));
-	ASSERT_LT (nano::dev::network_params.work.threshold_base (block->work_version ()), nano::dev::network_params.work.difficulty (*block));
-}
-
-TEST (work, disabled)
-{
-	nano::work_pool pool{ nano::dev::network_params.network, 0 };
-	auto result (pool.generate (nano::block_hash ()));
-	ASSERT_FALSE (result.is_initialized ());
-}
-
-TEST (work, validate)
-{
-	nano::work_pool pool{ nano::dev::network_params.network, std::numeric_limits<unsigned>::max () };
-	nano::keypair key1;
-	nano::block_builder builder;
-	auto send_block = builder
-					  .send ()
-					  .previous (1)
-					  .destination (1)
-					  .balance (2)
-					  .sign (key1.prv, key1.pub)
-					  .work (6)
-					  .build ();
-	ASSERT_LT (nano::dev::network_params.work.difficulty (*send_block), nano::dev::network_params.work.threshold_base (send_block->work_version ()));
-	send_block->block_work_set (*pool.generate (send_block->root ()));
-	ASSERT_LT (nano::dev::network_params.work.threshold_base (send_block->work_version ()), nano::dev::network_params.work.difficulty (*send_block));
-}
-
-TEST (work, cancel)
-{
-	nano::work_pool pool{ nano::dev::network_params.network, std::numeric_limits<unsigned>::max () };
-	auto iterations (0);
-	auto done (false);
-	while (!done)
-	{
-		nano::root key (1);
-		pool.generate (
-		nano::work_version::work_1, key, nano::dev::network_params.work.get_base (), [&done] (boost::optional<uint64_t> work_a) {
-			done = !work_a;
-		});
-		pool.cancel (key);
-		++iterations;
-		ASSERT_LT (iterations, 200);
-	}
-}
-
-TEST (work, cancel_many)
-{
-	nano::work_pool pool{ nano::dev::network_params.network, std::numeric_limits<unsigned>::max () };
-	nano::root key1 (1);
-	nano::root key2 (2);
-	nano::root key3 (1);
-	nano::root key4 (1);
-	nano::root key5 (3);
-	nano::root key6 (1);
-	pool.generate (nano::work_version::work_1, key1, nano::dev::network_params.work.get_base (), [] (boost::optional<uint64_t>) {});
-	pool.generate (nano::work_version::work_1, key2, nano::dev::network_params.work.get_base (), [] (boost::optional<uint64_t>) {});
-	pool.generate (nano::work_version::work_1, key3, nano::dev::network_params.work.get_base (), [] (boost::optional<uint64_t>) {});
-	pool.generate (nano::work_version::work_1, key4, nano::dev::network_params.work.get_base (), [] (boost::optional<uint64_t>) {});
-	pool.generate (nano::work_version::work_1, key5, nano::dev::network_params.work.get_base (), [] (boost::optional<uint64_t>) {});
-	pool.generate (nano::work_version::work_1, key6, nano::dev::network_params.work.get_base (), [] (boost::optional<uint64_t>) {});
-	pool.cancel (key1);
-}
-
 TEST (work, opencl)
 {
 	nano::logging logging;
@@ -105,10 +28,10 @@ TEST (work, opencl)
 		if (opencl != nullptr)
 		{
 			// 0 threads, should add 1 for managing OpenCL
-			nano::work_pool pool{ nano::dev::network_params.network, 0, std::chrono::nanoseconds (0), [&opencl] (nano::work_version const version_a, nano::root const & root_a, uint64_t difficulty_a, std::atomic<int> & ticket_a) {
+			nano::work_pool pool{ nano::dev::network_params.network, 0, std::chrono::nanoseconds (0), [&opencl] (nano::work_version const version_a, nano::root const & root_a, uint64_t difficulty_a, nano::work_ticket ticket_a) {
 									 return opencl->generate_work (version_a, root_a, difficulty_a);
 								 } };
-			ASSERT_NE (nullptr, pool.opencl);
+			ASSERT_TRUE (pool.has_opencl ());
 			nano::root root;
 			uint64_t difficulty (0xff00000000000000);
 			uint64_t difficulty_add (0x000f000000000000);
@@ -129,29 +52,6 @@ TEST (work, opencl)
 	{
 		std::cout << "Device with OpenCL support not found. Skipping OpenCL test" << std::endl;
 	}
-}
-
-TEST (work, difficulty)
-{
-	nano::work_pool pool{ nano::dev::network_params.network, std::numeric_limits<unsigned>::max () };
-	nano::root root (1);
-	uint64_t difficulty1 (0xff00000000000000);
-	uint64_t difficulty2 (0xfff0000000000000);
-	uint64_t difficulty3 (0xffff000000000000);
-	uint64_t result_difficulty1 (0);
-	do
-	{
-		auto work1 = *pool.generate (nano::work_version::work_1, root, difficulty1);
-		result_difficulty1 = nano::dev::network_params.work.difficulty (nano::work_version::work_1, root, work1);
-	} while (result_difficulty1 > difficulty2);
-	ASSERT_GT (result_difficulty1, difficulty1);
-	uint64_t result_difficulty2 (0);
-	do
-	{
-		auto work2 = *pool.generate (nano::work_version::work_1, root, difficulty2);
-		result_difficulty2 = nano::dev::network_params.work.difficulty (nano::work_version::work_1, root, work2);
-	} while (result_difficulty2 > difficulty3);
-	ASSERT_GT (result_difficulty2, difficulty2);
 }
 
 TEST (work, eco_pow)

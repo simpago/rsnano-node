@@ -1,6 +1,5 @@
 #include <nano/node/lmdb/confirmation_height_store.hpp>
 #include <nano/node/lmdb/lmdb.hpp>
-#include <nano/secure/parallel_traversal.hpp>
 
 namespace
 {
@@ -99,9 +98,4 @@ void nano::lmdb::confirmation_height_store::for_each_par (std::function<void (na
 {
 	auto context = (void *)&action_a;
 	rsnano::rsn_lmdb_confirmation_height_store_for_each_par (handle, for_each_par_wrapper, context, for_each_par_delete_context);
-}
-
-MDB_dbi nano::lmdb::confirmation_height_store::table_handle () const
-{
-	return rsnano::rsn_lmdb_confirmation_height_store_table_handle (handle);
 }

@@ -41,8 +41,9 @@ impl WebsocketConfig {
 
 #[cfg(test)]
 mod tests {
+    use crate::work::WorkThresholds;
+
     use super::*;
-    use crate::config::WorkThresholds;
 
     #[test]
     fn websocket_config() {

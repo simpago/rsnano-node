@@ -1,62 +1,43 @@
-mod bandwidth_limiter;
-mod blake2b;
-mod block_arrival;
-mod block_processor;
-mod blocks;
+pub mod block_processing;
 pub mod bootstrap;
 mod config;
-pub mod datastore;
-mod epoch;
+pub mod core;
 mod hardened_constants;
-mod io_context;
 mod ipc;
-mod logger_mt;
-mod messages;
-mod network;
-mod numbers;
+pub mod ledger;
 mod property_tree;
 mod secure;
 mod signatures;
-mod state_block_signature_verification;
 mod stats;
-mod stream;
-mod thread_pool;
-mod toml;
-mod unchecked_info;
+mod transport;
+mod utils;
 mod voting;
+mod wallet;
 mod websocket;
-mod rep_weights;
+mod work;
 
 use std::{
     ffi::{c_void, CString},
     os::raw::c_char,
 };
 
-pub use bandwidth_limiter::*;
-pub use blake2b::*;
-pub(crate) use block_processor::*;
-pub use blocks::*;
 pub use config::*;
-pub use epoch::*;
-pub use io_context::DispatchCallback;
 pub use ipc::*;
-pub use logger_mt::*;
-pub use numbers::*;
 pub use property_tree::*;
 pub use secure::*;
 pub use signatures::*;
 pub use stats::*;
-pub use stream::*;
-pub use toml::*;
-pub(crate) use unchecked_info::*;
 pub(crate) use websocket::*;
 
 use crate::{
-    utils::ErrorCode, Account, Amount, BlockHash, HashOrAccount,
-    MemoryIntensiveInstrumentationCallback, QualifiedRoot, RawKey, Root, Signature,
-    IS_SANITIZER_BUILD, MEMORY_INTENSIVE_INSTRUMENTATION,
+    core::{
+        Account, Amount, BlockHash, HashOrAccount, Link, PublicKey, QualifiedRoot, RawKey, Root,
+        Signature,
+    },
+    utils::ErrorCode,
+    MemoryIntensiveInstrumentationCallback, IS_SANITIZER_BUILD, MEMORY_INTENSIVE_INSTRUMENTATION,
 };
-pub use network::ChannelTcpObserverWeakPtr;
+pub use transport::ChannelTcpObserverWeakPtr;
 
 pub struct StringHandle(CString);
 #[repr(C)]
@@ -81,42 +62,12 @@ pub unsafe extern "C" fn rsn_string_destroy(handle: *mut StringHandle) {
     drop(Box::from_raw(handle))
 }
 
-impl BlockHash {
-    unsafe fn from_ptr(ptr: *const u8) -> Self {
-        BlockHash::from_bytes(into_32_byte_array(ptr))
-    }
-}
-
-impl Account {
-    unsafe fn from_ptr(ptr: *const u8) -> Self {
-        Account::from_bytes(into_32_byte_array(ptr))
-    }
-}
-
-impl HashOrAccount {
-    unsafe fn from_ptr(ptr: *const u8) -> Self {
-        HashOrAccount::from_bytes(into_32_byte_array(ptr))
-    }
-}
-
-impl Root {
-    unsafe fn from_ptr(ptr: *const u8) -> Self {
-        Root::from_bytes(into_32_byte_array(ptr))
-    }
-}
-
 impl QualifiedRoot {
     unsafe fn from_ptr(ptr: *const u8) -> Self {
         QualifiedRoot {
             root: Root::from_ptr(ptr),
             previous: BlockHash::from_ptr(ptr.add(32)),
         }
-    }
-}
-
-impl RawKey {
-    unsafe fn from_ptr(ptr: *const u8) -> Self {
-        RawKey::from_bytes(into_32_byte_array(ptr))
     }
 }
 
@@ -142,6 +93,16 @@ fn into_32_byte_array(ptr: *const u8) -> [u8; 32] {
     bytes
 }
 
+pub(crate) unsafe fn copy_public_key_bytes(source: &PublicKey, target: *mut u8) {
+    let bytes = std::slice::from_raw_parts_mut(target, 32);
+    bytes.copy_from_slice(source.as_bytes());
+}
+
+pub(crate) unsafe fn copy_raw_key_bytes(source: RawKey, target: *mut u8) {
+    let bytes = std::slice::from_raw_parts_mut(target, 32);
+    bytes.copy_from_slice(source.as_bytes());
+}
+
 pub(crate) unsafe fn copy_hash_bytes(source: BlockHash, target: *mut u8) {
     let bytes = std::slice::from_raw_parts_mut(target, 32);
     bytes.copy_from_slice(source.as_bytes());
@@ -165,6 +126,16 @@ pub(crate) unsafe fn copy_signature_bytes(source: &Signature, target: *mut u8) {
 pub(crate) unsafe fn copy_amount_bytes(source: Amount, target: *mut u8) {
     let bytes = std::slice::from_raw_parts_mut(target, 16);
     bytes.copy_from_slice(&source.to_be_bytes());
+}
+
+pub(crate) unsafe fn copy_root_bytes(source: Root, target: *mut u8) {
+    let bytes = std::slice::from_raw_parts_mut(target, 32);
+    bytes.copy_from_slice(source.as_bytes());
+}
+
+pub(crate) unsafe fn copy_link_bytes(source: Link, target: *mut u8) {
+    let bytes = std::slice::from_raw_parts_mut(target, 32);
+    bytes.copy_from_slice(source.as_bytes());
 }
 
 pub type VoidPointerCallback = unsafe extern "C" fn(*mut c_void);
@@ -205,4 +176,26 @@ pub unsafe extern "C" fn rsn_callback_is_sanitizer_build(
     f: MemoryIntensiveInstrumentationCallback,
 ) {
     IS_SANITIZER_BUILD = Some(f);
+}
+
+pub struct U256ArrayHandle(Box<Vec<[u8; 32]>>);
+
+#[repr(C)]
+pub struct U256ArrayDto {
+    pub items: *const [u8; 32],
+    pub count: usize,
+    pub handle: *mut U256ArrayHandle,
+}
+
+impl U256ArrayDto {
+    pub fn initialize(&mut self, values: Box<Vec<[u8; 32]>>) {
+        self.items = values.as_ptr();
+        self.count = values.len();
+        self.handle = Box::into_raw(Box::new(U256ArrayHandle(values)))
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_u256_array_destroy(dto: *mut U256ArrayDto) {
+    drop(Box::from_raw((*dto).handle))
 }

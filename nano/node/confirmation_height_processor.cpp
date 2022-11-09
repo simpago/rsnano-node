@@ -11,11 +11,11 @@
 
 #include <numeric>
 
-nano::confirmation_height_processor::confirmation_height_processor (nano::ledger & ledger_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, nano::logger_mt & logger_a, boost::latch & latch, confirmation_height_mode mode_a) :
+nano::confirmation_height_processor::confirmation_height_processor (nano::ledger & ledger_a, nano::stat & stats_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, nano::logger_mt & logger_a, boost::latch & latch, confirmation_height_mode mode_a) :
 	ledger (ledger_a),
 	write_database_queue (write_database_queue_a),
 	unbounded_processor (
-	ledger_a, write_database_queue_a, batch_separate_pending_min_time_a, logging_a, logger_a, stopped, batch_write_size,
+	ledger_a, stats_a, write_database_queue_a, batch_separate_pending_min_time_a, logging_a, logger_a, stopped, batch_write_size,
 	/* cemented_callback */ [this] (auto & cemented_blocks) { this->notify_cemented (cemented_blocks); },
 	/* already cemented_callback */ [this] (auto const & block_hash_a) { this->notify_already_cemented (block_hash_a); },
 	/* awaiting_processing_size_query */ [this] () { return this->awaiting_processing_size (); }),
@@ -69,7 +69,7 @@ void nano::confirmation_height_processor::run (confirmation_height_mode mode_a)
 			set_next_hash ();
 
 			auto const num_blocks_to_use_unbounded = confirmation_height::unbounded_cutoff;
-			auto blocks_within_automatic_unbounded_selection = (ledger.cache.block_count < num_blocks_to_use_unbounded || ledger.cache.block_count - num_blocks_to_use_unbounded < ledger.cache.cemented_count);
+			auto blocks_within_automatic_unbounded_selection = (ledger.cache.block_count () < num_blocks_to_use_unbounded || ledger.cache.block_count () - num_blocks_to_use_unbounded < ledger.cache.cemented_count ());
 
 			// Don't want to mix up pending writes across different processors
 			auto valid_unbounded = (mode_a == confirmation_height_mode::automatic && blocks_within_automatic_unbounded_selection && bounded_processor.pending_empty ());

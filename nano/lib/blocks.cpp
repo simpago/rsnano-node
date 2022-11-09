@@ -3,11 +3,7 @@
 #include <nano/lib/memory.hpp>
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/threading.hpp>
-#include <nano/secure/common.hpp>
 
-#include <crypto/cryptopp/words.h>
-
-#include <boost/endian/conversion.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
 #include <bitset>
@@ -931,6 +927,17 @@ std::shared_ptr<nano::block> nano::deserialize_block_json (boost::property_tree:
 		result = uniquer_a->unique (result);
 	}
 	return result;
+}
+
+void nano::serialize_block_type (nano::stream & stream, const nano::block_type & type)
+{
+	nano::write (stream, type);
+}
+
+void nano::serialize_block (nano::stream & stream_a, nano::block const & block_a)
+{
+	nano::serialize_block_type (stream_a, block_a.type ());
+	block_a.serialize (stream_a);
 }
 
 std::shared_ptr<nano::block> nano::deserialize_block (nano::stream & stream_a)

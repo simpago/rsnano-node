@@ -1,6 +1,5 @@
 #pragma once
 
-#include <nano/crypto/blake2/blake2.h>
 #include <nano/lib/epoch.hpp>
 #include <nano/lib/errors.hpp>
 #include <nano/lib/numbers.hpp>
@@ -314,7 +313,15 @@ std::unique_ptr<container_info_component> collect_container_info (block_uniquer 
 std::shared_ptr<nano::block> deserialize_block (nano::stream &);
 std::shared_ptr<nano::block> deserialize_block (nano::stream &, nano::block_type, nano::block_uniquer * = nullptr);
 std::shared_ptr<nano::block> deserialize_block_json (boost::property_tree::ptree const &, nano::block_uniquer * = nullptr);
+/**
+ * Serialize block type as an 8-bit value
+ */
+void serialize_block_type (nano::stream &, nano::block_type const &);
+/**
+ * Serialize a block prefixed with an 8-bit typecode
+ */
 void serialize_block (nano::stream &, nano::block const &);
+
 void block_memory_pool_purge ();
 std::shared_ptr<nano::block> block_handle_to_block (rsnano::BlockHandle * handle);
 }

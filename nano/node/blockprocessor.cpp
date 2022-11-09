@@ -353,7 +353,7 @@ void nano::block_processor::process_live (nano::transaction const & transaction_
 	{
 		network.flood_block_initial (block_a);
 	}
-	else if (!flags.disable_block_processor_republishing ())
+	else if (!flags.disable_block_processor_republishing () && block_arrival.recent (hash_a))
 	{
 		network.flood_block (block_a, nano::buffer_drop_policy::limiter);
 	}
@@ -384,10 +384,9 @@ nano::process_return nano::block_processor::process_one (nano::write_transaction
 				block->serialize_json (block_string, config.logging.single_line_record ());
 				logger.try_log (boost::str (boost::format ("Processing block %1%: %2%") % hash.to_string () % block_string));
 			}
-			if (block_arrival.recent (hash) || forced_a)
-			{
-				events_a.events.emplace_back ([this, hash, block = info_a.get_block (), result, origin_a] (nano::transaction const & post_event_transaction_a) { process_live (post_event_transaction_a, hash, block, result, origin_a); });
-			}
+			events_a.events.emplace_back ([this, hash, block = info_a.get_block (), result, origin_a] (nano::transaction const & post_event_transaction_a) {
+				process_live (post_event_transaction_a, hash, block, result, origin_a);
+			});
 			queue_unchecked (transaction_a, hash);
 			/* For send blocks check epoch open unchecked (gap pending).
 			For state blocks check only send subtype and only if block epoch is not last epoch.
@@ -529,6 +528,9 @@ nano::process_return nano::block_processor::process_one (nano::write_transaction
 			break;
 		}
 	}
+
+	stats.inc (nano::stat::type::blockprocessor, nano::to_stat_detail (result.code));
+
 	return result;
 }
 

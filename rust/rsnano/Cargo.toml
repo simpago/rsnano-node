@@ -13,6 +13,9 @@ crate-type = ["staticlib", "lib"]
 mock_instant = "0.2.1"
 
 [dependencies]
+ctr = "0.9.1"
+aes = "0.8.1"
+rust-argon2 = "1.0"
 anyhow = "1.0.40"
 bitvec = "1.0.0"
 blake2 = "0.9.1"
@@ -36,3 +39,5 @@ toml_edit = "0.10.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 scoped_threadpool = "0.1.*"
 backtrace = "0.3"
+lmdb-rkv = "0.14"
+lmdb-rkv-sys = "0.11"

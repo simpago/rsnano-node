@@ -30,6 +30,10 @@ extern unsigned char nano_bootstrap_weights_beta[];
 extern std::size_t nano_bootstrap_weights_beta_size;
 }
 
+/*
+ * Configs
+ */
+
 nano::backlog_population::config nano::nodeconfig_to_backlog_population_config (const nano::node_config & config)
 {
 	nano::backlog_population::config cfg;
@@ -51,6 +55,20 @@ nano::hinted_scheduler::config nano::nodeconfig_to_hinted_scheduler_config (cons
 	cfg.vote_cache_check_interval_ms = config.network_params.network.is_dev_network () ? 100u : 1000u;
 	return cfg;
 }
+
+nano::outbound_bandwidth_limiter::config nano::outbound_bandwidth_limiter_config (const nano::node_config & config)
+{
+	outbound_bandwidth_limiter::config cfg;
+	cfg.standard_limit = config.bandwidth_limit;
+	cfg.standard_burst_ratio = config.bandwidth_limit_burst_ratio;
+	cfg.bootstrap_limit = config.bootstrap_bandwidth_limit;
+	cfg.bootstrap_burst_ratio = config.bootstrap_bandwidth_burst_ratio;
+	return cfg;
+}
+
+/*
+ * node
+ */
 
 void nano::node::keepalive (std::string const & address_a, uint16_t port_a)
 {
@@ -156,12 +174,14 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 	gap_cache (*this),
 	ledger (store, *stats, network_params.ledger, flags_a.generate_cache ()),
 	checker (config_a.signature_checker_threads),
+	outbound_limiter{ outbound_bandwidth_limiter_config (config_a) },
 	// empty `config.peering_port` means the user made no port choice at all;
 	// otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
 	//
 	network{ create_network (*this, config_a) },
 	telemetry (std::make_shared<nano::telemetry> (*network, *workers, observers.telemetry, *stats, network_params, flags.disable_ongoing_telemetry_requests ())),
 	bootstrap_initiator (*this),
+	bootstrap_server{ store, ledger, network_params.network, *stats },
 	// BEWARE: `bootstrap` takes `network.port` instead of `config.peering_port` because when the user doesn't specify
 	//         a peering port and wants the OS to pick one, the picking happens when `network` gets initialized
 	//         (if UDP is active, otherwise it happens when `bootstrap` gets initialized), so then for TCP traffic
@@ -169,7 +189,7 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 	//         Thus, be very careful if you change the order: if `bootstrap` gets constructed before `network`,
 	//         the latter would inherit the port from the former (if TCP is active, otherwise `network` picks first)
 	//
-	bootstrap{ std::make_shared<nano::bootstrap_listener> (network->port, *this) },
+	tcp_listener{ std::make_shared<nano::transport::tcp_listener> (network->port, *this) },
 	application_path (application_path_a),
 	port_mapping (*this),
 	rep_crawler (*this),
@@ -180,12 +200,14 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 	online_reps (ledger, *config),
 	history{ config_a.network_params.voting },
 	vote_uniquer (block_uniquer),
-	confirmation_height_processor (ledger, write_database_queue, config_a.conf_height_processor_batch_min_time, config->logging, *logger, node_initialized_latch, flags.confirmation_height_processor_mode ()),
+	confirmation_height_processor (ledger, *stats, write_database_queue, config_a.conf_height_processor_batch_min_time, config->logging, *logger, node_initialized_latch, flags.confirmation_height_processor_mode ()),
 	inactive_vote_cache{ nano::nodeconfig_to_vote_cache_config (config_a, flags) },
+	generator{ *config, ledger, wallets, vote_processor, history, *network, *stats, /* non-final */ false },
+	final_generator{ *config, ledger, wallets, vote_processor, history, *network, *stats, /* final */ true },
 	active (*this, confirmation_height_processor),
 	scheduler{ *this },
 	hinting{ nano::nodeconfig_to_hinted_scheduler_config (config_a), *this, inactive_vote_cache, active, online_reps, *stats },
-	aggregator (*config, *stats, active.generator, active.final_generator, history, ledger, wallets, active),
+	aggregator (*config, *stats, generator, final_generator, history, ledger, wallets, active),
 	wallets (wallets_store.init_error (), *this),
 	backlog{ nano::nodeconfig_to_backlog_population_config (*config), store, scheduler },
 	startup_time (std::chrono::steady_clock::now ()),
@@ -416,7 +438,7 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 		auto const network_label = network_params.network.get_current_network_as_string ();
 		logger->always_log ("Active network: ", network_label);
 
-		logger->always_log (boost::str (boost::format ("Work pool running %1% threads %2%") % work.threads.size () % (work.opencl ? "(1 for OpenCL)" : "")));
+		logger->always_log (boost::str (boost::format ("Work pool running %1% threads %2%") % work.thread_count () % (work.has_opencl () ? "(1 for OpenCL)" : "")));
 		logger->always_log (boost::str (boost::format ("%1% work peers configured") % config->work_peers.size ()));
 		if (!work_generation_enabled ())
 		{
@@ -480,16 +502,16 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 		{
 			auto const bootstrap_weights = get_bootstrap_weights ();
 			// Use bootstrap weights if initial bootstrap is not completed
-			const bool use_bootstrap_weight = ledger.cache.block_count < bootstrap_weights.first;
+			const bool use_bootstrap_weight = ledger.cache.block_count () < bootstrap_weights.first;
 			if (use_bootstrap_weight)
 			{
-				ledger.bootstrap_weights = bootstrap_weights.second;
-				for (auto const & rep : ledger.bootstrap_weights)
+				ledger.set_bootstrap_weights (bootstrap_weights.second);
+				for (auto const & rep : ledger.get_bootstrap_weights ())
 				{
 					logger->always_log ("Using bootstrap rep weight: ", rep.first.to_account (), " -> ", nano::uint128_union (rep.second).format_balance (Mxrb_ratio, 0, true), " XRB");
 				}
 			}
-			ledger.bootstrap_weight_max_blocks = bootstrap_weights.first;
+			ledger.set_bootstrap_weight_max_blocks (bootstrap_weights.first);
 
 			// Drop unchecked blocks if initial bootstrap is completed
 			if (!flags.disable_unchecked_drop () && !use_bootstrap_weight && !flags.read_only ())
@@ -502,10 +524,13 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 
 		{
 			auto tx{ store.tx_begin_read () };
-			ledger.pruning = flags.enable_pruning () || store.pruned ().count (*tx) > 0;
+			if (flags.enable_pruning () || store.pruned ().count (*tx) > 0)
+			{
+				ledger.enable_pruning ();
+			};
 		}
 
-		if (ledger.pruning)
+		if (ledger.pruning_enabled ())
 		{
 			if (config->enable_voting && !flags.inactive_node ())
 			{
@@ -620,7 +645,7 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (no
 	composite->add_component (collect_container_info (node.ledger, "ledger"));
 	composite->add_component (collect_container_info (node.active, "active"));
 	composite->add_component (collect_container_info (node.bootstrap_initiator, "bootstrap_initiator"));
-	composite->add_component (collect_container_info (*node.bootstrap, "bootstrap"));
+	composite->add_component (collect_container_info (*node.tcp_listener, "tcp_listener"));
 	composite->add_component (collect_container_info (*node.network, "network"));
 	if (node.telemetry)
 	{
@@ -642,6 +667,8 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (no
 	composite->add_component (collect_container_info (node.aggregator, "request_aggregator"));
 	composite->add_component (node.scheduler.collect_container_info ("election_scheduler"));
 	composite->add_component (node.inactive_vote_cache.collect_container_info ("inactive_vote_cache"));
+	composite->add_component (collect_container_info (node.generator, "vote_generator"));
+	composite->add_component (collect_container_info (node.final_generator, "vote_generator_final"));
 	return composite;
 }
 
@@ -651,11 +678,15 @@ void nano::node::process_active (std::shared_ptr<nano::block> const & incoming)
 	block_processor.add (incoming);
 }
 
-nano::process_return nano::node::process (nano::block & block_a)
+[[nodiscard]] nano::process_return nano::node::process (nano::write_transaction const & transaction, nano::block & block)
 {
-	auto const transaction (store.tx_begin_write ({ tables::accounts, tables::blocks, tables::frontiers, tables::pending }));
-	auto result (ledger.process (*transaction, block_a));
-	return result;
+	return ledger.process (transaction, block);
+}
+
+nano::process_return nano::node::process (nano::block & block)
+{
+	auto const transaction = store.tx_begin_write ({ tables::accounts, tables::blocks, tables::frontiers, tables::pending });
+	return process (*transaction, block);
 }
 
 nano::process_return nano::node::process_local (std::shared_ptr<nano::block> const & block_a)
@@ -714,12 +745,12 @@ void nano::node::start ()
 	bool tcp_enabled (false);
 	if (config->tcp_incoming_connections_max > 0 && !(flags.disable_bootstrap_listener () && flags.disable_tcp_realtime ()))
 	{
-		bootstrap->start ();
+		tcp_listener->start ();
 		tcp_enabled = true;
 
-		if (flags.disable_udp () && network->port != bootstrap->port)
+		if (flags.disable_udp () && network->port != tcp_listener->port)
 		{
-			network->port = bootstrap->port;
+			network->port = tcp_listener->port;
 		}
 
 		logger->always_log (boost::str (boost::format ("Node started with peering port `%1%`.") % network->port));
@@ -747,8 +778,11 @@ void nano::node::start ()
 		port_mapping.start ();
 	}
 	wallets.start ();
+	generator.start ();
+	final_generator.start ();
 	backlog.start ();
 	hinting.start ();
+	bootstrap_server.start ();
 }
 
 void nano::node::stop ()
@@ -766,6 +800,8 @@ void nano::node::stop ()
 		scheduler.stop ();
 		hinting.stop ();
 		active.stop ();
+		generator.stop ();
+		final_generator.stop ();
 		confirmation_height_processor.stop ();
 		network->stop ();
 		telemetry->stop ();
@@ -773,8 +809,9 @@ void nano::node::stop ()
 		{
 			websocket_server->stop ();
 		}
+		bootstrap_server.stop ();
 		bootstrap_initiator.stop ();
-		bootstrap->stop ();
+		tcp_listener->stop ();
 		port_mapping.stop ();
 		checker.stop ();
 		wallets.stop ();
@@ -902,7 +939,7 @@ void nano::node::ongoing_bootstrap ()
 	}
 	// Differential bootstrap with max age (75% of all legacy attempts)
 	uint32_t frontiers_age (std::numeric_limits<uint32_t>::max ());
-	auto bootstrap_weight_reached (ledger.cache.block_count >= ledger.bootstrap_weight_max_blocks);
+	auto bootstrap_weight_reached (ledger.cache.block_count () >= ledger.get_bootstrap_weight_max_blocks ());
 	auto previous_bootstrap_count (stats->count (nano::stat::type::bootstrap, nano::stat::detail::initiate, nano::stat::dir::out) + stats->count (nano::stat::type::bootstrap, nano::stat::detail::initiate_legacy_age, nano::stat::dir::out));
 	/*
 	- Maximum value for 25% of attempts or if block count is below preconfigured value (initial bootstrap not finished)
@@ -1034,7 +1071,7 @@ void nano::node::unchecked_cleanup ()
 	auto const attempt (bootstrap_initiator.current_attempt ());
 	const bool long_attempt (attempt != nullptr && attempt->duration ().count () > config->unchecked_cutoff_time.count ());
 	// Collect old unchecked keys
-	if (ledger.cache.block_count >= ledger.bootstrap_weight_max_blocks && !long_attempt)
+	if (ledger.cache.block_count () >= ledger.get_bootstrap_weight_max_blocks () && !long_attempt)
 	{
 		auto const now (nano::seconds_since_epoch ());
 		auto const transaction (store.tx_begin_read ());
@@ -1185,7 +1222,7 @@ void nano::node::ledger_pruning (uint64_t const batch_size_a, bool bootstrap_wei
 
 void nano::node::ongoing_ledger_pruning ()
 {
-	auto bootstrap_weight_reached (ledger.cache.block_count >= ledger.bootstrap_weight_max_blocks);
+	auto bootstrap_weight_reached (ledger.cache.block_count () >= ledger.get_bootstrap_weight_max_blocks ());
 	ledger_pruning (flags.block_processor_batch_size () != 0 ? flags.block_processor_batch_size () : 2 * 1024, bootstrap_weight_reached, false);
 	auto const ledger_pruning_interval (bootstrap_weight_reached ? config->max_pruning_age : std::min (config->max_pruning_age, std::chrono::seconds (15 * 60)));
 	auto this_l (shared ());
@@ -1247,7 +1284,7 @@ uint64_t nano::node::max_work_generate_difficulty (nano::work_version const vers
 
 bool nano::node::local_work_generation_enabled () const
 {
-	return config->work_threads > 0 || work.opencl;
+	return config->work_threads > 0 || work.has_opencl ();
 }
 
 bool nano::node::work_generation_enabled () const
@@ -1522,7 +1559,7 @@ void nano::node::set_bandwidth_params (std::size_t limit, double ratio)
 {
 	config->bandwidth_limit_burst_ratio = ratio;
 	config->bandwidth_limit = limit;
-	network->set_bandwidth_params (limit, ratio);
+	outbound_limiter.reset (limit, ratio);
 	logger->always_log (boost::str (boost::format ("set_bandwidth_params(%1%, %2%)") % limit % ratio));
 }
 
@@ -1785,7 +1822,7 @@ void nano::node::epoch_upgrader_impl (nano::raw_key const & prv_a, nano::epoch e
 	logger->always_log ("Epoch upgrade is completed");
 }
 
-std::pair<uint64_t, decltype (nano::ledger::bootstrap_weights)> nano::node::get_bootstrap_weights () const
+std::pair<uint64_t, std::unordered_map<nano::account, nano::uint128_t>> nano::node::get_bootstrap_weights () const
 {
 	std::unordered_map<nano::account, nano::uint128_t> weights;
 	uint8_t const * weight_buffer = network_params.network.is_live_network () ? nano_bootstrap_weights_live : nano_bootstrap_weights_beta;
@@ -1817,7 +1854,7 @@ std::pair<uint64_t, decltype (nano::ledger::bootstrap_weights)> nano::node::get_
 void nano::node::bootstrap_block (const nano::block_hash & hash)
 {
 	// If we are running pruning node check if block was not already pruned
-	if (!ledger.pruning || !store.pruned ().exists (*store.tx_begin_read (), hash))
+	if (!ledger.pruning_enabled () || !store.pruned ().exists (*store.tx_begin_read (), hash))
 	{
 		// We don't have the block, try to bootstrap it
 		gap_cache.bootstrap_start (hash);
@@ -1830,6 +1867,11 @@ uint64_t nano::node::get_confirmation_height (nano::transaction const & transact
 	nano::confirmation_height_info info;
 	store.confirmation_height ().get (transaction_a, account_a, info);
 	return info.height ();
+}
+
+nano::account nano::node::get_node_id () const
+{
+	return node_id.pub;
 };
 
 nano::node_wrapper::node_wrapper (boost::filesystem::path const & path_a, boost::filesystem::path const & config_path_a, nano::node_flags & node_flags_a) :

@@ -1,4 +1,4 @@
-use crate::NetworkConstants;
+use crate::config::NetworkConstants;
 
 pub struct PortmappingConstants {
     pub lease_duration_s: i64,

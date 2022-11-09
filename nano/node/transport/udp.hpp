@@ -40,7 +40,7 @@ namespace transport
 
 		std::size_t hash_code () const override;
 		bool operator== (nano::transport::channel const &) const override;
-		void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter) override;
+		void send (nano::message & message_a, std::function<void (boost::system::error_code const &, std::size_t)> const & callback_a = nullptr, nano::buffer_drop_policy policy_a = nano::buffer_drop_policy::limiter, nano::bandwidth_limit_type = nano::bandwidth_limit_type::standard) override;
 		// TODO: investigate clang-tidy warning about default parameters on virtual/override functions
 		//
 		void send_buffer (nano::shared_const_buffer const &, std::function<void (boost::system::error_code const &, std::size_t)> const & = nullptr, nano::buffer_drop_policy = nano::buffer_drop_policy::limiter) override;
@@ -85,7 +85,7 @@ namespace transport
 		boost::asio::io_context & io_ctx;
 		nano::stat & stats;
 		nano::logger_mt & logger;
-		nano::bandwidth_limiter & limiter;
+		nano::outbound_bandwidth_limiter & limiter;
 		bool network_packet_logging;
 		mutable nano::mutex channel_mutex;
 		std::atomic<uint8_t> network_version{ 0 };

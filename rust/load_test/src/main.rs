@@ -9,7 +9,7 @@ pub use block_factory::*;
 use load_test::*;
 pub use program_args::*;
 pub use rpc_client::*;
-use rsnano::force_nano_dev_network;
+use rsnano::config::force_nano_dev_network;
 pub use test_node::*;
 
 #[tokio::main]

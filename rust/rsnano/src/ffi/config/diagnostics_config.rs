@@ -1,4 +1,4 @@
-use crate::{DiagnosticsConfig, TxnTrackingConfig};
+use crate::config::{DiagnosticsConfig, TxnTrackingConfig};
 
 #[repr(C)]
 pub struct TxnTrackingConfigDto {

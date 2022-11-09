@@ -3,8 +3,6 @@
 #include <nano/node/bootstrap/bootstrap_legacy.hpp>
 #include <nano/node/node.hpp>
 
-#include <crypto/cryptopp/config.h>
-
 #include <boost/format.hpp>
 
 nano::bootstrap_attempt_legacy::bootstrap_attempt_legacy (std::shared_ptr<nano::node> const & node_a, uint64_t const incremental_id_a, std::string const & id_a, uint32_t const frontiers_age_a, nano::account const & start_account_a) :
@@ -154,10 +152,10 @@ bool nano::bootstrap_attempt_legacy::request_frontier (rsnano::BootstrapAttemptL
 		{
 			account_count = nano::narrow_cast<unsigned int> (frontier_pulls.size ());
 			// Shuffle pulls
-			release_assert (std::numeric_limits<CryptoPP::word32>::max () > frontier_pulls.size ());
+			release_assert (std::numeric_limits<uint32_t>::max () > frontier_pulls.size ());
 			if (!frontier_pulls.empty ())
 			{
-				for (auto i = static_cast<CryptoPP::word32> (frontier_pulls.size () - 1); i > 0; --i)
+				for (auto i = static_cast<uint32_t> (frontier_pulls.size () - 1); i > 0; --i)
 				{
 					auto k = nano::random_pool::generate_word32 (0, i);
 					std::swap (frontier_pulls[i], frontier_pulls[k]);

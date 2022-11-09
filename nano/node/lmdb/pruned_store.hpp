@@ -2,8 +2,6 @@
 
 #include <nano/secure/store.hpp>
 
-#include <lmdb/libraries/liblmdb/lmdb.h>
-
 namespace nano
 {
 namespace lmdb
@@ -29,8 +27,6 @@ namespace lmdb
 		nano::store_iterator<nano::block_hash, std::nullptr_t> begin (nano::transaction const & transaction_a) const override;
 		nano::store_iterator<nano::block_hash, std::nullptr_t> end () const override;
 		void for_each_par (std::function<void (nano::read_transaction const &, nano::store_iterator<nano::block_hash, std::nullptr_t>, nano::store_iterator<nano::block_hash, std::nullptr_t>)> const & action_a) const override;
-
-		MDB_dbi table_handle () const;
 	};
 }
 }

@@ -1,16 +1,18 @@
+use num_traits::FromPrimitive;
 use std::{ffi::c_void, sync::Arc};
 
 use crate::{
-    bootstrap::{MessageDeserializer, MessageDeserializerExt},
+    config::NetworkConstants,
+    core::messages::Message,
     ffi::{
-        messages::MessageHandle, network::SocketHandle, voting::VoteUniquerHandle,
-        BlockUniquerHandle, ErrorCodeDto, NetworkConstantsDto, NetworkFilterHandle, StringDto,
-        VoidPointerCallback,
+        core::{messages::MessageHandle, BlockUniquerHandle},
+        transport::{NetworkFilterHandle, SocketHandle},
+        voting::VoteUniquerHandle,
+        ErrorCodeDto, NetworkConstantsDto, StringDto, VoidPointerCallback,
     },
-    messages::Message,
     stats::DetailType,
+    transport::{MessageDeserializer, MessageDeserializerExt, ParseStatus},
     utils::ErrorCode,
-    NetworkConstants,
 };
 
 pub struct MessageDeserializerHandle(Arc<MessageDeserializer>);
@@ -102,17 +104,17 @@ impl Drop for ReadCallbackWrapper {
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_message_deserializer_parse_status_to_stat_detail(
-    handle: *mut MessageDeserializerHandle,
+    parse_status: u8,
 ) -> u8 {
-    let detail = DetailType::from((*handle).0.status());
+    let detail = DetailType::from(ParseStatus::from_u8(parse_status).unwrap());
     detail as u8
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_message_deserializer_parse_status_to_string(
-    handle: *mut MessageDeserializerHandle,
+    parse_status: u8,
     result: *mut StringDto,
 ) {
-    let status = (*handle).0.status().as_str();
+    let status = ParseStatus::from_u8(parse_status).unwrap().as_str();
     *result = StringDto::from(status);
 }

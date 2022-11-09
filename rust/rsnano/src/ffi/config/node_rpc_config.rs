@@ -1,6 +1,6 @@
 use std::os::unix::prelude::OsStrExt;
 
-use crate::{NodeRpcConfig, RpcChildProcessConfig};
+use crate::config::{NodeRpcConfig, RpcChildProcessConfig};
 
 #[repr(C)]
 pub struct NodeRpcConfigDto {

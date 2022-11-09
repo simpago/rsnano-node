@@ -6,11 +6,13 @@ use std::{
 use num::FromPrimitive;
 
 use crate::{
+    config::{Logging, NodeConfig, Peer},
+    core::{Account, Amount},
     ffi::{
-        fill_ipc_config_dto, fill_stat_config_dto, FfiToml, IpcConfigDto, NetworkParamsDto,
+        fill_ipc_config_dto, fill_stat_config_dto, utils::FfiToml, IpcConfigDto, NetworkParamsDto,
         StatConfigDto, WebsocketConfigDto,
     },
-    Account, Amount, Logging, NetworkParams, NodeConfig, Peer,
+    NetworkParams,
 };
 
 use super::{
@@ -56,6 +58,8 @@ pub struct NodeConfigDto {
     pub active_elections_hinted_limit_percentage: usize,
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
+    pub bootstrap_bandwidth_limit: usize,
+    pub bootstrap_bandwidth_burst_ratio: f64,
     pub conf_height_processor_batch_min_time_ms: i64,
     pub backup_before_upgrade: bool,
     pub max_work_generate_multiplier: f64,
@@ -153,6 +157,8 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.active_elections_hinted_limit_percentage = cfg.active_elections_hinted_limit_percentage;
     dto.bandwidth_limit = cfg.bandwidth_limit;
     dto.bandwidth_limit_burst_ratio = cfg.bandwidth_limit_burst_ratio;
+    dto.bootstrap_bandwidth_limit = cfg.bootstrap_bandwidth_limit;
+    dto.bootstrap_bandwidth_burst_ratio = cfg.bootstrap_bandwidth_burst_ratio;
     dto.conf_height_processor_batch_min_time_ms = cfg.conf_height_processor_batch_min_time_ms;
     dto.backup_before_upgrade = cfg.backup_before_upgrade;
     dto.max_work_generate_multiplier = cfg.max_work_generate_multiplier;
@@ -180,7 +186,7 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     }
     dto.preconfigured_peers_count = cfg.preconfigured_peers.len();
     for (i, rep) in cfg.preconfigured_representatives.iter().enumerate() {
-        dto.preconfigured_representatives[i] = rep.to_bytes();
+        dto.preconfigured_representatives[i] = *rep.as_bytes();
     }
     dto.preconfigured_representatives_count = cfg.preconfigured_representatives.len();
     dto.max_pruning_age_s = cfg.max_pruning_age_s;
@@ -289,6 +295,8 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
                 .active_elections_hinted_limit_percentage,
             bandwidth_limit: value.bandwidth_limit,
             bandwidth_limit_burst_ratio: value.bandwidth_limit_burst_ratio,
+            bootstrap_bandwidth_limit: value.bootstrap_bandwidth_limit,
+            bootstrap_bandwidth_burst_ratio: value.bootstrap_bandwidth_burst_ratio,
             conf_height_processor_batch_min_time_ms: value.conf_height_processor_batch_min_time_ms,
             backup_before_upgrade: value.backup_before_upgrade,
             max_work_generate_multiplier: value.max_work_generate_multiplier,
