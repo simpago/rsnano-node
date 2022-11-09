@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use std::{
     cmp::{max, min},
     convert::TryInto,
+    mem::size_of,
 };
 
 use crate::core::{Block, BlockDetails, BlockType, Difficulty, Epoch, Root, WorkVersion};
@@ -157,8 +158,8 @@ impl WorkThresholds {
         }
     }
 
-    pub fn value(&self, root: &Root, work: u64) -> u64 {
-        let mut blake = blake2::VarBlake2b::new_keyed(&[], 8);
+    pub fn difficulty_v1(root: &Root, work: u64) -> u64 {
+        let mut blake = blake2::VarBlake2b::new_keyed(&[], size_of::<u64>());
         let mut result = 0;
         blake.update(&work.to_le_bytes());
         blake.update(root.as_bytes());
@@ -211,7 +212,7 @@ impl WorkThresholds {
 
     pub fn difficulty(&self, work_version: WorkVersion, root: &Root, work: u64) -> u64 {
         match work_version {
-            WorkVersion::Work1 => self.value(root, work),
+            WorkVersion::Work1 => Self::difficulty_v1(root, work),
             _ => {
                 debug_assert!(false, "Invalid version specified to work_difficulty");
                 0

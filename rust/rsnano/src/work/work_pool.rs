@@ -1,36 +1,23 @@
 use std::{
-    cmp::min,
     mem::size_of,
     sync::{
-        atomic::{AtomicBool, AtomicI32, Ordering},
+        atomic::{AtomicI32, Ordering},
         Arc, Condvar, Mutex,
     },
     thread::{self, JoinHandle},
     time::Duration,
 };
 
-use blake2::{
-    digest::{Update, VariableOutput},
-    VarBlake2b,
-};
 #[cfg(test)]
 use once_cell::sync::Lazy;
 
-use crate::{
-    core::{Root, WorkVersion},
-    utils::get_cpu_count,
+use super::{
+    work_queue::WorkQueueCoordinator, CpuWorkGenerator, OpenClWorkFunc, OpenClWorkGenerator,
+    WorkItem, WorkThread, WorkThresholds,
 };
-
-use super::{WorkThresholds, XorShift1024Star};
+use crate::core::{Root, WorkVersion};
 
 static NEVER_EXPIRES: AtomicI32 = AtomicI32::new(0);
-
-struct WorkItem {
-    version: WorkVersion,
-    item: Root,
-    difficulty: u64,
-    callback: Option<Box<dyn Fn(Option<u64>) + Send>>,
-}
 
 #[derive(Clone)]
 pub struct WorkTicket<'a> {
@@ -55,162 +42,75 @@ impl<'a> WorkTicket<'a> {
     }
 }
 
-struct WorkQueue(Vec<WorkItem>);
-
-impl WorkQueue {
-    pub fn new() -> Self {
-        WorkQueue(Vec::new())
-    }
-
-    pub fn first(&self) -> Option<&WorkItem> {
-        self.0.first()
-    }
-
-    pub fn is_first(&self, root: &Root) -> bool {
-        if let Some(front) = self.first() {
-            front.item == *root
-        } else {
-            false
-        }
-    }
-
-    pub fn cancel(&mut self, root: &Root) {
-        self.0.retain(|item| {
-            let retain = item.item != *root;
-            if !retain {
-                if let Some(callback) = &item.callback {
-                    (callback)(None);
-                }
-            }
-            retain
-        });
-    }
-
-    pub fn enqueue(&mut self, item: WorkItem) {
-        self.0.push(item);
-    }
-
-    pub fn dequeue(&mut self) -> WorkItem {
-        self.0.remove(0)
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
-pub type OpenClWorkFunc = dyn Fn(WorkVersion, Root, u64, &WorkTicket) -> Option<u64> + Send + Sync;
-
-struct WorkPoolState {
-    opencl: Option<Box<OpenClWorkFunc>>,
-    work_thresholds: WorkThresholds,
-    work_queue: Mutex<WorkQueue>,
-    should_stop: AtomicBool,
-    producer_condition: Condvar,
-    ticket: AtomicI32,
-    pow_rate_limiter: Duration,
-}
-
-impl WorkPoolState {
-    fn new(
-        opencl: Option<Box<OpenClWorkFunc>>,
-        work_thresholds: WorkThresholds,
-        pow_rate_limiter: Duration,
-    ) -> Self {
-        Self {
-            opencl,
-            work_thresholds,
-            work_queue: Mutex::new(WorkQueue::new()),
-            should_stop: AtomicBool::new(false),
-            producer_condition: Condvar::new(),
-            ticket: AtomicI32::new(0),
-            pow_rate_limiter,
-        }
-    }
-
-    pub fn create_work_ticket(&'_ self) -> WorkTicket<'_> {
-        WorkTicket::new(&self.ticket)
-    }
-
-    pub fn has_opencl(&self) -> bool {
-        self.opencl.is_some()
-    }
-
-    pub fn expire_work_tickets(&self) {
-        self.ticket.fetch_add(1, Ordering::SeqCst);
-    }
-
-    fn worker_thread_count(&self, max_threads: u32) -> u32 {
-        let mut thread_count = min(max_threads, get_cpu_count() as u32);
-        if self.opencl.is_some() {
-            // One thread to handle OpenCL
-            thread_count += 1;
-        }
-        thread_count
-    }
-
-    fn enqueue(&self, work_item: WorkItem) {
-        {
-            let mut pending = self.work_queue.lock().unwrap();
-            pending.enqueue(work_item)
-        }
-        self.producer_condition.notify_all();
-    }
-
-    pub fn cancel(&self, root: &Root) {
-        let mut lock = self.work_queue.lock().unwrap();
-        if !self.should_stop.load(Ordering::Relaxed) {
-            if lock.is_first(root) {
-                self.expire_work_tickets();
-            }
-
-            lock.cancel(root);
-        }
-    }
-
-    pub fn stop(&self) {
-        self.should_stop.store(true, Ordering::Relaxed);
-        self.expire_work_tickets();
-        self.producer_condition.notify_all();
-    }
-}
-
 pub struct WorkPool {
-    max_threads: u32,
     threads: Vec<JoinHandle<()>>,
-    shared_state: Arc<WorkPoolState>,
+    work_queue: Arc<WorkQueueCoordinator>,
+    work_thresholds: WorkThresholds,
+    pow_rate_limiter: Duration,
+    has_opencl: bool,
 }
 
 impl WorkPool {
     pub fn new(
         work_thresholds: WorkThresholds,
-        max_threads: u32,
+        thread_count: usize,
         pow_rate_limiter: Duration,
         opencl: Option<Box<OpenClWorkFunc>>,
     ) -> Self {
-        let shared_state = Arc::new(WorkPoolState::new(
-            opencl,
+        let mut pool = Self {
+            threads: Vec::new(),
+            work_queue: Arc::new(WorkQueueCoordinator::new()),
             work_thresholds,
+            has_opencl: false,
             pow_rate_limiter,
-        ));
+        };
 
-        Self {
-            max_threads,
-            threads: create_worker_threads(&shared_state, max_threads),
-            shared_state,
+        pool.spawn_threads(thread_count, opencl);
+        pool
+    }
+
+    fn spawn_threads(&mut self, thread_count: usize, opencl: Option<Box<OpenClWorkFunc>>) {
+        if let Some(opencl) = opencl {
+            // One extra thread to handle OpenCL
+            self.threads.push(self.spawn_open_cl_thread(opencl))
+        }
+
+        for _ in 0..thread_count {
+            self.threads.push(self.spawn_cpu_worker_thread())
         }
     }
 
+    fn spawn_open_cl_thread(&self, opencl: Box<OpenClWorkFunc>) -> JoinHandle<()> {
+        self.spawn_worker_thread(OpenClWorkGenerator::new(self.pow_rate_limiter, opencl))
+    }
+
+    fn spawn_cpu_worker_thread(&self) -> JoinHandle<()> {
+        self.spawn_worker_thread(CpuWorkGenerator::new(self.pow_rate_limiter))
+    }
+
+    fn spawn_worker_thread<T>(&self, work_generator: T) -> JoinHandle<()>
+    where
+        T: WorkGenerator + Send + Sync + 'static,
+    {
+        let work_queue = Arc::clone(&self.work_queue);
+        thread::Builder::new()
+            .name("Work pool".to_string())
+            .spawn(move || {
+                WorkThread::new(work_generator, work_queue).work_loop();
+            })
+            .unwrap()
+    }
+
     pub fn has_opencl(&self) -> bool {
-        self.shared_state.opencl.is_some()
+        self.has_opencl
     }
 
     pub fn cancel(&self, root: &Root) {
-        self.shared_state.cancel(root);
+        self.work_queue.cancel(root);
     }
 
     pub fn stop(&self) {
-        self.shared_state.stop();
+        self.work_queue.stop();
     }
 
     pub fn generate_async(
@@ -222,10 +122,10 @@ impl WorkPool {
     ) {
         debug_assert!(!root.is_zero());
         if !self.threads.is_empty() {
-            self.shared_state.enqueue(WorkItem {
+            self.work_queue.enqueue(WorkItem {
                 version,
                 item: root,
-                difficulty,
+                min_difficulty: difficulty,
                 callback: done,
             });
         } else if let Some(callback) = done {
@@ -238,11 +138,7 @@ impl WorkPool {
     }
 
     pub fn generate_dev2(&self, root: Root) -> Option<u64> {
-        self.generate(
-            WorkVersion::Work1,
-            root,
-            self.shared_state.work_thresholds.base,
-        )
+        self.generate(WorkVersion::Work1, root, self.work_thresholds.base)
     }
 
     pub fn generate(&self, version: WorkVersion, root: Root, difficulty: u64) -> Option<u64> {
@@ -266,7 +162,7 @@ impl WorkPool {
     }
 
     pub fn size(&self) -> usize {
-        self.shared_state.work_queue.lock().unwrap().len()
+        self.work_queue.lock_work_queue().len()
     }
 
     pub fn pending_value_size() -> usize {
@@ -278,13 +174,11 @@ impl WorkPool {
     }
 
     pub fn threshold_base(&self, version: WorkVersion) -> u64 {
-        self.shared_state.work_thresholds.threshold_base(version)
+        self.work_thresholds.threshold_base(version)
     }
 
     pub fn difficulty(&self, version: WorkVersion, root: &Root, work: u64) -> u64 {
-        self.shared_state
-            .work_thresholds
-            .difficulty(version, root, work)
+        self.work_thresholds.difficulty(version, root, work)
     }
 }
 
@@ -326,26 +220,6 @@ impl WorkDoneNotifier {
     }
 }
 
-fn create_worker_threads(
-    shared_state: &Arc<WorkPoolState>,
-    max_threads: u32,
-) -> Vec<JoinHandle<()>> {
-    let thread_count = shared_state.worker_thread_count(max_threads);
-    (0..thread_count)
-        .map(|i| create_worker_thread(i, shared_state))
-        .collect()
-}
-
-fn create_worker_thread(thread_number: u32, shared_state: &Arc<WorkPoolState>) -> JoinHandle<()> {
-    let state = Arc::clone(&shared_state);
-    thread::Builder::new()
-        .name("Work pool".to_string())
-        .spawn(move || {
-            WorkThread::new(thread_number, state).work_loop();
-        })
-        .unwrap()
-}
-
 impl Drop for WorkPool {
     fn drop(&mut self) {
         self.stop();
@@ -355,108 +229,21 @@ impl Drop for WorkPool {
     }
 }
 
-struct WorkThread {
-    thread_number: u32,
-    state: Arc<WorkPoolState>,
-
-    // Quick RNG for work attempts.
-    rng: XorShift1024Star,
-    work: u64,
-    output: u64,
-    hasher: VarBlake2b,
-}
-
-impl WorkThread {
-    fn new(thread_number: u32, state: Arc<WorkPoolState>) -> Self {
-        Self {
-            thread_number,
-            state,
-            rng: XorShift1024Star::new(),
-            work: 0,
-            output: 0,
-            hasher: VarBlake2b::new_keyed(&[], size_of::<u64>()),
-        }
-    }
-}
-
-impl WorkThread {
-    fn work_loop(mut self) {
-        let mut pending = self.state.work_queue.lock().unwrap();
-        while !self.state.should_stop.load(Ordering::Relaxed) {
-            if let Some(current) = pending.first() {
-                let current_version = current.version;
-                let current_item = current.item;
-                let current_difficulty = current.difficulty;
-                let ticket_l = self.state.create_work_ticket();
-                drop(pending);
-                self.output = 0;
-                let mut opt_work = None;
-                if self.thread_number == 0 && self.state.has_opencl() {
-                    opt_work = (self.state.opencl.as_ref().unwrap())(
-                        current_version,
-                        current_item,
-                        current_difficulty,
-                        &ticket_l,
-                    );
-                }
-                if let Some(w) = opt_work {
-                    self.work = w;
-                    self.output = self.state.work_thresholds.value(&current_item, self.work);
-                } else {
-                    while !ticket_l.expired() && self.output < current_difficulty {
-                        // Don't query main memory every iteration in order to reduce memory bus traffic
-                        // All operations here operate on stack memory
-                        // Count iterations down to zero since comparing to zero is easier than comparing to another number
-                        let mut iteration = 256u32;
-                        while iteration > 0 && self.output < current_difficulty {
-                            self.work = self.rng.next();
-                            self.hasher.update(&self.work.to_le_bytes());
-                            self.hasher.update(current_item.as_bytes());
-                            self.hasher.finalize_variable_reset(|result| {
-                                self.output = u64::from_le_bytes(result.try_into().unwrap());
-                            });
-                            iteration -= 1;
-                        }
-
-                        // Add a rate limiter (if specified) to the pow calculation to save some CPUs which don't want to operate at full throttle
-                        if !self.state.pow_rate_limiter.is_zero() {
-                            thread::sleep(self.state.pow_rate_limiter);
-                        }
-                    }
-                }
-                pending = self.state.work_queue.lock().unwrap();
-                if !ticket_l.expired() {
-                    // If the ticket matches what we started with, we're the ones that found the solution
-                    debug_assert!(self.output >= current_difficulty);
-                    debug_assert!(
-                        current_difficulty == 0
-                            || self.state.work_thresholds.value(&current_item, self.work)
-                                == self.output
-                    );
-                    // Signal other threads to stop their work next time they check ticket
-                    self.state.expire_work_tickets();
-                    let current_l = pending.dequeue();
-                    drop(pending);
-                    if let Some(callback) = current_l.callback {
-                        (callback)(Some(self.work));
-                    }
-                    pending = self.state.work_queue.lock().unwrap();
-                } else {
-                    // A different thread found a solution
-                }
-            } else {
-                // Wait for a work request
-                pending = self.state.producer_condition.wait(pending).unwrap();
-            }
-        }
-    }
+pub(crate) trait WorkGenerator {
+    fn create(
+        &mut self,
+        version: WorkVersion,
+        item: &Root,
+        min_difficulty: u64,
+        work_ticket: &WorkTicket,
+    ) -> Option<(u64, u64)>;
 }
 
 #[cfg(test)]
 pub(crate) static DEV_WORK_POOL: Lazy<WorkPool> = Lazy::new(|| {
     WorkPool::new(
         crate::DEV_NETWORK_PARAMS.work.clone(),
-        u32::MAX,
+        crate::utils::get_cpu_count(),
         Duration::ZERO,
         None,
     )

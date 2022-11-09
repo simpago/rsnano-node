@@ -105,13 +105,12 @@ pub extern "C" fn rsn_work_thresholds_threshold_base(
 
 #[no_mangle]
 pub extern "C" fn rsn_work_thresholds_value(
-    dto: &WorkThresholdsDto,
+    _dto: &WorkThresholdsDto,
     root: &[u8; 32],
     work: u64,
 ) -> u64 {
-    let thresholds = WorkThresholds::from(dto);
     let root = Root::from_bytes(*root);
-    thresholds.value(&root, work)
+    WorkThresholds::difficulty_v1(&root, work)
 }
 
 #[no_mangle]

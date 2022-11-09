@@ -1,10 +1,11 @@
 use num_traits::FromPrimitive;
-use std::{ffi::c_void, time::Duration};
+use std::{cmp::min, ffi::c_void, time::Duration};
 
 use crate::{
     config::NetworkConstants,
     core::{Root, WorkVersion},
     ffi::{NetworkConstantsDto, VoidPointerCallback},
+    utils::get_cpu_count,
     work::{WorkPool, WorkTicket},
 };
 
@@ -23,9 +24,14 @@ pub unsafe extern "C" fn rsn_work_pool_create(
     destroy_context: unsafe extern "C" fn(*mut c_void),
 ) -> *mut WorkPoolHandle {
     let network_constants = NetworkConstants::try_from(&*network_constants).unwrap();
+    let thread_count = if network_constants.is_dev_network() {
+        min(max_threads as usize, 1)
+    } else {
+        min(max_threads as usize, get_cpu_count())
+    };
     Box::into_raw(Box::new(WorkPoolHandle(WorkPool::new(
         network_constants.work,
-        max_threads,
+        thread_count,
         Duration::from_nanos(pow_rate_limiter_ns),
         create_opencl_wrapper(opencl, opencl_context, destroy_context),
     ))))
