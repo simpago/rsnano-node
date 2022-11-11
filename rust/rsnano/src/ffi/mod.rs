@@ -15,6 +15,7 @@ mod voting;
 mod wallet;
 mod websocket;
 mod work;
+mod election_status;
 
 use std::{
     ffi::{c_void, CString},
@@ -28,6 +29,7 @@ pub use secure::*;
 pub use signatures::*;
 pub use stats::*;
 pub(crate) use websocket::*;
+pub use election_status::*;
 
 use crate::{
     core::{

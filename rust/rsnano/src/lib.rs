@@ -26,10 +26,12 @@ pub mod voting;
 pub mod wallet;
 mod websocket;
 pub mod work;
+mod election_status;
 
 pub use ipc::*;
 pub use secure::*;
 pub(crate) use websocket::*;
+pub use election_status::*;
 
 pub type MemoryIntensiveInstrumentationCallback = extern "C" fn() -> bool;
 
