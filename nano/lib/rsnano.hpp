@@ -1635,6 +1635,8 @@ uint32_t rsn_election_status_confirmation_request_count(const ElectionStatusHand
 
 ElectionStatusHandle *rsn_election_status_create();
 
+ElectionStatusHandle *rsn_election_status_create1(const BlockHandle *winner);
+
 ElectionStatusHandle *rsn_election_status_create2(const BlockHandle *winner,
                                                   const uint8_t *tally,
                                                   const uint8_t *final_tally,
@@ -1664,6 +1666,27 @@ void rsn_election_status_get_tally(const ElectionStatusHandle *handle, uint8_t *
 uint32_t rsn_election_status_get_vote_count(const ElectionStatusHandle *handle);
 
 BlockHandle *rsn_election_status_get_winner(const ElectionStatusHandle *handle);
+
+void rsn_election_status_set_block_count(ElectionStatusHandle *handle, uint32_t block_count);
+
+void rsn_election_status_set_confirmation_request_count(ElectionStatusHandle *handle,
+                                                        uint32_t confirmation_request_count);
+
+void rsn_election_status_set_election_duration(ElectionStatusHandle *handle,
+                                               int64_t election_duration);
+
+void rsn_election_status_set_election_end(ElectionStatusHandle *handle, int64_t election_end);
+
+void rsn_election_status_set_election_status_type(ElectionStatusHandle *handle,
+                                                  uint8_t election_status_type);
+
+void rsn_election_status_set_final_tally(ElectionStatusHandle *handle, const uint8_t *final_tally);
+
+void rsn_election_status_set_tally(ElectionStatusHandle *handle, const uint8_t *tally);
+
+void rsn_election_status_set_voter_count(ElectionStatusHandle *handle, uint32_t voter_count);
+
+void rsn_election_status_set_winner(ElectionStatusHandle *handle, const BlockHandle *winner);
 
 void rsn_epochs_add(EpochsHandle *handle,
                     uint8_t epoch,

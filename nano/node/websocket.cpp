@@ -669,7 +669,7 @@ nano::websocket::message nano::websocket::message_builder::block_confirmed (std:
 	message_node_l.add ("hash", block_a->hash ().to_string ());
 
 	std::string confirmation_type = "unknown";
-	switch (election_status_a.type)
+	switch (election_status_a.get_election_status_type())
 	{
 		case nano::election_status_type::active_confirmed_quorum:
 			confirmation_type = "active_quorum";
@@ -688,13 +688,13 @@ nano::websocket::message nano::websocket::message_builder::block_confirmed (std:
 	if (options_a.get_include_election_info () || options_a.get_include_election_info_with_votes ())
 	{
 		boost::property_tree::ptree election_node_l;
-		election_node_l.add ("duration", election_status_a.election_duration.count ());
-		election_node_l.add ("time", election_status_a.election_end.count ());
-		election_node_l.add ("tally", election_status_a.tally.to_string_dec ());
-		election_node_l.add ("final", election_status_a.final_tally.to_string_dec ());
-		election_node_l.add ("blocks", std::to_string (election_status_a.block_count));
-		election_node_l.add ("voters", std::to_string (election_status_a.voter_count));
-		election_node_l.add ("request_count", std::to_string (election_status_a.confirmation_request_count));
+		election_node_l.add ("duration", election_status_a.get_election_duration().count ());
+		election_node_l.add ("time", election_status_a.get_election_end().count ());
+		election_node_l.add ("tally", election_status_a.get_tally().to_string_dec ());
+		election_node_l.add ("final", election_status_a.get_final_tally().to_string_dec ());
+		election_node_l.add ("blocks", std::to_string (election_status_a.get_block_count()));
+		election_node_l.add ("voters", std::to_string (election_status_a.get_voter_count()));
+		election_node_l.add ("request_count", std::to_string (election_status_a.get_confirmation_request_count()));
 		if (options_a.get_include_election_info_with_votes ())
 		{
 			boost::property_tree::ptree election_votes_l;

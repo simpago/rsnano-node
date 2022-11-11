@@ -1129,12 +1129,7 @@ void nano::ledger_cache::remove_accounts (uint64_t count)
 	rsnano::rsn_ledger_cache_remove_accounts (handle, count);
 }
 
-nano::election_status::election_status () :
-	handle (rsnano::rsn_election_status_create ())
-{
-}
-
-nano::election_status::election_status (nano::election_status const & other_a) :
+/*nano::election_status::election_status (nano::election_status const & other_a) :
 	handle (rsnano::rsn_election_status_clone (other_a.handle))
 {
 }
@@ -1148,11 +1143,20 @@ nano::election_status::election_status (nano::election_status && other_a) :
 nano::election_status::election_status (rsnano::ElectionStatusHandle * handle_a) :
 	handle (handle_a)
 {
+}*/
+
+nano::election_status::election_status () :
+	handle (rsnano::rsn_election_status_create ())
+{
 }
 
-nano::election_status::election_status (std::shared_ptr<nano::block> const & winner_a, nano::amount const & tally_a, nano::amount const & final_tally_a, uint32_t confirmation_request_count,
-uint32_t block_count, uint32_t voter_count, int64_t election_end, int64_t election_duration, nano::election_status_type type_a) :
-	handle (rsnano::rsn_election_status_create2 (winner_a->get_handle (), tally_a.bytes.data (), final_tally_a.bytes.data (), confirmation_request_count, block_count, voter_count, election_end, election_duration, static_cast<uint8_t> (type_a)))
+nano::election_status::election_status (std::shared_ptr<nano::block> const & winner_a) :
+	handle (rsnano::rsn_election_status_create1 (winner_a->get_handle ()))
+{
+}
+
+nano::election_status::election_status (std::shared_ptr<nano::block> const & winner_a, const uint8_t *tally_a, const uint8_t *final_tally_a,  std::chrono::milliseconds election_end, std::chrono::milliseconds election_duration, uint32_t confirmation_request_count, uint32_t block_count, uint32_t voter_count, nano::election_status_type type_a) :
+	handle (rsnano::rsn_election_status_create2 (winner_a->get_handle (), tally_a, final_tally_a, confirmation_request_count, block_count, voter_count, election_end.count(), election_duration.count(), static_cast<uint8_t> (type_a)))
 {
 }
 
@@ -1219,4 +1223,49 @@ unsigned nano::election_status::get_voter_count () const
 nano::election_status_type nano::election_status::get_election_status_type () const
 {
 	return static_cast<nano::election_status_type> (rsnano::rsn_election_status_get_election_status_type (handle));
+}
+
+void nano::election_status::set_winner (std::shared_ptr<nano::block> winner)
+{
+	rsnano::rsn_election_status_set_winner (handle, winner->get_handle());
+}
+
+void nano::election_status::set_tally (nano::amount tally)
+{
+	rsnano::rsn_election_status_set_tally (handle, tally.bytes.data());
+}
+
+void nano::election_status::set_final_tally (nano::amount final_tally)
+{
+	rsnano::rsn_election_status_set_final_tally (handle, final_tally.bytes.data());
+}
+
+void nano::election_status::set_block_count (uint32_t block_count)
+{
+	rsnano::rsn_election_status_set_block_count (handle, block_count);
+}
+
+void nano::election_status::set_voter_count (uint32_t voter_count)
+{
+	rsnano::rsn_election_status_set_voter_count (handle, voter_count);
+}
+
+void nano::election_status::set_confirmation_request_count (uint32_t confirmation_request_count)
+{
+	rsnano::rsn_election_status_set_confirmation_request_count (handle, confirmation_request_count);
+}
+
+void nano::election_status::set_election_end (std::chrono::milliseconds election_end)
+{
+	rsnano::rsn_election_status_set_election_end (handle, election_end.count());
+}
+
+void nano::election_status::set_election_duration (std::chrono::milliseconds election_duration)
+{
+	rsnano::rsn_election_status_set_election_duration (handle, election_duration.count());
+}
+
+void nano::election_status::set_election_status_type (nano::election_status_type election_status_type)
+{
+	rsnano::rsn_election_status_set_election_status_type (handle, static_cast<uint8_t> (election_status_type));
 }

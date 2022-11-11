@@ -626,10 +626,11 @@ class election_status final
 {
 public:
 	election_status ();
-	election_status (std::shared_ptr<nano::block> const &, nano::amount const &, nano::amount const &, uint32_t, uint32_t, uint32_t, int64_t, int64_t, nano::election_status_type);
-	election_status (nano::election_status const &);
-	election_status (nano::election_status &&);
-	election_status (rsnano::ElectionStatusHandle * handle_a);
+	election_status (std::shared_ptr<nano::block> const &, uint8_t const *, uint8_t const *, std::chrono::milliseconds, std::chrono::milliseconds, uint32_t, uint32_t, uint32_t, nano::election_status_type);
+	election_status (std::shared_ptr<nano::block> const &);
+	//election_status (nano::election_status const &);
+	//election_status (nano::election_status &&);
+	//election_status (rsnano::ElectionStatusHandle * handle_a);
 	~election_status ();
 	nano::election_status & operator= (const nano::election_status &);
 	std::shared_ptr<nano::block> get_winner() const;
@@ -641,6 +642,15 @@ public:
 	unsigned get_block_count() const;
 	unsigned get_voter_count() const;
 	election_status_type get_election_status_type() const;
+	void set_winner (std::shared_ptr<nano::block>);
+	void set_tally (nano::amount);
+	void set_final_tally (nano::amount);
+	void set_election_end (std::chrono::milliseconds);
+	void set_election_duration (std::chrono::milliseconds);
+	void set_confirmation_request_count (uint32_t);
+	void set_block_count (uint32_t);
+	void set_voter_count (uint32_t);
+	void set_election_status_type (nano::election_status_type);
 	rsnano::ElectionStatusHandle * handle;
 };
 

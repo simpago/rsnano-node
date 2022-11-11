@@ -1,6 +1,7 @@
 use std::ops::Deref;
 use std::slice;
 use std::sync::{Arc, RwLock};
+use num_format::Locale::ta;
 use num_traits::FromPrimitive;
 use crate::core::{Account, AccountInfo, Amount, BlockHash, Epoch, UncheckedInfo};
 use crate::election_status::ElectionStatus;
@@ -26,8 +27,15 @@ impl Deref for ElectionStatusHandle {
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_election_status_create() -> *mut ElectionStatusHandle {
+pub unsafe extern "C" fn rsn_election_status_create() -> *mut ElectionStatusHandle {
     let info = ElectionStatus::null();
+    Box::into_raw(Box::new(ElectionStatusHandle(info)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_create1(winner: *const BlockHandle) -> *mut ElectionStatusHandle {
+    let winner = (*winner).block.clone();
+    let info = ElectionStatus::new(winner, &Amount::zero(), &Amount::zero(), 0, 0, 0, 0, 0, ElectionStatusType::Stopped);
     Box::into_raw(Box::new(ElectionStatusHandle(info)))
 }
 
@@ -124,4 +132,86 @@ pub unsafe extern "C" fn rsn_election_status_get_vote_count(handle: *const Elect
 #[no_mangle]
 pub unsafe extern "C" fn rsn_election_status_get_election_status_type(handle: *const ElectionStatusHandle) -> u8 {
     (*handle).0.election_status_type as u8
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_winner(
+    handle: *mut ElectionStatusHandle,
+    winner: *const BlockHandle,
+) {
+    (*handle).0.winner = Some((*winner).block.clone());
+    /*match (*winner).block {
+        Some(block) => (*handle).0.winner = block,
+        None => (*handle).0.winner = None,
+    }*/
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_tally(
+    handle: *mut ElectionStatusHandle,
+    tally: *const u8,
+) {
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(std::slice::from_raw_parts(tally, 16));
+    let tally = Amount::from_be_bytes(bytes);
+    (*handle).0.tally = tally;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_final_tally(
+    handle: *mut ElectionStatusHandle,
+    final_tally: *const u8,
+) {
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(std::slice::from_raw_parts(final_tally, 16));
+    let final_tally = Amount::from_be_bytes(bytes);
+    (*handle).0.tally = final_tally;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_confirmation_request_count(
+    handle: *mut ElectionStatusHandle,
+    confirmation_request_count: u32,
+) {
+    (*handle).0.confirmation_request_count = confirmation_request_count;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_election_end(
+    handle: *mut ElectionStatusHandle,
+    election_end: i64,
+) {
+    (*handle).0.election_end = election_end;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_election_duration(
+    handle: *mut ElectionStatusHandle,
+    election_duration: i64,
+) {
+    (*handle).0.election_duration = election_duration;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_block_count(
+    handle: *mut ElectionStatusHandle,
+    block_count: u32,
+) {
+    (*handle).0.block_count = block_count;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_voter_count(
+    handle: *mut ElectionStatusHandle,
+    voter_count: u32,
+) {
+    (*handle).0.voter_count = voter_count;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_status_set_election_status_type(
+    handle: *mut ElectionStatusHandle,
+    election_status_type: u8,
+) {
+    (*handle).0.election_status_type = FromPrimitive::from_u8(election_status_type).unwrap();
 }

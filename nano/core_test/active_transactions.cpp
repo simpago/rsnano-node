@@ -726,7 +726,7 @@ TEST (active_transactions, republish_winner)
 	node1.vote_processor.flush ();
 	node1.block_processor.flush ();
 	ASSERT_TIMELY (3s, election->confirmed ());
-	ASSERT_EQ (fork->hash (), election->status.winner->hash ());
+	ASSERT_EQ (fork->hash (), election->status.get_winner()->hash ());
 	ASSERT_TIMELY (3s, node2.block_confirmed (fork->hash ()));
 }
 

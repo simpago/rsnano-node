@@ -254,8 +254,8 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 		if (!config->callback_address.empty ())
 		{
 			observers.blocks.add ([this] (nano::election_status const & status_a, std::vector<nano::vote_with_weight_info> const & votes_a, nano::account const & account_a, nano::amount const & amount_a, bool is_state_send_a, bool is_state_epoch_a) {
-				auto block_a (status_a.winner);
-				if ((status_a.type == nano::election_status_type::active_confirmed_quorum || status_a.type == nano::election_status_type::active_confirmation_height) && this->block_arrival.recent (block_a->hash ()))
+				auto block_a (status_a.get_winner());
+				if ((status_a.get_election_status_type() == nano::election_status_type::active_confirmed_quorum || status_a.get_election_status_type() == nano::election_status_type::active_confirmation_height) && this->block_arrival.recent (block_a->hash ()))
 				{
 					auto node_l (shared_from_this ());
 					background ([node_l, block_a, account_a, amount_a, is_state_send_a, is_state_epoch_a] () {
@@ -317,11 +317,11 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 		if (websocket_server)
 		{
 			observers.blocks.add ([this] (nano::election_status const & status_a, std::vector<nano::vote_with_weight_info> const & votes_a, nano::account const & account_a, nano::amount const & amount_a, bool is_state_send_a, bool is_state_epoch_a) {
-				debug_assert (status_a.type != nano::election_status_type::ongoing);
+				debug_assert (status_a.get_election_status_type() != nano::election_status_type::ongoing);
 
 				if (this->websocket_server->any_subscriber (nano::websocket::topic::confirmation))
 				{
-					auto block_a (status_a.winner);
+					auto block_a (status_a.get_winner());
 					std::string subtype;
 					if (is_state_send_a)
 					{
@@ -374,8 +374,8 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 		}
 		// Add block confirmation type stats regardless of http-callback and websocket subscriptions
 		observers.blocks.add ([this] (nano::election_status const & status_a, std::vector<nano::vote_with_weight_info> const & votes_a, nano::account const & account_a, nano::amount const & amount_a, bool is_state_send_a, bool is_state_epoch_a) {
-			debug_assert (status_a.type != nano::election_status_type::ongoing);
-			switch (status_a.type)
+			debug_assert (status_a.get_election_status_type() != nano::election_status_type::ongoing);
+			switch (status_a.get_election_status_type())
 			{
 				case nano::election_status_type::active_confirmed_quorum:
 					this->stats->inc (nano::stat::type::confirmation_observer, nano::stat::detail::active_quorum, nano::stat::dir::out);
@@ -1494,7 +1494,7 @@ void nano::node::process_confirmed_data (nano::transaction const & transaction_a
 
 void nano::node::process_confirmed (nano::election_status const & status_a, uint64_t iteration_a)
 {
-	auto hash (status_a.winner->hash ());
+	auto hash (status_a.get_winner()->hash ());
 	auto const num_iters = (config->block_processor_batch_max_time / network_params.node.process_confirmed_interval) * 4;
 	std::shared_ptr<nano::block> block_l;
 	{

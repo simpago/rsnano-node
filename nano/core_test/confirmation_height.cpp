@@ -20,7 +20,7 @@ void add_callback_stats (nano::node & node, std::vector<nano::block_hash> * obse
 		{
 			nano::lock_guard<nano::mutex> guard (*mutex);
 			debug_assert (observer_order);
-			observer_order->push_back (status_a.winner->hash ());
+			observer_order->push_back (status_a.get_winner()->hash ());
 		}
 	});
 }
@@ -2069,7 +2069,7 @@ TEST (confirmation_height, election_winner_details_clearing_node_process_confirm
 	// Add to election_winner_details. Use an unrealistic iteration so that it should fall into the else case and do a cleanup
 	node->active.add_election_winner_details (send->hash (), nullptr);
 	nano::election_status election;
-	election.winner = send;
+	election.set_winner (send);
 	node->process_confirmed (election, 1000000);
 	ASSERT_EQ (0, node->active.election_winner_details_size ());
 }

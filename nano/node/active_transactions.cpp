@@ -97,8 +97,8 @@ void nano::active_transactions::block_cemented_callback (std::shared_ptr<nano::b
 					nano::account pending_account{};
 					node.process_confirmed_data (*transaction, block_a, hash, account, amount, is_state_send, is_state_epoch, pending_account);
 					election_lk.lock ();
-					election->status.type = *election_status_type;
-					election->status.confirmation_request_count = election->confirmation_request_count;
+					election->status.set_election_status_type (*election_status_type);
+					election->status.set_confirmation_request_count (election->confirmation_request_count);
 					status_l = election->status;
 					election_lk.unlock ();
 					auto votes (election->votes_with_weight ());
@@ -630,7 +630,7 @@ boost::optional<nano::election_status_type> nano::active_transactions::confirm_b
 	{
 		lock.unlock ();
 		nano::unique_lock<nano::mutex> election_lock (existing->second->mutex);
-		if (existing->second->status.winner && existing->second->status.winner->hash () == hash)
+		if (existing->second->status.get_winner() && existing->second->status.get_winner()->hash () == hash)
 		{
 			if (!existing->second->confirmed ())
 			{

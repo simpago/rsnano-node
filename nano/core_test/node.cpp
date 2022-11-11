@@ -1055,7 +1055,7 @@ TEST (node, coherent_observer)
 	auto & node1 (*system.nodes[0]);
 	node1.observers.blocks.add ([&node1] (nano::election_status const & status_a, std::vector<nano::vote_with_weight_info> const &, nano::account const &, nano::uint128_t const &, bool, bool) {
 		auto transaction (node1.store.tx_begin_read ());
-		ASSERT_TRUE (node1.store.block ().exists (*transaction, status_a.winner->hash ()));
+		ASSERT_TRUE (node1.store.block ().exists (*transaction, status_a.get_winner()->hash ()));
 	});
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	nano::keypair key;

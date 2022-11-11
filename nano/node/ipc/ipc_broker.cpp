@@ -23,7 +23,7 @@ std::shared_ptr<flatbuffers::Parser> nano::ipc::subscriber::get_parser (nano::ip
 void nano::ipc::broker::start ()
 {
 	node.observers.blocks.add ([this_l = shared_from_this ()] (nano::election_status const & status_a, std::vector<nano::vote_with_weight_info> const & votes_a, nano::account const & account_a, nano::amount const & amount_a, bool is_state_send_a, bool is_state_epoch_a) {
-		debug_assert (status_a.type != nano::election_status_type::ongoing);
+		debug_assert (status_a.get_election_status_type() != nano::election_status_type::ongoing);
 
 		try
 		{
@@ -35,7 +35,7 @@ void nano::ipc::broker::start ()
 
 				confirmation->account = account_a.to_account ();
 				confirmation->amount = amount_a.to_string_dec ();
-				switch (status_a.type)
+				switch (status_a.get_election_status_type())
 				{
 					case nano::election_status_type::active_confirmed_quorum:
 						confirmation->confirmation_type = nanoapi::TopicConfirmationType::TopicConfirmationType_active_quorum;
@@ -51,14 +51,14 @@ void nano::ipc::broker::start ()
 						break;
 				};
 				confirmation->confirmation_type = nanoapi::TopicConfirmationType::TopicConfirmationType_active_quorum;
-				confirmation->block = nano::ipc::flatbuffers_builder::block_to_union (*status_a.winner, amount_a, is_state_send_a, is_state_epoch_a);
+				confirmation->block = nano::ipc::flatbuffers_builder::block_to_union (*status_a.get_winner(), amount_a, is_state_send_a, is_state_epoch_a);
 				confirmation->election_info = std::make_unique<nanoapi::ElectionInfoT> ();
-				confirmation->election_info->duration = status_a.election_duration.count ();
-				confirmation->election_info->time = status_a.election_end.count ();
-				confirmation->election_info->tally = status_a.tally.to_string_dec ();
-				confirmation->election_info->block_count = status_a.block_count;
-				confirmation->election_info->voter_count = status_a.voter_count;
-				confirmation->election_info->request_count = status_a.confirmation_request_count;
+				confirmation->election_info->duration = status_a.get_election_duration().count ();
+				confirmation->election_info->time = status_a.get_election_end().count ();
+				confirmation->election_info->tally = status_a.get_tally().to_string_dec ();
+				confirmation->election_info->block_count = status_a.get_block_count();
+				confirmation->election_info->voter_count = status_a.get_voter_count();
+				confirmation->election_info->request_count = status_a.get_confirmation_request_count();
 
 				this_l->broadcast (confirmation);
 			}
