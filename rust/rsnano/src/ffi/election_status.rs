@@ -55,9 +55,9 @@ pub unsafe extern "C" fn rsn_election_status_create2(
     let mut bytes = [0; 16];
     bytes.copy_from_slice(std::slice::from_raw_parts(tally, 16));
     let tally = Amount::from_be_bytes(bytes);
-    bytes = [0; 16];
-    bytes.copy_from_slice(std::slice::from_raw_parts(final_tally, 16));
-    let final_tally = Amount::from_be_bytes(bytes);
+    let mut bytes1 = [0; 16];
+    bytes1.copy_from_slice(std::slice::from_raw_parts(final_tally, 16));
+    let final_tally = Amount::from_be_bytes(bytes1);
     let info = ElectionStatus::new(winner, &tally, &final_tally, confirmation_request_count, block_count, voter_count, election_end, election_duration, FromPrimitive::from_u8(election_status_type).unwrap());
     Box::into_raw(Box::new(ElectionStatusHandle(info)))
 }

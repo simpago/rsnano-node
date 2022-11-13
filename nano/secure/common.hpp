@@ -628,9 +628,6 @@ public:
 	election_status ();
 	election_status (std::shared_ptr<nano::block> const &, uint8_t const *, uint8_t const *, std::chrono::milliseconds, std::chrono::milliseconds, uint32_t, uint32_t, uint32_t, nano::election_status_type);
 	election_status (std::shared_ptr<nano::block> const &);
-	//election_status (nano::election_status const &);
-	//election_status (nano::election_status &&);
-	//election_status (rsnano::ElectionStatusHandle * handle_a);
 	~election_status ();
 	nano::election_status & operator= (const nano::election_status &);
 	std::shared_ptr<nano::block> get_winner() const;

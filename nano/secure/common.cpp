@@ -1129,22 +1129,6 @@ void nano::ledger_cache::remove_accounts (uint64_t count)
 	rsnano::rsn_ledger_cache_remove_accounts (handle, count);
 }
 
-/*nano::election_status::election_status (nano::election_status const & other_a) :
-	handle (rsnano::rsn_election_status_clone (other_a.handle))
-{
-}
-
-nano::election_status::election_status (nano::election_status && other_a) :
-	handle (other_a.handle)
-{
-	other_a.handle = nullptr;
-}
-
-nano::election_status::election_status (rsnano::ElectionStatusHandle * handle_a) :
-	handle (handle_a)
-{
-}*/
-
 nano::election_status::election_status () :
 	handle (rsnano::rsn_election_status_create ())
 {
