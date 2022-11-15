@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::ptr;
 use std::time::{Duration, UNIX_EPOCH};
 
-pub struct ElectionStatusHandle(ElectionStatus);
+pub struct ElectionStatusHandle(pub(crate) ElectionStatus);
 
 impl ElectionStatusHandle {
     pub(crate) fn new(info: ElectionStatus) -> Self {

@@ -770,37 +770,85 @@ std::unique_ptr<nano::container_info_component> nano::recently_confirmed_cache::
  */
 
 nano::recently_cemented_cache::recently_cemented_cache (std::size_t max_size_a) :
-	max_size{ max_size_a }
+	max_size{ max_size_a },
+	handle (rsnano::rsn_recently_cemented_cache_create1 (max_size_a))
 {
+}
+
+nano::recently_cemented_cache::recently_cemented_cache (nano::recently_cemented_cache const & other_a) :
+	max_size{ other_a.max_size },
+	handle (rsnano::rsn_recently_cemented_cache_clone (other_a.handle))
+{
+}
+
+nano::recently_cemented_cache::~recently_cemented_cache ()
+{
+	if (handle != nullptr)
+		rsnano::rsn_recently_cemented_cache_destroy (handle);
+}
+
+nano::recently_cemented_cache & nano::recently_cemented_cache::operator= (const nano::recently_cemented_cache & other_a)
+{
+	if (handle != nullptr)
+		rsnano::rsn_recently_cemented_cache_destroy (handle);
+
+	handle = rsnano::rsn_recently_cemented_cache_clone (other_a.handle);
+	return *this;
 }
 
 void nano::recently_cemented_cache::put (const nano::election_status & status)
 {
 	nano::lock_guard<nano::mutex> guard{ mutex };
-	cemented.push_back (status);
-	if (cemented.size () > max_size)
-	{
-		cemented.pop_front ();
-	}
+	rsnano::rsn_recently_cemented_cache_put (handle, status.handle);
 }
 
 nano::recently_cemented_cache::queue_t nano::recently_cemented_cache::list () const
 {
-	nano::lock_guard<nano::mutex> guard{ mutex };
-	return cemented;
+	rsnano::RecentlyCementedCachedDto recently_cemented_cache_dto;
+	rsnano::rsn_recently_cemented_cache_list (handle, &recently_cemented_cache_dto);
+	nano::recently_cemented_cache::queue_t result;
+	rsnano::RecentlyCementedCacheItemDto const * current;
+	int i;
+	for (i = 0, current = recently_cemented_cache_dto.items; i < recently_cemented_cache_dto.count; ++i)
+	{
+		std::shared_ptr<nano::block> const & winner = nano::block_handle_to_block (current->winner);
+		nano::uint128_t tally;
+		boost::multiprecision::import_bits (tally, std::begin (current->tally), std::end (current->tally), 8, true);
+		nano::uint128_t final_tally;
+		boost::multiprecision::import_bits (final_tally, std::begin (current->final_tally), std::end (current->final_tally), 8, true);
+		nano::election_status election_status { winner };
+		election_status.set_tally (tally);
+		election_status.set_final_tally (final_tally);
+		election_status.set_confirmation_request_count (current->confirmation_request_count);
+		election_status.set_block_count (current->block_count);
+		election_status.set_voter_count (current->voter_count);
+		election_status.set_election_end (std::chrono::milliseconds (current->election_end));
+		election_status.set_election_duration (std::chrono::milliseconds (current->election_duration));
+		election_status.set_election_status_type (static_cast<nano::election_status_type> (current->election_status_type));
+		result.push_back (election_status);
+		if (result.size () > max_size)
+		{
+			result.pop_front ();
+		}
+		current++;
+	}
+
+	rsnano::rsn_recently_cemented_cache_destroy_dto (&recently_cemented_cache_dto);
+
+	return result;
 }
 
 std::size_t nano::recently_cemented_cache::size () const
 {
-	nano::lock_guard<nano::mutex> guard{ mutex };
-	return cemented.size ();
+	return rsn_recently_cemented_cache_size (handle);
 }
 
 std::unique_ptr<nano::container_info_component> nano::recently_cemented_cache::collect_container_info (const std::string & name)
 {
-	nano::unique_lock<nano::mutex> lock{ mutex };
+	size_t size = rsnano::rsn_recently_cemented_cache_get_cemented_size (handle);
+	size_t size_of_type = rsnano::rsn_recently_cemented_cache_get_cemented_type_size ();
 
 	auto composite = std::make_unique<container_info_composite> (name);
-	composite->add_component (std::make_unique<container_info_leaf> (container_info{ "cemented", cemented.size (), sizeof (decltype (cemented)::value_type) }));
+	composite->add_component (std::make_unique<container_info_leaf> (container_info{ "cemented", size, size_of_type }));
 	return composite;
 }

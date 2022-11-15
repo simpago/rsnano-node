@@ -1133,6 +1133,7 @@ nano::election_status::election_status () :
 	handle (rsnano::rsn_election_status_create ())
 {
 }
+
 nano::election_status::election_status (std::shared_ptr<nano::block> const & winner_a) :
 	handle (rsnano::rsn_election_status_create1 (winner_a->get_handle ()))
 {
