@@ -1,7 +1,7 @@
-use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
 use crate::core::{Account, Amount};
 use crate::voting::ElectionStatus;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Mutex;
 
 pub struct RecentlyCementedCache {
     pub(crate) cemented: Mutex<VecDeque<ElectionStatus>>,

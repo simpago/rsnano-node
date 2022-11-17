@@ -816,7 +816,7 @@ nano::recently_cemented_cache::queue_t nano::recently_cemented_cache::list () co
 		boost::multiprecision::import_bits (tally, std::begin (current->tally), std::end (current->tally), 8, true);
 		nano::uint128_t final_tally;
 		boost::multiprecision::import_bits (final_tally, std::begin (current->final_tally), std::end (current->final_tally), 8, true);
-		nano::election_status election_status { winner };
+		nano::election_status election_status{ winner };
 		election_status.set_tally (tally);
 		election_status.set_final_tally (final_tally);
 		election_status.set_confirmation_request_count (current->confirmation_request_count);
