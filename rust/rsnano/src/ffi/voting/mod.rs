@@ -7,3 +7,6 @@ pub use vote::VoteHandle;
 pub use vote_uniquer::VoteUniquerHandle;
 
 mod election_status;
+mod recently_cemented_cache;
+mod inactive_cache_status;
+mod inactive_cache_information;

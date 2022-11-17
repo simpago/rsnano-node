@@ -1214,7 +1214,7 @@ void nano::election_status::set_winner (std::shared_ptr<nano::block> winner)
 	rsnano::rsn_election_status_set_winner (handle, block_handle);
 }
 
-void nano::election_status::set_tally (nano::amount tally)
+void nano::election_status::set_tally (nano::amount tally)f
 {
 	rsnano::rsn_election_status_set_tally (handle, tally.bytes.data ());
 }

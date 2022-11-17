@@ -93,6 +93,12 @@ fn into_32_byte_array(ptr: *const u8) -> [u8; 32] {
     bytes
 }
 
+fn into_16_byte_array(ptr: *const u8) -> [u8; 16] {
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(unsafe { std::slice::from_raw_parts(ptr, 16) });
+    bytes
+}
+
 pub(crate) unsafe fn copy_public_key_bytes(source: &PublicKey, target: *mut u8) {
     let bytes = std::slice::from_raw_parts_mut(target, 32);
     bytes.copy_from_slice(source.as_bytes());
@@ -124,6 +130,11 @@ pub(crate) unsafe fn copy_signature_bytes(source: &Signature, target: *mut u8) {
 }
 
 pub(crate) unsafe fn copy_amount_bytes(source: Amount, target: *mut u8) {
+    let bytes = std::slice::from_raw_parts_mut(target, 16);
+    bytes.copy_from_slice(&source.to_be_bytes());
+}
+
+pub(crate) unsafe fn copy_u128_bytes(source: u128, target: *mut u8) {
     let bytes = std::slice::from_raw_parts_mut(target, 16);
     bytes.copy_from_slice(&source.to_be_bytes());
 }

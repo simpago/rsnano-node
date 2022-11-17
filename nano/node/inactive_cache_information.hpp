@@ -5,12 +5,21 @@
 
 #include <chrono>
 
+/*namespace rsnano
+{
+class InactiveCacheInformationHandle;
+}*/
+
 namespace nano
 {
 class inactive_cache_information final
 {
 public:
 	inactive_cache_information () = default;
+	//inactive_cache_information (inactive_cache_information &&) = delete;
+	//inactive_cache_information (inactive_cache_information const &);
+	//~inactive_cache_information ();
+	//nano::inactive_cache_information & operator= (const nano::inactive_cache_information &);
 	inactive_cache_information (std::chrono::steady_clock::time_point arrival, nano::block_hash hash, nano::account initial_rep_a, uint64_t initial_timestamp_a, nano::inactive_cache_status status) :
 		arrival (arrival),
 		hash (hash),
@@ -24,10 +33,11 @@ public:
 	nano::block_hash hash;
 	nano::inactive_cache_status status;
 	std::vector<std::pair<nano::account, uint64_t>> voters;
+	//rsnano::InactiveCacheInformationHandle * handle;
 
 	bool needs_eval () const
 	{
-		return !status.bootstrap_started || !status.election_started || !status.confirmed;
+		return !status.get_bootstrap_started () || !status.get_election_started () || !status.get_confirmed ();
 	}
 
 	std::string to_string () const;
