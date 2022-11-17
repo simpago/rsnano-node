@@ -85,6 +85,10 @@ struct EpochsHandle;
 
 struct GenerateCacheHandle;
 
+struct InactiveCacheInformationHandle;
+
+struct InactiveCacheStatusHandle;
+
 struct IoContextHandle;
 
 struct KdfHandle;
@@ -199,6 +203,8 @@ struct VoteHashesHandle;
 struct VoteSpacingHandle;
 
 struct VoteUniquerHandle;
+
+struct VotersRawData;
 
 struct WorkPoolHandle;
 
@@ -771,6 +777,19 @@ struct DaemonConfigDto
 	bool opencl_enable;
 	NodePowServerConfigDto pow_server;
 	NodeRpcConfigDto rpc;
+};
+
+struct VotersItemDto
+{
+	uint8_t account[32];
+	uint64_t timestamp;
+};
+
+struct VotersDto
+{
+	const VotersItemDto * items;
+	uintptr_t count;
+	VotersRawData * raw_data;
 };
 
 struct BootstrapWeightsItem
@@ -1814,6 +1833,49 @@ void rsn_generate_cache_set_reps (GenerateCacheHandle * handle, bool enable);
 void rsn_generate_cache_set_unchecked_count (GenerateCacheHandle * handle, bool enable);
 
 void rsn_hardened_constants_get (uint8_t * not_an_account, uint8_t * random_128);
+
+InactiveCacheInformationHandle * rsn_inactive_cache_information_clone (const InactiveCacheInformationHandle * handle);
+
+InactiveCacheInformationHandle * rsn_inactive_cache_information_create ();
+
+InactiveCacheInformationHandle * rsn_inactive_cache_information_create1 (int64_t arrival,
+const uint8_t * hash,
+const InactiveCacheStatusHandle * status,
+const uint8_t * initial_rep_a,
+uint64_t initial_timestamp_a);
+
+void rsn_inactive_cache_information_destroy (InactiveCacheInformationHandle * handle);
+
+void rsn_inactive_cache_information_destroy_dto (VotersDto * vector);
+
+uint64_t rsn_inactive_cache_information_get_arrival (const InactiveCacheInformationHandle * handle);
+
+const uint8_t * rsn_inactive_cache_information_get_hash (const InactiveCacheInformationHandle * handle);
+
+InactiveCacheStatusHandle * rsn_inactive_cache_information_get_status (const InactiveCacheInformationHandle * handle);
+
+void rsn_inactive_cache_information_get_voters (const InactiveCacheInformationHandle * handle,
+VotersDto * vector);
+
+bool rsn_inactive_cache_status_bootstrap_started (const InactiveCacheStatusHandle * handle);
+
+bool rsn_inactive_cache_status_confirmed (const InactiveCacheStatusHandle * handle);
+
+InactiveCacheStatusHandle * rsn_inactive_cache_status_create ();
+
+bool rsn_inactive_cache_status_election_started (const InactiveCacheStatusHandle * handle);
+
+void rsn_inactive_cache_status_set_bootstrap_started (InactiveCacheStatusHandle * handle,
+bool bootstrap_started);
+
+void rsn_inactive_cache_status_set_confirmed (InactiveCacheStatusHandle * handle, bool confirmed);
+
+void rsn_inactive_cache_status_set_election_started (InactiveCacheStatusHandle * handle,
+bool election_started);
+
+void rsn_inactive_cache_status_set_tally (InactiveCacheStatusHandle * handle, const uint8_t * tally);
+
+void rsn_inactive_cache_status_tally (const InactiveCacheStatusHandle * handle, uint8_t * result);
 
 /// handle is a `boost::asio::io_context *`
 IoContextHandle * rsn_io_ctx_create (void * handle);

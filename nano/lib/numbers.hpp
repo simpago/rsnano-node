@@ -118,6 +118,8 @@ public:
 
 	public_key ();
 
+	public_key (uint256_union);
+
 	static const public_key & null ();
 
 	std::string to_node_id () const;
