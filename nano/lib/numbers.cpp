@@ -27,6 +27,11 @@ nano::public_key::public_key () :
 {
 }
 
+nano::public_key::public_key (uint256_union value) :
+	uint256_union{ value }
+{
+}
+
 nano::public_key const & nano::public_key::null ()
 {
 	return nano::hardened_constants::get ().not_an_account;
