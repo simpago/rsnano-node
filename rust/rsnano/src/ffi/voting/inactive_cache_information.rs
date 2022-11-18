@@ -2,10 +2,6 @@ use crate::core::{Account, BlockHash};
 use crate::ffi::core::BlockHandle;
 use crate::ffi::voting::election_status::ElectionStatusHandle;
 use crate::ffi::voting::inactive_cache_status::InactiveCacheStatusHandle;
-use crate::ffi::voting::recently_cemented_cache::{
-    RecentlyCementedCacheHandle, RecentlyCementedCacheItemDto, RecentlyCementedCachedDto,
-    RecentlyCementedCachedRawData,
-};
 use crate::voting::{ElectionStatus, InactiveCacheInformation};
 use crate::Topic::Bootstrap;
 use num_format::Locale::ha;
