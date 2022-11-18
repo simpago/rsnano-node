@@ -6,6 +6,12 @@
 #include <set>
 #include <vector>
 
+namespace rsnano
+{
+class ValueTypeHandle;
+class PrioritizationHandle;
+}
+
 namespace nano
 {
 class block;
@@ -25,33 +31,18 @@ class prioritization final
 	class value_type
 	{
 	public:
-		uint64_t time;
-		std::shared_ptr<nano::block> block;
+		value_type (uint64_t, std::shared_ptr<nano::block>);
+		uint64_t get_time () const;
+		std::shared_ptr<nano::block> get_block () const;
 		bool operator< (value_type const & other_a) const;
 		bool operator== (value_type const & other_a) const;
+		rsnano::ValueTypeHandle * handle;
 	};
 
 	using priority = std::set<value_type>;
 
-	/** container for the buckets to be read in round robin fashion */
-	std::vector<priority> buckets;
-
-	/** thresholds that define the bands for each bucket, the minimum balance an account must have to enter a bucket,
-	 *  the container writes a block to the lowest indexed bucket that has balance larger than the bucket's minimum value */
-	std::vector<nano::uint128_t> minimums;
-
-	/** Contains bucket indicies to iterate over when making the next scheduling decision */
-	std::vector<uint8_t> schedule;
-
-	/** index of bucket to read next */
-	decltype (schedule)::const_iterator current;
-
-	/** maximum number of blocks in whole container, each bucket's maximum is maximum / bucket_number */
-	uint64_t const maximum;
-
 	void next ();
 	void seek ();
-	void populate_schedule ();
 
 public:
 	prioritization (uint64_t maximum = 250000u);
@@ -63,6 +54,7 @@ public:
 	std::size_t bucket_size (std::size_t index) const;
 	bool empty () const;
 	void dump () const;
+	rsnano::PrioritizationHandle * handle;
 
 	std::unique_ptr<nano::container_info_component> collect_container_info (std::string const &);
 };
