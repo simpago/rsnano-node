@@ -12,7 +12,9 @@ use std::sync::RwLock;
 pub(crate) type VoteUniquer = Uniquer<RwLock<Vote>>;
 
 mod election_status;
+mod prioritization;
 mod recently_cemented_cache;
 
 pub use election_status::{ElectionStatus, ElectionStatusType};
+pub use prioritization::ValueType;
 pub use recently_cemented_cache::RecentlyCementedCache;

@@ -4,14 +4,30 @@
 
 #include <string>
 
+nano::prioritization::value_type::value_type (uint64_t time, std::shared_ptr<nano::block> block) :
+	handle (rsnano::rsn_prioritization_create_value_type (time, block->get_handle ()))
+{
+}
+
+uint64_t nano::prioritization::value_type::get_time () const
+{
+	return rsnano::rsn_prioritization_get_value_type_time (handle);
+}
+
+std::shared_ptr<nano::block> nano::prioritization::value_type::get_block () const
+{
+	auto block_handle = rsnano::rsn_prioritization_get_value_type_block (handle);
+	return block_handle_to_block (block_handle);
+}
+
 bool nano::prioritization::value_type::operator< (value_type const & other_a) const
 {
-	return time < other_a.time || (time == other_a.time && block->hash () < other_a.block->hash ());
+	return get_time () < other_a.get_time () || (get_time () == other_a.get_time () && get_block ()->hash () < other_a.get_block ()->hash ());
 }
 
 bool nano::prioritization::value_type::operator== (value_type const & other_a) const
 {
-	return time == other_a.time && block->hash () == other_a.block->hash ();
+	return get_time () == other_a.get_time () && get_block ()->hash () == other_a.get_block ()->hash ();
 }
 
 /** Moves the bucket pointer to the next bucket */
@@ -91,7 +107,7 @@ std::shared_ptr<nano::block> nano::prioritization::top () const
 {
 	debug_assert (!empty ());
 	debug_assert (!buckets[*current].empty ());
-	auto result = buckets[*current].begin ()->block;
+	auto result = buckets[*current].begin ()->get_block ();
 	return result;
 }
 
@@ -141,7 +157,7 @@ void nano::prioritization::dump () const
 	{
 		for (auto const & j : i)
 		{
-			std::cerr << j.time << ' ' << j.block->hash ().to_string () << '\n';
+			std::cerr << j.get_time () << ' ' << j.get_block ()->hash ().to_string () << '\n';
 		}
 	}
 	std::cerr << "current: " << std::to_string (*current) << '\n';

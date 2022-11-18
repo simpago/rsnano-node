@@ -1,0 +1,30 @@
+use crate::ffi::core::BlockHandle;
+use crate::voting::{ElectionStatus, ValueType};
+use std::ptr;
+use crate::ffi::voting::election_status::ElectionStatusHandle;
+
+pub struct ValueTypeHandle(ValueType);
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_create_value_type(time: u64, block: *const BlockHandle) -> *mut ValueTypeHandle {
+    let block = (*block).block.clone();
+    let info = ValueType::new(time, Some(block));
+    Box::into_raw(Box::new(ValueTypeHandle(info)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_get_value_type_time(
+    handle: *const ValueTypeHandle,
+) -> u64 {
+    (*handle).0.get_time()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_get_value_type_block(
+    handle: *const ValueTypeHandle,
+) -> *mut BlockHandle {
+    match (*handle).0.get_block() {
+        Some(winner) => Box::into_raw(Box::new(BlockHandle::new(winner))),
+        None => ptr::null_mut(),
+    }
+}

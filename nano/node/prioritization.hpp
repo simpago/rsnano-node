@@ -6,6 +6,11 @@
 #include <set>
 #include <vector>
 
+namespace rsnano
+{
+class ValueTypeHandle;
+}
+
 namespace nano
 {
 class block;
@@ -25,10 +30,12 @@ class prioritization final
 	class value_type
 	{
 	public:
-		uint64_t time;
-		std::shared_ptr<nano::block> block;
+		value_type (uint64_t, std::shared_ptr<nano::block>);
+		uint64_t get_time () const;
+		std::shared_ptr<nano::block> get_block () const;
 		bool operator< (value_type const & other_a) const;
 		bool operator== (value_type const & other_a) const;
+		rsnano::ValueTypeHandle * handle;
 	};
 
 	using priority = std::set<value_type>;
