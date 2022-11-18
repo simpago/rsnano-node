@@ -11,23 +11,33 @@
 
 namespace rsnano
 {
-static const uintptr_t SignatureChecker_BATCH_SIZE = 256;
+constexpr static const uintptr_t SignatureChecker_BATCH_SIZE = 256;
 
-static const double BOOTSTRAP_MINIMUM_ELAPSED_SECONDS_BLOCKRATE = 0.02;
+constexpr static const double BOOTSTRAP_MINIMUM_ELAPSED_SECONDS_BLOCKRATE = 0.02;
 
-static const uint8_t GENERIC = 0;
+constexpr static const uint8_t GENERIC = 0;
 
-static const uintptr_t ConfirmAck_HASHES_MAX = 12;
+constexpr static const uintptr_t ConfirmAck_HASHES_MAX = 12;
 
-static const uintptr_t FrontierReq_ONLY_CONFIRMED = 1;
+constexpr static const uintptr_t FrontierReq_ONLY_CONFIRMED = 1;
 
-static const uint64_t PULL_COUNT_PER_CHECK = (8 * 1024);
+constexpr static const uint64_t PULL_COUNT_PER_CHECK = (8 * 1024);
 
-static const int32_t STORE_VERSION_CURRENT = 21;
+constexpr static const int32_t STORE_VERSION_CURRENT = 21;
 
-static const int32_t STORE_VERSION_MINIMUM = 21;
+constexpr static const int32_t STORE_VERSION_MINIMUM = 21;
 
-static const uint8_t SYSTEM = 1;
+constexpr static const uint8_t SYSTEM = 1;
+
+///  * Tag for which epoch an entry belongs to
+enum class Epoch : uint8_t
+{
+	Invalid = 0,
+	Unspecified = 1,
+	Epoch0 = 2,
+	Epoch1 = 3,
+	Epoch2 = 4,
+};
 
 struct AccountInfoHandle;
 
@@ -137,6 +147,10 @@ struct OutboundBandwidthLimiterHandle;
 struct PeerExclusionHandle;
 
 struct PullsCacheHandle;
+
+struct RecentlyCementedCacheHandle;
+
+struct RecentlyCementedCachedRawData;
 
 struct RepAmountsRawData;
 
@@ -960,6 +974,26 @@ struct ReceiveBlockDto2
 	uint8_t priv_key[32];
 	uint8_t pub_key[32];
 	uint64_t work;
+};
+
+struct RecentlyCementedCacheItemDto
+{
+	BlockHandle * winner;
+	uint8_t tally[16];
+	uint8_t final_tally[16];
+	uint32_t confirmation_request_count;
+	uint32_t block_count;
+	uint32_t voter_count;
+	int64_t election_end;
+	int64_t election_duration;
+	uint8_t election_status_type;
+};
+
+struct RecentlyCementedCachedDto
+{
+	const RecentlyCementedCacheItemDto * items;
+	uintptr_t count;
+	RecentlyCementedCachedRawData * raw_data;
 };
 
 struct RepAmountItemDto
@@ -3245,6 +3279,26 @@ uintptr_t rsn_receive_block_size ();
 void rsn_receive_block_source (const BlockHandle * handle, uint8_t (*result)[32]);
 
 void rsn_receive_block_source_set (BlockHandle * handle, const uint8_t (*previous)[32]);
+
+RecentlyCementedCacheHandle * rsn_recently_cemented_cache_clone (const RecentlyCementedCacheHandle * handle);
+
+RecentlyCementedCacheHandle * rsn_recently_cemented_cache_create1 (uintptr_t max_size);
+
+void rsn_recently_cemented_cache_destroy (RecentlyCementedCacheHandle * handle);
+
+void rsn_recently_cemented_cache_destroy_dto (RecentlyCementedCachedDto * list);
+
+uintptr_t rsn_recently_cemented_cache_get_cemented_size (const RecentlyCementedCacheHandle * handle);
+
+uintptr_t rsn_recently_cemented_cache_get_cemented_type_size ();
+
+void rsn_recently_cemented_cache_list (const RecentlyCementedCacheHandle * handle,
+RecentlyCementedCachedDto * list);
+
+void rsn_recently_cemented_cache_put (const RecentlyCementedCacheHandle * handle,
+const ElectionStatusHandle * election_status);
+
+uintptr_t rsn_recently_cemented_cache_size (const RecentlyCementedCacheHandle * handle);
 
 void rsn_remove_temporary_directories ();
 
