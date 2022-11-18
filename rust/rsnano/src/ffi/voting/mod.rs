@@ -7,4 +7,5 @@ pub use vote::VoteHandle;
 pub use vote_uniquer::VoteUniquerHandle;
 
 mod election_status;
+mod prioritization;
 mod recently_cemented_cache;

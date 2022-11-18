@@ -98,6 +98,10 @@ impl BlockEnum {
         self.as_block().block_type()
     }
 
+    pub fn sideband(&self) -> Option<&BlockSideband> {
+        self.as_block().sideband()
+    }
+
     pub fn as_block_mut(&mut self) -> &mut dyn Block {
         match self {
             BlockEnum::Send(b) => b,

@@ -153,9 +153,9 @@ TEST (prioritization, insert_older)
 	nano::prioritization prioritization;
 	prioritization.push (1000, block0 ());
 	prioritization.push (1100, block2 ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
-	ASSERT_EQ (block2 (), prioritization.top ());
+	ASSERT_EQ (block2 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
 }
 
@@ -173,7 +173,7 @@ TEST (prioritization, top_one)
 {
 	nano::prioritization prioritization;
 	prioritization.push (1000, block0 ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 }
 
 TEST (prioritization, top_two)
@@ -181,9 +181,9 @@ TEST (prioritization, top_two)
 	nano::prioritization prioritization;
 	prioritization.push (1000, block0 ());
 	prioritization.push (1, block1 ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
-	ASSERT_EQ (block1 (), prioritization.top ());
+	ASSERT_EQ (block1 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
 	ASSERT_TRUE (prioritization.empty ());
 }
@@ -192,16 +192,16 @@ TEST (prioritization, top_round_robin)
 {
 	nano::prioritization prioritization;
 	prioritization.push (1000, blockzero ());
-	ASSERT_EQ (blockzero (), prioritization.top ());
+	ASSERT_EQ (blockzero ()->hash (), prioritization.top ()->hash ());
 	prioritization.push (1000, block0 ());
 	prioritization.push (1000, block1 ());
 	prioritization.push (1100, block3 ());
 	prioritization.pop (); // blockzero
-	EXPECT_EQ (block1 (), prioritization.top ());
+	EXPECT_EQ (block1 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
-	EXPECT_EQ (block0 (), prioritization.top ());
+	EXPECT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
-	EXPECT_EQ (block3 (), prioritization.top ());
+	EXPECT_EQ (block3 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
 	EXPECT_TRUE (prioritization.empty ());
 }
@@ -212,7 +212,7 @@ TEST (prioritization, trim_normal)
 	prioritization.push (1000, block0 ());
 	prioritization.push (1100, block2 ());
 	ASSERT_EQ (1, prioritization.size ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 }
 
 TEST (prioritization, trim_reverse)
@@ -221,7 +221,7 @@ TEST (prioritization, trim_reverse)
 	prioritization.push (1100, block2 ());
 	prioritization.push (1000, block0 ());
 	ASSERT_EQ (1, prioritization.size ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 }
 
 TEST (prioritization, trim_even)
@@ -230,10 +230,10 @@ TEST (prioritization, trim_even)
 	prioritization.push (1000, block0 ());
 	prioritization.push (1100, block2 ());
 	ASSERT_EQ (1, prioritization.size ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 	prioritization.push (1000, block1 ());
 	ASSERT_EQ (2, prioritization.size ());
-	ASSERT_EQ (block0 (), prioritization.top ());
+	ASSERT_EQ (block0 ()->hash (), prioritization.top ()->hash ());
 	prioritization.pop ();
-	ASSERT_EQ (block1 (), prioritization.top ());
+	ASSERT_EQ (block1 ()->hash (), prioritization.top ()->hash ());
 }
