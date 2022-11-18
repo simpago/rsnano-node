@@ -16,5 +16,5 @@ mod prioritization;
 mod recently_cemented_cache;
 
 pub use election_status::{ElectionStatus, ElectionStatusType};
-pub use prioritization::ValueType;
+pub use prioritization::{ValueType, Prioritization};
 pub use recently_cemented_cache::RecentlyCementedCache;

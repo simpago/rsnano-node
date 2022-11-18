@@ -1,6 +1,7 @@
 use crate::ffi::core::BlockHandle;
-use crate::voting::{ElectionStatus, ValueType};
+use crate::voting::{ElectionStatus, Prioritization, ValueType};
 use std::ptr;
+use num_format::Locale::ha;
 use crate::ffi::voting::election_status::ElectionStatusHandle;
 
 pub struct ValueTypeHandle(ValueType);
@@ -27,4 +28,22 @@ pub unsafe extern "C" fn rsn_prioritization_get_value_type_block(
         Some(winner) => Box::into_raw(Box::new(BlockHandle::new(winner))),
         None => ptr::null_mut(),
     }
+}
+
+pub struct PrioritizationHandle(Prioritization);
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_create(maximum: u64) -> *mut PrioritizationHandle {
+    let info = Prioritization::new(maximum);
+    Box::into_raw(Box::new(PrioritizationHandle(info)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_size(handle: *const PrioritizationHandle) -> usize {
+    (*handle).0.size()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_next(handle: *mut PrioritizationHandle) {
+    (*handle).0.next()
 }

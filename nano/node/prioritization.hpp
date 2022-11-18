@@ -9,6 +9,7 @@
 namespace rsnano
 {
 class ValueTypeHandle;
+class PrioritizationHandle;
 }
 
 namespace nano
@@ -47,7 +48,7 @@ class prioritization final
 	 *  the container writes a block to the lowest indexed bucket that has balance larger than the bucket's minimum value */
 	std::vector<nano::uint128_t> minimums;
 
-	/** Contains bucket indicies to iterate over when making the next scheduling decision */
+	/** Contains bucket indices to iterate over when making the next scheduling decision */
 	std::vector<uint8_t> schedule;
 
 	/** index of bucket to read next */
@@ -70,6 +71,7 @@ public:
 	std::size_t bucket_size (std::size_t index) const;
 	bool empty () const;
 	void dump () const;
+	rsnano::PrioritizationHandle * handle;
 
 	std::unique_ptr<nano::container_info_component> collect_container_info (std::string const &);
 };

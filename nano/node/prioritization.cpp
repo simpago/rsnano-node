@@ -50,23 +50,24 @@ void nano::prioritization::seek ()
 	}
 }
 
-/** Initialise the schedule vector */
-void nano::prioritization::populate_schedule ()
+/*/** Initialise the schedule vector */
+/*void nano::prioritization::populate_schedule ()
 {
 	for (auto i = 0; i < buckets.size (); ++i)
 	{
 		schedule.push_back (i);
 	}
-}
+}*/
 
 /**
  * Prioritization constructor, construct a container containing approximately 'maximum' number of blocks.
  * @param maximum number of blocks that this container can hold, this is a soft and approximate limit.
  */
 nano::prioritization::prioritization (uint64_t maximum) :
-	maximum{ maximum }
+	maximum{ maximum },
+	handle (rsnano::rsn_prioritization_create (maximum))
 {
-	static std::size_t constexpr bucket_count = 129;
+	/*static std::size_t constexpr bucket_count = 129;
 	buckets.resize (bucket_count);
 	nano::uint128_t minimum{ 1 };
 	minimums.push_back (0);
@@ -76,7 +77,7 @@ nano::prioritization::prioritization (uint64_t maximum) :
 		minimum <<= 1;
 	}
 	populate_schedule ();
-	current = schedule.begin ();
+	current = schedule.begin ();*/
 }
 
 /**
@@ -124,12 +125,13 @@ void nano::prioritization::pop ()
 /** Returns the total number of blocks in buckets */
 std::size_t nano::prioritization::size () const
 {
-	std::size_t result{ 0 };
+	/*std::size_t result{ 0 };
 	for (auto const & queue : buckets)
 	{
 		result += queue.size ();
 	}
-	return result;
+	return result;*/
+	return rsnano::rsn_prioritization_size (handle);
 }
 
 /** Returns number of buckets, 129 by default */
