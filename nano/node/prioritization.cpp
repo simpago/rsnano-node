@@ -137,19 +137,22 @@ std::size_t nano::prioritization::size () const
 /** Returns number of buckets, 129 by default */
 std::size_t nano::prioritization::bucket_count () const
 {
-	return buckets.size ();
+	//return buckets.size ();
+	return rsnano::rsn_prioritization_bucket_count (handle);
 }
 
 /** Returns number of items in bucket with index 'index' */
 std::size_t nano::prioritization::bucket_size (std::size_t index) const
 {
-	return buckets[index].size ();
+	//return buckets[index].size ();
+	return rsnano::rsn_prioritization_bucket_size (handle, index);
 }
 
 /** Returns true if all buckets are empty */
 bool nano::prioritization::empty () const
 {
-	return std::all_of (buckets.begin (), buckets.end (), [] (priority const & bucket_a) { return bucket_a.empty (); });
+	//return std::all_of (buckets.begin (), buckets.end (), [] (priority const & bucket_a) { return bucket_a.empty (); });
+	return rsnano::rsn_prioritization_empty (handle);
 }
 
 /** Print the state of the class in stderr */

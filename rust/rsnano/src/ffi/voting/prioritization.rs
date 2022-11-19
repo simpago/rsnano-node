@@ -47,3 +47,33 @@ pub unsafe extern "C" fn rsn_prioritization_size(handle: *const PrioritizationHa
 pub unsafe extern "C" fn rsn_prioritization_next(handle: *mut PrioritizationHandle) {
     (*handle).0.next()
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_bucket_count(handle: *mut PrioritizationHandle) -> usize {
+    (*handle).0.bucket_count()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_bucket_size(handle: *mut PrioritizationHandle, index: usize) -> usize {
+    (*handle).0.bucket_size(index)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_empty(handle: *mut PrioritizationHandle) -> bool {
+    (*handle).0.empty()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_seek(handle: *mut PrioritizationHandle) {
+    (*handle).0.seek()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_pop(handle: *mut PrioritizationHandle) {
+    (*handle).0.pop()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_push(handle: *mut PrioritizationHandle, time: u64, block: *const BlockHandle) {
+    (*handle).0.push(time, (*block).block.clone())
+}

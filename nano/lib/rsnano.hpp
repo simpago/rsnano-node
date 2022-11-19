@@ -3167,13 +3167,21 @@ uintptr_t rsn_peer_exclusion_size(PeerExclusionHandle *handle);
 int32_t rsn_portmapping_constants_create(const NetworkConstantsDto *network_constants,
                                          PortmappingConstantsDto *dto);
 
+uintptr_t rsn_prioritization_bucket_count(PrioritizationHandle *handle);
+
+uintptr_t rsn_prioritization_bucket_size(PrioritizationHandle *handle, uintptr_t index);
+
 PrioritizationHandle *rsn_prioritization_create(uint64_t maximum);
 
 ValueTypeHandle *rsn_prioritization_create_value_type(uint64_t time, const BlockHandle *block);
 
+bool rsn_prioritization_empty(PrioritizationHandle *handle);
+
 BlockHandle *rsn_prioritization_get_value_type_block(const ValueTypeHandle *handle);
 
 uint64_t rsn_prioritization_get_value_type_time(const ValueTypeHandle *handle);
+
+void rsn_prioritization_next(PrioritizationHandle *handle);
 
 uintptr_t rsn_prioritization_size(const PrioritizationHandle *handle);
 
