@@ -41,21 +41,21 @@ class prioritization final
 
 	using priority = std::set<value_type>;
 
-	/** container for the buckets to be read in round robin fashion */
+	//** container for the buckets to be read in round robin fashion */
 	std::vector<priority> buckets;
 
-	/** thresholds that define the bands for each bucket, the minimum balance an account must have to enter a bucket,
-	 *  the container writes a block to the lowest indexed bucket that has balance larger than the bucket's minimum value */
-	std::vector<nano::uint128_t> minimums;
+	//** thresholds that define the bands for each bucket, the minimum balance an account must have to enter a bucket,
+	//*  the container writes a block to the lowest indexed bucket that has balance larger than the bucket's minimum value */
+	//std::vector<nano::uint128_t> minimums;
 
-	/** Contains bucket indices to iterate over when making the next scheduling decision */
-	std::vector<uint8_t> schedule;
+	//** Contains bucket indices to iterate over when making the next scheduling decision */
+	//std::vector<uint8_t> schedule;
 
-	/** index of bucket to read next */
-	decltype (schedule)::const_iterator current;
+	//** index of bucket to read next */
+	//decltype (schedule)::const_iterator current;
 
-	/** maximum number of blocks in whole container, each bucket's maximum is maximum / bucket_number */
-	uint64_t const maximum;
+	//** maximum number of blocks in whole container, each bucket's maximum is maximum / bucket_number */
+	//uint64_t const maximum;
 
 	void next ();
 	void seek ();

@@ -33,21 +33,23 @@ bool nano::prioritization::value_type::operator== (value_type const & other_a) c
 /** Moves the bucket pointer to the next bucket */
 void nano::prioritization::next ()
 {
-	++current;
+	/*++current;
 	if (current == schedule.end ())
 	{
 		current = schedule.begin ();
-	}
+	}*/
+	rsnano::rsn_prioritization_next (handle);
 }
 
 /** Seek to the next non-empty bucket, if one exists */
 void nano::prioritization::seek ()
 {
-	next ();
+	/*next ();
 	for (std::size_t i = 0, n = schedule.size (); buckets[*current].empty () && i < n; ++i)
 	{
 		next ();
-	}
+	}*/
+	rsnano::rsn_prioritization_seek (handle);
 }
 
 /*/** Initialise the schedule vector */
@@ -64,7 +66,7 @@ void nano::prioritization::seek ()
  * @param maximum number of blocks that this container can hold, this is a soft and approximate limit.
  */
 nano::prioritization::prioritization (uint64_t maximum) :
-	maximum{ maximum },
+	//maximum{ maximum },
 	handle (rsnano::rsn_prioritization_create (maximum))
 {
 	/*static std::size_t constexpr bucket_count = 129;
@@ -86,7 +88,7 @@ nano::prioritization::prioritization (uint64_t maximum) :
  */
 void nano::prioritization::push (uint64_t time, std::shared_ptr<nano::block> block)
 {
-	auto was_empty = empty ();
+	/*auto was_empty = empty ();
 	auto block_has_balance = block->type () == nano::block_type::state || block->type () == nano::block_type::send;
 	debug_assert (block_has_balance || block->has_sideband ());
 	auto balance = block_has_balance ? block->balance () : block->sideband ().balance ();
@@ -100,26 +102,29 @@ void nano::prioritization::push (uint64_t time, std::shared_ptr<nano::block> blo
 	if (was_empty)
 	{
 		seek ();
-	}
+	}*/
+	rsnano::rsn_prioritization_push (handle, time, block->get_handle ());
 }
 
 /** Return the highest priority block of the current bucket */
 std::shared_ptr<nano::block> nano::prioritization::top () const
 {
-	debug_assert (!empty ());
+	/*debug_assert (!empty ());
 	debug_assert (!buckets[*current].empty ());
 	auto result = buckets[*current].begin ()->get_block ();
-	return result;
+	return result;*/
+	return nano::block_handle_to_block (rsn_prioritization_top (handle));
 }
 
 /** Pop the current block from the container and seek to the next block, if it exists */
 void nano::prioritization::pop ()
 {
-	debug_assert (!empty ());
+	/*debug_assert (!empty ());
 	debug_assert (!buckets[*current].empty ());
 	auto & bucket = buckets[*current];
 	bucket.erase (bucket.begin ());
-	seek ();
+	seek ();*/
+	rsnano::rsn_prioritization_pop (handle);
 }
 
 /** Returns the total number of blocks in buckets */
@@ -155,8 +160,9 @@ bool nano::prioritization::empty () const
 	return rsnano::rsn_prioritization_empty (handle);
 }
 
-/** Print the state of the class in stderr */
-void nano::prioritization::dump () const
+/*
+** Print the state of the class in stderr */
+/*void nano::prioritization::dump () const
 {
 	for (auto const & i : buckets)
 	{
@@ -166,15 +172,16 @@ void nano::prioritization::dump () const
 		}
 	}
 	std::cerr << "current: " << std::to_string (*current) << '\n';
-}
+}*/
 
 std::unique_ptr<nano::container_info_component> nano::prioritization::collect_container_info (std::string const & name)
 {
 	auto composite = std::make_unique<container_info_composite> (name);
-	for (auto i = 0; i < buckets.size (); ++i)
+	auto size = rsnano::rsn_prioritization_bucket_count (handle);
+	for (auto i = 0; i < size; ++i)
 	{
-		auto const & bucket = buckets[i];
-		composite->add_component (std::make_unique<container_info_leaf> (container_info{ std::to_string (i), bucket.size (), 0 }));
+		auto const & bucket_size = rsnano::rsn_prioritization_bucket_size (handle, i);
+		composite->add_component (std::make_unique<container_info_leaf> (container_info{ std::to_string (i), bucket_size, 0 }));
 	}
 	return composite;
 }

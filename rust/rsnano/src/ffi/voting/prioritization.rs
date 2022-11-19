@@ -1,13 +1,16 @@
 use crate::ffi::core::BlockHandle;
-use crate::voting::{ElectionStatus, Prioritization, ValueType};
-use std::ptr;
-use num_format::Locale::ha;
 use crate::ffi::voting::election_status::ElectionStatusHandle;
+use crate::voting::{ElectionStatus, Prioritization, ValueType};
+use num_format::Locale::ha;
+use std::ptr;
 
 pub struct ValueTypeHandle(ValueType);
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_prioritization_create_value_type(time: u64, block: *const BlockHandle) -> *mut ValueTypeHandle {
+pub unsafe extern "C" fn rsn_prioritization_create_value_type(
+    time: u64,
+    block: *const BlockHandle,
+) -> *mut ValueTypeHandle {
     let block = (*block).block.clone();
     let info = ValueType::new(time, Some(block));
     Box::into_raw(Box::new(ValueTypeHandle(info)))
@@ -49,12 +52,17 @@ pub unsafe extern "C" fn rsn_prioritization_next(handle: *mut PrioritizationHand
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_prioritization_bucket_count(handle: *mut PrioritizationHandle) -> usize {
+pub unsafe extern "C" fn rsn_prioritization_bucket_count(
+    handle: *mut PrioritizationHandle,
+) -> usize {
     (*handle).0.bucket_count()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_prioritization_bucket_size(handle: *mut PrioritizationHandle, index: usize) -> usize {
+pub unsafe extern "C" fn rsn_prioritization_bucket_size(
+    handle: *mut PrioritizationHandle,
+    index: usize,
+) -> usize {
     (*handle).0.bucket_size(index)
 }
 
@@ -74,6 +82,20 @@ pub unsafe extern "C" fn rsn_prioritization_pop(handle: *mut PrioritizationHandl
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_prioritization_push(handle: *mut PrioritizationHandle, time: u64, block: *const BlockHandle) {
+pub unsafe extern "C" fn rsn_prioritization_push(
+    handle: *mut PrioritizationHandle,
+    time: u64,
+    block: *const BlockHandle,
+) {
     (*handle).0.push(time, (*block).block.clone())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_top(
+    handle: *mut PrioritizationHandle,
+) -> *mut BlockHandle {
+    match (*handle).0.top() {
+        Some(b) => Box::into_raw(Box::new(BlockHandle::new(b))),
+        None => ptr::null_mut(),
+    }
 }

@@ -1,13 +1,14 @@
-use std::cmp::Ordering;
+use crate::core::{Amount, Block, BlockEnum, BlockType, SendBlock};
+use crate::ffi::core::BlockHandle;
+use crate::ledger::datastore::lmdb::get;
+use num_format::Locale::{el, se, ti};
+use std::cmp::{max, Ordering};
 use std::collections::BTreeSet;
 use std::ops::Deref;
 use std::ptr::null;
-use crate::core::{Amount, Block, BlockEnum, BlockType, SendBlock};
-use crate::ffi::core::BlockHandle;
 use std::sync::{Arc, RwLock};
 use std::thread::current;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use num_format::Locale::{el, se, ti};
 use toml_edit::value;
 
 /// Information on the value type
@@ -31,17 +32,28 @@ impl PartialOrd for ValueType {
 
 impl PartialEq for ValueType {
     fn eq(&self, other: &Self) -> bool {
-        ((*self.block.as_ref().unwrap()).as_ref().clone().read().unwrap().deref()) == ((*other.block.as_ref().unwrap()).as_ref().clone().read().unwrap().deref())
+        ((*self.block.as_ref().unwrap())
+            .as_ref()
+            .clone()
+            .read()
+            .unwrap()
+            .deref())
+            == ((*other.block.as_ref().unwrap())
+                .as_ref()
+                .clone()
+                .read()
+                .unwrap()
+                .deref())
     }
 }
 
-impl Eq for ValueType { }
+impl Eq for ValueType {}
 
 impl ValueType {
     pub fn new(time: u64, block: Option<Arc<RwLock<BlockEnum>>>) -> Self {
         Self {
             time: UNIX_EPOCH.checked_add(Duration::from_millis(time)),
-            block
+            block,
         }
     }
 
@@ -69,17 +81,21 @@ pub struct Prioritization {
 
 impl Prioritization {
     pub fn new(maximum: u64) -> Self {
-        let mut minimums: [u128; BUCKET_COUNT]= [0; BUCKET_COUNT];
+        let mut minimums: [u128; BUCKET_COUNT] = [0; BUCKET_COUNT];
         let mut value = 1;
-        let mut buckets = [(); BUCKET_COUNT].map(|_| BTreeSet::new());;
+        let mut buckets = [(); BUCKET_COUNT].map(|_| BTreeSet::new());
         let mut schedule: [u8; BUCKET_COUNT] = [0; BUCKET_COUNT];
-        
-        for i in 0..BUCKET_COUNT {
+        minimums[0] = 0;
+
+        for i in 1..BUCKET_COUNT {
             minimums[i] = value;
-            value << 1;
+            value = value << 1;
+        }
+
+        for i in 0..buckets.len() {
             schedule[i] = i as u8;
         }
-        
+
         Self {
             buckets,
             minimums,
@@ -100,10 +116,9 @@ impl Prioritization {
 
     /// Moves the bucket pointer to the next bucket
     pub fn next(&mut self) {
-        if self.current < BUCKET_COUNT {
+        if self.current < BUCKET_COUNT - 1 {
             self.current += 1;
-        }
-        else {
+        } else {
             self.current = 0;
         }
     }
@@ -126,35 +141,22 @@ impl Prioritization {
 
     /// Return the highest priority block of the current bucket
     pub fn top(&mut self) -> Option<Arc<RwLock<BlockEnum>>> {
-        match self.buckets[self.current].pop_first() {
-            Some(b) => b.block,
-            None => None
+        debug_assert!(!self.empty());
+        debug_assert!(!self.buckets[self.current].is_empty());
+        match self.buckets[self.current].first() {
+            Some(b) => b.block.clone(),
+            None => None,
         }
     }
 
     /// Push a block and its associated time into the prioritization container.
     /// The time is given here because sideband might not exist in the case of state blocks.
     pub fn push(&mut self, time: u64, block: Arc<RwLock<BlockEnum>>) {
-        /*auto was_empty = empty ();
-        auto block_has_balance = block->type () == nano::block_type::state || block->type () == nano::block_type::send;
-        debug_assert (block_has_balance || block->has_sideband ());
-        auto balance = block_has_balance ? block->balance () : block->sideband ().balance ();
-        auto index = std::upper_bound (minimums.begin (), minimums.end (), balance.number ()) - 1 - minimums.begin ();
-        auto & bucket = buckets[index];
-        bucket.emplace (value_type{ time, block });
-        if (bucket.size () > std::max (decltype (maximum){ 1 }, maximum / buckets.size ()))
-        {
-            bucket.erase (--bucket.end ());
-        }
-        if (was_empty)
-        {
-            seek ();
-        }*/
         let was_empty = self.empty();
         let binding = block.read().unwrap();
         let block_enum = binding.deref().clone();
-        let block_has_balance = block_enum.block_type() == BlockType::State || block_enum.block_type() == BlockType::Send;
-        debug_assert!(block_has_balance || block_enum.sideband().is_some());
+        //let block_has_balance = block_enum.block_type() == BlockType::State || block_enum.block_type() == BlockType::Send;
+        //debug_assert!(block_has_balance || block_enum.sideband().is_some());
         let mut balance = Amount::zero();
         match block_enum {
             BlockEnum::Send(b) => balance = b.balance(),
@@ -163,13 +165,22 @@ impl Prioritization {
             BlockEnum::Change(b) => balance = b.balance(),
             BlockEnum::Receive(b) => balance = b.balance(),
         }
-        let index = 0;
+        let mut index: usize = 0;
+        for i in 0..BUCKET_COUNT {
+            if balance.number() < self.minimums[i] {
+                index = self.minimums[i] as usize - 1 - self.minimums[0] as usize;
+                break;
+            }
+        }
         //auto index = std::upper_bound (minimums.begin (), minimums.end (), balance.number ()) - 1 - minimums.begin ();
         self.buckets[index].insert(ValueType::new(time, Some(block.clone())));
         /*if (bucket.size () > std::max (decltype (maximum){ 1 }, maximum / buckets.size ()))
         {
             bucket.erase (--bucket.end ());
         }*/
+        if self.buckets[index].len() > max(1, (self.maximum / self.buckets.len() as u64) as usize) {
+            self.buckets[index].pop_last();
+        }
         if was_empty {
             self.seek();
         }
@@ -198,7 +209,5 @@ impl Prioritization {
     }
 
     /// Print the state of the class
-    pub fn dump() {
-
-    }
+    pub fn dump() {}
 }
