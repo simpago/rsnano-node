@@ -148,6 +148,16 @@ TEST (prioritization, insert_duplicate)
 	ASSERT_EQ (1, prioritization.bucket_size (110));
 }
 
+/* Insert same block with a different time
+TEST (prioritization, insert_duplicate)
+{
+	nano::prioritization prioritization;
+	prioritization.push (1000, block0 ());
+	prioritization.push (1001, block0 ());
+	ASSERT_EQ (1, prioritization.size ());
+	ASSERT_EQ (1, prioritization.bucket_size (110));
+}*/
+
 TEST (prioritization, insert_older)
 {
 	nano::prioritization prioritization;

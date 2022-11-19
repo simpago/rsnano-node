@@ -20,7 +20,7 @@ pub struct ValueType {
 
 impl Ord for ValueType {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.time).cmp(&(other.time))
+        (self.time).cmp(&(other.time))//.reverse()
     }
 }
 
@@ -43,7 +43,7 @@ impl PartialEq for ValueType {
                 .clone()
                 .read()
                 .unwrap()
-                .deref())
+                .deref()) && self.time == other.time
     }
 }
 
@@ -109,7 +109,7 @@ impl Prioritization {
     pub fn size(&self) -> usize {
         let mut size = 0;
         for i in 0..self.buckets.len() {
-            size += self.buckets[i].len()
+            size += self.bucket_size(i);
         }
         size
     }
@@ -131,8 +131,8 @@ impl Prioritization {
 
     /// Seek to the next non-empty bucket, if one exists
     pub fn seek(&mut self) {
-        for i in 0..BUCKET_COUNT {
-            self.next();
+        self.next();
+        for _ in 0..self.schedule.len() {
             if self.buckets[self.current].is_empty() {
                 self.next();
             }
@@ -143,7 +143,7 @@ impl Prioritization {
     pub fn top(&mut self) -> Option<Arc<RwLock<BlockEnum>>> {
         debug_assert!(!self.empty());
         debug_assert!(!self.buckets[self.current].is_empty());
-        match self.buckets[self.current].first() {
+        match self.buckets[self.current].last() {
             Some(b) => b.block.clone(),
             None => None,
         }
@@ -155,29 +155,33 @@ impl Prioritization {
         let was_empty = self.empty();
         let binding = block.read().unwrap();
         let block_enum = binding.deref().clone();
-        //let block_has_balance = block_enum.block_type() == BlockType::State || block_enum.block_type() == BlockType::Send;
-        //debug_assert!(block_has_balance || block_enum.sideband().is_some());
+        //let mut block1 = block_enum.clone();
+        let block_has_balance = block_enum.block_type() == BlockType::State || block_enum.block_type() == BlockType::Send;
+        debug_assert!(block_has_balance || block_enum.sideband().is_some());
         let mut balance = Amount::zero();
         match block_enum {
             BlockEnum::Send(b) => balance = b.balance(),
             BlockEnum::State(b) => balance = b.balance(),
-            BlockEnum::Open(b) => balance = b.balance(),
-            BlockEnum::Change(b) => balance = b.balance(),
-            BlockEnum::Receive(b) => balance = b.balance(),
+            BlockEnum::Open(b) => balance = b.sideband().unwrap().balance,
+            BlockEnum::Change(b) => balance = b.sideband().unwrap().balance,
+            BlockEnum::Receive(b) => balance = b.sideband().unwrap().balance,
         }
+        /*match block1 {
+            BlockEnum::Send(ref mut b) => b.set_work(1),
+            BlockEnum::State(ref mut b) => b.set_work(1),
+            BlockEnum::Open(ref mut b) => b.set_work(1),
+            BlockEnum::Change(ref mut b) => b.set_work(1),
+            BlockEnum::Receive(ref mut b) => b.set_work(1),
+        }*/
         let mut index: usize = 0;
-        for i in 0..BUCKET_COUNT {
+        for i in 0..self.minimums.len() {
             if balance.number() < self.minimums[i] {
-                index = self.minimums[i] as usize - 1 - self.minimums[0] as usize;
+                index = i as usize - 1 - self.minimums[0] as usize;
                 break;
             }
         }
-        //auto index = std::upper_bound (minimums.begin (), minimums.end (), balance.number ()) - 1 - minimums.begin ();
+        //self.buckets[index].insert(ValueType::new(time, Some(Arc::new(RwLock::new(block1.clone())))));
         self.buckets[index].insert(ValueType::new(time, Some(block.clone())));
-        /*if (bucket.size () > std::max (decltype (maximum){ 1 }, maximum / buckets.size ()))
-        {
-            bucket.erase (--bucket.end ());
-        }*/
         if self.buckets[index].len() > max(1, (self.maximum / self.buckets.len() as u64) as usize) {
             self.buckets[index].pop_last();
         }
@@ -207,7 +211,4 @@ impl Prioritization {
         result = true;
         result
     }
-
-    /// Print the state of the class
-    pub fn dump() {}
 }
