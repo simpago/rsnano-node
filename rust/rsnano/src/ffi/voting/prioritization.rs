@@ -3,6 +3,7 @@ use crate::ffi::voting::election_status::ElectionStatusHandle;
 use crate::voting::{ElectionStatus, Prioritization, ValueType};
 use num_format::Locale::ha;
 use std::ptr;
+use crate::stats::StatType::Block;
 
 pub struct ValueTypeHandle(ValueType);
 
@@ -11,8 +12,12 @@ pub unsafe extern "C" fn rsn_prioritization_create_value_type(
     time: u64,
     block: *const BlockHandle,
 ) -> *mut ValueTypeHandle {
-    let block = (*block).block.clone();
-    let info = ValueType::new(time, Some(block));
+    let block = if block.is_null() {
+        None
+    } else {
+        Some((*block).block.clone())
+    };
+    let info = ValueType::new(time, block);
     Box::into_raw(Box::new(ValueTypeHandle(info)))
 }
 
@@ -94,8 +99,10 @@ pub unsafe extern "C" fn rsn_prioritization_push(
 pub unsafe extern "C" fn rsn_prioritization_top(
     handle: *mut PrioritizationHandle,
 ) -> *mut BlockHandle {
+    //let b = (*handle).0.top();
     match (*handle).0.top() {
         Some(b) => Box::into_raw(Box::new(BlockHandle::new(b))),
         None => ptr::null_mut(),
     }
+    //Box::into_raw(Box::new(BlockHandle::new(b)))
 }

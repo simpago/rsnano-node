@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use toml_edit::value;
 
 /// Information on the value type
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct ValueType {
     time: Option<SystemTime>,
     block: Option<Arc<RwLock<BlockEnum>>>,
@@ -20,7 +20,9 @@ pub struct ValueType {
 
 impl Ord for ValueType {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.time).cmp(&(other.time))//.reverse()
+        let b1 = self.block.as_ref().unwrap().read().unwrap().clone();
+        let b2 = other.block.as_ref().unwrap().read().unwrap().clone();
+        b1.as_block().hash().number().cmp(&b2.as_block().hash().number())
     }
 }
 
@@ -32,18 +34,11 @@ impl PartialOrd for ValueType {
 
 impl PartialEq for ValueType {
     fn eq(&self, other: &Self) -> bool {
-        ((*self.block.as_ref().unwrap())
-            .as_ref()
-            .clone()
-            .read()
-            .unwrap()
-            .deref())
-            == ((*other.block.as_ref().unwrap())
-                .as_ref()
-                .clone()
-                .read()
-                .unwrap()
-                .deref()) && self.time == other.time
+        return if self.cmp(other) == Ordering::Equal {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -143,7 +138,7 @@ impl Prioritization {
     pub fn top(&mut self) -> Option<Arc<RwLock<BlockEnum>>> {
         debug_assert!(!self.empty());
         debug_assert!(!self.buckets[self.current].is_empty());
-        match self.buckets[self.current].last() {
+        match self.buckets[self.current].first() {
             Some(b) => b.block.clone(),
             None => None,
         }
@@ -155,7 +150,6 @@ impl Prioritization {
         let was_empty = self.empty();
         let binding = block.read().unwrap();
         let block_enum = binding.deref().clone();
-        //let mut block1 = block_enum.clone();
         let block_has_balance = block_enum.block_type() == BlockType::State || block_enum.block_type() == BlockType::Send;
         debug_assert!(block_has_balance || block_enum.sideband().is_some());
         let mut balance = Amount::zero();
@@ -166,13 +160,6 @@ impl Prioritization {
             BlockEnum::Change(b) => balance = b.sideband().unwrap().balance,
             BlockEnum::Receive(b) => balance = b.sideband().unwrap().balance,
         }
-        /*match block1 {
-            BlockEnum::Send(ref mut b) => b.set_work(1),
-            BlockEnum::State(ref mut b) => b.set_work(1),
-            BlockEnum::Open(ref mut b) => b.set_work(1),
-            BlockEnum::Change(ref mut b) => b.set_work(1),
-            BlockEnum::Receive(ref mut b) => b.set_work(1),
-        }*/
         let mut index: usize = 0;
         for i in 0..self.minimums.len() {
             if balance.number() < self.minimums[i] {
@@ -180,7 +167,6 @@ impl Prioritization {
                 break;
             }
         }
-        //self.buckets[index].insert(ValueType::new(time, Some(Arc::new(RwLock::new(block1.clone())))));
         self.buckets[index].insert(ValueType::new(time, Some(block.clone())));
         if self.buckets[index].len() > max(1, (self.maximum / self.buckets.len() as u64) as usize) {
             self.buckets[index].pop_last();
