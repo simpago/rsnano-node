@@ -4,12 +4,12 @@ use crate::{
     },
     ledger::{
         ledger_tests::{LedgerWithReceiveBlock, LedgerWithSendBlock},
-        ProcessResult,
+        ProcessResult, DEV_GENESIS_KEY,
     },
-    DEV_GENESIS_ACCOUNT,
+    DEV_CONSTANTS, DEV_GENESIS_ACCOUNT,
 };
 
-use super::LedgerWithOpenBlock;
+use super::{LedgerContext, LedgerWithOpenBlock};
 
 #[test]
 fn update_sideband() {
@@ -128,7 +128,7 @@ fn receive_fork() {
     let mut receive_fork = BlockBuilder::receive()
         .previous(ctx.open_block.hash())
         .source(send.hash())
-        .sign(ctx.receiver_key.clone())
+        .sign(&ctx.receiver_key)
         .without_sideband()
         .build()
         .unwrap();
@@ -149,7 +149,7 @@ fn fail_double_receive() {
     let mut double_receive = BlockBuilder::receive()
         .previous(ctx.open_block.hash())
         .source(ctx.send_block.hash())
-        .sign(ctx.receiver_key)
+        .sign(&ctx.receiver_key)
         .build()
         .unwrap();
 
@@ -182,7 +182,7 @@ fn fail_gap_source() {
     let mut receive = BlockBuilder::receive()
         .previous(ctx.open_block.hash())
         .source(BlockHash::from(1))
-        .sign(ctx.receiver_key)
+        .sign(&ctx.receiver_key)
         .build()
         .unwrap();
 
@@ -208,7 +208,7 @@ fn fail_bad_signature() {
     let mut receive = BlockBuilder::receive()
         .previous(ctx.open_block.hash())
         .source(send.hash())
-        .sign(KeyPair::new())
+        .sign(&KeyPair::new())
         .build()
         .unwrap();
 
@@ -228,7 +228,7 @@ fn fail_gap_previous_unopened() {
     let mut receive = BlockBuilder::receive()
         .previous(BlockHash::from(1))
         .source(ctx.send_block.hash())
-        .sign(ctx.receiver_key)
+        .sign(&ctx.receiver_key)
         .build()
         .unwrap();
 
@@ -254,7 +254,7 @@ fn fail_gap_previous_opened() {
     let mut receive = BlockBuilder::receive()
         .previous(BlockHash::from(1))
         .source(send2.hash())
-        .sign(ctx.receiver_key)
+        .sign(&ctx.receiver_key)
         .build()
         .unwrap();
 
@@ -301,7 +301,7 @@ fn fail_fork_previous() {
     let mut fork_receive = BlockBuilder::receive()
         .previous(ctx.open_block.hash())
         .source(receivable.hash())
-        .sign(ctx.receiver_key)
+        .sign(&ctx.receiver_key)
         .build()
         .unwrap();
 
@@ -336,7 +336,7 @@ fn fail_receive_received_source() {
     let mut fork_receive = BlockBuilder::receive()
         .previous(ctx.open_block.hash())
         .source(receivable2.hash())
-        .sign(ctx.receiver_key)
+        .sign(&ctx.receiver_key)
         .build()
         .unwrap();
 
@@ -347,4 +347,66 @@ fn fail_receive_received_source() {
     );
 
     assert_eq!(result.code, ProcessResult::Fork);
+}
+
+// Make sure old block types can't be inserted after a state block.
+#[test]
+fn receive_after_state_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let mut receive = BlockBuilder::receive()
+        .previous(send.hash())
+        .source(send.hash())
+        .sign(&DEV_GENESIS_KEY.clone())
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut receive, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::BlockPosition);
+}
+
+#[test]
+fn receive_from_state_block() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let destination = KeyPair::new();
+    let destination_account = destination.public_key().into();
+
+    let send1 = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        destination_account,
+        Amount::new(50),
+    );
+
+    let send2 = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        destination_account,
+        Amount::new(50),
+    );
+
+    ctx.process_open(txn.as_mut(), &send1, &destination);
+    let receive = ctx.process_state_receive(txn.as_mut(), &send2, &destination);
+
+    assert_eq!(
+        ctx.ledger.balance(txn.txn(), &receive.hash()),
+        Amount::new(100)
+    );
+    assert_eq!(
+        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        DEV_CONSTANTS.genesis_amount
+    )
 }

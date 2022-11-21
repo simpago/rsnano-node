@@ -17,6 +17,7 @@ use crate::{
 use super::DEV_GENESIS_KEY;
 
 mod empty_ledger;
+mod epoch_blocks;
 mod process_change;
 mod process_open;
 mod process_receive;
@@ -29,6 +30,7 @@ mod rollback_change;
 mod rollback_open;
 mod rollback_receive;
 mod rollback_send;
+mod rollback_state;
 
 #[test]
 fn ledger_successor() {

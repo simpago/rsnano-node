@@ -15,7 +15,7 @@ use crate::{
     },
     stats::{Stat, StatConfig},
     utils::NullLogger,
-    DEV_CONSTANTS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    DEV_CONSTANTS, DEV_GENESIS_ACCOUNT,
 };
 
 pub(crate) struct LedgerContext {
@@ -88,7 +88,7 @@ impl LedgerContext {
     pub fn process_open(
         &self,
         txn: &mut dyn WriteTransaction,
-        send: &SendBlock,
+        send: &dyn Block,
         receiver_key: &KeyPair,
     ) -> OpenBlock {
         let receiver_account = receiver_key.public_key().into();
@@ -96,7 +96,7 @@ impl LedgerContext {
             .source(send.hash())
             .representative(receiver_account)
             .account(receiver_account)
-            .sign(receiver_key.clone())
+            .sign(&receiver_key)
             .without_sideband()
             .build()
             .unwrap();
@@ -123,7 +123,7 @@ impl LedgerContext {
         let mut receive = BlockBuilder::receive()
             .previous(account_info.head)
             .source(send.hash())
-            .sign(receiver_key.clone())
+            .sign(&receiver_key)
             .without_sideband()
             .build()
             .unwrap();
@@ -174,7 +174,7 @@ impl LedgerContext {
 
         let mut send_block = BlockBuilder::state()
             .account(*DEV_GENESIS_ACCOUNT)
-            .previous(*DEV_GENESIS_HASH)
+            .previous(sender_account.head)
             .balance(sender_account.balance - amount)
             .representative(*DEV_GENESIS_ACCOUNT)
             .link(receiver)
@@ -207,7 +207,7 @@ impl LedgerContext {
             .account(receiver_account)
             .previous(receiver_account_info.head)
             .balance(receiver_account_info.balance + amount)
-            .representative(receiver_account)
+            .representative(*DEV_GENESIS_ACCOUNT)
             .link(send.hash())
             .sign(&receiver_key)
             .build()

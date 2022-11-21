@@ -163,3 +163,29 @@ fn fail_fork() {
 
     assert_eq!(result.code, ProcessResult::Fork);
 }
+
+// Make sure old block types can't be inserted after a state block.
+#[test]
+fn change_after_state_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let mut change = BlockBuilder::change()
+        .previous(send.hash())
+        .sign(DEV_GENESIS_KEY.clone())
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut change, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::BlockPosition);
+}

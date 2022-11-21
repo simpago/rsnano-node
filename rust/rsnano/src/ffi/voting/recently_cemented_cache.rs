@@ -1,14 +1,6 @@
-use crate::ffi::core::BlockHandle;
 use crate::ffi::voting::election_status::ElectionStatusHandle;
-use crate::voting::{ElectionStatus, ElectionStatusType, RecentlyCementedCache};
-use bitvec::ptr::Mut;
-use std::any::Any;
-use std::collections::VecDeque;
-use std::mem::size_of;
-use std::ops::Deref;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{SystemTime, UNIX_EPOCH};
-use toml_edit::value;
+use crate::voting::RecentlyCementedCache;
+use std::sync::Arc;
 
 pub struct RecentlyCementedCacheHandle(Arc<RecentlyCementedCache>);
 

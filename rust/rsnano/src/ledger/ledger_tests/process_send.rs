@@ -186,3 +186,31 @@ fn fail_negative_spend() {
     );
     assert_eq!(result.code, ProcessResult::NegativeSpend);
 }
+
+// Make sure old block types can't be inserted after a state block.
+#[test]
+fn send_after_state_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send1 = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let mut send2 = BlockBuilder::send()
+        .previous(send1.hash())
+        .destination(*DEV_GENESIS_ACCOUNT)
+        .balance(Amount::zero())
+        .sign(DEV_GENESIS_KEY.clone())
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut send2, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::BlockPosition);
+}

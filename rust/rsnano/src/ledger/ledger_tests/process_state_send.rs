@@ -1,7 +1,10 @@
 use crate::{
-    core::{Account, Amount, Block, BlockDetails, BlockEnum, Epoch, PendingInfo, PendingKey},
+    core::{
+        Account, Amount, Block, BlockBuilder, BlockDetails, BlockEnum, Epoch, PendingInfo,
+        PendingKey,
+    },
     ledger::{ledger_tests::LedgerContext, DEV_GENESIS_KEY},
-    DEV_GENESIS_ACCOUNT,
+    DEV_CONSTANTS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 
 #[test]
@@ -77,6 +80,37 @@ fn create_sideband() {
     assert_eq!(sideband.account, *DEV_GENESIS_ACCOUNT);
     assert_eq!(
         sideband.details,
+        BlockDetails::new(Epoch::Epoch0, true, false, false)
+    );
+}
+
+#[test]
+fn send_and_change_representative() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let representative = Account::from(1);
+    let mut send = BlockBuilder::state()
+        .account(*DEV_GENESIS_ACCOUNT)
+        .previous(*DEV_GENESIS_HASH)
+        .representative(representative)
+        .balance(Amount::new(1))
+        .link(*DEV_GENESIS_ACCOUNT)
+        .sign(&DEV_GENESIS_KEY)
+        .build()
+        .unwrap();
+
+    ctx.process(txn.as_mut(), &mut send);
+
+    let amount_sent = DEV_CONSTANTS.genesis_amount - Amount::new(1);
+    assert_eq!(
+        ctx.ledger.amount(txn.txn(), &send.hash()).unwrap(),
+        amount_sent,
+    );
+    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_ACCOUNT), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&representative), Amount::new(1));
+    assert_eq!(
+        send.sideband().unwrap().details,
         BlockDetails::new(Epoch::Epoch0, true, false, false)
     );
 }

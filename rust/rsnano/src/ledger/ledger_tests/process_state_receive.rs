@@ -1,7 +1,10 @@
 use crate::{
-    core::{Amount, Block, BlockDetails, BlockEnum, Epoch, PendingKey, StateBlock},
-    ledger::{datastore::WriteTransaction, DEV_GENESIS_KEY},
-    DEV_GENESIS_ACCOUNT,
+    core::{
+        Account, Amount, Block, BlockBuilder, BlockDetails, BlockEnum, BlockHash, Epoch, KeyPair,
+        Link, PendingKey, SignatureVerification, StateBlock,
+    },
+    ledger::{datastore::WriteTransaction, ProcessResult, DEV_GENESIS_KEY},
+    DEV_CONSTANTS, DEV_GENESIS_ACCOUNT,
 };
 
 use super::LedgerContext;
@@ -98,6 +101,161 @@ fn receive_old_send_block() {
     assert_eq!(
         loaded_block.sideband().unwrap(),
         receive.sideband().unwrap()
+    );
+}
+
+#[test]
+fn state_unreceivable_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let mut receive = BlockBuilder::state()
+        .account(*DEV_GENESIS_ACCOUNT)
+        .previous(send.hash())
+        .balance(DEV_CONSTANTS.genesis_amount)
+        .link(Link::from(1))
+        .sign(&DEV_GENESIS_KEY)
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut receive, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::GapSource);
+}
+
+#[test]
+fn bad_amount_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let mut receive = BlockBuilder::state()
+        .account(*DEV_GENESIS_ACCOUNT)
+        .previous(send.hash())
+        .balance(DEV_CONSTANTS.genesis_amount - Amount::new(1))
+        .link(send.hash())
+        .sign(&DEV_GENESIS_KEY)
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut receive, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::BalanceMismatch);
+}
+
+#[test]
+fn no_link_amount_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let mut receive = BlockBuilder::state()
+        .account(*DEV_GENESIS_ACCOUNT)
+        .previous(send.hash())
+        .balance(DEV_CONSTANTS.genesis_amount)
+        .link(Link::zero())
+        .sign(&DEV_GENESIS_KEY)
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut receive, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::BalanceMismatch);
+}
+
+#[test]
+fn receive_wrong_account_fail() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::new(1),
+    );
+
+    let key = KeyPair::new();
+    let mut receive = BlockBuilder::state()
+        .account(key.public_key())
+        .previous(BlockHash::zero())
+        .balance(Amount::new(1))
+        .link(send.hash())
+        .sign(&key)
+        .build()
+        .unwrap();
+
+    let result = ctx
+        .ledger
+        .process(txn.as_mut(), &mut receive, SignatureVerification::Unknown);
+
+    assert_eq!(result.code, ProcessResult::Unreceivable);
+}
+
+#[test]
+fn receive_and_change_representative() {
+    let ctx = LedgerContext::empty();
+    let mut txn = ctx.ledger.rw_txn();
+
+    let amount_sent = Amount::new(50);
+    let send = ctx.process_state_send(
+        txn.as_mut(),
+        &DEV_GENESIS_KEY,
+        *DEV_GENESIS_ACCOUNT,
+        amount_sent,
+    );
+
+    let representative = Account::from(1);
+    let mut receive = BlockBuilder::state()
+        .account(*DEV_GENESIS_ACCOUNT)
+        .previous(send.hash())
+        .balance(DEV_CONSTANTS.genesis_amount)
+        .link(send.hash())
+        .representative(representative)
+        .sign(&DEV_GENESIS_KEY)
+        .build()
+        .unwrap();
+
+    ctx.process(txn.as_mut(), &mut receive);
+
+    assert_eq!(
+        ctx.ledger.balance(txn.txn(), &receive.hash()),
+        receive.balance()
+    );
+    assert_eq!(
+        ctx.ledger.amount(txn.txn(), &receive.hash()).unwrap(),
+        amount_sent,
+    );
+    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_ACCOUNT), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&representative), receive.balance());
+    assert_eq!(
+        receive.sideband().unwrap().details,
+        BlockDetails::new(Epoch::Epoch0, false, true, false)
     );
 }
 

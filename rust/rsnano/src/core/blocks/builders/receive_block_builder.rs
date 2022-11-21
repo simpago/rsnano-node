@@ -32,8 +32,8 @@ impl ReceiveBlockBuilder {
         self
     }
 
-    pub fn sign(mut self, key_pair: KeyPair) -> Self {
-        self.key_pair = Some(key_pair);
+    pub fn sign(mut self, key_pair: &KeyPair) -> Self {
+        self.key_pair = Some(key_pair.clone());
         self
     }
 

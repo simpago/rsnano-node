@@ -41,8 +41,8 @@ impl OpenBlockBuilder {
         self
     }
 
-    pub fn sign(mut self, keypair: KeyPair) -> Self {
-        self.keypair = Some(keypair);
+    pub fn sign(mut self, keypair: &KeyPair) -> Self {
+        self.keypair = Some(keypair.clone());
         self
     }
 
