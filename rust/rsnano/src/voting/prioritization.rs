@@ -4,6 +4,8 @@ use crate::ledger::datastore::lmdb::get;
 use num_format::Locale::{el, se, ti};
 use std::cmp::{max, Ordering};
 use std::collections::BTreeSet;
+use std::fmt;
+use std::fmt::write;
 use std::ops::Deref;
 use std::ptr::null;
 use std::sync::{Arc, RwLock};
@@ -20,17 +22,18 @@ pub struct ValueType {
 
 impl Ord for ValueType {
     fn cmp(&self, other: &Self) -> Ordering {
-        /*let t1 = self.time.unwrap();
+        let t1 = self.time.unwrap();
         let t2 = &other.time.unwrap();
         let b1 = self.block.as_ref().unwrap().read().unwrap().clone();
         let b2 = other.block.as_ref().unwrap().read().unwrap().clone();
         if t1 != *t2 {
             t1.cmp(t2)
+        } else {
+            b1.as_block()
+                .hash()
+                .number()
+                .cmp(&b2.as_block().hash().number())
         }
-        else {
-            b1.as_block().hash().number().cmp(&b2.as_block().hash().number())
-        }*/
-        self.time.unwrap().cmp(&other.time.unwrap())
     }
 }
 
@@ -44,7 +47,10 @@ impl PartialEq for ValueType {
     fn eq(&self, other: &Self) -> bool {
         let b1 = self.block.as_ref().unwrap().read().unwrap().clone();
         let b2 = other.block.as_ref().unwrap().read().unwrap().clone();
-        b1.as_block().hash().number().eq(&b2.as_block().hash().number())
+        b1.as_block()
+            .hash()
+            .number()
+            .eq(&b2.as_block().hash().number())
     }
 }
 
@@ -138,7 +144,6 @@ impl Prioritization {
                 self.next();
             }
         }
-        println!("Current: {}", self.current);
     }
 
     /// Return the highest priority block of the current bucket
@@ -157,7 +162,8 @@ impl Prioritization {
         let was_empty = self.empty();
         let binding = block.read().unwrap();
         let block_enum = binding.deref().clone();
-        let block_has_balance = block_enum.block_type() == BlockType::State || block_enum.block_type() == BlockType::Send;
+        let block_has_balance = block_enum.block_type() == BlockType::State
+            || block_enum.block_type() == BlockType::Send;
         debug_assert!(block_has_balance || block_enum.sideband().is_some());
         let mut balance = Amount::zero();
         match block_enum {
@@ -175,7 +181,12 @@ impl Prioritization {
             }
         }
         self.buckets[index].insert(ValueType::new(time, Some(block.clone())));
-        if self.buckets[index].len() > max(1, (self.maximum / self.buckets.len() as u64) as usize) {
+        if self.buckets[index].len()
+            > max(
+                1,
+                (self.maximum / self.buckets.len() as u64) as usize,
+            )
+        {
             self.buckets[index].pop_last();
         }
         if was_empty {
@@ -195,12 +206,29 @@ impl Prioritization {
 
     /// Returns true if all buckets are empty
     pub fn empty(&self) -> bool {
-        let mut result = true;
         for i in 0..BUCKET_COUNT {
             if !self.buckets[i].is_empty() {
                 return false;
             }
         }
-        result
+        true
     }
 }
+
+/// Prints the state of the class
+impl fmt::Display for Prioritization {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for i in 0..self.buckets.len() {
+            for j in self.buckets[i].iter() {
+                write!(
+                    f,
+                    "{:?} {:?} \n",
+                    j.time,
+                    j.block.as_ref().unwrap().read().unwrap().clone()
+                );
+            }
+        }
+        write!(f, "current: {} \n", self.current)
+    }
+}
+

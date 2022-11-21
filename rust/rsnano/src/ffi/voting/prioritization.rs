@@ -1,9 +1,9 @@
 use crate::ffi::core::BlockHandle;
 use crate::ffi::voting::election_status::ElectionStatusHandle;
+use crate::stats::StatType::Block;
 use crate::voting::{ElectionStatus, Prioritization, ValueType};
 use num_format::Locale::ha;
 use std::ptr;
-use crate::stats::StatType::Block;
 
 pub struct ValueTypeHandle(ValueType);
 
@@ -99,10 +99,13 @@ pub unsafe extern "C" fn rsn_prioritization_push(
 pub unsafe extern "C" fn rsn_prioritization_top(
     handle: *mut PrioritizationHandle,
 ) -> *mut BlockHandle {
-    //let b = (*handle).0.top();
     match (*handle).0.top() {
         Some(b) => Box::into_raw(Box::new(BlockHandle::new(b))),
         None => ptr::null_mut(),
     }
-    //Box::into_raw(Box::new(BlockHandle::new(b)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_prioritization_dump(handle: *mut PrioritizationHandle) {
+    println!("{}", (*handle).0);
 }
