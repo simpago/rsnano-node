@@ -100,12 +100,6 @@ public:
 	std::size_t size () const;
 	rsnano::RecentlyCementedCacheHandle * handle;
 
-private:
-	queue_t cemented;
-	std::size_t const max_size;
-
-	mutable nano::mutex mutex;
-
 public: // Container info
 	std::unique_ptr<container_info_component> collect_container_info (std::string const &);
 };
@@ -256,6 +250,9 @@ private:
 public: // Tests
 	void clear ();
 
+	friend class node_fork_storm_Test;
+	friend class system_block_sequence_Test;
+	friend class node_mass_block_new_Test;
 	friend class active_transactions_vote_replays_Test;
 	friend class frontiers_confirmation_prioritize_frontiers_Test;
 	friend class frontiers_confirmation_prioritize_frontiers_max_optimistic_elections_Test;

@@ -1,11 +1,14 @@
 use crate::core::{Account, Amount};
+use crate::stats::DetailType::ElectionStart;
+use crate::stats::StatType::Election;
 use crate::voting::ElectionStatus;
 use std::collections::{HashMap, VecDeque};
+use std::mem::size_of;
 use std::sync::Mutex;
 
 pub struct RecentlyCementedCache {
-    pub(crate) cemented: Mutex<VecDeque<ElectionStatus>>,
-    pub(crate) max_size: usize,
+    cemented: Mutex<VecDeque<ElectionStatus>>,
+    max_size: usize,
 }
 
 impl RecentlyCementedCache {
@@ -18,5 +21,18 @@ impl RecentlyCementedCache {
 
     pub fn get_cemented(&self) -> VecDeque<ElectionStatus> {
         self.cemented.lock().unwrap().clone()
+    }
+
+    pub fn put(&self, election_status: ElectionStatus) {
+        let mut cemented = self.cemented.lock().unwrap();
+        cemented.push_back(election_status);
+    }
+
+    pub fn size(&self) -> usize {
+        self.get_cemented().len()
+    }
+
+    pub fn element_size() -> usize {
+        size_of::<ElectionStatus>()
     }
 }

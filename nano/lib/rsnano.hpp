@@ -976,22 +976,9 @@ struct ReceiveBlockDto2
 	uint64_t work;
 };
 
-struct RecentlyCementedCacheItemDto
-{
-	BlockHandle * winner;
-	uint8_t tally[16];
-	uint8_t final_tally[16];
-	uint32_t confirmation_request_count;
-	uint32_t block_count;
-	uint32_t voter_count;
-	int64_t election_end;
-	int64_t election_duration;
-	uint8_t election_status_type;
-};
-
 struct RecentlyCementedCachedDto
 {
-	const RecentlyCementedCacheItemDto * items;
+	ElectionStatusHandle * const * items;
 	uintptr_t count;
 	RecentlyCementedCachedRawData * raw_data;
 };
@@ -3287,8 +3274,6 @@ RecentlyCementedCacheHandle * rsn_recently_cemented_cache_create1 (uintptr_t max
 void rsn_recently_cemented_cache_destroy (RecentlyCementedCacheHandle * handle);
 
 void rsn_recently_cemented_cache_destroy_dto (RecentlyCementedCachedDto * list);
-
-uintptr_t rsn_recently_cemented_cache_get_cemented_size (const RecentlyCementedCacheHandle * handle);
 
 uintptr_t rsn_recently_cemented_cache_get_cemented_type_size ();
 
