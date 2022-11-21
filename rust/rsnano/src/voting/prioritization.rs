@@ -20,9 +20,17 @@ pub struct ValueType {
 
 impl Ord for ValueType {
     fn cmp(&self, other: &Self) -> Ordering {
+        /*let t1 = self.time.unwrap();
+        let t2 = &other.time.unwrap();
         let b1 = self.block.as_ref().unwrap().read().unwrap().clone();
         let b2 = other.block.as_ref().unwrap().read().unwrap().clone();
-        b1.as_block().hash().number().cmp(&b2.as_block().hash().number())
+        if t1 != *t2 {
+            t1.cmp(t2)
+        }
+        else {
+            b1.as_block().hash().number().cmp(&b2.as_block().hash().number())
+        }*/
+        self.time.unwrap().cmp(&other.time.unwrap())
     }
 }
 
@@ -34,11 +42,9 @@ impl PartialOrd for ValueType {
 
 impl PartialEq for ValueType {
     fn eq(&self, other: &Self) -> bool {
-        return if self.cmp(other) == Ordering::Equal {
-            true
-        } else {
-            false
-        }
+        let b1 = self.block.as_ref().unwrap().read().unwrap().clone();
+        let b2 = other.block.as_ref().unwrap().read().unwrap().clone();
+        b1.as_block().hash().number().eq(&b2.as_block().hash().number())
     }
 }
 
@@ -132,6 +138,7 @@ impl Prioritization {
                 self.next();
             }
         }
+        println!("Current: {}", self.current);
     }
 
     /// Return the highest priority block of the current bucket
@@ -188,13 +195,12 @@ impl Prioritization {
 
     /// Returns true if all buckets are empty
     pub fn empty(&self) -> bool {
-        let mut result = false;
+        let mut result = true;
         for i in 0..BUCKET_COUNT {
             if !self.buckets[i].is_empty() {
-                return result;
+                return false;
             }
         }
-        result = true;
         result
     }
 }
