@@ -1,6 +1,11 @@
 use crate::ffi::voting::election_status::ElectionStatusHandle;
-use crate::ffi::{copy_account_bytes, copy_amount_bytes, copy_u128_bytes, into_16_byte_array};
+use crate::ffi::voting::inactive_cache_information::InactiveCacheInformationHandle;
+use crate::ffi::{
+    copy_account_bytes, copy_amount_bytes, copy_u128_bytes, into_16_byte_array, StringDto,
+    StringHandle,
+};
 use crate::voting::{ElectionStatus, InactiveCacheStatus};
+use std::ffi::CString;
 
 pub struct InactiveCacheStatusHandle(pub(crate) InactiveCacheStatus);
 
@@ -74,4 +79,10 @@ pub unsafe extern "C" fn rsn_inactive_cache_status_set_tally(
 #[no_mangle]
 pub unsafe extern "C" fn rsn_inactive_cache_status_to_string(
     handle: *const InactiveCacheStatusHandle,
-) { println!("{}", (*handle).0); }
+    result: *mut StringDto,
+) {
+    println!("{}", (*handle).0);
+    let string = Box::new(StringHandle(CString::new((*handle).0.to_string()).unwrap()));
+    (*result).value = string.0.as_ptr();
+    (*result).handle = Box::into_raw(string);
+}

@@ -1,6 +1,6 @@
+use crate::voting::InactiveCacheInformation;
 use std::fmt;
 use std::time::UNIX_EPOCH;
-use crate::voting::InactiveCacheInformation;
 
 /// Information on the status of the inactive cache
 #[derive(Clone, Default)]

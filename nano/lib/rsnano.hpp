@@ -1780,7 +1780,8 @@ InactiveCacheStatusHandle *rsn_inactive_cache_information_get_status(const Inact
 void rsn_inactive_cache_information_get_voters(const InactiveCacheInformationHandle *handle,
                                                VotersDto *vector);
 
-void rsn_inactive_cache_information_to_string(const InactiveCacheInformationHandle *handle);
+void rsn_inactive_cache_information_to_string(const InactiveCacheInformationHandle *handle,
+                                              StringDto *result);
 
 bool rsn_inactive_cache_status_bootstrap_started(const InactiveCacheStatusHandle *handle);
 
@@ -1802,7 +1803,8 @@ void rsn_inactive_cache_status_set_tally(InactiveCacheStatusHandle *handle, cons
 
 void rsn_inactive_cache_status_tally(const InactiveCacheStatusHandle *handle, uint8_t *result);
 
-void rsn_inactive_cache_status_to_string(InactiveCacheStatusHandle *handle);
+void rsn_inactive_cache_status_to_string(const InactiveCacheStatusHandle *handle,
+                                         StringDto *result);
 
 /// handle is a `boost::asio::io_context *`
 IoContextHandle *rsn_io_ctx_create(void *handle);

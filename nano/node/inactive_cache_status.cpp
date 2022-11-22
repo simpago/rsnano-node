@@ -1,5 +1,6 @@
 #include "nano/lib/rsnano.hpp"
 
+#include <nano/lib/rsnanoutils.hpp>
 #include <nano/node/inactive_cache_status.hpp>
 
 nano::inactive_cache_status::inactive_cache_status () :
@@ -66,5 +67,7 @@ bool nano::inactive_cache_status::operator!= (inactive_cache_status const other)
 
 std::string nano::inactive_cache_status::to_string () const
 {
-	rsnano::rsn_inactive_cache_status_to_string (handle);
+	rsnano::StringDto result;
+	rsnano::rsn_inactive_cache_status_to_string (handle, &result);
+	return rsnano::convert_dto_to_string (result);
 }

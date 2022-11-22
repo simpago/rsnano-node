@@ -1,3 +1,4 @@
+#include <nano/lib/rsnanoutils.hpp>
 #include <nano/node/election.hpp>
 #include <nano/node/inactive_cache_information.hpp>
 
@@ -89,7 +90,9 @@ std::vector<std::pair<nano::account, uint64_t>> nano::inactive_cache_information
 
 std::string nano::inactive_cache_information::to_string () const
 {
-	rsnano::rsn_inactive_cache_information_to_string (handle);
+	rsnano::StringDto result;
+	rsnano::rsn_inactive_cache_information_to_string (handle, &result);
+	return rsnano::convert_dto_to_string (result);
 }
 
 std::size_t nano::inactive_cache_information::fill (std::shared_ptr<nano::election> election) const
