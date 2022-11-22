@@ -150,7 +150,7 @@ impl LedgerContext {
         let mut change = BlockBuilder::change()
             .previous(account_info.head)
             .representative(representative)
-            .sign(keypair.clone())
+            .sign(&keypair)
             .build()
             .unwrap();
 

@@ -17,7 +17,8 @@ use crate::{
 use super::DEV_GENESIS_KEY;
 
 mod empty_ledger;
-mod epoch_blocks;
+mod epoch_v1;
+mod epoch_v2;
 mod process_change;
 mod process_open;
 mod process_receive;

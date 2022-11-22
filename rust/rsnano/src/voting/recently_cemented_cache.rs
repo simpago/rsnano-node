@@ -1,8 +1,5 @@
-use crate::core::{Account, Amount};
-use crate::stats::DetailType::ElectionStart;
-use crate::stats::StatType::Election;
 use crate::voting::ElectionStatus;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::mem::size_of;
 use std::sync::Mutex;
 

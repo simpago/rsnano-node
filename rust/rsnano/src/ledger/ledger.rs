@@ -35,19 +35,20 @@ pub struct UncementedInfo {
 #[derive(PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum ProcessResult {
-    Progress,               // Hasn't been seen before, signed correctly
-    BadSignature,           // Signature was bad, forged or transmission error
-    Old,                    // Already seen and was valid
-    NegativeSpend,          // Malicious attempt to spend a negative amount
-    Fork,                   // Malicious fork based on previous
-    Unreceivable, // Source block doesn't exist, has already been received, or requires an account upgrade (epoch blocks)
-    GapPrevious,  // Block marked as previous is unknown
-    GapSource,    // Block marked as source is unknown
+    Progress,      // Hasn't been seen before, signed correctly
+    BadSignature,  // Signature was bad, forged or transmission error
+    Old,           // Already seen and was valid
+    NegativeSpend, // Malicious attempt to spend a negative amount
+    Fork,          // Malicious fork based on previous
+    /// Source block doesn't exist, has already been received, or requires an account upgrade (epoch blocks)
+    Unreceivable,
+    GapPrevious,            // Block marked as previous is unknown
+    GapSource,              // Block marked as source is unknown
     GapEpochOpenPending, // Block marked as pending blocks required for epoch open block are unknown
-    OpenedBurnAccount, // Block attempts to open the burn account
-    BalanceMismatch, // Balance and amount delta don't match
+    OpenedBurnAccount,   // Block attempts to open the burn account
+    BalanceMismatch,     // Balance and amount delta don't match
     RepresentativeMismatch, // Representative is changed when it is not allowed
-    BlockPosition, // This block cannot follow the previous block
+    BlockPosition,       // This block cannot follow the previous block
     InsufficientWork, // Insufficient work for this block, even though it passed the minimal validation
 }
 

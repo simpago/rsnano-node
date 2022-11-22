@@ -113,7 +113,7 @@ fn fail_gap_previous() {
 
     let mut block = BlockBuilder::change()
         .previous(BlockHash::from(1))
-        .sign(keypair)
+        .sign(&keypair)
         .build()
         .unwrap();
 
@@ -132,7 +132,7 @@ fn fail_bad_signature() {
 
     let mut block = BlockBuilder::change()
         .previous(*DEV_GENESIS_HASH)
-        .sign(wrong_keys)
+        .sign(&wrong_keys)
         .build()
         .unwrap();
 
@@ -153,7 +153,7 @@ fn fail_fork() {
     let mut fork = BlockBuilder::change()
         .previous(*DEV_GENESIS_HASH)
         .representative(Account::from(12345))
-        .sign(DEV_GENESIS_KEY.clone())
+        .sign(&DEV_GENESIS_KEY)
         .build()
         .unwrap();
 
@@ -179,7 +179,7 @@ fn change_after_state_fail() {
 
     let mut change = BlockBuilder::change()
         .previous(send.hash())
-        .sign(DEV_GENESIS_KEY.clone())
+        .sign(&DEV_GENESIS_KEY)
         .build()
         .unwrap();
 
