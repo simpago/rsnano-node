@@ -5,7 +5,8 @@ use crate::ffi::voting::inactive_cache_status::InactiveCacheStatusHandle;
 use crate::voting::{ElectionStatus, InactiveCacheInformation};
 use crate::Topic::Bootstrap;
 use num_format::Locale::ha;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use crate::ffi::copy_hash_bytes;
 
 pub struct InactiveCacheInformationHandle(InactiveCacheInformation);
 
@@ -24,14 +25,11 @@ pub unsafe extern "C" fn rsn_inactive_cache_information_create1(
     initial_rep_a: *const u8,
     initial_timestamp_a: u64,
 ) -> *mut InactiveCacheInformationHandle {
-    let rsn_arrival = UNIX_EPOCH
-        .checked_add(Duration::from_millis(arrival as u64))
-        .unwrap();
     let rsn_hash = BlockHash::from_ptr(hash);
     let rsn_status = (*status).0.clone();
     let rsn_initial_rep_a = Account::from_ptr(initial_rep_a);
     let info = InactiveCacheInformation::new(
-        rsn_arrival,
+        Instant::now().checked_sub(Duration::from_secs(arrival as u64)).unwrap(),
         rsn_hash,
         rsn_status,
         rsn_initial_rep_a,
@@ -63,16 +61,16 @@ pub unsafe extern "C" fn rsn_inactive_cache_information_get_arrival(
     (*handle)
         .0
         .arrival
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .elapsed()
         .as_secs()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_inactive_cache_information_get_hash(
     handle: *const InactiveCacheInformationHandle,
-) -> *const u8 {
-    (*handle).0.hash.clone().as_bytes().as_ptr()
+    result: *mut u8,
+)  {
+    copy_hash_bytes ((*handle).0.hash, result);
 }
 
 #[no_mangle]
@@ -89,12 +87,12 @@ pub unsafe extern "C" fn rsn_inactive_cache_information_get_voters(
     handle: *const InactiveCacheInformationHandle,
     vector: *mut VotersDto,
 ) {
-    let voters: Vec<(Account, SystemTime)> = (*handle).0.voters.clone();
+    let voters: Vec<(Account, u64)> = (*handle).0.voters.clone();
     let items: Vec<VotersItemDto> = voters
         .iter()
         .map(|(a, t)| VotersItemDto {
             account: *a.as_bytes(),
-            timestamp: t.duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: *t,
         })
         .collect();
     let raw_data = Box::new(VotersRawData(items));
@@ -122,3 +120,8 @@ pub struct VotersDto {
 pub unsafe extern "C" fn rsn_inactive_cache_information_destroy_dto(vector: *mut VotersDto) {
     drop(Box::from_raw((*vector).raw_data))
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_inactive_cache_information_to_string(
+    handle: *const InactiveCacheInformationHandle
+) { println!("{}", (*handle).0); }

@@ -70,3 +70,8 @@ pub unsafe extern "C" fn rsn_inactive_cache_status_set_tally(
 ) {
     (*handle).0.tally = u128::from_be_bytes(into_16_byte_array(tally));
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_inactive_cache_status_to_string(
+    handle: *const InactiveCacheStatusHandle,
+) { println!("{}", (*handle).0); }

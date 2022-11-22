@@ -41,11 +41,9 @@ std::chrono::steady_clock::time_point nano::inactive_cache_information::get_arri
 
 nano::block_hash nano::inactive_cache_information::get_hash () const
 {
-	const uint8_t * hash = rsnano::rsn_inactive_cache_information_get_hash (handle);
-	uint8_t * a = const_cast<uint8_t *> (hash);
-	nano::uint256_t result;
-	boost::multiprecision::export_bits (result, a, 8, false);
-	return block_hash (result);
+	nano::block_hash result;
+	rsnano::rsn_inactive_cache_information_get_hash (handle, result.bytes.data ());
+	return result;
 }
 
 nano::inactive_cache_status nano::inactive_cache_information::get_status () const
@@ -91,16 +89,7 @@ std::vector<std::pair<nano::account, uint64_t>> nano::inactive_cache_information
 
 std::string nano::inactive_cache_information::to_string () const
 {
-	std::stringstream ss;
-	ss << "hash=" << get_hash ().to_string ();
-	ss << ", arrival=" << std::chrono::duration_cast<std::chrono::seconds> (get_arrival ().time_since_epoch ()).count ();
-	ss << ", " << get_status ().to_string ();
-	ss << ", " << get_voters ().size () << " voters";
-	for (auto const & [rep, timestamp] : get_voters ())
-	{
-		ss << " " << rep.to_account () << "/" << timestamp;
-	}
-	return ss.str ();
+	rsnano::rsn_inactive_cache_information_to_string (handle);
 }
 
 std::size_t nano::inactive_cache_information::fill (std::shared_ptr<nano::election> election) const

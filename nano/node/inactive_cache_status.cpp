@@ -66,10 +66,5 @@ bool nano::inactive_cache_status::operator!= (inactive_cache_status const other)
 
 std::string nano::inactive_cache_status::to_string () const
 {
-	std::stringstream ss;
-	ss << "bootstrap_started=" << get_bootstrap_started ();
-	ss << ", election_started=" << get_election_started ();
-	ss << ", confirmed=" << get_confirmed ();
-	ss << ", tally=" << nano::uint128_union (get_tally ()).to_string ();
-	return ss.str ();
+	rsnano::rsn_inactive_cache_status_to_string (handle);
 }
