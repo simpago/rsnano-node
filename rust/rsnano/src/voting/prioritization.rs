@@ -181,12 +181,7 @@ impl Prioritization {
             }
         }
         self.buckets[index].insert(ValueType::new(time, Some(block.clone())));
-        if self.buckets[index].len()
-            > max(
-                1,
-                (self.maximum / self.buckets.len() as u64) as usize,
-            )
-        {
+        if self.buckets[index].len() > max(1, (self.maximum / self.buckets.len() as u64) as usize) {
             self.buckets[index].pop_last();
         }
         if was_empty {
@@ -231,4 +226,3 @@ impl fmt::Display for Prioritization {
         write!(f, "current: {} \n", self.current)
     }
 }
-
