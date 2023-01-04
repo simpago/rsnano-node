@@ -23,6 +23,7 @@ use super::{
 
 #[repr(C)]
 pub struct NodeConfigDto {
+    pub network_params: NetworkParamsDto,
     pub peering_port: u16,
     pub peering_port_defined: bool,
     pub bootstrap_fraction_numerator: u32,
@@ -87,6 +88,8 @@ pub struct NodeConfigDto {
     pub diagnostics_config: TxnTrackingConfigDto,
     pub stat_config: StatConfigDto,
     pub lmdb_config: LmdbConfigDto,
+    pub weight_period: u64,
+    pub max_weight_samples: u64,
 }
 
 #[repr(C)]
@@ -114,7 +117,7 @@ pub unsafe extern "C" fn rsn_node_config_create(
     } else {
         None
     };
-    let cfg = NodeConfig::new(peering_port, logging, &network_params);
+    let cfg = NodeConfig::new(peering_port, logging, network_params);
     let dto = &mut (*dto);
     fill_node_config_dto(dto, &cfg);
     0
@@ -254,6 +257,7 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
         }
 
         let cfg = NodeConfig {
+            //network_params: NetworkParams::try_from(&value.network_params)?,
             peering_port: if value.peering_port_defined {
                 Some(value.peering_port)
             } else {
@@ -325,6 +329,8 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             diagnostics_config: (&value.diagnostics_config).into(),
             stat_config: (&value.stat_config).into(),
             lmdb_config: (&value.lmdb_config).into(),
+            weight_period: value.weight_period,
+            max_weight_samples: value.max_weight_samples,
         };
 
         Ok(cfg)

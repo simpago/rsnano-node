@@ -171,12 +171,12 @@ fn spawn_nano_node(node_path: &Path, data_path: &Path, network: &str) -> Child {
 
 fn write_config_files(data_path: &Path, index: usize) -> Result<()> {
     let network_params = NetworkParams::new(NetworkConstants::active_network())?;
-    write_node_config(index, data_path, &network_params)?;
     write_rpc_config(index, data_path, &network_params)?;
+    write_node_config(index, data_path, network_params)?;
     Ok(())
 }
 
-fn write_node_config(index: usize, data_path: &Path, network_params: &NetworkParams) -> Result<()> {
+fn write_node_config(index: usize, data_path: &Path, network_params: NetworkParams) -> Result<()> {
     let mut daemon_config = DaemonConfig::new(network_params)?;
     daemon_config.node.peering_port = Some(PEERING_PORT_START + index as u16);
     daemon_config

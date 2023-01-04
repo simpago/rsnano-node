@@ -4,6 +4,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use rsnano_core::{Account, Amount};
 
+#[derive(Debug)]
 pub struct RepWeights {
     rep_amounts: Mutex<HashMap<Account, Amount>>,
 }

@@ -2029,18 +2029,26 @@ TEST (node, online_reps)
 	nano::test::system system (1);
 	auto & node1 (*system.nodes[0]);
 	// 1 sample of minimum weight
+	std::cout << 1 << "\n";
 	ASSERT_EQ (node1.config->online_weight_minimum, node1.online_reps.trended ());
 	auto vote (std::make_shared<nano::vote> ());
+	std::cout << 2 << "\n";
 	ASSERT_EQ (0, node1.online_reps.online ());
+	std::cout << 7 << "\n";
 	node1.online_reps.observe (nano::dev::genesis_key.pub);
+	std::cout << 3 << "\n";
 	ASSERT_EQ (nano::dev::constants.genesis_amount, node1.online_reps.online ());
 	// 1 minimum, 1 maximum
+	std::cout << 4 << "\n";
 	ASSERT_EQ (node1.config->online_weight_minimum, node1.online_reps.trended ());
+	std::cout << 8 << "\n";
 	node1.online_reps.sample ();
+	std::cout << 5 << "\n";
 	ASSERT_EQ (nano::dev::constants.genesis_amount, node1.online_reps.trended ());
 	node1.online_reps.clear ();
 	// 2 minimum, 1 maximum
 	node1.online_reps.sample ();
+	std::cout << 6 << "\n";
 	ASSERT_EQ (node1.config->online_weight_minimum, node1.online_reps.trended ());
 }
 

@@ -14,7 +14,7 @@ pub struct DaemonConfig {
 }
 
 impl DaemonConfig {
-    pub fn new(network_params: &NetworkParams) -> Result<Self> {
+    pub fn new(network_params: NetworkParams) -> Result<Self> {
         Ok(Self {
             rpc_enable: false,
             node: NodeConfig::new(None, Logging::new(), network_params),

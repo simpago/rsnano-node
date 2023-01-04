@@ -10,6 +10,7 @@ mod hardened_constants;
 mod ipc;
 pub mod ledger;
 pub mod messages;
+pub mod online_reps;
 mod property_tree;
 mod secure;
 mod signatures;

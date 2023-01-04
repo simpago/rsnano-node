@@ -429,6 +429,7 @@ impl Ledger {
         if self.check_bootstrap_weights.load(Ordering::SeqCst) {
             if self.cache.block_count.load(Ordering::SeqCst) < self.bootstrap_weight_max_blocks() {
                 let weights = self.bootstrap_weights.lock().unwrap();
+                //println!("weights: {:?}", weights);
                 if let Some(&weight) = weights.get(account) {
                     return weight;
                 }
@@ -436,7 +437,8 @@ impl Ledger {
                 self.check_bootstrap_weights.store(false, Ordering::SeqCst);
             }
         }
-
+        //println!("cache: {:?}", *self.cache.rep_weights);
+        //println!("gen: {:?}", self.cache.rep_weights.representation_get(account));
         self.cache.rep_weights.representation_get(account)
     }
 

@@ -22,7 +22,7 @@ pub use store::LmdbStoreHandle;
 
 use crate::VoidPointerCallback;
 
-pub struct TransactionHandle(TransactionType);
+pub struct TransactionHandle(pub(crate) TransactionType);
 
 impl TransactionHandle {
     pub fn new(txn_type: TransactionType) -> *mut TransactionHandle {

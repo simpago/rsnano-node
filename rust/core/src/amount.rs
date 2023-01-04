@@ -2,7 +2,7 @@ use crate::utils::{Deserialize, Serialize, Stream};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Ord)]
 pub struct Amount {
     value: u128, // native endian!
 }

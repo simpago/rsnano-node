@@ -33,3 +33,4 @@ toml_edit = "0.15.0"
 uuid = { version = "1.2.2", features = ["v4"] }
 scoped_threadpool = "0.1.*"
 backtrace = "0.3"
+primitive-types = "0"

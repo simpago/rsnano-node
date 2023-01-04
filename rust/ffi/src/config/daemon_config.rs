@@ -29,7 +29,7 @@ pub unsafe extern "C" fn rsn_daemon_config_create(
         Ok(n) => n,
         Err(_) => return -1,
     };
-    let cfg = match DaemonConfig::new(&network_params) {
+    let cfg = match DaemonConfig::new(network_params) {
         Ok(d) => d,
         Err(_) => return -1,
     };

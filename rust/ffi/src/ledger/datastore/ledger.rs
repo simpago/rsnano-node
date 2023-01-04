@@ -4,7 +4,7 @@ use crate::{
     ledger::{GenerateCacheHandle, LedgerCacheHandle, LedgerConstantsDto},
     StatHandle, StringDto,
 };
-use rsnano_core::{Account, Amount, BlockHash, Epoch, Link, QualifiedRoot};
+use rsnano_core::{Account, Amount, BlockEnum, BlockHash, Epoch, Link, QualifiedRoot};
 use rsnano_ledger::{Ledger, ProcessResult};
 use rsnano_node::stats::LedgerStats;
 use std::{
@@ -18,6 +18,12 @@ use num_traits::FromPrimitive;
 use super::lmdb::{LmdbStoreHandle, TransactionHandle};
 
 pub struct LedgerHandle(pub Arc<Ledger>);
+
+impl LedgerHandle {
+    pub fn new(ledger: Arc<Ledger>) -> Self {
+        LedgerHandle(ledger)
+    }
+}
 
 impl Deref for LedgerHandle {
     type Target = Arc<Ledger>;

@@ -21,6 +21,7 @@ pub enum FrontiersConfirmationMode {
 }
 
 pub struct NodeConfig {
+    //pub network_params: NetworkParams,
     pub peering_port: Option<u16>,
     pub bootstrap_fraction_numerator: u32,
     pub receive_minimum: Amount,
@@ -77,6 +78,8 @@ pub struct NodeConfig {
     pub diagnostics_config: DiagnosticsConfig,
     pub stat_config: StatConfig,
     pub lmdb_config: LmdbConfig,
+    pub weight_period: u64,
+    pub max_weight_samples: u64,
 }
 
 pub struct Peer {
@@ -103,11 +106,7 @@ static DEFAULT_TEST_PEER_NETWORK: Lazy<String> =
     Lazy::new(|| get_env_or_default_string("NANO_DEFAULT_PEER", "peering-test.nano.org"));
 
 impl NodeConfig {
-    pub fn new(
-        peering_port: Option<u16>,
-        logging: Logging,
-        network_params: &NetworkParams,
-    ) -> Self {
+    pub fn new(peering_port: Option<u16>, logging: Logging, network_params: NetworkParams) -> Self {
         if peering_port == Some(0) {
             // comment for posterity:
             // - we used to consider ports being 0 a sentinel that meant to use a default port for that specific purpose
@@ -270,6 +269,8 @@ impl NodeConfig {
             diagnostics_config: DiagnosticsConfig::new(),
             stat_config: StatConfig::new(),
             lmdb_config: LmdbConfig::new(),
+            weight_period: network_params.node.weight_period,
+            max_weight_samples: network_params.node.max_weight_samples,
         }
     }
 
