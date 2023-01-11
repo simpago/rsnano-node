@@ -4,7 +4,7 @@ use crate::{
     ledger::{GenerateCacheHandle, LedgerCacheHandle, LedgerConstantsDto},
     StatHandle, StringDto,
 };
-use rsnano_core::{Account, Amount, BlockEnum, BlockHash, Epoch, Link, QualifiedRoot};
+use rsnano_core::{Account, Amount, BlockHash, Epoch, Link, QualifiedRoot};
 use rsnano_ledger::{Ledger, ProcessResult};
 use rsnano_node::stats::LedgerStats;
 use std::{

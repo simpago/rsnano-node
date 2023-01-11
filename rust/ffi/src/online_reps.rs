@@ -1,20 +1,9 @@
-use crate::core::BlockHandle;
-use crate::ledger::datastore::{LedgerHandle, TransactionHandle};
-use crate::ledger::RepWeightsHandle;
-use crate::{copy_amount_bytes, fill_node_config_dto, NodeConfigDto, U256ArrayDto};
-use rsnano_core::{Account, Amount};
-use rsnano_ledger::RepWeights;
-use rsnano_node::config::NodeConfig;
-use rsnano_node::online_reps::{OnlineReps, ONLINE_WEIGHT_QUORUM};
-use rsnano_node::stats::StatType::Message;
-use rsnano_store_traits::Transaction;
-use std::net::Shutdown::{Read, Write};
-use std::ops::Deref;
-use std::os::raw;
-use std::os::raw::c_int;
 use std::sync::Arc;
-use std::time::Duration;
-use std::{clone, ptr};
+use rsnano_core::{Account, Amount};
+use rsnano_node::config::NodeConfig;
+use rsnano_node::online_reps::{ONLINE_WEIGHT_QUORUM, OnlineReps};
+use crate::ledger::datastore::{LedgerHandle, TransactionHandle};
+use crate::{copy_amount_bytes, fill_node_config_dto, NodeConfigDto, U256ArrayDto};
 
 pub struct OnlineRepsHandle(pub OnlineReps);
 

@@ -1,21 +1,15 @@
-use crate::config::NodeConfig;
-use crate::stats::DetailType::Send;
-use crate::voting::VoteSpacing;
-use blake2::digest::typenum::private::Trim;
-use primitive_types::U256;
-use rsnano_core::{u256_struct, Account, Amount, BlockHash, Root};
-use rsnano_ledger::Ledger;
-use rsnano_store_lmdb::get;
-use rsnano_store_traits::{ReadTransaction, Transaction, WriteTransaction};
 use std::cmp::max;
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::mem;
-use std::mem::size_of;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Deref;
-use std::process::id;
 use std::sync::{Arc, Mutex};
-use std::thread::current;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+use primitive_types::U256;
+use rsnano_core::{Account, Amount};
+use rsnano_ledger::Ledger;
+use rsnano_store_traits::Transaction;
+use crate::config::NodeConfig;
+use std::mem::{size_of, drop};
+use std::time::{Instant, Duration};
 
 pub const ONLINE_WEIGHT_QUORUM: u8 = 67;
 
@@ -32,7 +26,7 @@ impl OnlineReps {
     pub fn new(ledger: Arc<Ledger>, node_config: Arc<NodeConfig>) -> Self {
         let transaction = ledger.store.tx_begin_read().unwrap();
 
-        let mut online_reps = Self {
+        let online_reps = Self {
             ledger,
             node_config,
             reps: EntryContainer::new(),
@@ -43,7 +37,7 @@ impl OnlineReps {
 
         let mut mutex = online_reps.trended_m.lock().unwrap();
         *mutex = online_reps.calculate_trend(transaction.txn());
-        std::mem::drop(mutex);
+        drop(mutex);
         online_reps
     }
 
@@ -85,9 +79,9 @@ impl OnlineReps {
                 new_insert = false;
             }
             by_account_mutex.remove(&rep_a);
-            mem::drop(by_account_mutex);
-            mem::drop(by_time_mutex);
-            mem::drop(entries_mutex);
+            drop(by_account_mutex);
+            drop(by_time_mutex);
+            drop(entries_mutex);
             let time = Instant::now();
             let entry = Entry {
                 account: rep_a,
@@ -165,7 +159,7 @@ impl OnlineReps {
             .lock()
             .unwrap()
             .iter()
-            .map(|(a, b)| *a)
+            .map(|(a, _)| *a)
             .collect()
     }
 
@@ -210,7 +204,7 @@ impl EntryContainer {
         self.by_account.lock().unwrap().insert(entry.account, id);
 
         let mut binding = self.by_time.lock().unwrap();
-        let mut by_time = binding.entry(entry.time).or_default();
+        let by_time = binding.entry(entry.time).or_default();
         by_time.push(id);
 
         self.entries.lock().unwrap().insert(id, entry);
