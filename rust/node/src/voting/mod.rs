@@ -20,3 +20,9 @@ pub use inactive_cache_information::InactiveCacheInformation;
 pub use inactive_cache_status::InactiveCacheStatus;
 mod prioritization;
 pub use prioritization::{Prioritization, ValueType};
+
+mod election_scheduler;
+pub use election_scheduler::{
+    ElectionScheduler, ElectionSchedulerActivateInternalCallback,
+    ELECTION_SCHEDULER_ACTIVATE_INTERNAL_CALLBACK,
+};

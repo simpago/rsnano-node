@@ -130,6 +130,7 @@ pub enum StatType {
     BlockProcessor,
     BootstrapServer,
     Active,
+    Backlog,
 }
 
 impl StatType {
@@ -164,6 +165,7 @@ impl StatType {
             StatType::BlockProcessor => "blockprocessor",
             StatType::BootstrapServer => "bootstrap_server",
             StatType::Active => "active",
+            StatType::Backlog => "backlog",
         }
     }
 }
@@ -176,6 +178,7 @@ pub enum DetailType {
 
     // common
     Loop,
+    Total,
 
     // processing queue
     Queue,
@@ -376,6 +379,9 @@ pub enum DetailType {
     ResponseBlocks,
     ResponseAccountInfo,
     ChannelFull,
+
+    // backlog
+    Activated,
 }
 
 impl DetailType {
@@ -383,6 +389,7 @@ impl DetailType {
         match self {
             DetailType::All => "all",
             DetailType::Loop => "loop",
+            DetailType::Total => "total",
             DetailType::Queue => "queue",
             DetailType::Overfill => "overfill",
             DetailType::Batch => "batch",
@@ -541,6 +548,7 @@ impl DetailType {
             DetailType::ResponseBlocks => "response_blocks",
             DetailType::ResponseAccountInfo => "response_account_info",
             DetailType::ChannelFull => "channel_full",
+            DetailType::Activated => "activated",
         }
     }
 }

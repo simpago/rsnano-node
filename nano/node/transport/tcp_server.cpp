@@ -8,7 +8,6 @@
 #include <nano/node/transport/tcp_server.hpp>
 
 #include <boost/format.hpp>
-#include <boost/variant/get.hpp>
 
 nano::tcp_server_weak_wrapper::tcp_server_weak_wrapper (std::shared_ptr<nano::transport::tcp_server> const & server) :
 	handle{ rsnano::rsn_bootstrap_server_get_weak (server->handle) }
@@ -61,7 +60,7 @@ nano::transport::tcp_listener::tcp_listener (uint16_t port_a, nano::node & node_
 
 void nano::transport::tcp_listener::start ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	on = true;
 	listening_socket = std::make_shared<nano::server_socket> (node, boost::asio::ip::tcp::endpoint (boost::asio::ip::address_v6::any (), port), config->tcp_incoming_connections_max);
 	boost::system::error_code ec;
@@ -121,13 +120,13 @@ void nano::transport::tcp_listener::stop ()
 {
 	decltype (connections) connections_l;
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		on = false;
 		connections_l.swap (connections);
 	}
 	if (listening_socket)
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		listening_socket->close ();
 		listening_socket = nullptr;
 	}
@@ -135,7 +134,7 @@ void nano::transport::tcp_listener::stop ()
 
 std::size_t nano::transport::tcp_listener::connection_count ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	return connections.size ();
 }
 
@@ -216,7 +215,7 @@ void nano::transport::tcp_listener::accept_action (boost::system::error_code con
 		node.tcp_listener, req_resp_visitor_factory, node.workers,
 		*network->publish_filter,
 		node.block_uniquer, node.vote_uniquer, node.network->tcp_message_manager, *network->syn_cookies, node.node_id, true));
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		connections[server->unique_id ()] = nano::tcp_server_weak_wrapper (server);
 		server->start ();
 	}
@@ -232,7 +231,7 @@ void nano::transport::tcp_listener::accept_action (boost::system::error_code con
 
 boost::asio::ip::tcp::endpoint nano::transport::tcp_listener::endpoint ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	if (on && listening_socket)
 	{
 		return { boost::asio::ip::address_v6::loopback (), port };

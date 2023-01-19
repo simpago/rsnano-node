@@ -210,6 +210,7 @@ public:
 	bool operator== (nano::confirm_ack const &) const;
 	static std::size_t size (std::size_t count);
 	std::shared_ptr<nano::vote> get_vote () const;
+	std::string to_string () const;
 };
 
 class frontier_req final : public message
@@ -335,6 +336,7 @@ public:
 	bool deserialize (nano::stream &);
 	uint16_t size () const;
 	bool is_empty_payload () const;
+	std::string to_string () const;
 	static uint16_t size (nano::message_header const &);
 	nano::telemetry_data get_data () const;
 };

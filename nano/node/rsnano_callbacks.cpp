@@ -7,6 +7,7 @@
 #include <nano/lib/tomlconfig.hpp>
 #include <nano/node/blockprocessor.hpp>
 #include <nano/node/bootstrap/bootstrap.hpp>
+#include <nano/node/election_scheduler.hpp>
 #include <nano/node/lmdb/lmdb_txn.hpp>
 #include <nano/node/node_observers.hpp>
 #include <nano/node/rsnano_callbacks.hpp>
@@ -872,6 +873,15 @@ bool message_visitor_bootstrap_processed (void * handle_a)
 	return (static_cast<nano::transport::tcp_server::bootstrap_message_visitor *> (visitor->get ()))->processed;
 }
 
+void election_scheduler_activate (void * scheduler_a, const uint8_t * account_a, rsnano::TransactionHandle * txn_a)
+{
+	auto election_scheduler = static_cast<nano::election_scheduler *> (scheduler_a);
+	nano::account account;
+	std::copy (account_a, account_a + 32, std::begin (account.bytes));
+	nano::transaction_wrapper txn_wrapper{ txn_a };
+	election_scheduler->activate (account, txn_wrapper);
+}
+
 static bool callbacks_set = false;
 
 void rsnano::set_rsnano_callbacks ()
@@ -977,6 +987,8 @@ void rsnano::set_rsnano_callbacks ()
 	rsnano::rsn_callback_message_visitor_bootstrap_processed (message_visitor_bootstrap_processed);
 	rsnano::rsn_callback_memory_intensive_instrumentation (nano::memory_intensive_instrumentation);
 	rsnano::rsn_callback_is_sanitizer_build (nano::is_sanitizer_build);
+
+	rsnano::rsn_callback_election_scheduler_activate (election_scheduler_activate);
 
 	callbacks_set = true;
 }

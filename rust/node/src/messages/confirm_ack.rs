@@ -7,7 +7,7 @@ use anyhow::Result;
 use rsnano_core::{utils::Stream, BlockType};
 use std::{
     any::Any,
-    fmt::Debug,
+    fmt::{Debug, Display},
     sync::{Arc, RwLock},
 };
 
@@ -130,6 +130,23 @@ impl Debug for ConfirmAck {
         f.debug_struct("ConfirmAck")
             .field("header", &self.header)
             .finish()
+    }
+}
+
+impl Display for ConfirmAck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.header, f)?;
+        if let Some(vote) = &self.vote {
+            write!(
+                f,
+                "\n{}",
+                vote.read()
+                    .unwrap()
+                    .to_json()
+                    .map_err(|_| std::fmt::Error)?
+            )?;
+        }
+        Ok(())
     }
 }
 

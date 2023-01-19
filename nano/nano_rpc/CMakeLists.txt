@@ -10,8 +10,7 @@ target_link_libraries(
   Boost::log
   Boost::program_options
   Boost::system
-  Boost::thread
-  Boost::boost)
+  Boost::thread)
 
 target_compile_definitions(
   nano_rpc

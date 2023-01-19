@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
 use num_traits::FromPrimitive;
 use rsnano_ledger::{WriteDatabaseQueue, WriteGuard, Writer};
 
-pub struct WriteDatabaseQueueHandle(WriteDatabaseQueue);
+pub struct WriteDatabaseQueueHandle(pub Arc<WriteDatabaseQueue>);
 
 #[no_mangle]
 pub extern "C" fn rsn_write_database_queue_create(use_noop: bool) -> *mut WriteDatabaseQueueHandle {
-    Box::into_raw(Box::new(WriteDatabaseQueueHandle(WriteDatabaseQueue::new(
-        use_noop,
+    Box::into_raw(Box::new(WriteDatabaseQueueHandle(Arc::new(
+        WriteDatabaseQueue::new(use_noop),
     ))))
 }
 

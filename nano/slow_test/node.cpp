@@ -310,7 +310,7 @@ TEST (node, fork_storm)
 			}
 			else
 			{
-				nano::unique_lock<nano::mutex> lock (node_a->active.mutex);
+				nano::unique_lock<nano::mutex> lock{ node_a->active.mutex };
 				auto election = node_a->active.roots.begin ()->election;
 				lock.unlock ();
 				if (election->votes ().size () == 1)
@@ -635,7 +635,7 @@ TEST (confirmation_height, many_accounts_single_confirmation)
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 
 	// The number of frontiers should be more than the nano::confirmation_height::unbounded_cutoff to test the amount of blocks confirmed is correct.
-	node->confirmation_height_processor.batch_write_size = 500;
+	node->confirmation_height_processor.batch_write_size.store (500);
 	auto const num_accounts = nano::confirmation_height::unbounded_cutoff * 2 + 50;
 	nano::keypair last_keypair = nano::dev::genesis_key;
 	nano::block_builder builder;
@@ -719,7 +719,7 @@ TEST (confirmation_height, many_accounts_many_confirmations)
 	auto node = system.add_node (node_config);
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 
-	node->confirmation_height_processor.batch_write_size = 500;
+	node->confirmation_height_processor.batch_write_size.store (500);
 	auto const num_accounts = nano::confirmation_height::unbounded_cutoff * 2 + 50;
 	auto latest_genesis = node->latest (nano::dev::genesis_key.pub);
 	nano::block_builder builder;
@@ -798,7 +798,7 @@ TEST (confirmation_height, long_chains)
 	nano::block_hash latest (node->latest (nano::dev::genesis_key.pub));
 	system.wallet (0)->insert_adhoc (key1.prv);
 
-	node->confirmation_height_processor.batch_write_size = 500;
+	node->confirmation_height_processor.batch_write_size.store (500);
 	auto const num_blocks = nano::confirmation_height::unbounded_cutoff * 2 + 50;
 
 	nano::block_builder builder;
@@ -1051,7 +1051,7 @@ TEST (confirmation_height, dynamic_algorithm_no_transition_while_pending)
 			node->confirmation_height_processor.pause ();
 
 			timer.restart ();
-			ASSERT_TIMELY (10s, node->confirmation_height_processor.unbounded_processor.pending_writes_size != 0);
+			ASSERT_TIMELY (10s, node->confirmation_height_processor.unbounded_processor.pending_writes_size () != 0);
 
 			{
 				// Make it so that the number of blocks exceed the unbounded cutoff would go into the bounded processor (but shouldn't due to unbounded pending writes)
@@ -1225,7 +1225,7 @@ TEST (confirmation_height, many_accounts_send_receive_self_no_elections)
 	boost::latch initialized_latch{ 0 };
 
 	nano::block_hash block_hash_being_processed{ 0 };
-	nano::confirmation_height_processor confirmation_height_processor{ ledger, stats, write_database_queue, 10ms, logging, *logger, initialized_latch, confirmation_height_mode::automatic };
+	nano::confirmation_height_processor confirmation_height_processor{ ledger, stats, write_database_queue, 10ms, logging, logger, initialized_latch, confirmation_height_mode::automatic };
 
 	auto const num_accounts = 100000;
 
@@ -1706,13 +1706,13 @@ TEST (telemetry, many_nodes)
 	{
 		node_client->telemetry->get_metrics_single_peer_async (peer, [&telemetry_datas, &mutex] (nano::telemetry_data_response const & response_a) {
 			ASSERT_FALSE (response_a.error);
-			nano::lock_guard<nano::mutex> guard (mutex);
+			nano::lock_guard<nano::mutex> guard{ mutex };
 			telemetry_datas.push_back (response_a.telemetry_data);
 		});
 	}
 
 	system.deadline_set (20s);
-	nano::unique_lock<nano::mutex> lk (mutex);
+	nano::unique_lock<nano::mutex> lk{ mutex };
 	while (telemetry_datas.size () != num_nodes - 1)
 	{
 		lk.unlock ();
@@ -1970,7 +1970,7 @@ TEST (node, mass_block_new)
 		node.block_processor.flush ();
 		// Clear all active
 		{
-			nano::lock_guard<nano::mutex> guard (node.active.mutex);
+			nano::lock_guard<nano::mutex> guard{ node.active.mutex };
 			node.active.roots.clear ();
 			node.active.blocks.clear ();
 		}

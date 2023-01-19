@@ -9,11 +9,6 @@ if(CMAKE_VERSION VERSION_GREATER 3.13 OR CMAKE_VERSION VERSION_EQUAL 3.13)
   cmake_policy(SET CMP0077 NEW)
 endif()
 
-if(CMAKE_VERSION VERSION_LESS 3.13)
-  # compatibility for boost import targets use bundled 3.13 FindBoost.cmake
-  list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/legacyModules")
-endif()
-
 # compatibility for osx sierra and on needs to be set before project
 set(CMAKE_OSX_DEPLOYMENT_TARGET
     10.14
@@ -71,8 +66,7 @@ else()
 endif()
 
 if(APPLE)
-  set(CMAKE_INSTALL_RPATH
-      "@executable_path/../Frameworks;@executable_path/../boost/lib")
+  set(CMAKE_INSTALL_RPATH "@executable_path/../Frameworks")
 else()
   set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 endif()
@@ -84,9 +78,6 @@ set(NANO_TEST
     OFF
     CACHE BOOL "")
 set(NANO_SECURE_RPC
-    OFF
-    CACHE BOOL "")
-set(NANO_POW_SERVER
     OFF
     CACHE BOOL "")
 set(NANO_WARN_TO_ERR
@@ -131,16 +122,6 @@ set(NANO_FUZZER_TEST
 set(NANO_ASIO_HANDLER_TRACKING
     0
     CACHE STRING "")
-
-option(NANO_STACKTRACE_BACKTRACE
-       "Use BOOST_STACKTRACE_USE_BACKTRACE in stacktraces, for POSIX" OFF)
-if(NANO_STACKTRACE_BACKTRACE)
-  add_definitions(-DNANO_STACKTRACE_BACKTRACE=1)
-  if(BACKTRACE_INCLUDE)
-    add_definitions(
-      -DBOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE=${BACKTRACE_INCLUDE})
-  endif()
-endif()
 
 if(${NANO_TIMED_LOCKS} GREATER 0)
   add_definitions(-DNANO_TIMED_LOCKS=${NANO_TIMED_LOCKS})
@@ -308,7 +289,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 # set(CMAKE_C_EXTENSIONS OFF)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -356,35 +337,110 @@ else()
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR})
-
-if(WIN32
-   AND NANO_TEST
-   AND NANO_SHARED_BOOST)
-  message(
-    SEND_ERROR
-      " Linking errors occur if NANO_SHARED_BOOST is used with tests on Windows"
-      " Disable NANO_SHARED_BOOST or NANO_TEST on Windows")
-  set(NANO_SHARED_BOOST)
-endif()
-
-set(NANO_SHARED_BOOST
-    OFF
-    CACHE BOOL "Build Nano with shared boost")
-
-if(NANO_SHARED_BOOST)
-  set(Boost_USE_STATIC_LIBS OFF)
-  set(Boost_USE_STATIC_RUNTIME OFF)
-  set(Boost_NO_BOOST_CMAKE ON)
-  add_definitions(-DBOOST_ALL_DYN_LINK -DBoost_ALL_NO_LIB)
-else()
-  set(Boost_USE_STATIC_LIBS ON)
-endif()
-set(Boost_USE_MULTITHREADED ON)
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
-find_package(Boost 1.70.0 REQUIRED COMPONENTS filesystem log log_setup thread
-                                              program_options system)
+set(Boost_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/boost/libs/config/include)
+set(BOOST_MODULE_LIBS
+    algorithm
+    align
+    any
+    array
+    asio
+    assert
+    atomic
+    beast
+    bind
+    chrono
+    circular_buffer
+    concept_check
+    config
+    container
+    container_hash
+    context
+    conversion
+    core
+    coroutine
+    date_time
+    describe
+    detail
+    dll
+    dynamic_bitset
+    endian
+    exception
+    filesystem
+    foreach
+    format
+    function
+    function_types
+    functional
+    fusion
+    integer
+    interprocess
+    intrusive
+    io
+    iostreams
+    iterator
+    lexical_cast
+    property_tree
+    log
+    logic
+    math
+    move
+    mp11
+    mpl
+    multi_index
+    multiprecision
+    numeric/conversion
+    optional
+    parameter
+    phoenix
+    pool
+    predef
+    preprocessor
+    process
+    program_options
+    proto
+    random
+    range
+    ratio
+    rational
+    regex
+    serialization
+    smart_ptr
+    spirit
+    stacktrace
+    static_assert
+    static_string
+    system
+    thread
+    throw_exception
+    tokenizer
+    tuple
+    type_index
+    type_traits
+    typeof
+    unordered
+    utility
+    variant
+    variant2
+    winapi)
+
+add_definitions(-DBOOST_ALL_NO_LIB) # Disable automatic boost linking
+foreach(lib IN LISTS BOOST_MODULE_LIBS)
+  add_subdirectory(boost/libs/${lib} EXCLUDE_FROM_ALL)
+endforeach()
+include_directories(${BOOST_LIBRARY_INCLUDES})
+add_library(Boost::stacktrace ALIAS boost_stacktrace_basic)
+add_definitions(-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)
+
+# Workaround for GitHub builders which do not appear to have the Windows Message
+# Compiler mc.exe
+add_definitions(-DBOOST_LOG_WITHOUT_EVENT_LOG)
+
+# Workaround for missing reference errata in the boost property_tree module
+target_link_libraries(boost_property_tree INTERFACE Boost::any)
+target_link_libraries(boost_property_tree INTERFACE Boost::format)
+target_link_libraries(boost_property_tree INTERFACE Boost::multi_index)
 
 # diskhash
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -416,9 +472,6 @@ if(WIN32)
   target_link_libraries(ntdll)
 endif()
 
-if(NANO_POW_SERVER)
-  add_subdirectory(nano-pow-server)
-endif()
 add_subdirectory(nano/crypto_lib)
 add_subdirectory(nano/secure)
 add_subdirectory(nano/lib)
@@ -436,7 +489,6 @@ if(NANO_FUZZER_TEST)
 endif()
 
 if(NANO_TEST OR RAIBLOCKS_TEST)
-  find_package(Boost 1.70.0 REQUIRED COMPONENTS coroutine context)
   if(WIN32)
     if(MSVC_VERSION)
       if(MSVC_VERSION GREATER_EQUAL 1910)

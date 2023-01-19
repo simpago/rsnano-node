@@ -2,7 +2,7 @@ use crate::NetworkParams;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 
-use super::{Logging, NodeConfig, NodePowServerConfig, NodeRpcConfig, OpenclConfig};
+use super::{Logging, NodeConfig, NodeRpcConfig, OpenclConfig};
 
 pub struct DaemonConfig {
     pub rpc_enable: bool,
@@ -10,7 +10,6 @@ pub struct DaemonConfig {
     pub node: NodeConfig,
     pub opencl: OpenclConfig,
     pub opencl_enable: bool,
-    pub pow_server: NodePowServerConfig,
 }
 
 impl DaemonConfig {
@@ -20,7 +19,6 @@ impl DaemonConfig {
             node: NodeConfig::new(None, Logging::new(), network_params),
             opencl: OpenclConfig::new(),
             opencl_enable: false,
-            pow_server: NodePowServerConfig::new()?,
             rpc: NodeRpcConfig::new()?,
         })
     }
@@ -46,10 +44,6 @@ impl DaemonConfig {
                 "Enable or disable OpenCL work generation\ntype:bool",
             )?;
             Ok(())
-        })?;
-
-        toml.put_child("nano_pow_server", &mut |pow_server| {
-            self.pow_server.serialize_toml(pow_server)
         })?;
 
         Ok(())

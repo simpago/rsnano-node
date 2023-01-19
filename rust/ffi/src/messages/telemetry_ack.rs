@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     copy_account_bytes, copy_hash_bytes, copy_signature_bytes, utils::FfiStream,
-    NetworkConstantsDto,
+    NetworkConstantsDto, StringDto,
 };
 use rsnano_node::messages::{Message, TelemetryAck, TelemetryData};
 
@@ -385,6 +385,14 @@ pub unsafe extern "C" fn rsn_message_telemetry_ack_create(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn rsn_telemetry_data_to_json(
+    handle: *mut TelemetryDataHandle,
+    result: *mut StringDto,
+) {
+    (*result) = (*handle).0.to_json().unwrap_or_default().into()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn rsn_message_telemetry_ack_create2(
     header: *mut MessageHeaderHandle,
 ) -> *mut MessageHandle {
@@ -443,4 +451,14 @@ pub unsafe extern "C" fn rsn_message_telemetry_ack_is_empty_payload(
     handle: *mut MessageHandle,
 ) -> bool {
     downcast_message::<TelemetryAck>(handle).is_empty_payload()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_message_telemetry_ack_to_string(
+    handle: *mut MessageHandle,
+    result: *mut StringDto,
+) {
+    (*result) = downcast_message_mut::<TelemetryAck>(handle)
+        .to_string()
+        .into();
 }

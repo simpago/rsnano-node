@@ -2,7 +2,6 @@
 
 #include <nano/lib/errors.hpp>
 #include <nano/lib/rsnano.hpp>
-#include <nano/node/node_pow_server_config.hpp>
 #include <nano/node/node_rpc_config.hpp>
 #include <nano/node/nodeconfig.hpp>
 #include <nano/node/openclconfig.hpp>
@@ -24,7 +23,6 @@ public:
 	nano::node_config node;
 	bool opencl_enable{ false };
 	nano::opencl_config opencl;
-	nano::node_pow_server_config pow_server;
 	boost::filesystem::path data_path;
 };
 

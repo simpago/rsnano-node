@@ -6,11 +6,7 @@
 #include <nano/node/telemetry.hpp>
 #include <nano/secure/buffer.hpp>
 
-#include <boost/asio/steady_timer.hpp>
 #include <boost/format.hpp>
-#include <boost/variant/get.hpp>
-
-#include <numeric>
 
 nano::network::network (nano::node & node_a, uint16_t port_a) :
 	id (nano::network_constants::active_network ()),
@@ -867,7 +863,7 @@ nano::message_buffer_manager::message_buffer_manager (nano::stat & stats_a, std:
 
 nano::message_buffer * nano::message_buffer_manager::allocate ()
 {
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	if (!stopped && free.empty () && full.empty ())
 	{
 		stats.inc (nano::stat::type::udp, nano::stat::detail::blocking, nano::stat::dir::in);
@@ -893,7 +889,7 @@ void nano::message_buffer_manager::enqueue (nano::message_buffer * data_a)
 {
 	debug_assert (data_a != nullptr);
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		full.push_back (data_a);
 	}
 	condition.notify_all ();
@@ -901,7 +897,7 @@ void nano::message_buffer_manager::enqueue (nano::message_buffer * data_a)
 
 nano::message_buffer * nano::message_buffer_manager::dequeue ()
 {
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	while (!stopped && full.empty ())
 	{
 		condition.wait (lock);
@@ -919,7 +915,7 @@ void nano::message_buffer_manager::release (nano::message_buffer * data_a)
 {
 	debug_assert (data_a != nullptr);
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		free.push_back (data_a);
 	}
 	condition.notify_all ();
@@ -928,7 +924,7 @@ void nano::message_buffer_manager::release (nano::message_buffer * data_a)
 void nano::message_buffer_manager::stop ()
 {
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		stopped = true;
 	}
 	condition.notify_all ();

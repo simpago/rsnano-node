@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rsnano_core::{
     sign_message,
-    utils::{Deserialize, PropertyTreeWriter, Serialize, Stream},
+    utils::{Deserialize, PropertyTreeWriter, SerdePropertyTree, Serialize, Stream},
     validate_message, Account, BlockHash, BlockHashBuilder, FullHash, RawKey, Signature,
 };
 use std::time::Duration;
@@ -95,6 +95,12 @@ impl Vote {
         }
         writer.add_child("blocks", blocks_tree.as_ref());
         Ok(())
+    }
+
+    pub fn to_json(&self) -> anyhow::Result<String> {
+        let mut ptree = SerdePropertyTree::new();
+        self.serialize_json(&mut ptree)?;
+        Ok(ptree.to_json())
     }
 
     pub fn hash(&self) -> BlockHash {

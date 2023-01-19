@@ -1366,6 +1366,8 @@ dependencies = [
  "rsnano_store_lmdb",
  "rsnano_store_traits",
  "scoped_threadpool",
+ "serde",
+ "serde_derive",
  "serde_json",
  "siphasher",
  "static_assertions",

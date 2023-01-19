@@ -1,7 +1,9 @@
+#include <nano/lib/rsnano.hpp>
 #include <nano/node/election_scheduler.hpp>
 #include <nano/node/node.hpp>
 
 nano::election_scheduler::election_scheduler (nano::node & node) :
+	handle{ rsnano::rsn_election_scheduler_create (this) },
 	node{ node },
 	stopped{ false },
 	thread{ [this] () { run (); } }
@@ -12,6 +14,7 @@ nano::election_scheduler::~election_scheduler ()
 {
 	stop ();
 	thread.join ();
+	rsnano::rsn_election_scheduler_destroy (handle);
 }
 
 void nano::election_scheduler::manual (std::shared_ptr<nano::block> const & block_a, boost::optional<nano::uint128_t> const & previous_balance_a, nano::election_behavior election_behavior_a, std::function<void (std::shared_ptr<nano::block> const &)> const & confirmation_action_a)
@@ -21,7 +24,7 @@ void nano::election_scheduler::manual (std::shared_ptr<nano::block> const & bloc
 	notify ();
 }
 
-void nano::election_scheduler::activate (nano::account const & account_a, nano::transaction const & transaction)
+bool nano::election_scheduler::activate (nano::account const & account_a, nano::transaction const & transaction)
 {
 	debug_assert (!account_a.is_zero ());
 	nano::account_info account_info;
@@ -42,9 +45,11 @@ void nano::election_scheduler::activate (nano::account const & account_a, nano::
 				nano::lock_guard<nano::mutex> lock{ mutex };
 				priority.push (account_info.modified (), block, std::max (balance, previous_balance));
 				notify ();
+				return true; // Activated
 			}
 		}
 	}
+	return false; // Not activated
 }
 
 void nano::election_scheduler::stop ()

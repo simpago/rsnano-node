@@ -1,8 +1,12 @@
 use crate::config::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::{Deserialize, MemoryStream, Serialize, Stream, StreamExt};
-use rsnano_core::{sign_message, validate_message, Account, BlockHash, KeyPair, Signature};
+use rsnano_core::{
+    sign_message, to_hex_string, validate_message, Account, BlockHash, KeyPair, Signature,
+};
+use serde_derive::Serialize;
 use std::any::Any;
+use std::fmt::Display;
 use std::mem::size_of;
 use std::time::{Duration, SystemTime};
 
@@ -168,6 +172,70 @@ impl TelemetryData {
             false
         }
     }
+
+    pub fn to_json(&self) -> serde_json::Result<String> {
+        let ignore_identification_metrics = true;
+        let json_dto = TelemetryDataJsonDto {
+            block_count: self.block_count.to_string(),
+            cemented_count: self.cemented_count.to_string(),
+            unchecked_count: self.unchecked_count.to_string(),
+            account_count: self.account_count.to_string(),
+            bandwidth_cap: self.bandwidth_cap.to_string(),
+            peer_count: self.peer_count.to_string(),
+            protocol_version: self.protocol_version.to_string(),
+            uptime: self.uptime.to_string(),
+            genesis_block: self.genesis_block.to_string(),
+            major_version: self.major_version.to_string(),
+            minor_version: self.minor_version.to_string(),
+            patch_version: self.patch_version.to_string(),
+            pre_release_version: self.pre_release_version.to_string(),
+            maker: self.maker.to_string(),
+            timestamp: self
+                .timestamp
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                .to_string(),
+            active_difficulty: to_hex_string(self.active_difficulty),
+            node_id: if !ignore_identification_metrics {
+                Some(self.node_id.to_node_id())
+            } else {
+                None
+            },
+            signature: if !ignore_identification_metrics {
+                Some(self.signature.encode_hex())
+            } else {
+                None
+            },
+        };
+
+        serde_json::to_string_pretty(&json_dto)
+    }
+}
+
+#[derive(Serialize)]
+struct TelemetryDataJsonDto {
+    pub block_count: String,
+    pub cemented_count: String,
+    pub unchecked_count: String,
+    pub account_count: String,
+    pub bandwidth_cap: String,
+    pub peer_count: String,
+    pub protocol_version: String,
+    pub uptime: String,
+    pub genesis_block: String,
+    pub major_version: String,
+    pub minor_version: String,
+    pub patch_version: String,
+    pub pre_release_version: String,
+    pub maker: String,
+    pub timestamp: String,
+    pub active_difficulty: String,
+    // Keep these last for UI purposes:
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 impl Default for TelemetryData {
@@ -270,6 +338,19 @@ impl Message for TelemetryAck {
 
     fn message_type(&self) -> MessageType {
         MessageType::TelemetryAck
+    }
+}
+
+impl Display for TelemetryAck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.header.fmt(f)?;
+        write!(f, "\n")?;
+        if self.is_empty_payload() {
+            write!(f, "empty telemetry payload")?;
+        } else {
+            write!(f, "{}", self.data.to_json().map_err(|_| std::fmt::Error)?)?;
+        }
+        Ok(())
     }
 }
 

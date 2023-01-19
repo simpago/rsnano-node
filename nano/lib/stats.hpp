@@ -117,6 +117,7 @@ public:
 		blockprocessor,
 		bootstrap_server,
 		active,
+		backlog,
 	};
 
 	/** Optional detail type */
@@ -126,6 +127,7 @@ public:
 
 		// common
 		loop,
+		total,
 
 		// processing queue
 		queue,
@@ -326,6 +328,9 @@ public:
 		response_blocks,
 		response_account_info,
 		channel_full,
+
+		// backlog
+		activated,
 	};
 
 	/** Direction of the stat. If the direction is irrelevant, use in */

@@ -1,5 +1,11 @@
 #pragma once
 
+#include <nano/lib/locks.hpp>
+
+#include <condition_variable>
+#include <deque>
+#include <functional>
+
 namespace rsnano
 {
 class WriteDatabaseQueueHandle;

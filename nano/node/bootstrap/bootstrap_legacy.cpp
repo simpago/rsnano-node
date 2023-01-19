@@ -94,34 +94,38 @@ void nano::bootstrap_attempt_legacy::add_frontier (nano::pull_info const & pull_
 	// Prevent incorrect or malicious pulls with frontier 0 insertion
 	if (!pull_a.head.is_zero ())
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		auto lock{ rsnano::rsn_bootstrap_attempt_lock (handle) };
 		frontier_pulls.push_back (pull_a);
+		rsnano::rsn_bootstrap_attempt_unlock (lock);
 	}
 }
 
 void nano::bootstrap_attempt_legacy::add_bulk_push_target (nano::block_hash const & head, nano::block_hash const & end)
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	auto lock{ rsnano::rsn_bootstrap_attempt_lock (handle) };
 	bulk_push_targets.emplace_back (head, end);
+	rsnano::rsn_bootstrap_attempt_unlock (lock);
 }
 
 bool nano::bootstrap_attempt_legacy::request_bulk_push_target (std::pair<nano::block_hash, nano::block_hash> & current_target_a)
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	auto lock{ rsnano::rsn_bootstrap_attempt_lock (handle) };
 	auto empty (bulk_push_targets.empty ());
 	if (!empty)
 	{
 		current_target_a = bulk_push_targets.back ();
 		bulk_push_targets.pop_back ();
 	}
+	rsnano::rsn_bootstrap_attempt_unlock (lock);
 	return empty;
 }
 
 void nano::bootstrap_attempt_legacy::set_start_account (nano::account const & start_account_a)
 {
 	// Add last account fron frontier request
-	nano::lock_guard<nano::mutex> lock (mutex);
+	auto lock{ rsnano::rsn_bootstrap_attempt_lock (handle) };
 	start_account = start_account_a;
+	rsnano::rsn_bootstrap_attempt_unlock (lock);
 }
 
 bool nano::bootstrap_attempt_legacy::request_frontier (rsnano::BootstrapAttemptLockHandle ** lock_a, bool first_attempt)
@@ -253,9 +257,10 @@ void nano::bootstrap_attempt_legacy::run ()
 
 void nano::bootstrap_attempt_legacy::get_information (boost::property_tree::ptree & tree_a)
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	auto lock{ rsnano::rsn_bootstrap_attempt_lock (handle) };
 	tree_a.put ("frontier_pulls", std::to_string (frontier_pulls.size ()));
 	tree_a.put ("frontiers_received", static_cast<bool> (get_frontiers_received ()));
 	tree_a.put ("frontiers_age", std::to_string (frontiers_age));
 	tree_a.put ("last_account", start_account.to_account ());
+	rsnano::rsn_bootstrap_attempt_unlock (lock);
 }

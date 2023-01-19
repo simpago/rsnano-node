@@ -15,9 +15,7 @@
 #include <boost/endian/conversion.hpp>
 #include <boost/format.hpp>
 #include <boost/pool/pool_alloc.hpp>
-#include <boost/variant/get.hpp>
 
-#include <numeric>
 #include <sstream>
 
 /*
@@ -925,6 +923,13 @@ std::shared_ptr<nano::vote> nano::confirm_ack::get_vote () const
 	return result;
 }
 
+std::string nano::confirm_ack::to_string () const
+{
+	rsnano::StringDto string_dto;
+	rsnano::rsn_message_confirm_ack_to_string (handle, &string_dto);
+	return rsnano::convert_dto_to_string (string_dto);
+}
+
 /*
  * frontier_req
  */
@@ -1425,6 +1430,13 @@ bool nano::telemetry_ack::is_empty_payload () const
 	return rsnano::rsn_message_telemetry_ack_is_empty_payload (handle);
 }
 
+std::string nano::telemetry_ack::to_string () const
+{
+	rsnano::StringDto dto;
+	rsnano::rsn_message_telemetry_ack_to_string (handle, &dto);
+	return rsnano::convert_dto_to_string (dto);
+}
+
 /*
  * telemetry_data
  */
@@ -1798,11 +1810,9 @@ nano::error nano::telemetry_data::deserialize_json (nano::jsonconfig & json, boo
 
 std::string nano::telemetry_data::to_string () const
 {
-	nano::jsonconfig jc;
-	serialize_json (jc, true);
-	std::stringstream ss;
-	jc.write (ss);
-	return ss.str ();
+	rsnano::StringDto string_dto;
+	rsnano::rsn_telemetry_data_to_json (handle, &string_dto);
+	return rsnano::convert_dto_to_string (string_dto);
 }
 
 bool nano::telemetry_data::operator== (nano::telemetry_data const & data_a) const

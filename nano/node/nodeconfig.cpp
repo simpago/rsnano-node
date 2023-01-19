@@ -63,6 +63,8 @@ rsnano::NodeConfigDto to_node_config_dto (nano::node_config const & config)
 	dto.max_queued_requests = config.max_queued_requests;
 	std::copy (std::begin (config.rep_crawler_weight_minimum.bytes), std::end (config.rep_crawler_weight_minimum.bytes), std::begin (dto.rep_crawler_weight_minimum));
 	dto.work_peers_count = config.work_peers.size ();
+	dto.backlog_scan_batch_size = config.backlog_scan_batch_size;
+	dto.backlog_scan_frequency = config.backlog_scan_frequency;
 	for (auto i = 0; i < config.work_peers.size (); i++)
 	{
 		std::copy (config.work_peers[i].first.begin (), config.work_peers[i].first.end (), std::begin (dto.work_peers[i].address));
@@ -213,6 +215,8 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	diagnostics_config.load_dto (dto.diagnostics_config);
 	stat_config.load_dto (dto.stat_config);
 	lmdb_config.load_dto (dto.lmdb_config);
+	backlog_scan_batch_size = dto.backlog_scan_batch_size;
+	backlog_scan_frequency = dto.backlog_scan_frequency;
 }
 
 nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
@@ -420,6 +424,9 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 			auto frontiers_confirmation_l (toml.get<std::string> ("frontiers_confirmation"));
 			frontiers_confirmation = deserialize_frontiers_confirmation (frontiers_confirmation_l);
 		}
+
+		toml.get<unsigned> ("backlog_scan_batch_size", backlog_scan_batch_size);
+		toml.get<unsigned> ("backlog_scan_frequency", backlog_scan_frequency);
 
 		if (toml.has_key ("experimental"))
 		{

@@ -1,7 +1,6 @@
 #include <nano/lib/config.hpp>
 #include <nano/lib/jsonconfig.hpp>
 #include <nano/lib/tomlconfig.hpp>
-#include <nano/lib/walletconfig.hpp>
 #include <nano/node/daemonconfig.hpp>
 
 #include <sstream>
@@ -19,7 +18,6 @@ nano::daemon_config::daemon_config (boost::filesystem::path const & data_path_a,
 	node.load_dto (dto.node);
 	opencl.load_dto (dto.opencl);
 	opencl_enable = dto.opencl_enable;
-	pow_server.load_dto (dto.pow_server);
 	rpc.load_dto (dto.rpc);
 }
 
@@ -30,7 +28,6 @@ rsnano::DaemonConfigDto to_daemon_config_dto (nano::daemon_config const & config
 	dto.opencl = config.opencl.to_dto ();
 	dto.node = config.node.to_dto ();
 	dto.opencl_enable = config.opencl_enable;
-	dto.pow_server = config.pow_server.to_dto ();
 	dto.rpc = config.rpc.to_dto ();
 	return dto;
 }
@@ -64,12 +61,6 @@ nano::error nano::daemon_config::deserialize_toml (nano::tomlconfig & toml)
 	{
 		opencl_l->get_optional<bool> ("enable", opencl_enable);
 		opencl.deserialize_toml (*opencl_l);
-	}
-
-	auto pow_l (toml.get_optional_child ("nano_pow_server"));
-	if (!toml.get_error () && pow_l)
-	{
-		pow_server.deserialize_toml (*pow_l);
 	}
 
 	return toml.get_error ();

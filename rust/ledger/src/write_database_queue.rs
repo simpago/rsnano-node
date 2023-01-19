@@ -98,16 +98,6 @@ impl WriteDatabaseQueue {
         self.create_write_guard()
     }
 
-    fn create_write_guard(&self) -> WriteGuard {
-        WriteGuard::new(Arc::clone(&self.guard_finish_callback))
-    }
-
-    /// Returns true if this writer is anywhere in the queue. Currently only used in tests
-    pub fn contains(&self, writer: Writer) -> bool {
-        debug_assert!(!self.data.use_noops);
-        self.data.queue.lock().unwrap().contains(&writer)
-    }
-
     /// Returns true if this writer is now at the front of the queue
     pub fn process(&self, writer: Writer) -> bool {
         if self.data.use_noops {
@@ -124,11 +114,17 @@ impl WriteDatabaseQueue {
             *guard.front().unwrap() == writer
         };
 
-        if !result {
-            self.data.condition.notify_all();
-        }
-
         result
+    }
+
+    fn create_write_guard(&self) -> WriteGuard {
+        WriteGuard::new(Arc::clone(&self.guard_finish_callback))
+    }
+
+    /// Returns true if this writer is anywhere in the queue. Currently only used in tests
+    pub fn contains(&self, writer: Writer) -> bool {
+        debug_assert!(!self.data.use_noops);
+        self.data.queue.lock().unwrap().contains(&writer)
     }
 
     /// Doesn't actually pop anything until the returned write_guard is out of scope

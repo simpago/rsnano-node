@@ -474,6 +474,22 @@ public:
 	virtual rsnano::TransactionHandle * get_rust_handle () const = 0;
 };
 
+class transaction_wrapper : public transaction
+{
+public:
+	transaction_wrapper (rsnano::TransactionHandle * handle_a) :
+		handle{ handle_a }
+	{
+	}
+	rsnano::TransactionHandle * get_rust_handle () const override
+	{
+		return handle;
+	}
+
+private:
+	rsnano::TransactionHandle * handle;
+};
+
 /**
  * RAII wrapper of a read MDB_txn where the constructor starts the transaction
  * and the destructor aborts it.

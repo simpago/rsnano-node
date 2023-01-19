@@ -147,8 +147,6 @@ add_library(
   portmapping.cpp
   prioritization.cpp
   prioritization.hpp
-  node_pow_server_config.hpp
-  node_pow_server_config.cpp
   repcrawler.hpp
   repcrawler.cpp
   request_aggregator.hpp
@@ -209,20 +207,17 @@ target_link_libraries(
   secure
   nano_lib
   libminiupnpc-static
+  Boost::beast
   Boost::filesystem
   Boost::log_setup
   Boost::log
   Boost::program_options
+  Boost::stacktrace
   Boost::system
   Boost::thread
-  Boost::boost
   ${DISKHASH}
   ${CMAKE_DL_LIBS}
   ${psapi_lib})
-
-if(NANO_STACKTRACE_BACKTRACE)
-  target_link_libraries(node backtrace)
-endif()
 
 target_compile_definitions(
   node PRIVATE -DTAG_VERSION_STRING=${TAG_VERSION_STRING}

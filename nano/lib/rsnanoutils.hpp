@@ -37,4 +37,37 @@ private:
 
 void read_block_array_dto (rsnano::BlockArrayDto & dto, std::vector<std::shared_ptr<nano::block>> & list_a);
 rsnano::BlockArrayDto to_block_array_dto (std::vector<std::shared_ptr<nano::block>> & list_a);
+
+class AtomicU64Wrapper
+{
+public:
+	AtomicU64Wrapper (uint64_t value_a) :
+		handle{ rsnano::rsn_atomic_u64_create (value_a) }
+	{
+	}
+	AtomicU64Wrapper (AtomicU64Wrapper const &) = delete;
+	AtomicU64Wrapper (AtomicU64Wrapper &&) = delete;
+	~AtomicU64Wrapper ()
+	{
+		rsnano::rsn_atomic_u64_destroy (handle);
+	}
+
+	uint64_t load ()
+	{
+		return rsnano::rsn_atomic_u64_load (handle);
+	}
+
+	void store (uint64_t value_a)
+	{
+		return rsnano::rsn_atomic_u64_store (handle, value_a);
+	}
+
+	void add (uint64_t value_a)
+	{
+		return rsnano::rsn_atomic_u64_add (handle, value_a);
+	}
+
+	rsnano::AtomicU64Handle * handle;
+};
+
 }

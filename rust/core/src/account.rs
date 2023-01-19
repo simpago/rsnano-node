@@ -38,6 +38,12 @@ impl Account {
     pub fn decode_account(source: impl AsRef<str>) -> Result<Account> {
         EncodedAccountStr(source.as_ref()).to_u512()?.to_account()
     }
+
+    pub fn to_node_id(&self) -> String {
+        let mut node_id = self.encode_account();
+        node_id.replace_range(0..4, "node");
+        node_id
+    }
 }
 
 struct EncodedAccountU512(U512);

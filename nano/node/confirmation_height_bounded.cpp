@@ -6,11 +6,10 @@
 #include <nano/secure/ledger.hpp>
 
 #include <boost/format.hpp>
-#include <boost/optional.hpp>
 
 #include <numeric>
 
-nano::confirmation_height_bounded::confirmation_height_bounded (nano::ledger & ledger_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, std::shared_ptr<nano::logger_mt> & logger_a, std::atomic<bool> & stopped_a, uint64_t & batch_write_size_a, std::function<void (std::vector<std::shared_ptr<nano::block>> const &)> const & notify_observers_callback_a, std::function<void (nano::block_hash const &)> const & notify_block_already_cemented_observers_callback_a, std::function<uint64_t ()> const & awaiting_processing_size_callback_a) :
+nano::confirmation_height_bounded::confirmation_height_bounded (nano::ledger & ledger_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, std::shared_ptr<nano::logger_mt> & logger_a, std::atomic<bool> & stopped_a, rsnano::AtomicU64Wrapper & batch_write_size_a, std::function<void (std::vector<std::shared_ptr<nano::block>> const &)> const & notify_observers_callback_a, std::function<void (nano::block_hash const &)> const & notify_block_already_cemented_observers_callback_a, std::function<uint64_t ()> const & awaiting_processing_size_callback_a) :
 	ledger (ledger_a),
 	write_database_queue (write_database_queue_a),
 	batch_separate_pending_min_time (batch_separate_pending_min_time_a),
@@ -189,7 +188,7 @@ void nano::confirmation_height_bounded::process (std::shared_ptr<nano::block> or
 				return total += write_details_a.top_height - write_details_a.bottom_height + 1;
 			});
 
-			auto max_batch_write_size_reached = (total_pending_write_block_count >= batch_write_size);
+			auto max_batch_write_size_reached = (total_pending_write_block_count >= batch_write_size.load ());
 			// When there are a lot of pending confirmation height blocks, it is more efficient to
 			// bulk some of them up to enable better write performance which becomes the bottleneck.
 			auto min_time_exceeded = (timer.since_start () >= batch_separate_pending_min_time);
@@ -365,7 +364,7 @@ void nano::confirmation_height_bounded::cement_blocks (nano::write_guard & scope
 	std::vector<std::shared_ptr<nano::block>> cemented_blocks;
 	auto const maximum_batch_write_time = 250; // milliseconds
 	auto const maximum_batch_write_time_increase_cutoff = maximum_batch_write_time - (maximum_batch_write_time / 5);
-	auto const amount_to_change = batch_write_size / 10; // 10%
+	auto const amount_to_change = batch_write_size.load () / 10; // 10%
 	auto const minimum_batch_write_size = 16384u;
 	nano::timer<> cemented_batch_timer;
 	auto error = false;
@@ -434,7 +433,7 @@ void nano::confirmation_height_bounded::cement_blocks (nano::write_guard & scope
 
 					// Flush these callbacks and continue as we write in batches (ideally maximum 250ms) to not hold write db transaction for too long.
 					// Include a tolerance to save having to potentially wait on the block processor if the number of blocks to cement is only a bit higher than the max.
-					if (cemented_blocks.size () > batch_write_size + (batch_write_size / 10))
+					if (cemented_blocks.size () > batch_write_size.load () + (batch_write_size.load () / 10))
 					{
 						auto time_spent_cementing = cemented_batch_timer.since_start ().count ();
 						auto num_blocks_cemented = num_blocks_iterated - total_blocks_cemented + 1;
@@ -450,12 +449,12 @@ void nano::confirmation_height_bounded::cement_blocks (nano::write_guard & scope
 						if (time_spent_cementing > maximum_batch_write_time)
 						{
 							// Reduce (unless we have hit a floor)
-							batch_write_size = std::max<uint64_t> (minimum_batch_write_size, batch_write_size - amount_to_change);
+							batch_write_size.store (std::max<uint64_t> (minimum_batch_write_size, batch_write_size.load () - amount_to_change));
 						}
 						else if (time_spent_cementing < maximum_batch_write_time_increase_cutoff)
 						{
 							// Increase amount of blocks written for next batch if the time for writing this one is sufficiently lower than the max time to warrant changing
-							batch_write_size += amount_to_change;
+							batch_write_size.add (amount_to_change);
 						}
 
 						scoped_write_guard_a.release ();
@@ -526,7 +525,7 @@ void nano::confirmation_height_bounded::cement_blocks (nano::write_guard & scope
 	if (time_spent_cementing > maximum_batch_write_time)
 	{
 		// Reduce (unless we have hit a floor)
-		batch_write_size = std::max<uint64_t> (minimum_batch_write_size, batch_write_size - amount_to_change);
+		batch_write_size.store (std::max<uint64_t> (minimum_batch_write_size, batch_write_size.load () - amount_to_change));
 	}
 
 	debug_assert (pending_writes.empty ());

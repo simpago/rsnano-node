@@ -52,7 +52,7 @@ add_library(
   utility.cpp
   working.hpp)
 
-target_link_libraries(secure nano_lib crypto_lib Boost::boost Boost::system
+target_link_libraries(secure nano_lib crypto_lib Boost::iostreams Boost::system
                       Boost::filesystem)
 
 target_compile_definitions(secure PUBLIC -DQT_NO_KEYWORDS

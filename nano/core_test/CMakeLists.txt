@@ -4,6 +4,7 @@ add_executable(
   fakes/websocket_client.hpp
   fakes/work_peer.hpp
   active_transactions.cpp
+  backlog.cpp
   block.cpp
   block_store.cpp
   blockprocessor.cpp
@@ -64,5 +65,4 @@ target_link_libraries(
   gtest
   libminiupnpc-static
   Boost::log_setup
-  Boost::log
-  Boost::boost)
+  Boost::log)

@@ -5,8 +5,6 @@
 #include <nano/node/common.hpp>
 #include <nano/node/node.hpp>
 
-#include <boost/format.hpp>
-
 #include <algorithm>
 #include <memory>
 
@@ -40,7 +38,7 @@ void nano::bootstrap_initiator::bootstrap (bool force, std::string id_a, uint32_
 	{
 		stop_attempts ();
 	}
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	if (!stopped && find_attempt (nano::bootstrap_mode::legacy) == nullptr)
 	{
 		node.stats->inc (nano::stat::type::bootstrap, frontiers_age_a == std::numeric_limits<uint32_t>::max () ? nano::stat::detail::initiate : nano::stat::detail::initiate_legacy_age, nano::stat::dir::out);
@@ -69,7 +67,7 @@ void nano::bootstrap_initiator::bootstrap (nano::endpoint const & endpoint_a, bo
 	{
 		stop_attempts ();
 		node.stats->inc (nano::stat::type::bootstrap, nano::stat::detail::initiate, nano::stat::dir::out);
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		auto legacy_attempt (std::make_shared<nano::bootstrap_attempt_legacy> (node.shared (), attempts.create_incremental_id (), id_a, std::numeric_limits<uint32_t>::max (), 0));
 		attempts_list.push_back (legacy_attempt);
 		attempts.add (legacy_attempt);
@@ -92,7 +90,7 @@ bool nano::bootstrap_initiator::bootstrap_lazy (nano::hash_or_account const & ha
 			stop_attempts ();
 		}
 		node.stats->inc (nano::stat::type::bootstrap, nano::stat::detail::initiate_lazy, nano::stat::dir::out);
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		if (!stopped && find_attempt (nano::bootstrap_mode::lazy) == nullptr)
 		{
 			lazy_attempt = std::make_shared<nano::bootstrap_attempt_lazy> (node.shared (), attempts.create_incremental_id (), id_a.empty () ? hash_or_account_a.to_string () : id_a);
@@ -116,7 +114,7 @@ void nano::bootstrap_initiator::bootstrap_wallet (std::deque<nano::account> & ac
 	node.stats->inc (nano::stat::type::bootstrap, nano::stat::detail::initiate_wallet_lazy, nano::stat::dir::out);
 	if (wallet_attempt == nullptr)
 	{
-		nano::lock_guard<nano::mutex> lock (mutex);
+		nano::lock_guard<nano::mutex> lock{ mutex };
 		std::string id (!accounts_a.empty () ? accounts_a[0].to_account () : "");
 		wallet_attempt = std::make_shared<nano::bootstrap_attempt_wallet> (node.shared (), attempts.create_incremental_id (), id);
 		attempts_list.push_back (wallet_attempt);
@@ -132,7 +130,7 @@ void nano::bootstrap_initiator::bootstrap_wallet (std::deque<nano::account> & ac
 
 void nano::bootstrap_initiator::run_bootstrap ()
 {
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	while (!stopped)
 	{
 		if (has_new_attempts ())
@@ -164,13 +162,13 @@ void nano::bootstrap_initiator::lazy_requeue (nano::block_hash const & hash_a, n
 
 bool nano::bootstrap_initiator::in_progress ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	return !attempts_list.empty ();
 }
 
 void nano::bootstrap_initiator::block_processed (nano::transaction const & tx, nano::process_return const & result, nano::block const & block)
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	for (auto & i : attempts_list)
 	{
 		i->block_processed (tx, result, block);
@@ -191,7 +189,7 @@ std::shared_ptr<nano::bootstrap_attempt> nano::bootstrap_initiator::find_attempt
 
 void nano::bootstrap_initiator::remove_attempt (std::shared_ptr<nano::bootstrap_attempt> attempt_a)
 {
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	auto attempt (std::find (attempts_list.begin (), attempts_list.end (), attempt_a));
 	if (attempt != attempts_list.end ())
 	{
@@ -235,25 +233,25 @@ bool nano::bootstrap_initiator::has_new_attempts ()
 
 std::shared_ptr<nano::bootstrap_attempt> nano::bootstrap_initiator::current_attempt ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	return find_attempt (nano::bootstrap_mode::legacy);
 }
 
 std::shared_ptr<nano::bootstrap_attempt_lazy> nano::bootstrap_initiator::current_lazy_attempt ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	return std::dynamic_pointer_cast<nano::bootstrap_attempt_lazy> (find_attempt (nano::bootstrap_mode::lazy));
 }
 
 std::shared_ptr<nano::bootstrap_attempt_wallet> nano::bootstrap_initiator::current_wallet_attempt ()
 {
-	nano::lock_guard<nano::mutex> lock (mutex);
+	nano::lock_guard<nano::mutex> lock{ mutex };
 	return std::dynamic_pointer_cast<nano::bootstrap_attempt_wallet> (find_attempt (nano::bootstrap_mode::wallet_lazy));
 }
 
 void nano::bootstrap_initiator::stop_attempts ()
 {
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	std::vector<std::shared_ptr<nano::bootstrap_attempt>> copy_attempts;
 	copy_attempts.swap (attempts_list);
 	attempts.clear ();
@@ -351,28 +349,28 @@ nano::bootstrap_attempts::~bootstrap_attempts () noexcept
 
 void nano::bootstrap_attempts::add (std::shared_ptr<nano::bootstrap_attempt> attempt_a)
 {
-	nano::lock_guard<nano::mutex> lock (bootstrap_attempts_mutex);
+	nano::lock_guard<nano::mutex> lock{ bootstrap_attempts_mutex };
 	attempts.emplace (attempt_a->get_incremental_id (), attempt_a);
 	//	rsnano::rsn_bootstrap_attempts_add (handle, attempt_a->handle);
 }
 
 void nano::bootstrap_attempts::remove (uint64_t incremental_id_a)
 {
-	nano::lock_guard<nano::mutex> lock (bootstrap_attempts_mutex);
+	nano::lock_guard<nano::mutex> lock{ bootstrap_attempts_mutex };
 	attempts.erase (incremental_id_a);
 	//	rsnano::rsn_bootstrap_attempts_remove (handle, incremental_id_a);
 }
 
 void nano::bootstrap_attempts::clear ()
 {
-	nano::lock_guard<nano::mutex> lock (bootstrap_attempts_mutex);
+	nano::lock_guard<nano::mutex> lock{ bootstrap_attempts_mutex };
 	attempts.clear ();
 	//	rsnano::rsn_bootstrap_attempts_clear (handle);
 }
 
 std::shared_ptr<nano::bootstrap_attempt> nano::bootstrap_attempts::find (uint64_t incremental_id_a)
 {
-	nano::lock_guard<nano::mutex> lock (bootstrap_attempts_mutex);
+	nano::lock_guard<nano::mutex> lock{ bootstrap_attempts_mutex };
 	auto find_attempt (attempts.find (incremental_id_a));
 	if (find_attempt != attempts.end ())
 	{
@@ -393,7 +391,7 @@ std::shared_ptr<nano::bootstrap_attempt> nano::bootstrap_attempts::find (uint64_
 }
 std::size_t nano::bootstrap_attempts::size ()
 {
-	nano::lock_guard<nano::mutex> lock (bootstrap_attempts_mutex);
+	nano::lock_guard<nano::mutex> lock{ bootstrap_attempts_mutex };
 	return attempts.size ();
 	//return rsnano::rsn_bootstrap_attempts_size (handle);
 }

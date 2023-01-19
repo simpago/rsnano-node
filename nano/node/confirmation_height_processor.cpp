@@ -9,8 +9,6 @@
 
 #include <boost/thread/latch.hpp>
 
-#include <numeric>
-
 nano::confirmation_height_processor::confirmation_height_processor (nano::ledger & ledger_a, nano::stat & stats_a, nano::write_database_queue & write_database_queue_a, std::chrono::milliseconds batch_separate_pending_min_time_a, nano::logging const & logging_a, std::shared_ptr<nano::logger_mt> & logger_a, boost::latch & latch, confirmation_height_mode mode_a) :
 	ledger (ledger_a),
 	write_database_queue (write_database_queue_a),
@@ -117,8 +115,7 @@ void nano::confirmation_height_processor::run (confirmation_height_mode mode_a)
 				{
 					debug_assert (bounded_processor.pending_empty ());
 					{
-						auto scoped_write_guard = write_database_queue.wait (nano::writer::confirmation_height);
-						unbounded_processor.cement_blocks (scoped_write_guard);
+						unbounded_processor.cement_blocks ();
 					}
 					lock_and_cleanup ();
 				}

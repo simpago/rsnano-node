@@ -2,7 +2,6 @@
 #include <nano/node/bootstrap/bootstrap_lazy.hpp>
 #include <nano/node/common.hpp>
 #include <nano/node/node.hpp>
-#include <nano/node/transport/tcp.hpp>
 
 #include <boost/format.hpp>
 
@@ -57,7 +56,7 @@ void nano::bootstrap_attempt_lazy::lazy_add (nano::hash_or_account const & hash_
 
 void nano::bootstrap_attempt_lazy::lazy_add (nano::pull_info const & pull_a)
 {
-	debug_assert (pull_a.account_or_head == pull_a.head);
+	debug_assert (pull_a.account_or_head.as_block_hash () == pull_a.head);
 	auto lock{ rsnano::rsn_bootstrap_attempt_lock (handle) };
 	lazy_add (pull_a.account_or_head, pull_a.retry_limit);
 	rsnano::rsn_bootstrap_attempt_unlock (lock);

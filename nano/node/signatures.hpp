@@ -6,7 +6,6 @@
 
 #include <atomic>
 #include <future>
-#include <mutex>
 
 namespace nano
 {

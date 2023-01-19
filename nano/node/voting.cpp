@@ -155,7 +155,7 @@ void nano::vote_generator::process (nano::write_transaction const & transaction,
 	}
 	if (should_vote)
 	{
-		nano::unique_lock<nano::mutex> lock (mutex);
+		nano::unique_lock<nano::mutex> lock{ mutex };
 		candidates.emplace_back (root_a, hash_a);
 		if (candidates.size () >= nano::network::confirm_ack_hashes_max)
 		{
@@ -177,7 +177,7 @@ void nano::vote_generator::stop ()
 {
 	vote_generation_queue.stop ();
 
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	stopped = true;
 
 	lock.unlock ();
@@ -218,7 +218,7 @@ std::size_t nano::vote_generator::generate (std::vector<std::shared_ptr<nano::bl
 		nano::transform_if (blocks_a.begin (), blocks_a.end (), std::back_inserter (req_candidates), dependents_confirmed, as_candidate);
 	}
 	auto const result = req_candidates.size ();
-	nano::lock_guard<nano::mutex> guard (mutex);
+	nano::lock_guard<nano::mutex> guard{ mutex };
 	requests.emplace_back (std::move (req_candidates), channel_a);
 	while (requests.size () > max_requests)
 	{
@@ -334,7 +334,7 @@ void nano::vote_generator::vote (std::vector<nano::block_hash> const & hashes_a,
 void nano::vote_generator::run ()
 {
 	nano::thread_role::set (nano::thread_role::name::voting);
-	nano::unique_lock<nano::mutex> lock (mutex);
+	nano::unique_lock<nano::mutex> lock{ mutex };
 	while (!stopped)
 	{
 		if (candidates.size () >= nano::network::confirm_ack_hashes_max)
@@ -367,7 +367,7 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (na
 	std::size_t candidates_count = 0;
 	std::size_t requests_count = 0;
 	{
-		nano::lock_guard<nano::mutex> guard (vote_generator.mutex);
+		nano::lock_guard<nano::mutex> guard{ vote_generator.mutex };
 		candidates_count = vote_generator.candidates.size ();
 		requests_count = vote_generator.requests.size ();
 	}

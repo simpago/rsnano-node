@@ -1,6 +1,7 @@
 #include <nano/lib/logger_mt.hpp>
 #include <nano/lib/rsnano.hpp>
 #include <nano/node/common.hpp>
+#include <nano/node/node.hpp>
 #include <nano/node/transport/inproc.hpp>
 #include <nano/node/transport/transport.hpp>
 
@@ -8,8 +9,6 @@
 #include <boost/asio/ip/address_v4.hpp>
 #include <boost/asio/ip/address_v6.hpp>
 #include <boost/format.hpp>
-
-#include <numeric>
 
 nano::endpoint nano::transport::map_endpoint_to_v6 (nano::endpoint const & endpoint_a)
 {

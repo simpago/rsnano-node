@@ -7,7 +7,7 @@ use std::{
 use crate::{
     utils::FfiStream,
     voting::{VoteHandle, VoteUniquerHandle},
-    NetworkConstantsDto,
+    NetworkConstantsDto, StringDto,
 };
 use rsnano_node::{
     config::NetworkConstants,
@@ -91,4 +91,12 @@ pub unsafe extern "C" fn rsn_message_confirm_ack_serialize(
     downcast_message::<ConfirmAck>(handle)
         .serialize(&mut stream)
         .is_ok()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_message_confirm_ack_to_string(
+    handle: *mut MessageHandle,
+    result: *mut StringDto,
+) {
+    (*result) = downcast_message::<ConfirmAck>(handle).to_string().into();
 }
