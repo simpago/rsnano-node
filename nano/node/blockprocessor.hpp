@@ -15,24 +15,6 @@ class read_transaction;
 class transaction;
 class write_transaction;
 class write_database_queue;
-class node_config;
-class ledger;
-class node_flags;
-class network;
-class stat;
-class local_vote_history;
-class active_transactions;
-class election_scheduler;
-class block_arrival;
-class unchecked_map;
-class gap_cache;
-class bootstrap_initiator;
-class vote_cache;
-
-namespace websocket
-{
-	class listener;
-}
 
 enum class block_origin
 {
@@ -43,12 +25,12 @@ enum class block_origin
 class block_post_events final
 {
 public:
-	explicit block_post_events (std::function<std::unique_ptr<nano::read_transaction> ()> &&);
+	explicit block_post_events (std::function<nano::read_transaction ()> &&);
 	~block_post_events ();
 	std::deque<std::function<void (nano::read_transaction const &)>> events;
 
 private:
-	std::function<std::unique_ptr<nano::read_transaction> ()> get_transaction;
+	std::function<nano::read_transaction ()> get_transaction;
 };
 
 /**
@@ -59,9 +41,6 @@ class block_processor final
 {
 public:
 	explicit block_processor (nano::node &, nano::write_database_queue &);
-	block_processor (nano::block_processor const &) = delete;
-	block_processor (nano::block_processor &&) = delete;
-	~block_processor ();
 	void stop ();
 	void flush ();
 	std::size_t size ();
@@ -81,7 +60,6 @@ public:
 	std::atomic<bool> flushing{ false };
 	// Delay required for average network propagartion before requesting confirmation
 	static std::chrono::milliseconds constexpr confirmation_request_delay{ 1500 };
-	rsnano::BlockProcessorHandle const * get_handle () const;
 	nano::observer_set<nano::transaction const &, nano::process_return const &, nano::block const &> processed;
 
 private:
@@ -97,31 +75,10 @@ private:
 	std::deque<nano::unchecked_info> blocks;
 	std::deque<std::shared_ptr<nano::block>> forced;
 	nano::condition_variable condition;
-
-	nano::logger_mt & logger;
-	nano::signature_checker & checker;
-	nano::node_config & config;
-	nano::state_block_signature_verification state_block_signature_verification;
-	nano::network_params & network_params;
-	nano::local_vote_history & history;
-	nano::block_arrival & block_arrival;
-
-	rsnano::BlockProcessorHandle * handle;
-
-	nano::ledger & ledger;
-	nano::node_flags & flags;
-	nano::network & network; // not yet ported to Rust
-	nano::store & store;
-	nano::stat & stats;
-	nano::active_transactions & active_transactions; // not yet ported to Rust
-	nano::vote_cache & inactive_vote_cache; // not yet ported to Rust
-	nano::election_scheduler & scheduler; // not yet ported to Rust
-	std::shared_ptr<nano::websocket::listener> & websocket_server; // not yet ported to Rust
-	nano::unchecked_map & unchecked; // not yet ported to Rust
-	nano::gap_cache & gap_cache; // not yet ported to Rust
-	nano::bootstrap_initiator & bootstrap_initiator; // not yet ported to Rust
+	nano::node & node;
 	nano::write_database_queue & write_database_queue;
 	nano::mutex mutex{ mutex_identifier (mutexes::block_processor) };
+	nano::state_block_signature_verification state_block_signature_verification;
 	std::thread processing_thread;
 
 	friend std::unique_ptr<container_info_component> collect_container_info (block_processor & block_processor, std::string const & name);
