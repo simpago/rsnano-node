@@ -222,10 +222,7 @@ pub unsafe extern "C" fn rsn_conf_iterated_pair_size() -> usize {
 pub unsafe extern "C" fn rsn_conf_height_unbounded_implicit_receive_cemented_mapping_size(
     handle: *mut ConfirmationHeightUnboundedHandle,
 ) -> usize {
-    (*handle)
-        .0
-        .implicit_receive_cemented_mapping_size
-        .load(Ordering::Relaxed)
+    (*handle).0.implicit_receive_cemented_mapping_size()
 }
 
 #[no_mangle]

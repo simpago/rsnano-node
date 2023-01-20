@@ -40,7 +40,7 @@ impl CementQueue {
         self.pending_writes.len()
     }
 
-    pub fn total_block_count(&self) -> u64 {
+    pub fn total_cemented_blocks(&self) -> u64 {
         self.pending_writes
             .iter()
             .map(|x| x.num_blocks_confirmed)

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{atomic::Ordering, Arc, Mutex},
+    sync::{atomic::Ordering, Arc},
     time::{Duration, Instant},
 };
 
@@ -26,7 +26,6 @@ pub(crate) struct BlockCementor {
     logging: Logging,
     stats: Arc<Stat>,
     notify_observers_callback: Box<dyn Fn(&Vec<Arc<BlockEnum>>)>,
-    block_cache: Mutex<HashMap<BlockHash, Arc<BlockEnum>>>,
 }
 
 impl BlockCementor {
@@ -49,7 +48,6 @@ impl BlockCementor {
             logging,
             stats,
             notify_observers_callback,
-            block_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -66,20 +64,25 @@ impl BlockCementor {
         cement_queue: &mut CementQueue,
         block_cache: &HashMap<BlockHash, Arc<BlockEnum>>,
     ) {
-        let write_guard = self.write_database_queue.wait(Writer::ConfirmationHeight);
-        self.batch_start = Instant::now();
         let mut cemented_blocks = Vec::new();
-        let mut txn = self
-            .ledger
-            .store
-            .tx_begin_write_for(&[Table::ConfirmationHeight])
-            .unwrap();
+        {
+            let _write_guard = self.write_database_queue.wait(Writer::ConfirmationHeight);
+            self.batch_start = Instant::now();
+            let mut txn = self
+                .ledger
+                .store
+                .tx_begin_write_for(&[Table::ConfirmationHeight])
+                .unwrap();
 
-        while let Some(pending) = cement_queue.pop() {
-            self.process_pending_entry(txn.as_mut(), pending, block_cache, &mut cemented_blocks);
+            while let Some(pending) = cement_queue.pop() {
+                self.process_pending_entry(
+                    txn.as_mut(),
+                    pending,
+                    block_cache,
+                    &mut cemented_blocks,
+                );
+            }
         }
-        drop(txn);
-        drop(write_guard);
 
         self.log_cemented_count(&cemented_blocks);
         (self.notify_observers_callback)(&cemented_blocks);
@@ -112,12 +115,12 @@ impl BlockCementor {
             return;
         }
 
-        match self.check_block_exists(txn.txn(), &pending.hash) {
+        match self.check_block_exists(txn.txn(), &pending.latest_confirmed_block) {
             BlockResult::BlockExists => {}
             BlockResult::BlockWasPruned => {}
             BlockResult::BlockNotFound => panic!(
                 "Failed to write confirmation height for block {}",
-                pending.hash
+                pending.latest_confirmed_block
             ),
         }
 
@@ -163,7 +166,10 @@ impl BlockCementor {
         self.ledger.store.confirmation_height().put(
             txn,
             &conf_height.account,
-            &ConfirmationHeightInfo::new(conf_height.new_height, conf_height.hash),
+            &ConfirmationHeightInfo::new(
+                conf_height.new_height,
+                conf_height.latest_confirmed_block,
+            ),
         );
 
         self.ledger
