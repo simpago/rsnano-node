@@ -114,7 +114,7 @@ pub unsafe extern "C" fn rsn_online_reps_list(
     result: *mut U256ArrayDto,
 ) {
     let accounts = (*handle).online_reps.lock().unwrap().list();
-    let data = Box::new(accounts.iter().map(|a| *a.as_bytes()).collect());
+    let data = accounts.iter().map(|a| *a.as_bytes()).collect();
     (*result).initialize(data);
 }
 

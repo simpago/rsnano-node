@@ -38,7 +38,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_get_wallet_ids(
     result: *mut U256ArrayDto,
 ) {
     let wallet_ids = (*handle).0.get_wallet_ids((*txn).as_txn());
-    let data = Box::new(wallet_ids.iter().map(|i| *i.as_bytes()).collect());
+    let data = wallet_ids.iter().map(|i| *i.as_bytes()).collect();
     (*result).initialize(data)
 }
 

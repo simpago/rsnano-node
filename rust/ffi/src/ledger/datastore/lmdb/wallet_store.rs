@@ -322,7 +322,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_accounts(
     result: *mut U256ArrayDto,
 ) {
     let accounts = (*handle).0.accounts((*txn).as_txn());
-    let data = Box::new(accounts.iter().map(|a| *a.as_bytes()).collect());
+    let data = accounts.iter().map(|a| *a.as_bytes()).collect();
     (*result).initialize(data);
 }
 

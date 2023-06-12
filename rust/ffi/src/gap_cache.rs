@@ -93,7 +93,7 @@ pub unsafe extern "C" fn rsn_gap_cache_bootstrap_check(
 
     (*handle)
         .0
-        .bootstrap_check(&voters.into_iter().collect(), &BlockHash::from_ptr(hash))
+        .bootstrap_check(&voters, &BlockHash::from_ptr(hash))
 }
 
 #[no_mangle]

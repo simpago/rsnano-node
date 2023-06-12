@@ -154,7 +154,7 @@ pub unsafe extern "C" fn rsn_callback_is_sanitizer_build(
     IS_SANITIZER_BUILD = f;
 }
 
-pub struct U256ArrayHandle(Box<Vec<[u8; 32]>>);
+pub struct U256ArrayHandle(Vec<[u8; 32]>);
 
 #[repr(C)]
 pub struct U256ArrayDto {
@@ -164,7 +164,7 @@ pub struct U256ArrayDto {
 }
 
 impl U256ArrayDto {
-    pub fn initialize(&mut self, values: Box<Vec<[u8; 32]>>) {
+    pub fn initialize(&mut self, values: Vec<[u8; 32]>) {
         self.items = values.as_ptr();
         self.count = values.len();
         self.handle = Box::into_raw(Box::new(U256ArrayHandle(values)))

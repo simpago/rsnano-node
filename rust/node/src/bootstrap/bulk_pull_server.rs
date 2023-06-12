@@ -68,11 +68,13 @@ impl BulkPullServerImpl {
             self.request.end = BlockHash::zero();
         }
 
-        if {
-            let ref this = self.ledger.store.block;
+        let raw_block_exists = {
+            let this = &self.ledger.store.block;
             let hash = &self.request.start.into();
             this.block_raw_get(&transaction, hash).is_some()
-        } {
+        };
+
+        if raw_block_exists {
             if self.enable_logging {
                 self.logger.try_log(&format!(
                     "Bulk pull request for block hash: {}",
@@ -90,41 +92,39 @@ impl BulkPullServerImpl {
                 self.request.start.into()
             };
             self.include_start = true;
-        } else {
-            if let Some(info) = self
-                .ledger
-                .account_info(&transaction, &self.request.start.into())
-            {
-                self.current = if self.ascending() {
-                    info.open_block
-                } else {
-                    info.head
-                };
-                if !self.request.end.is_zero() {
-                    let account = self
-                        .ledger
-                        .account(&transaction, &self.request.end)
-                        .unwrap_or_default();
-                    if account != self.request.start.into() {
-                        if self.enable_logging {
-                            self.logger.try_log(&format!(
-                                "Request for block that is not on account chain: {} not on {}",
-                                self.request.end,
-                                Account::from(self.request.start).encode_account()
-                            ));
-                        }
-                        self.current = self.request.end;
-                    }
-                }
+        } else if let Some(info) = self
+            .ledger
+            .account_info(&transaction, &self.request.start.into())
+        {
+            self.current = if self.ascending() {
+                info.open_block
             } else {
-                if self.enable_logging {
-                    self.logger.try_log(&format!(
-                        "Request for unknown account: {}",
-                        Account::from(self.request.start).encode_account()
-                    ));
+                info.head
+            };
+            if !self.request.end.is_zero() {
+                let account = self
+                    .ledger
+                    .account(&transaction, &self.request.end)
+                    .unwrap_or_default();
+                if account != self.request.start.into() {
+                    if self.enable_logging {
+                        self.logger.try_log(&format!(
+                            "Request for block that is not on account chain: {} not on {}",
+                            self.request.end,
+                            Account::from(self.request.start).encode_account()
+                        ));
+                    }
+                    self.current = self.request.end;
                 }
-                self.current = self.request.end;
             }
+        } else {
+            if self.enable_logging {
+                self.logger.try_log(&format!(
+                    "Request for unknown account: {}",
+                    Account::from(self.request.start).encode_account()
+                ));
+            }
+            self.current = self.request.end;
         }
 
         self.sent_count = 0;
@@ -219,10 +219,8 @@ impl BulkPullServerImpl {
                 let guard = server_impl.lock().unwrap();
                 if ec.is_ok() {
                     guard.connection.start();
-                } else {
-                    if guard.enable_logging {
-                        guard.logger.try_log("Unable to send not-a-block");
-                    }
+                } else if guard.enable_logging {
+                    guard.logger.try_log("Unable to send not-a-block");
                 }
             })),
             crate::transport::TrafficType::Generic,
@@ -261,11 +259,9 @@ impl BulkPullServerImpl {
                 let impl_clone = server_impl.clone();
                 server_impl.lock().unwrap().send_next(impl_clone);
             }));
-        } else {
-            if self.enable_logging {
-                self.logger
-                    .try_log(&format!("Unable to bulk send block: {:?}", ec));
-            }
+        } else if self.enable_logging {
+            self.logger
+                .try_log(&format!("Unable to bulk send block: {:?}", ec));
         }
     }
 }
