@@ -1,9 +1,14 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
+    fmt::Debug,
     mem::size_of,
-    sync::{Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex, OnceLock,
+    },
 };
 
+use multi_index_map::MultiIndexMap;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
     Account, BlockHash,
@@ -25,9 +30,11 @@ impl Config {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(MultiIndexMap, Default, Debug, Clone)]
 pub struct CacheEntry {
+    #[multi_index(ordered_unique)]
     id: usize,
+    #[multi_index(hashed_unique)]
     hash: BlockHash,
     voters: Vec<(Account, u64)>,
     tally: u128,
@@ -37,8 +44,9 @@ impl CacheEntry {
     const MAX_VOTERS: usize = 40;
 
     pub fn new(hash: BlockHash) -> Self {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         CacheEntry {
-            id: 0,
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             hash,
             voters: vec![],
             tally: 0,
@@ -76,176 +84,52 @@ impl CacheEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(MultiIndexMap, Debug, Clone)]
 pub struct QueueEntry {
+    #[multi_index(ordered_unique)]
     id: usize,
+    #[multi_index(hashed_unique)]
     hash: BlockHash,
+    #[multi_index(ordered_non_unique)]
     tally: u128,
 }
 
 impl QueueEntry {
     pub fn new(hash: BlockHash, tally: u128) -> Self {
-        QueueEntry { id: 0, hash, tally }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct CacheEntryContainer {
-    next_id: usize,
-    by_id: BTreeMap<usize, CacheEntry>,
-    by_hash: BTreeMap<BlockHash, usize>,
-}
-
-impl CacheEntryContainer {
-    fn new() -> Self {
-        Self {
-            next_id: 0,
-            by_id: BTreeMap::new(),
-            by_hash: BTreeMap::new(),
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+        QueueEntry {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+            hash,
+            tally,
         }
     }
+}
 
+impl MultiIndexCacheEntryMap {
     fn pop_front(&mut self) -> Option<CacheEntry> {
-        let (_id, entry) = self.by_id.pop_first()?;
-        self.remove(&entry);
+        let entry = self.iter_by_id().next()?.clone();
+        self.remove_by_id(&entry.id);
         Some(entry)
     }
-
-    fn len(&self) -> usize {
-        self.by_id.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn size_of_element() -> usize {
-        size_of::<Self>()
-    }
-
-    fn create_id(&mut self) -> usize {
-        let id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1);
-        id
-    }
-
-    pub fn insert(&mut self, mut entry: CacheEntry) -> bool {
-        entry.id = self.create_id();
-
-        self.by_id.insert(entry.id, entry.clone());
-        self.by_hash.insert(entry.hash, entry.id);
-
-        true
-    }
-
-    fn remove(&mut self, entry: &CacheEntry) -> bool {
-        let result = self.by_id.remove(&entry.id).is_some();
-        self.by_hash.remove(&entry.hash);
-
-        result
-    }
 }
 
-#[derive(Default, Clone, Debug)]
-struct QueueEntryContainer {
-    next_id: usize,
-    by_id: BTreeMap<usize, QueueEntry>,
-    by_tally: BTreeMap<u128, Vec<usize>>,
-    by_hash: BTreeMap<BlockHash, usize>,
-}
-
-impl QueueEntryContainer {
-    fn new() -> Self {
-        Self {
-            next_id: 0,
-            by_id: BTreeMap::new(),
-            by_tally: BTreeMap::new(),
-            by_hash: BTreeMap::new(),
-        }
-    }
-
-    fn by_hash(&self, hash: &BlockHash) -> Option<&QueueEntry> {
-        let id = self.by_hash.get(hash)?;
-        self.by_id.get(id)
-    }
-
-    fn by_tally_last_entry(&self) -> Option<&QueueEntry> {
-        let (_, key) = self.by_tally.last_key_value()?;
-        self.by_id.get(key.last()?)
-    }
-
-    fn by_tally_erase(&mut self, entry: &QueueEntry) {
-        self.by_id.remove(&entry.id);
-        self.by_hash.remove(&entry.hash);
-
-        if let Some(by_tally) = self.by_tally.get_mut(&entry.tally) {
-            // if by_tally only has one element left, remove key
-            match by_tally.len() {
-                1 => {
-                    self.by_tally.remove(&entry.tally);
-                }
-                _ => {
-                    by_tally.retain(|id| *id != entry.id);
-                }
-            }
-        }
-    }
-
+impl MultiIndexQueueEntryMap {
     fn pop_front(&mut self) -> Option<QueueEntry> {
-        let (_id, entry) = self.by_id.pop_first()?;
-        self.remove(&entry);
+        let entry = self.iter_by_id().next()?.clone();
+        self.remove_by_id(&entry.id);
         Some(entry)
     }
+}
 
-    fn len(&self) -> usize {
-        self.by_id.len()
+impl Debug for MultiIndexCacheEntryMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MultiIndexCacheEntryMap").finish()
     }
+}
 
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn size_of_element() -> usize {
-        size_of::<Self>()
-    }
-
-    fn create_id(&mut self) -> usize {
-        let id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1);
-        id
-    }
-
-    pub fn insert(&mut self, mut entry: QueueEntry) -> bool {
-        entry.id = self.create_id();
-
-        self.by_id.insert(entry.id, entry.clone());
-        self.by_hash.insert(entry.hash, entry.id);
-        match self.by_tally.get_mut(&entry.tally) {
-            None => {
-                self.by_tally.insert(entry.tally, vec![entry.id]);
-            }
-            Some(by_tally_entry) => {
-                by_tally_entry.push(entry.id);
-            }
-        }
-        self.next_id = self.next_id.wrapping_add(1);
-
-        true
-    }
-
-    pub fn remove(&mut self, entry: &QueueEntry) -> bool {
-        let result = self.by_id.remove(&entry.id).is_some();
-
-        self.by_hash.remove(&entry.hash);
-        if let Some(ids) = self.by_tally.get_mut(&entry.tally) {
-            if ids.len() == 1 {
-                self.by_tally.remove(&entry.tally);
-            } else {
-                ids.retain(|id| *id != entry.id);
-            }
-        }
-
-        result
+impl Debug for MultiIndexQueueEntryMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MultiIndexQueueEntryMap").finish()
     }
 }
 
@@ -253,16 +137,16 @@ impl QueueEntryContainer {
 
 pub struct VoteCache {
     max_size: usize,
-    cache: CacheEntryContainer,
-    queue: QueueEntryContainer,
+    cache: MultiIndexCacheEntryMap,
+    queue: MultiIndexQueueEntryMap,
 }
 
 impl VoteCache {
     pub fn new(config: Config) -> Self {
         VoteCache {
             max_size: config.max_size,
-            cache: CacheEntryContainer::new(),
-            queue: QueueEntryContainer::new(),
+            cache: MultiIndexCacheEntryMap::default(),
+            queue: MultiIndexQueueEntryMap::default(),
         }
     }
 
@@ -286,27 +170,8 @@ impl VoteCache {
     }
 
     pub fn remove(&mut self, hash: &BlockHash) -> bool {
-        let mut result = false;
-        if let Some(existing) = self
-            .cache
-            .by_hash
-            .get(hash)
-            .map(|id| self.cache.by_id.get(id).unwrap().clone())
-        {
-            self.cache.remove(&existing);
-            result = true;
-        }
-
-        if let Some(existing) = self
-            .queue
-            .by_hash
-            .get(hash)
-            .map(|id| self.queue.by_id.get(id).unwrap().clone())
-        {
-            self.queue.remove(&existing);
-            result = true;
-        }
-
+        let result = self.cache.remove_by_hash(hash).is_some();
+        self.queue.remove_by_hash(hash);
         result
     }
 
@@ -315,8 +180,7 @@ impl VoteCache {
             return None;
         }
 
-        let (_, ids) = self.queue.by_tally.last_key_value()?; // element with the highest tally;
-        let top = self.queue.by_id.get(ids.last().unwrap())?;
+        let top = self.queue.iter_by_tally().last()?;
         let cache_entry = self.find_locked(&top.hash)?;
 
         match cache_entry.tally >= min_tally.unwrap_or(0) {
@@ -330,19 +194,18 @@ impl VoteCache {
             return None;
         };
 
-        let (_, ids) = self.queue.by_tally.last_key_value()?;
-        let top = self.queue.by_id.get(ids.last().unwrap())?.clone();
+        let top = self.queue.iter_by_tally().last()?.clone();
         let cache_entry = self.find_locked(&top.hash)?.to_owned();
         if cache_entry.tally < min_tally.unwrap_or_default() {
             return None;
         }
 
-        self.queue.by_tally_erase(&top);
+        self.queue.remove_by_id(&top.id);
         Some(cache_entry)
     }
 
     pub fn trigger(&mut self, hash: &BlockHash) {
-        if self.queue.by_hash(hash).is_some() {
+        if self.queue.get_by_hash(hash).is_some() {
             if let Some(existing_cache_entry) = self.find_locked(hash) {
                 self.queue
                     .insert(QueueEntry::new(*hash, existing_cache_entry.tally));
@@ -372,12 +235,12 @@ impl VoteCache {
             ContainerInfoComponent::Leaf(ContainerInfo {
                 name: "cache".to_owned(),
                 count: self.cache_size(),
-                sizeof_element: CacheEntryContainer::size_of_element(),
+                sizeof_element: size_of::<MultiIndexCacheEntryMap>(),
             }),
             ContainerInfoComponent::Leaf(ContainerInfo {
                 name: "queue".to_owned(),
                 count: self.queue_size(),
-                sizeof_element: QueueEntryContainer::size_of_element(),
+                sizeof_element: size_of::<MultiIndexQueueEntryMap>(),
             }),
         ];
 
@@ -402,50 +265,25 @@ impl VoteCache {
          * If there is no cache entry for the block hash, create a new entry for both cache and queue.
          * Otherwise update existing cache entry and, if queue contains entry for the block hash, update the queue entry
          */
-        // auto & cache_by_hash = cache.get<tag_hash> ();
-        if let Some(existing) = self
+        let cache_entry_exists = self
             .cache
-            .by_hash
-            .get(hash)
-            .map(|id| self.cache.by_id.get_mut(id).unwrap())
-        {
-            existing.vote(representative, timestamp, rep_weight);
+            .modify_by_hash(hash, |existing| {
+                existing.vote(representative, timestamp, rep_weight);
 
-            if let Some(ent) = self
-                .queue
-                .by_hash
-                .get(hash)
-                .map(|id| self.queue.by_id.get_mut(id).unwrap())
-            {
-                let by_tally_ids = self.queue.by_tally.get_mut(&ent.tally).unwrap();
-                // if only one id is left -> remove key entriely
-                if by_tally_ids.len() == 1 {
-                    self.queue.by_tally.remove(&ent.tally);
-                } else {
-                    // else filter out all other ids
-                    by_tally_ids.retain(|id| *id != ent.id);
-                }
+                self.queue
+                    .modify_by_hash(hash, |ent| ent.tally = existing.tally);
+            })
+            .is_some();
 
-                ent.tally = existing.tally;
-                match self.queue.by_tally.get_mut(&ent.tally) {
-                    Some(by_tally_ids) => {
-                        by_tally_ids.insert(0, ent.id);
-                    }
-                    None => {
-                        self.queue.by_tally.insert(ent.tally, vec![ent.id]);
-                    }
-                }
-            }
-        } else {
+        if !cache_entry_exists {
             let mut cache_entry = CacheEntry::new(*hash);
             cache_entry.vote(representative, timestamp, rep_weight);
 
             let queue_entry = QueueEntry::new(*hash, cache_entry.tally);
             self.cache.insert(cache_entry);
 
-            if let Some(queue_existing) = self.queue.clone().by_hash(hash) {
-                self.queue.remove(queue_existing);
-            }
+            // If a stale entry for the same hash already exists in queue, replace it by a new entry with fresh tally
+            self.queue.remove_by_hash(hash);
             self.queue.insert(queue_entry);
 
             self.trim_overflow_locked();
@@ -453,8 +291,7 @@ impl VoteCache {
     }
 
     fn find_locked(&self, hash: &BlockHash) -> Option<&CacheEntry> {
-        let id = self.cache.by_hash.get(hash)?;
-        self.cache.by_id.get(id)
+        self.cache.get_by_hash(hash)
     }
 
     fn trim_overflow_locked(&mut self) {
