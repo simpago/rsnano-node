@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! u256_struct {
     ($name:ident) => {
-        #[derive(PartialEq, Eq, Clone, Copy, Hash, Default, Debug, PartialOrd, Ord)]
+        #[derive(PartialEq, Eq, Clone, Copy, Hash, Default, PartialOrd, Ord)]
         pub struct $name([u8; 32]);
 
         #[allow(dead_code)]
@@ -104,6 +104,12 @@ macro_rules! u256_struct {
                 let mut key = Self::zero();
                 value.to_big_endian(&mut key.0);
                 key
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                $crate::write_hex_bytes(&self.0, f)
             }
         }
 
