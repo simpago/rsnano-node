@@ -76,7 +76,7 @@ impl CacheEntry {
         false
     }
 
-    // FIXME: depends on nano::election -> port first
+    // TODO: depends on nano::election -> integrate with CPP code and port later
     // pub fn fill()
 
     pub fn size(&self) -> usize {
@@ -166,7 +166,7 @@ impl VoteCache {
     }
 
     pub fn find(&self, hash: &BlockHash) -> Option<&CacheEntry> {
-        self.find_locked(hash)
+        self.cache.get_by_hash(hash)
     }
 
     pub fn remove(&mut self, hash: &BlockHash) -> bool {
@@ -181,7 +181,7 @@ impl VoteCache {
         }
 
         let top = self.queue.iter_by_tally().last()?;
-        let cache_entry = self.find_locked(&top.hash)?;
+        let cache_entry = self.find(&top.hash)?;
 
         match cache_entry.tally >= min_tally.unwrap_or(0) {
             true => Some(cache_entry),
@@ -195,7 +195,7 @@ impl VoteCache {
         };
 
         let top = self.queue.iter_by_tally().last()?.clone();
-        let cache_entry = self.find_locked(&top.hash)?.to_owned();
+        let cache_entry = self.find(&top.hash)?.to_owned();
         if cache_entry.tally < min_tally.unwrap_or_default() {
             return None;
         }
@@ -206,7 +206,7 @@ impl VoteCache {
 
     pub fn trigger(&mut self, hash: &BlockHash) {
         if self.queue.get_by_hash(hash).is_some() {
-            if let Some(existing_cache_entry) = self.find_locked(hash) {
+            if let Some(existing_cache_entry) = self.find(hash) {
                 self.queue
                     .insert(QueueEntry::new(*hash, existing_cache_entry.tally));
                 self.trim_overflow_locked();
@@ -235,12 +235,12 @@ impl VoteCache {
             ContainerInfoComponent::Leaf(ContainerInfo {
                 name: "cache".to_owned(),
                 count: self.cache_size(),
-                sizeof_element: size_of::<MultiIndexCacheEntryMap>(),
+                sizeof_element: size_of::<MultiIndexCacheEntryMap>(), // TODO: add fn size_of_element (&self) to MultiIndexCacheEntryMap
             }),
             ContainerInfoComponent::Leaf(ContainerInfo {
                 name: "queue".to_owned(),
                 count: self.queue_size(),
-                sizeof_element: size_of::<MultiIndexQueueEntryMap>(),
+                sizeof_element: size_of::<MultiIndexQueueEntryMap>(), // TODO: add fn size_of_element (&self) to MultiIndexQueueEntryMap
             }),
         ];
 
@@ -290,10 +290,6 @@ impl VoteCache {
         }
     }
 
-    fn find_locked(&self, hash: &BlockHash) -> Option<&CacheEntry> {
-        self.cache.get_by_hash(hash)
-    }
-
     fn trim_overflow_locked(&mut self) {
         // When cache overflown remove the oldest entry
         if self.cache.len() > self.max_size {
@@ -309,6 +305,8 @@ impl VoteCache {
 #[cfg(test)]
 mod tests {
     use rsnano_core::KeyPair;
+
+    use crate::voting::{DURATION_MAX, TIMESTAMP_MAX};
 
     use super::*;
 
@@ -502,9 +500,6 @@ mod tests {
         let vote1 = create_vote(&rep1, &hash1, 1);
         vote(&mut cache, &vote1);
         let peek1 = peek(&cache).clone();
-
-        const DURATION_MAX: u8 = 0x0F;
-        const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
 
         let vote2 = Vote::new(
             rep1.public_key(),

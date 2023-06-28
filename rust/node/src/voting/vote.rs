@@ -170,9 +170,9 @@ impl FullHash for Vote {
     }
 }
 
-const DURATION_MAX: u8 = 0x0F;
-const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
-const TIMESTAMP_MASK: u64 = 0xFFFF_FFFF_FFFF_FFF0;
+pub const DURATION_MAX: u8 = 0x0F;
+pub const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
+pub const TIMESTAMP_MASK: u64 = 0xFFFF_FFFF_FFFF_FFF0;
 
 fn packed_timestamp(timestamp: u64, duration: u8) -> u64 {
     debug_assert!(duration <= DURATION_MAX);
