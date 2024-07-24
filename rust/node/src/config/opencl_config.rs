@@ -20,6 +20,28 @@ impl OpenclConfig {
         toml.put_u32("threads", self.threads, "OpenCL thread count")?;
         Ok(())
     }
+
+    pub fn deserialize_toml(&mut self, table: &toml::value::Table) -> Result<()> {
+        if let Some(platform) = table
+            .get("platform")
+            .and_then(|v| v.as_integer().map(|v| v as u32))
+        {
+            self.platform = platform;
+        }
+        if let Some(device) = table
+            .get("device")
+            .and_then(|v| v.as_integer().map(|v| v as u32))
+        {
+            self.device = device;
+        }
+        if let Some(threads) = table
+            .get("threads")
+            .and_then(|v| v.as_integer().map(|v| v as u32))
+        {
+            self.threads = threads;
+        }
+        Ok(())
+    }
 }
 
 impl Default for OpenclConfig {

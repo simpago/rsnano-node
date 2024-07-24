@@ -5,7 +5,7 @@ use rsnano_core::utils::TomlWriter;
 use serde::Deserialize;
 use toml::Value;
 
-//#[derive(Deserialize)]
+#[derive(Deserialize)]
 pub struct DaemonConfig {
     pub rpc_enable: bool,
     pub rpc: NodeRpcConfig,
@@ -69,7 +69,9 @@ impl DaemonConfig {
             if let Some(enable) = opencl.get("enable").and_then(|v| v.as_bool()) {
                 self.opencl_enable = enable;
             }
-            //self.opencl.deserialize_toml(opencl)?;
+            if let Some(opencl_table) = opencl.as_table() {
+                self.opencl.deserialize_toml(opencl_table)?;
+            }
         }
 
         Ok(())
