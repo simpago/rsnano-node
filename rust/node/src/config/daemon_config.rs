@@ -2,10 +2,8 @@ use super::{NodeConfig, NodeRpcConfig, OpenclConfig};
 use crate::NetworkParams;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 use toml::Value;
 
-#[derive(Deserialize)]
 pub struct DaemonConfig {
     pub rpc_enable: bool,
     pub rpc: NodeRpcConfig,

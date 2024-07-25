@@ -375,7 +375,6 @@ pub trait SocketExtensions {
     fn ongoing_checkup(&self);
 
     fn get_remote(&self) -> Option<SocketAddrV6>;
-    fn set_remote(&self, endpoint: SocketAddrV6);
     fn has_timed_out(&self) -> bool;
 
     fn write_queued_messages(&self);
@@ -486,7 +485,7 @@ impl SocketExtensions for Arc<Socket> {
                     match stream.try_read(&mut buf.as_mut_slice()[read..size]) {
                         Ok(0) => {
                             self.observer.read_error();
-                            return Err(anyhow!("read count was 0"));
+                            return Err(anyhow!("remote side closed the channel"));
                         }
                         Ok(n) => {
                             drop(buf);
@@ -715,11 +714,6 @@ impl SocketExtensions for Arc<Socket> {
 
     fn get_remote(&self) -> Option<SocketAddrV6> {
         *self.remote.lock().unwrap()
-    }
-
-    fn set_remote(&self, endpoint: SocketAddrV6) {
-        let mut lk = self.remote.lock().unwrap();
-        *lk = Some(endpoint);
     }
 
     fn has_timed_out(&self) -> bool {

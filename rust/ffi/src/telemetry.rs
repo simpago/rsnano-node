@@ -1,6 +1,6 @@
 use crate::{messages::TelemetryDataHandle, transport::EndpointDto};
 use rsnano_messages::TelemetryData;
-use rsnano_node::{consolidate_telemetry_data, Telemetry};
+use rsnano_node::Telemetry;
 use std::{net::SocketAddrV6, ops::Deref, sync::Arc};
 
 pub struct TelemetryHandle(pub Arc<Telemetry>);
@@ -76,21 +76,4 @@ pub extern "C" fn rsn_telemetry_data_map_get(
     let (ep, data) = &handle.0[index];
     *endpoint = ep.into();
     TelemetryDataHandle::new(data.clone())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_consolidate_telemetry_data(
-    datas: *const *const TelemetryDataHandle,
-    len: usize,
-) -> *mut TelemetryDataHandle {
-    let datas: Vec<_> = if datas.is_null() {
-        &[]
-    } else {
-        std::slice::from_raw_parts(datas, len)
-    }
-    .iter()
-    .map(|i| (**i).clone())
-    .collect();
-
-    TelemetryDataHandle::new(consolidate_telemetry_data(&datas))
 }

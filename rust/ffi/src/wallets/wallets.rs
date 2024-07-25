@@ -7,7 +7,7 @@ use crate::{
     cementation::ConfirmingSetHandle,
     core::BlockHandle,
     ledger::datastore::{LedgerHandle, TransactionHandle},
-    representatives::OnlineRepsHandle,
+    representatives::RepresentativeRegisterHandle,
     to_rust_string,
     transport::TcpChannelsHandle,
     utils::{ContextWrapper, ThreadPoolHandle},
@@ -43,7 +43,7 @@ impl Deref for LmdbWalletsHandle {
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_lmdb_wallets_create(
-    enable_voting: bool,
+    _enable_voting: bool,
     app_path: *const c_char,
     ledger: &LedgerHandle,
     node_config: &NodeConfigDto,
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
     network_params: &NetworkParamsDto,
     workers: &ThreadPoolHandle,
     block_processor: &BlockProcessorHandle,
-    online_reps: &OnlineRepsHandle,
+    representatives: &RepresentativeRegisterHandle,
     tcp_channels: &TcpChannelsHandle,
     confirming_set: &ConfirmingSetHandle,
 ) -> *mut LmdbWalletsHandle {
@@ -76,7 +76,6 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
     let work = WorkThresholds::from(work_thresholds);
     let wallets = Arc::new(
         Wallets::new(
-            enable_voting,
             lmdb,
             Arc::clone(&ledger.0),
             &node_config,
@@ -86,7 +85,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
             network_params,
             Arc::clone(workers),
             Arc::clone(block_processor),
-            Arc::clone(online_reps),
+            representatives.0.clone(),
             Arc::clone(tcp_channels),
             Arc::clone(confirming_set),
         )
@@ -314,7 +313,7 @@ pub unsafe extern "C" fn rsn_wallets_get_delayed_work(
 pub unsafe extern "C" fn rsn_wallets_representatives_lock(
     handle: &LmdbWalletsHandle,
 ) -> *mut WalletRepresentativesLock {
-    let guard = handle.representatives.lock().unwrap();
+    let guard = handle.representative_wallets.lock().unwrap();
     WalletRepresentativesLock::new(guard)
 }
 

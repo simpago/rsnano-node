@@ -26,7 +26,7 @@ TEST (rep_crawler, rep_list)
 	// Node #1 has a rep
 	(void)node1.wallets.insert_adhoc (wallet_id1, nano::dev::genesis_key.prv);
 	ASSERT_TIMELY_EQ (5s, node2.rep_crawler.representative_count (), 1);
-	auto reps = node2.rep_crawler.representatives ();
+	auto reps = node2.representative_register.representatives ();
 	ASSERT_EQ (1, reps.size ());
 	ASSERT_EQ (nano::dev::genesis_key.pub, reps[0].get_account ());
 }
@@ -87,7 +87,7 @@ TEST (rep_crawler, rep_weight)
 	ASSERT_TRUE (nano::test::process (node1, { block1, block2, block3, block4 }));
 	ASSERT_TRUE (nano::test::process (node2, { block1, block2, block3, block4 }));
 	ASSERT_TRUE (nano::test::process (node3, { block1, block2, block3, block4 }));
-	ASSERT_TRUE (node.rep_crawler.representatives (1).empty ());
+	ASSERT_TRUE (node.representative_register.representatives (1).empty ());
 
 	ASSERT_TIMELY (5s, node.network->size () == 3);
 	auto channel1 = node.network->find_node_id (node1.node_id.pub);
@@ -102,9 +102,9 @@ TEST (rep_crawler, rep_weight)
 	node.rep_crawler.force_process (vote0, channel1);
 	node.rep_crawler.force_process (vote1, channel2);
 	node.rep_crawler.force_process (vote2, channel3);
-	ASSERT_TIMELY_EQ (5s, node.rep_crawler.representative_count (), 2);
+	ASSERT_TIMELY_EQ (5s, node.representative_register.representative_count (), 2);
 	// Make sure we get the rep with the most weight first
-	auto reps = node.rep_crawler.representatives (1);
+	auto reps = node.representative_register.representatives (1);
 	ASSERT_EQ (1, reps.size ());
 	ASSERT_EQ (node.balance (nano::dev::genesis_key.pub), node.ledger.weight (reps[0].get_account ()));
 	ASSERT_EQ (nano::dev::genesis_key.pub, reps[0].get_account ());
@@ -188,7 +188,7 @@ TEST (rep_crawler, DISABLED_rep_remove)
 	auto vote_rep1 = std::make_shared<nano::vote> (keys_rep1.pub, keys_rep1.prv, 0, 0, std::vector<nano::block_hash>{ nano::dev::genesis->hash () });
 	searching_node.rep_crawler.force_process (vote_rep1, channel_rep1);
 	ASSERT_TIMELY_EQ (5s, searching_node.rep_crawler.representative_count (), 1);
-	auto reps (searching_node.rep_crawler.representatives (1));
+	auto reps (searching_node.representative_register.representatives (1));
 	ASSERT_EQ (1, reps.size ());
 	ASSERT_EQ (searching_node.minimum_principal_weight () * 2, searching_node.ledger.weight (reps[0].get_account ()));
 	ASSERT_EQ (keys_rep1.pub, reps[0].get_account ());
@@ -227,7 +227,7 @@ TEST (rep_crawler, DISABLED_rep_remove)
 	ASSERT_TIMELY_EQ (10s, searching_node.rep_crawler.representative_count (), 1);
 
 	// Now only genesisRep should be found:
-	reps = searching_node.rep_crawler.representatives (1);
+	reps = searching_node.representative_register.representatives (1);
 	ASSERT_EQ (nano::dev::genesis_key.pub, reps[0].get_account ());
 	ASSERT_TIMELY_EQ (5s, searching_node.network->size (), 1);
 	auto list (searching_node.network->tcp_channels->list (1));
@@ -277,31 +277,6 @@ TEST (rep_crawler, ignore_local)
 	auto vote = std::make_shared<nano::vote> (nano::dev::genesis_key.pub, nano::dev::genesis_key.prv, 0, 0, std::vector{ nano::dev::genesis->hash () });
 	node.rep_crawler.force_process (vote, loopback);
 	ASSERT_ALWAYS_EQ (0.5s, node.rep_crawler.representative_count (), 0);
-}
-
-// Test that nodes can track PRs when multiple PRs are inside one node
-TEST (rep_crawler, two_reps_one_node)
-{
-	nano::test::system system;
-	auto & node1 = *system.add_node ();
-	auto & node2 = *system.add_node ();
-	auto wallet_id1 = node1.wallets.first_wallet_id ();
-
-	// create a second PR account
-	nano::keypair second_rep = nano::test::setup_rep (system, node1, node1.balance (nano::dev::genesis_key.pub) / 10);
-	ASSERT_EQ (0, node2.rep_crawler.representative_count ());
-
-	// enable the two PRs in node1
-	(void)node1.wallets.insert_adhoc (wallet_id1, nano::dev::genesis_key.prv);
-	(void)node1.wallets.insert_adhoc (wallet_id1, second_rep.prv);
-
-	ASSERT_TIMELY_EQ (5s, node2.rep_crawler.representative_count (), 2);
-	auto reps = node2.rep_crawler.representatives ();
-	ASSERT_EQ (2, reps.size ());
-
-	// check that the reps are correct
-	ASSERT_TRUE (nano::dev::genesis_key.pub == reps[0].get_account () || nano::dev::genesis_key.pub == reps[1].get_account ());
-	ASSERT_TRUE (second_rep.pub == reps[0].get_account () || second_rep.pub == reps[1].get_account ());
 }
 
 TEST (rep_crawler, ignore_rebroadcasted)

@@ -187,9 +187,14 @@ impl ConfiguredPeersDatabaseBuilder {
     }
 }
 
-pub mod tests {
+#[cfg(test)]
+mod tests {
     use super::*;
-    use std::net::Ipv6Addr;
+    use crate::{DeleteEvent, PutEvent};
+    use std::{
+        net::Ipv6Addr,
+        time::{Duration, UNIX_EPOCH},
+    };
 
     #[test]
     fn empty_store() {
@@ -203,8 +208,6 @@ pub mod tests {
 
     #[test]
     fn add_one_endpoint() {
-        use crate::PutEvent;
-
         let fixture = Fixture::new();
         let mut txn = fixture.env.tx_begin_write();
         let put_tracker = txn.track_puts();
@@ -244,8 +247,6 @@ pub mod tests {
 
     #[test]
     fn delete() {
-        use crate::DeleteEvent;
-
         let fixture = Fixture::new();
         let mut txn = fixture.env.tx_begin_write();
         let delete_tracker = txn.track_deletions();
@@ -286,18 +287,18 @@ pub mod tests {
         assert_eq!(output, vec![TEST_PEER_A]);
     }
 
-    pub const TEST_PEER_A: SocketAddrV6 =
+    const TEST_PEER_A: SocketAddrV6 =
         SocketAddrV6::new(Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8), 1000, 0, 0);
 
-    pub const TEST_PEER_B: SocketAddrV6 =
+    const TEST_PEER_B: SocketAddrV6 =
         SocketAddrV6::new(Ipv6Addr::new(3, 3, 3, 3, 3, 3, 3, 3), 2000, 0, 0);
 
     const UNKNOWN_PEER: SocketAddrV6 =
         SocketAddrV6::new(Ipv6Addr::new(4, 4, 4, 4, 4, 4, 4, 4), 4000, 0, 0);
 
-    pub struct Fixture {
-        pub env: Arc<LmdbEnv>,
-        pub store: LmdbPeerStore,
+    struct Fixture {
+        env: Arc<LmdbEnv>,
+        store: LmdbPeerStore,
     }
 
     impl Fixture {
@@ -305,7 +306,7 @@ pub mod tests {
             Self::with_env(LmdbEnv::new_null())
         }
 
-        pub fn with_stored_data(entries: Vec<SocketAddrV6>) -> Self {
+        fn with_stored_data(entries: Vec<SocketAddrV6>) -> Self {
             let mut env = LmdbEnv::new_null_with().database("peers", LmdbDatabase::new_null(42));
 
             for entry in entries {

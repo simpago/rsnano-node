@@ -1,9 +1,8 @@
 use super::{
     request_aggregator_impl::{AggregateResult, RequestAggregatorImpl},
-    LocalVoteHistory, VoteGenerators,
+    VoteGenerators,
 };
 use crate::{
-    consensus::VoteRouter,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
 };
@@ -14,7 +13,6 @@ use rsnano_core::{
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
-use serde::Deserialize;
 use std::{
     cmp::{max, min},
     sync::{Arc, Condvar, Mutex, MutexGuard},
@@ -22,7 +20,7 @@ use std::{
 };
 use tracing::trace;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RequestAggregatorConfig {
     pub threads: usize,
     pub max_queue: usize,
@@ -69,9 +67,7 @@ pub struct RequestAggregator {
     config: RequestAggregatorConfig,
     stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
-    local_votes: Arc<LocalVoteHistory>,
     ledger: Arc<Ledger>,
-    vote_router: Arc<VoteRouter>,
     mutex: Mutex<RequestAggregatorData>,
     condition: Condvar,
     threads: Mutex<Vec<JoinHandle<()>>>,
@@ -82,17 +78,13 @@ impl RequestAggregator {
         config: RequestAggregatorConfig,
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
-        local_votes: Arc<LocalVoteHistory>,
         ledger: Arc<Ledger>,
-        vote_router: Arc<VoteRouter>,
     ) -> Self {
         let max_queue = config.max_queue;
         Self {
             stats,
             vote_generators,
-            local_votes,
             ledger,
-            vote_router,
             config,
             condition: Condvar::new(),
             mutex: Mutex::new(RequestAggregatorData {
@@ -204,9 +196,12 @@ impl RequestAggregator {
     }
 
     fn process(&self, tx: &LmdbReadTransaction, request: &RequestType, channel: &Arc<ChannelEnum>) {
-        let remaining = self.aggregate(tx, request, channel);
+        let remaining = self.aggregate(tx, request);
 
         if !remaining.remaining_normal.is_empty() {
+            self.stats
+                .inc(StatType::RequestAggregatorReplies, DetailType::NormalVote);
+
             // Generate votes for the remaining hashes
             let generated = self
                 .vote_generators
@@ -220,6 +215,9 @@ impl RequestAggregator {
         }
 
         if !remaining.remaining_final.is_empty() {
+            self.stats
+                .inc(StatType::RequestAggregatorReplies, DetailType::FinalVote);
+
             // Generate final votes for the remaining hashes
             let generated = self
                 .vote_generators
@@ -252,48 +250,11 @@ impl RequestAggregator {
         );
     }
 
-    fn erase_duplicates(&self, requests: &mut Vec<(BlockHash, Root)>) {
-        requests.sort_by(|a, b| a.0.cmp(&b.0));
-        requests.dedup_by_key(|i| i.0);
-    }
-
     /// Aggregate requests and send cached votes to channel.
     /// Return the remaining hashes that need vote generation for each block for regular & final vote generators
-    fn aggregate(
-        &self,
-        tx: &LmdbReadTransaction,
-        requests: &RequestType,
-        channel: &Arc<ChannelEnum>,
-    ) -> AggregateResult {
-        let mut aggregator = RequestAggregatorImpl::new(
-            &self.local_votes,
-            &self.ledger,
-            &self.vote_router,
-            &self.stats,
-            tx,
-            channel,
-        );
-
+    fn aggregate(&self, tx: &LmdbReadTransaction, requests: &RequestType) -> AggregateResult {
+        let mut aggregator = RequestAggregatorImpl::new(&self.ledger, &self.stats, tx);
         aggregator.add_votes(requests);
-
-        for vote in &aggregator.cached_votes {
-            self.reply_action(vote, channel);
-        }
-
-        self.stats.add_dir(
-            StatType::Requests,
-            DetailType::RequestsCachedHashes,
-            Direction::In,
-            aggregator.cached_hashes.len() as u64,
-        );
-
-        self.stats.add_dir(
-            StatType::Requests,
-            DetailType::RequestsCachedVotes,
-            Direction::In,
-            aggregator.cached_votes.len() as u64,
-        );
-
         aggregator.get_result()
     }
 

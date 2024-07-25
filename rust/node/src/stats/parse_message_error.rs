@@ -1,10 +1,10 @@
 use super::DetailType;
 use rsnano_messages::{MessageType, ParseMessageError};
 
-impl From<ParseMessageError> for DetailType {
-    fn from(status: ParseMessageError) -> Self {
+impl From<&ParseMessageError> for DetailType {
+    fn from(status: &ParseMessageError) -> Self {
         match status {
-            ParseMessageError::Other => Self::All,
+            ParseMessageError::Other(_) | ParseMessageError::Stopped => Self::All,
             ParseMessageError::InsufficientWork => Self::InsufficientWork,
             ParseMessageError::InvalidHeader => Self::InvalidHeader,
             ParseMessageError::InvalidMessageType => Self::InvalidMessageType,

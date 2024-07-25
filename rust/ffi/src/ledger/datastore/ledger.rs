@@ -13,11 +13,7 @@ use rsnano_core::{Account, BlockEnum, BlockHash, Epoch, Link};
 use rsnano_ledger::{
     AnyReceivableIterator, BlockStatus, Ledger, LedgerSetAny, LedgerSetConfirmed, Writer,
 };
-use std::{
-    ops::Deref,
-    ptr::null_mut,
-    sync::{atomic::Ordering, Arc},
-};
+use std::{ops::Deref, ptr::null_mut, sync::Arc};
 
 pub struct LedgerHandle(pub Arc<Ledger>);
 
@@ -244,19 +240,6 @@ pub unsafe extern "C" fn rsn_ledger_pruning_action(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_ledger_dependent_blocks(
-    handle: *mut LedgerHandle,
-    txn: *mut TransactionHandle,
-    block: &BlockHandle,
-    result1: *mut u8,
-    result2: *mut u8,
-) {
-    let dependent = (*handle).0.dependent_blocks((*txn).as_txn(), &block);
-    dependent.previous().unwrap_or_default().copy_bytes(result1);
-    dependent.link().unwrap_or_default().copy_bytes(result2);
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn rsn_ledger_representative(
     handle: &LedgerHandle,
     txn: &TransactionHandle,
@@ -372,22 +355,22 @@ pub extern "C" fn rsn_receivable_iterator_next(
 
 #[no_mangle]
 pub extern "C" fn rsn_ledger_cemented_count(handle: &LedgerHandle) -> u64 {
-    handle.cache.cemented_count.load(Ordering::SeqCst)
+    handle.cemented_count()
 }
 
 #[no_mangle]
 pub extern "C" fn rsn_ledger_block_count(handle: &LedgerHandle) -> u64 {
-    handle.cache.block_count.load(Ordering::SeqCst)
+    handle.block_count()
 }
 
 #[no_mangle]
 pub extern "C" fn rsn_ledger_account_count(handle: &LedgerHandle) -> u64 {
-    handle.cache.account_count.load(Ordering::SeqCst)
+    handle.account_count()
 }
 
 #[no_mangle]
 pub extern "C" fn rsn_ledger_pruned_count(handle: &LedgerHandle) -> u64 {
-    handle.cache.pruned_count.load(Ordering::SeqCst)
+    handle.pruned_count()
 }
 
 #[no_mangle]

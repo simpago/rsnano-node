@@ -1,8 +1,8 @@
 use super::{Network, NetworkExt, PeerConnector, PeerConnectorExt, SynCookies};
 use crate::{
     config::{NodeConfig, NodeFlags},
-    representatives::RepresentativeRegister,
-    stats::{DetailType, StatType, Stats},
+    representatives::OnlineReps,
+    stats::{DetailType, Direction, StatType, Stats},
     NetworkParams,
 };
 use rsnano_messages::{Keepalive, Message};
@@ -12,6 +12,7 @@ use std::{
     thread::JoinHandle,
     time::{Duration, SystemTime},
 };
+use tracing::info;
 
 pub struct NetworkThreads {
     cleanup_thread: Option<JoinHandle<()>>,
@@ -19,7 +20,7 @@ pub struct NetworkThreads {
     reachout_thread: Option<JoinHandle<()>>,
     stopped: Arc<(Condvar, Mutex<bool>)>,
     network: Arc<Network>,
-    representative_register: Arc<Mutex<RepresentativeRegister>>,
+    online_reps: Arc<Mutex<OnlineReps>>,
     peer_connector: Arc<PeerConnector>,
     flags: NodeFlags,
     network_params: NetworkParams,
@@ -37,7 +38,7 @@ impl NetworkThreads {
         stats: Arc<Stats>,
         syn_cookies: Arc<SynCookies>,
         keepalive_factory: Arc<KeepaliveFactory>,
-        representative_register: Arc<Mutex<RepresentativeRegister>>,
+        online_reps: Arc<Mutex<OnlineReps>>,
     ) -> Self {
         Self {
             cleanup_thread: None,
@@ -51,7 +52,7 @@ impl NetworkThreads {
             stats,
             syn_cookies,
             keepalive_factory,
-            representative_register,
+            online_reps,
         }
     }
 
@@ -63,7 +64,7 @@ impl NetworkThreads {
             flags: self.flags.clone(),
             syn_cookies: self.syn_cookies.clone(),
             network: self.network.clone(),
-            representative_register: self.representative_register.clone(),
+            online_reps: self.online_reps.clone(),
         };
 
         self.cleanup_thread = Some(
@@ -136,7 +137,7 @@ struct CleanupLoop {
     flags: NodeFlags,
     syn_cookies: Arc<SynCookies>,
     network: Arc<Network>,
-    representative_register: Arc<Mutex<RepresentativeRegister>>,
+    online_reps: Arc<Mutex<OnlineReps>>,
 }
 
 impl CleanupLoop {
@@ -162,10 +163,21 @@ impl CleanupLoop {
                     .network
                     .purge(SystemTime::now() - self.network_params.network.cleanup_cutoff());
 
-                self.representative_register
-                    .lock()
-                    .unwrap()
-                    .evict(&removed_channel_ids);
+                let mut online_reps = self.online_reps.lock().unwrap();
+                for channel_id in removed_channel_ids {
+                    let removed_reps = online_reps.remove_peer(channel_id);
+                    for rep in removed_reps {
+                        info!(
+                            "Evicting representative {} with dead channel",
+                            rep.encode_account(),
+                        );
+                        self.stats.inc_dir(
+                            StatType::RepCrawler,
+                            DetailType::ChannelDead,
+                            Direction::In,
+                        );
+                    }
+                }
             }
 
             self.syn_cookies

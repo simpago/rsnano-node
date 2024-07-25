@@ -516,8 +516,8 @@ public:
 	{
 		default_handler (message);
 	}
-	virtual void default_handler (nano::message const &){};
-	virtual ~message_visitor (){};
+	virtual void default_handler (nano::message const &) {};
+	virtual ~message_visitor () {};
 };
 
 }

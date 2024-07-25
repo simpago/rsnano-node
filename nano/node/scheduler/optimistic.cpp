@@ -48,7 +48,7 @@ rsnano::OptimisticSchedulerConfigDto nano::scheduler::optimistic_config::into_dt
 
 nano::error nano::scheduler::optimistic_config::deserialize (nano::tomlconfig & toml)
 {
-	toml.get ("enabled", enabled);
+	toml.get ("enable", enabled);
 	toml.get ("gap_threshold", gap_threshold);
 	toml.get ("max_size", max_size);
 

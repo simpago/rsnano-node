@@ -1,11 +1,10 @@
 use crate::config::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 use std::path::PathBuf;
 
 /** Base for transport configurations */
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct IpcConfigTransport {
     pub enabled: bool,
     pub allow_unsafe: bool,
@@ -55,7 +54,7 @@ impl IpcConfigFlatbuffers {
 }
 
 /** Domain socket specific transport config */
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct IpcConfigDomainSocket {
     pub transport: IpcConfigTransport,
     /**

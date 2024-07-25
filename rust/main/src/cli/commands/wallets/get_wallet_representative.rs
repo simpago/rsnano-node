@@ -33,7 +33,7 @@ impl GetWalletRepresentativeArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
 
         let password = self.password.clone().unwrap_or_default();
 
@@ -43,7 +43,7 @@ impl GetWalletRepresentativeArgs {
             .get_representative(wallet_id)
             .map_err(|e| anyhow!("Failed to get wallet representative: {:?}", e))?;
 
-        println!("Representative: {:?}", representative);
+        println!("Representative: {:?}", &representative.encode_account());
 
         Ok(())
     }

@@ -19,7 +19,9 @@ use num::FromPrimitive;
 use rsnano_core::{utils::get_cpu_count, Account, Amount};
 use rsnano_node::{
     block_processing::LocalBlockBroadcasterConfig,
-    config::{NodeConfig, Peer},
+    cementation::ConfirmingSetConfig,
+    config::{MonitorConfig, NodeConfig, Peer},
+    consensus::PriorityBucketConfig,
     transport::{MessageProcessorConfig, TcpConfig},
     NetworkParams,
 };
@@ -34,6 +36,7 @@ pub struct NodeConfigDto {
     pub peering_port: u16,
     pub optimistic_scheduler: OptimisticSchedulerConfigDto,
     pub hinted_scheduler: HintedSchedulerConfigDto,
+    pub priority_bucket: PriorityBucketConfigDto,
     pub peering_port_defined: bool,
     pub bootstrap_fraction_numerator: u32,
     pub receive_minimum: [u8; 16],
@@ -110,6 +113,8 @@ pub struct NodeConfigDto {
     pub message_processor: MessageProcessorConfigDto,
     pub priority_scheduler_enabled: bool,
     pub local_block_broadcaster: LocalBlockBroadcasterConfigDto,
+    pub confirming_set: ConfirmingSetConfigDto,
+    pub monitor: MonitorConfigDto,
 }
 
 #[repr(C)]
@@ -152,6 +157,30 @@ pub struct PeerDto {
     pub port: u16,
 }
 
+#[repr(C)]
+pub struct MonitorConfigDto {
+    pub enabled: bool,
+    pub interval_s: u64,
+}
+
+impl From<&MonitorConfig> for MonitorConfigDto {
+    fn from(value: &MonitorConfig) -> Self {
+        Self {
+            enabled: value.enabled,
+            interval_s: value.interval.as_secs(),
+        }
+    }
+}
+
+impl From<&MonitorConfigDto> for MonitorConfig {
+    fn from(value: &MonitorConfigDto) -> Self {
+        Self {
+            enabled: value.enabled,
+            interval: Duration::from_secs(value.interval_s),
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn rsn_node_config_create(
     dto: *mut NodeConfigDto,
@@ -178,6 +207,7 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.peering_port = cfg.peering_port.unwrap_or_default();
     dto.optimistic_scheduler = (&cfg.optimistic_scheduler).into();
     dto.hinted_scheduler = (&cfg.hinted_scheduler).into();
+    dto.priority_bucket = (&cfg.priority_bucket).into();
     dto.peering_port_defined = cfg.peering_port.is_some();
     dto.bootstrap_fraction_numerator = cfg.bootstrap_fraction_numerator;
     dto.receive_minimum = cfg.receive_minimum.to_be_bytes();
@@ -302,6 +332,8 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.message_processor = (&cfg.message_processor).into();
     dto.priority_scheduler_enabled = cfg.priority_scheduler_enabled;
     dto.local_block_broadcaster = (&cfg.local_block_broadcaster).into();
+    dto.confirming_set = (&cfg.confirming_set).into();
+    dto.monitor = (&cfg.monitor).into();
 }
 
 #[no_mangle]
@@ -357,6 +389,7 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             },
             optimistic_scheduler: (&value.optimistic_scheduler).into(),
             hinted_scheduler: (&value.hinted_scheduler).into(),
+            priority_bucket: (&value.priority_bucket).into(),
             bootstrap_fraction_numerator: value.bootstrap_fraction_numerator,
             receive_minimum: Amount::from_be_bytes(value.receive_minimum),
             online_weight_minimum: Amount::from_be_bytes(value.online_weight_minimum),
@@ -441,6 +474,8 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             message_processor: (&value.message_processor).into(),
             priority_scheduler_enabled: value.priority_scheduler_enabled,
             local_block_broadcaster: (&value.local_block_broadcaster).into(),
+            confirming_set: (&value.confirming_set).into(),
+            monitor: (&value.monitor).into(),
         };
 
         Ok(cfg)
@@ -503,6 +538,57 @@ impl From<&LocalBlockBroadcasterConfigDto> for LocalBlockBroadcasterConfig {
             broadcast_rate_limit: value.broadcast_rate_limit,
             broadcast_rate_burst_ratio: value.broadcast_rate_burst_ratio,
             cleanup_interval: Duration::from_secs(value.cleanup_interval_s),
+        }
+    }
+}
+
+#[repr(C)]
+pub struct ConfirmingSetConfigDto {
+    pub max_blocks: usize,
+    pub max_queued_notifications: usize,
+}
+
+impl From<&ConfirmingSetConfigDto> for ConfirmingSetConfig {
+    fn from(value: &ConfirmingSetConfigDto) -> Self {
+        Self {
+            max_blocks: value.max_blocks,
+            max_queued_notifications: value.max_queued_notifications,
+        }
+    }
+}
+
+impl From<&ConfirmingSetConfig> for ConfirmingSetConfigDto {
+    fn from(value: &ConfirmingSetConfig) -> Self {
+        Self {
+            max_blocks: value.max_blocks,
+            max_queued_notifications: value.max_queued_notifications,
+        }
+    }
+}
+
+#[repr(C)]
+pub struct PriorityBucketConfigDto {
+    pub max_blocks: usize,
+    pub reserved_elections: usize,
+    pub max_elections: usize,
+}
+
+impl From<&PriorityBucketConfigDto> for PriorityBucketConfig {
+    fn from(value: &PriorityBucketConfigDto) -> Self {
+        Self {
+            max_blocks: value.max_blocks,
+            reserved_elections: value.reserved_elections,
+            max_elections: value.max_elections,
+        }
+    }
+}
+
+impl From<&PriorityBucketConfig> for PriorityBucketConfigDto {
+    fn from(value: &PriorityBucketConfig) -> Self {
+        Self {
+            max_blocks: value.max_blocks,
+            reserved_elections: value.reserved_elections,
+            max_elections: value.max_elections,
         }
     }
 }

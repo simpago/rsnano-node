@@ -10,7 +10,7 @@ pub unsafe extern "C" fn rsn_message_publish_create(
 ) -> *mut MessageHandle {
     create_message_handle2(constants, || {
         let block = block.deref().deref().clone();
-        Message::Publish(Publish { block, digest: 0 })
+        Message::Publish(Publish::new_forward(block))
     })
 }
 

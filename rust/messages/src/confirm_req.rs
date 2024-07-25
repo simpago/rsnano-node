@@ -30,7 +30,7 @@ pub struct ConfirmReq {
 }
 
 impl ConfirmReq {
-    pub const HASHES_MAX: usize = 7;
+    pub const HASHES_MAX: usize = 255;
 
     // Header extension bits:
     // ----------------------
@@ -128,7 +128,7 @@ impl ConfirmReq {
         //  H: count high bits
         //  L: count low bits
         //  F: v2 flag
-        if count <= 16 {
+        if count < 16 {
             // v1. Allows 4 bits
             BitArray::new((count as u16) << Self::COUNT_HIGH_SHIFT)
         } else {
@@ -267,12 +267,19 @@ mod tests {
 
     #[test]
     fn v1_extensions() {
+        let confirm_req = ConfirmReq::new(vec![(BlockHash::from(1), Root::from(2)); 15]);
+        let extensions = confirm_req.header_extensions(0);
+        // count=15 plus NotABlock flag
+        let expected = 0b_1111_0001_0000_0000;
+        assert_eq!(extensions.data, expected);
+    }
+
+    #[test]
+    fn use_v2_with_16_roots() {
         let confirm_req = ConfirmReq::new(vec![(BlockHash::from(1), Root::from(2)); 16]);
         let extensions = confirm_req.header_extensions(0);
-        // count=16 plus NotABlock flag
-        let mut expected: u16 = 0;
-        expected |= 16 << 12; // count
-        expected |= 1 << 8; // NotABlock flag
+        // count=16 plus NotABlock flag plus v2 flag
+        let expected = 0b_0001_0001_0000_0001;
         assert_eq!(extensions.data, expected);
     }
 

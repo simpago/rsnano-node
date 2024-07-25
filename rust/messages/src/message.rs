@@ -26,9 +26,9 @@ pub trait MessageVariant: Display + Serialize {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ParseMessageError {
-    Other,
+    Other(String),
     InsufficientWork,
     InvalidHeader,
     InvalidMessageType,
@@ -37,6 +37,7 @@ pub enum ParseMessageError {
     OutdatedVersion,
     DuplicatePublishMessage,
     MessageSizeTooBig,
+    Stopped,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -190,7 +191,7 @@ mod tests {
     #[test]
     fn exact_publish() {
         let block = BlockBuilder::legacy_send().build();
-        let message = Message::Publish(Publish { block, digest: 8 });
+        let message = Message::Publish(Publish::new_from_originator(block));
         assert_deserializable(&message);
     }
 

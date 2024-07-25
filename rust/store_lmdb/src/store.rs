@@ -11,7 +11,10 @@ use rsnano_core::utils::{seconds_since_epoch, PropertyTree};
 use std::{
     ffi::CString,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 use tracing::{debug, error, info, warn};
@@ -22,8 +25,34 @@ pub enum Vacuuming {
     NotNeeded,
 }
 
+pub struct LedgerCache {
+    pub cemented_count: AtomicU64,
+    pub block_count: AtomicU64,
+    pub pruned_count: AtomicU64,
+    pub account_count: AtomicU64,
+}
+
+impl LedgerCache {
+    pub fn new() -> Self {
+        Self {
+            cemented_count: AtomicU64::new(0),
+            block_count: AtomicU64::new(0),
+            pruned_count: AtomicU64::new(0),
+            account_count: AtomicU64::new(0),
+        }
+    }
+
+    pub fn reset(&self) {
+        self.cemented_count.store(0, Ordering::SeqCst);
+        self.block_count.store(0, Ordering::SeqCst);
+        self.pruned_count.store(0, Ordering::SeqCst);
+        self.account_count.store(0, Ordering::SeqCst);
+    }
+}
+
 pub struct LmdbStore {
     pub env: Arc<LmdbEnv>,
+    pub cache: Arc<LedgerCache>,
     pub block: Arc<LmdbBlockStore>,
     pub account: Arc<LmdbAccountStore>,
     pub pending: Arc<LmdbPendingStore>,
@@ -105,6 +134,7 @@ impl LmdbStore {
     fn new_with_env(env: LmdbEnv) -> anyhow::Result<Self> {
         let env = Arc::new(env);
         Ok(Self {
+            cache: Arc::new(LedgerCache::new()),
             block: Arc::new(LmdbBlockStore::new(env.clone())?),
             account: Arc::new(LmdbAccountStore::new(env.clone())?),
             pending: Arc::new(LmdbPendingStore::new(env.clone())?),

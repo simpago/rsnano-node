@@ -1,4 +1,3 @@
-use super::online_reps::DEFAULT_ONLINE_WEIGHT_MINIMUM;
 use rsnano_core::utils::nano_seconds_since_epoch;
 use rsnano_core::Amount;
 use rsnano_ledger::Ledger;
@@ -7,25 +6,15 @@ use std::sync::Arc;
 
 pub struct OnlineWeightSampler {
     ledger: Arc<Ledger>,
-    online_weight_minimum: Amount,
-    max_samples: u64,
+    max_samples: usize,
 }
 
 impl OnlineWeightSampler {
-    pub fn new(ledger: Arc<Ledger>) -> Self {
+    pub fn new(ledger: Arc<Ledger>, max_samples: usize) -> Self {
         Self {
             ledger,
-            online_weight_minimum: DEFAULT_ONLINE_WEIGHT_MINIMUM,
-            max_samples: 4032,
+            max_samples,
         }
-    }
-
-    pub fn set_online_weight_minimum(&mut self, minimum: Amount) {
-        self.online_weight_minimum = minimum;
-    }
-
-    pub fn set_max_samples(&mut self, max_samples: u64) {
-        self.max_samples = max_samples;
     }
 
     pub fn calculate_trend(&self) -> Amount {
@@ -35,7 +24,6 @@ impl OnlineWeightSampler {
     fn load_samples(&self) -> Vec<Amount> {
         let txn = self.ledger.read_txn();
         let mut items = Vec::with_capacity(self.max_samples as usize + 1);
-        items.push(self.online_weight_minimum);
         let mut it = self.ledger.store.online_weight.begin(&txn);
         while !it.is_end() {
             items.push(*it.current().unwrap().1);
@@ -45,9 +33,13 @@ impl OnlineWeightSampler {
     }
 
     fn medium_weight(&self, mut items: Vec<Amount>) -> Amount {
-        let median_idx = items.len() / 2;
-        items.sort();
-        items[median_idx]
+        if items.is_empty() {
+            Amount::zero()
+        } else {
+            let median_idx = items.len() / 2;
+            items.sort();
+            items[median_idx]
+        }
     }
 
     /** Called periodically to sample online weight */
@@ -60,7 +52,7 @@ impl OnlineWeightSampler {
     fn delete_old_samples(&self, txn: &mut LmdbWriteTransaction) {
         let weight_store = &self.ledger.store.online_weight;
 
-        while weight_store.count(txn) >= self.max_samples {
+        while weight_store.count(txn) >= self.max_samples as u64 {
             let (&oldest, _) = weight_store.begin(txn).current().unwrap();
             weight_store.del(txn, oldest);
         }

@@ -1,4 +1,4 @@
-use super::{BatchCementedCallback, BlockCallback, BlockHashCallback};
+use super::{BatchCementedCallback, BlockCallback};
 use crate::{
     stats::{DetailType, StatType, Stats},
     utils::{ThreadPool, ThreadPoolImpl},
@@ -7,12 +7,30 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
     BlockEnum, BlockHash,
 };
-use rsnano_ledger::{Ledger, Writer};
+use rsnano_ledger::{Ledger, WriteGuard, Writer};
+use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
     collections::{HashSet, VecDeque},
     sync::{Arc, Condvar, Mutex},
-    thread::JoinHandle,
+    thread::{sleep, JoinHandle},
+    time::Duration,
 };
+
+#[derive(Clone)]
+pub struct ConfirmingSetConfig {
+    /// Maximum number of dependent blocks to be stored in memory during processing
+    pub max_blocks: usize,
+    pub max_queued_notifications: usize,
+}
+
+impl Default for ConfirmingSetConfig {
+    fn default() -> Self {
+        Self {
+            max_blocks: 64 * 128,
+            max_queued_notifications: 8,
+        }
+    }
+}
 
 /// Set of blocks to be durably confirmed
 pub struct ConfirmingSet {
@@ -21,7 +39,7 @@ pub struct ConfirmingSet {
 }
 
 impl ConfirmingSet {
-    pub fn new(ledger: Arc<Ledger>, stats: Arc<Stats>) -> Self {
+    pub fn new(config: ConfirmingSetConfig, ledger: Arc<Ledger>, stats: Arc<Stats>) -> Self {
         Self {
             join_handle: Mutex::new(None),
             thread: Arc::new(ConfirmingSetThread {
@@ -32,6 +50,7 @@ impl ConfirmingSet {
                 condition: Condvar::new(),
                 ledger,
                 stats,
+                config,
                 observers: Arc::new(Mutex::new(Observers::default())),
                 notification_workers: ThreadPoolImpl::create(1, "Conf notif"),
             }),
@@ -53,15 +72,6 @@ impl ConfirmingSet {
             .lock()
             .unwrap()
             .cemented
-            .push(callback);
-    }
-
-    pub fn add_already_cemented_observer(&self, callback: BlockHashCallback) {
-        self.thread
-            .observers
-            .lock()
-            .unwrap()
-            .already_cemented
             .push(callback);
     }
 
@@ -118,11 +128,12 @@ impl Drop for ConfirmingSet {
     }
 }
 
-pub struct ConfirmingSetThread {
+struct ConfirmingSetThread {
     mutex: Mutex<ConfirmingSetImpl>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
+    config: ConfirmingSetConfig,
     notification_workers: ThreadPoolImpl,
     observers: Arc<Mutex<Observers>>,
 }
@@ -176,6 +187,56 @@ impl ConfirmingSetThread {
         }
     }
 
+    fn notify(
+        &self,
+        cemented: &mut VecDeque<(BlockEnum, BlockHash)>,
+        already_cemented: &mut VecDeque<BlockHash>,
+    ) {
+        let mut notification = CementedNotification {
+            cemented: VecDeque::new(),
+            already_cemented: VecDeque::new(),
+        };
+
+        std::mem::swap(&mut notification.cemented, cemented);
+        std::mem::swap(&mut notification.already_cemented, already_cemented);
+
+        // Wait for the worker thread if too many notifications are queued
+        while self.notification_workers.num_queued_tasks() >= self.config.max_queued_notifications {
+            self.stats
+                .inc(StatType::ConfirmingSet, DetailType::Cooldown);
+            sleep(Duration::from_millis(100));
+        }
+
+        let observers = self.observers.clone();
+        let stats = self.stats.clone();
+        self.notification_workers.push_task(Box::new(move || {
+            stats.inc(StatType::ConfirmingSet, DetailType::Notify);
+            observers.lock().unwrap().notify_batch(notification);
+        }));
+    }
+
+    /// We might need to issue multiple notifications if the block we're confirming implicitly confirms more
+    fn notify_maybe(
+        &self,
+        mut write_guard: WriteGuard,
+        mut tx: LmdbWriteTransaction,
+        cemented: &mut VecDeque<(BlockEnum, BlockHash)>,
+        already_cemented: &mut VecDeque<BlockHash>,
+    ) -> (WriteGuard, LmdbWriteTransaction) {
+        if cemented.len() >= self.config.max_blocks {
+            self.stats
+                .inc(StatType::ConfirmingSet, DetailType::NotifyIntermediate);
+            drop(write_guard);
+            tx.commit();
+
+            self.notify(cemented, already_cemented);
+
+            write_guard = self.ledger.write_queue.wait(Writer::ConfirmationHeight);
+            tx.renew();
+        }
+        (write_guard, tx)
+    }
+
     fn run_batch(&self, batch: VecDeque<BlockHash>) {
         let mut cemented = VecDeque::new();
         let mut already_cemented = VecDeque::new();
@@ -185,37 +246,45 @@ impl ConfirmingSetThread {
             let mut tx = self.ledger.rw_txn();
 
             for hash in batch {
-                (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
-                let added = self.ledger.confirm(&mut tx, hash);
-                let added_len = added.len();
-                if !added.is_empty() {
-                    // Confirming this block may implicitly confirm more
-                    for block in added {
-                        cemented.push_back((block, hash));
+                loop {
+                    (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
+                    self.stats
+                        .inc(StatType::ConfirmingSet, DetailType::CementingHash);
+
+                    // Issue notifications here, so that `cemented` set is not too large before we add more blocks
+                    (write_guard, tx) =
+                        self.notify_maybe(write_guard, tx, &mut cemented, &mut already_cemented);
+
+                    let added = self
+                        .ledger
+                        .confirm_max(&mut tx, hash, self.config.max_blocks);
+                    let added_len = added.len();
+                    if !added.is_empty() {
+                        // Confirming this block may implicitly confirm more
+                        self.stats.add(
+                            StatType::ConfirmingSet,
+                            DetailType::Cemented,
+                            added_len as u64,
+                        );
+                        for block in added {
+                            cemented.push_back((block, hash));
+                        }
+                    } else {
+                        self.stats
+                            .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
+                        already_cemented.push_back(hash);
                     }
 
-                    self.stats.add(
-                        StatType::ConfirmingSet,
-                        DetailType::Cemented,
-                        added_len as u64,
-                    );
-                } else {
-                    already_cemented.push_back(hash);
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::AlreadyCemented);
+                    if self.ledger.confirmed().block_exists(&tx, &hash)
+                        || self.mutex.lock().unwrap().stopped
+                    {
+                        break;
+                    }
                 }
             }
         }
 
-        let notification = CementedNotification {
-            cemented,
-            already_cemented,
-        };
-
-        let observers = self.observers.clone();
-        self.notification_workers.push_task(Box::new(move || {
-            observers.lock().unwrap().notify_batch(notification);
-        }));
+        self.notify(&mut cemented, &mut already_cemented);
     }
 }
 
@@ -247,7 +316,6 @@ pub(crate) struct CementedNotification {
 #[derive(Default)]
 struct Observers {
     cemented: Vec<BlockCallback>,
-    already_cemented: Vec<BlockHashCallback>,
     batch_cemented: Vec<BatchCementedCallback>,
 }
 
@@ -259,12 +327,6 @@ impl Observers {
             }
         }
 
-        for hash in &notification.already_cemented {
-            for observer in &mut self.already_cemented {
-                observer(*hash);
-            }
-        }
-
         for observer in &mut self.batch_cemented {
             observer(&notification);
         }
@@ -273,15 +335,15 @@ impl Observers {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
     use rsnano_core::{ConfirmationHeightInfo, TestAccountChain};
+    use std::time::Duration;
 
     #[test]
     fn add_exists() {
         let ledger = Arc::new(Ledger::new_null());
-        let confirming_set = ConfirmingSet::new(ledger, Arc::new(Stats::default()));
+        let confirming_set =
+            ConfirmingSet::new(Default::default(), ledger, Arc::new(Stats::default()));
         let hash = BlockHash::from(1);
         confirming_set.add(hash);
         assert!(confirming_set.exists(&hash));
@@ -303,7 +365,8 @@ mod tests {
                 )
                 .finish(),
         );
-        let confirming_set = ConfirmingSet::new(ledger, Arc::new(Stats::default()));
+        let confirming_set =
+            ConfirmingSet::new(Default::default(), ledger, Arc::new(Stats::default()));
         confirming_set.start();
         let count = Arc::new(Mutex::new(0));
         let condition = Arc::new(Condvar::new());
@@ -320,7 +383,7 @@ mod tests {
 
         let guard = count.lock().unwrap();
         let result = condition
-            .wait_timeout_while(guard, Duration::from_secs(5), |i| *i != 1)
+            .wait_timeout_while(guard, Duration::from_secs(5), |i| *i < 1)
             .unwrap()
             .1;
         assert_eq!(result.timed_out(), false);

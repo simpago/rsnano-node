@@ -24,13 +24,6 @@ impl GenerateCacheFlags {
         self.unchecked_count = true;
         self.account_count = true;
     }
-
-    pub fn disable_all(&mut self) {
-        self.reps = false;
-        self.cemented_count = false;
-        self.unchecked_count = false;
-        self.account_count = false;
-    }
 }
 
 impl Default for GenerateCacheFlags {

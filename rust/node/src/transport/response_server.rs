@@ -4,7 +4,6 @@ use super::{
 };
 use crate::{
     bootstrap::BootstrapMessageVisitorFactory,
-    config::NodeConfig,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{ChannelMode, NetworkExt, Socket, SocketExtensions},
     NetworkParams,
@@ -15,7 +14,6 @@ use rsnano_core::{
     Account, KeyPair, Networks,
 };
 use rsnano_messages::*;
-use serde::Deserialize;
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -25,9 +23,9 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 use tokio::sync::Notify;
-use tracing::debug;
+use tracing::{debug, info};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct TcpConfig {
     pub max_inbound_connections: usize,
     pub max_outbound_connections: usize,
@@ -65,7 +63,6 @@ pub trait ResponseServer {}
 pub struct ResponseServerImpl {
     channel: Mutex<Option<Arc<ChannelEnum>>>,
     pub socket: Arc<Socket>,
-    config: Arc<NodeConfig>,
     stopped: AtomicBool,
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
@@ -83,8 +80,6 @@ pub struct ResponseServerImpl {
     allow_bootstrap: bool,
     notify_stop: Notify,
     last_keepalive: Mutex<Option<Keepalive>>,
-    node_id: KeyPair,
-    protocol_info: ProtocolInfo,
     network: Weak<Network>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
@@ -98,7 +93,6 @@ impl ResponseServerImpl {
         network: &Arc<Network>,
         inbound_queue: Arc<InboundMessageQueue>,
         socket: Arc<Socket>,
-        config: Arc<NodeConfig>,
         publish_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
@@ -119,7 +113,6 @@ impl ResponseServerImpl {
             inbound_queue,
             socket,
             channel: Mutex::new(None),
-            config,
             stopped: AtomicBool::new(false),
             disable_bootstrap_listener: false,
             connections_max: 64,
@@ -138,7 +131,6 @@ impl ResponseServerImpl {
             stats,
             disable_bootstrap_bulk_pull_server: false,
             message_visitor_factory,
-            protocol_info: network_constants.protocol_info(),
             message_deserializer: Arc::new(MessageDeserializer::new(
                 network_constants.protocol_info(),
                 network_constants.work.clone(),
@@ -148,7 +140,6 @@ impl ResponseServerImpl {
             allow_bootstrap,
             notify_stop: Notify::new(),
             last_keepalive: Mutex::new(None),
-            node_id,
             initiate_handshake_listener: OutputListenerMt::new(),
         }
     }
@@ -157,7 +148,6 @@ impl ResponseServerImpl {
         Self {
             channel: Mutex::new(None),
             socket: Socket::new_null(),
-            config: Arc::new(NodeConfig::new_test_instance()),
             stopped: AtomicBool::new(false),
             disable_bootstrap_listener: true,
             connections_max: 1,
@@ -172,8 +162,6 @@ impl ResponseServerImpl {
             allow_bootstrap: false,
             notify_stop: Notify::new(),
             last_keepalive: Mutex::new(None),
-            node_id: KeyPair::from(1),
-            protocol_info: ProtocolInfo::default(),
             network: Arc::downgrade(&Arc::new(Network::new_null())),
             inbound_queue: Arc::new(InboundMessageQueue::default()),
             handshake_process: HandshakeProcess::new_null(),
@@ -373,7 +361,7 @@ impl ResponseServerExt for Arc<ResponseServerImpl> {
 
             let result = tokio::select! {
                 i = self.message_deserializer.read() => i,
-                _ = self.notify_stop.notified() => Err(ParseMessageError::Other)
+                _ = self.notify_stop.notified() => Err(ParseMessageError::Stopped)
             };
 
             let result = match result {
@@ -399,8 +387,8 @@ impl ResponseServerExt for Arc<ResponseServerImpl> {
                 Err(e) => {
                     // IO error or critical error when deserializing message
                     self.stats
-                        .inc_dir(StatType::Error, DetailType::from(e), Direction::In);
-                    debug!(
+                        .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
+                    info!(
                         "Error reading message: {:?} ({})",
                         e,
                         self.remote_endpoint()

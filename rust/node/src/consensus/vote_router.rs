@@ -1,5 +1,5 @@
-use super::{Election, RecentlyConfirmedCache, VoteApplier, VoteCache};
-use crate::{consensus::VoteApplierExt, stats::Stats, NetworkParams};
+use super::{Election, RecentlyConfirmedCache, VoteApplier};
+use crate::consensus::VoteApplierExt;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
     BlockHash, Vote, VoteCode, VoteSource,
@@ -16,19 +16,13 @@ pub struct VoteRouter {
     thread: Mutex<Option<JoinHandle<()>>>,
     shared: Arc<(Condvar, Mutex<State>)>,
     vote_processed_observers: Mutex<Vec<VoteProcessedCallback>>,
-    vote_cache: Arc<Mutex<VoteCache>>,
     recently_confirmed: Arc<RecentlyConfirmedCache>,
-    network_params: NetworkParams,
-    stats: Arc<Stats>,
     vote_applier: Arc<VoteApplier>,
 }
 
 impl VoteRouter {
     pub fn new(
-        vote_cache: Arc<Mutex<VoteCache>>,
         recently_confirmed: Arc<RecentlyConfirmedCache>,
-        network_params: NetworkParams,
-        stats: Arc<Stats>,
         vote_applier: Arc<VoteApplier>,
     ) -> Self {
         Self {
@@ -41,10 +35,7 @@ impl VoteRouter {
                 }),
             )),
             vote_processed_observers: Mutex::new(Vec::new()),
-            vote_cache,
             recently_confirmed,
-            network_params,
-            stats,
             vote_applier,
         }
     }

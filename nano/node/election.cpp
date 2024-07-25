@@ -258,3 +258,8 @@ nano::election_behavior nano::election::behavior () const
 {
 	return static_cast<nano::election_behavior> (rsnano::rsn_election_behavior (handle));
 }
+
+bool nano::election::contains (nano::block_hash const & hash) const
+{
+	return rsnano::rsn_election_contains (handle, hash.bytes.data ());
+}

@@ -42,6 +42,7 @@ impl OrderedTags {
         self.by_id.contains_key(&id)
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, id: u64) -> Option<&AsyncTag> {
         self.by_id.get(&id)
     }

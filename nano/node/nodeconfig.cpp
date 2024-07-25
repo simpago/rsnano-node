@@ -1,3 +1,4 @@
+#include "nano/lib/rsnano.hpp"
 #include "nano/node/active_elections.hpp"
 
 #include <nano/crypto_lib/random_pool.hpp>
@@ -24,6 +25,7 @@ rsnano::NodeConfigDto to_node_config_dto (nano::node_config const & config)
 	rsnano::NodeConfigDto dto;
 	dto.optimistic_scheduler = config.optimistic_scheduler.into_dto ();
 	dto.hinted_scheduler = config.hinted_scheduler.into_dto ();
+	dto.priority_bucket = config.priority_bucket.into_dto ();
 	dto.peering_port = config.peering_port.value_or (0);
 	dto.peering_port_defined = config.peering_port.has_value ();
 	dto.bootstrap_fraction_numerator = config.bootstrap_fraction_numerator;
@@ -118,7 +120,9 @@ rsnano::NodeConfigDto to_node_config_dto (nano::node_config const & config)
 	dto.request_aggregator = config.request_aggregator.into_dto ();
 	dto.message_processor = config.message_processor.into_dto ();
 	dto.priority_scheduler_enabled = config.priority_scheduler_enabled;
-	dto.local_block_broadcaster = config.local_block_broadcaster.into_dto();
+	dto.local_block_broadcaster = config.local_block_broadcaster.into_dto ();
+	dto.confirming_set = config.confirming_set.into_dto ();
+	dto.monitor = config.monitor.into_dto ();
 	return dto;
 }
 
@@ -156,6 +160,7 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	}
 	optimistic_scheduler.load_dto (dto.optimistic_scheduler);
 	hinted_scheduler.load_dto (dto.hinted_scheduler);
+	priority_bucket = nano::priority_bucket_config{ dto.priority_bucket };
 	bootstrap_fraction_numerator = dto.bootstrap_fraction_numerator;
 	bootstrap_ascending.load_dto (dto.bootstrap_ascending);
 	bootstrap_server.load_dto (dto.bootstrap_server);
@@ -244,7 +249,9 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	request_aggregator = nano::request_aggregator_config{ dto.request_aggregator };
 	message_processor = nano::message_processor_config{ dto.message_processor };
 	priority_scheduler_enabled = dto.priority_scheduler_enabled;
-	local_block_broadcaster = nano::local_block_broadcaster_config{ dto.local_block_broadcaster};
+	local_block_broadcaster = nano::local_block_broadcaster_config{ dto.local_block_broadcaster };
+	confirming_set = nano::confirming_set_config{ dto.confirming_set };
+	monitor = nano::monitor_config{ dto.monitor };
 }
 
 nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
@@ -296,6 +303,12 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		{
 			auto config_l = toml.get_required_child ("optimistic_scheduler");
 			optimistic_scheduler.deserialize (config_l);
+		}
+
+		if (toml.has_key ("priority_bucket"))
+		{
+			auto config_l = toml.get_required_child ("priority_bucket");
+			priority_bucket.deserialize (config_l);
 		}
 
 		if (toml.has_key ("hinted_scheduler"))
@@ -356,6 +369,12 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		{
 			auto config_l = toml.get_required_child ("message_processor");
 			message_processor.deserialize (config_l);
+		}
+
+		if (toml.has_key ("monitor"))
+		{
+			auto config_l = toml.get_required_child ("monitor");
+			monitor.deserialize (config_l);
 		}
 
 		if (toml.has_key ("work_peers"))
@@ -1025,15 +1044,80 @@ nano::local_block_broadcaster_config::local_block_broadcaster_config (rsnano::Lo
 	broadcast_rate_limit{ dto.broadcast_rate_limit },
 	broadcast_rate_burst_ratio{ dto.broadcast_rate_burst_ratio },
 	cleanup_interval{ dto.cleanup_interval_s }
-{}
+{
+}
 
-rsnano::LocalBlockBroadcasterConfigDto nano::local_block_broadcaster_config::into_dto () const{
+rsnano::LocalBlockBroadcasterConfigDto nano::local_block_broadcaster_config::into_dto () const
+{
 	return {
 		max_size,
-		static_cast<uint64_t>(rebroadcast_interval.count()),
-		static_cast<uint64_t>(max_rebroadcast_interval.count()),
+		static_cast<uint64_t> (rebroadcast_interval.count ()),
+		static_cast<uint64_t> (max_rebroadcast_interval.count ()),
 		broadcast_rate_limit,
 		broadcast_rate_burst_ratio,
-		static_cast<uint64_t>(cleanup_interval.count())
+		static_cast<uint64_t> (cleanup_interval.count ())
 	};
+}
+
+nano::confirming_set_config::confirming_set_config (rsnano::ConfirmingSetConfigDto const & dto) :
+	max_blocks{ dto.max_blocks },
+	max_queued_notifications{ dto.max_queued_notifications }
+{
+}
+
+rsnano::ConfirmingSetConfigDto nano::confirming_set_config::into_dto () const
+{
+	return {
+		max_blocks,
+		max_queued_notifications
+	};
+}
+
+nano::monitor_config::monitor_config (rsnano::MonitorConfigDto const & dto) :
+	enabled{ dto.enabled },
+	interval{ dto.interval_s }
+{
+}
+
+rsnano::MonitorConfigDto nano::monitor_config::into_dto () const
+{
+	return {
+		enabled,
+		static_cast<uint64_t> (interval.count ())
+	};
+}
+
+nano::error nano::monitor_config::deserialize (nano::tomlconfig & toml)
+{
+	toml.get ("enable", enabled);
+	auto interval_l = interval.count ();
+	toml.get ("interval", interval_l);
+	interval = std::chrono::seconds{ interval_l };
+
+	return toml.get_error ();
+}
+
+nano::priority_bucket_config::priority_bucket_config (rsnano::PriorityBucketConfigDto const & dto) :
+	max_blocks{ dto.max_blocks },
+	reserved_elections{ dto.reserved_elections },
+	max_elections{ dto.max_elections }
+{
+}
+
+rsnano::PriorityBucketConfigDto nano::priority_bucket_config::into_dto () const
+{
+	return {
+		max_blocks,
+		reserved_elections,
+		max_elections
+	};
+}
+
+nano::error nano::priority_bucket_config::deserialize (nano::tomlconfig & toml)
+{
+	toml.get ("max_blocks", max_blocks);
+	toml.get ("reserved_elections", reserved_elections);
+	toml.get ("max_elections", max_elections);
+
+	return toml.get_error ();
 }

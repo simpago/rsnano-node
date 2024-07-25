@@ -5,7 +5,6 @@ use crate::{
     transport::{RealtimeMessageVisitor, RealtimeMessageVisitorImpl, ResponseServerImpl},
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
-use rsnano_core::KeyPair;
 use rsnano_ledger::Ledger;
 use std::sync::{Arc, Weak};
 
@@ -14,7 +13,6 @@ use super::{BootstrapInitiator, BootstrapMessageVisitorImpl};
 pub struct BootstrapMessageVisitorFactory {
     async_rt: Arc<AsyncRuntime>,
     stats: Arc<Stats>,
-    node_id: KeyPair,
     network_constants: NetworkConstants,
     ledger: Arc<Ledger>,
     thread_pool: Weak<dyn ThreadPool>,
@@ -28,7 +26,6 @@ impl BootstrapMessageVisitorFactory {
         async_rt: Arc<AsyncRuntime>,
         stats: Arc<Stats>,
         network_constants: NetworkConstants,
-        node_id: KeyPair,
         ledger: Arc<Ledger>,
         thread_pool: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,
@@ -38,7 +35,6 @@ impl BootstrapMessageVisitorFactory {
         Self {
             async_rt,
             stats,
-            node_id,
             network_constants,
             ledger,
             thread_pool: Arc::downgrade(&thread_pool),
@@ -54,7 +50,6 @@ impl BootstrapMessageVisitorFactory {
         Self {
             async_rt: Arc::new(AsyncRuntime::default()),
             stats: Arc::new(Stats::default()),
-            node_id: KeyPair::from(1),
             network_constants: NetworkConstants::empty(),
             ledger: ledger.clone(),
             thread_pool: Arc::downgrade(&thread_pool),

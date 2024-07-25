@@ -256,6 +256,7 @@ impl AccountSets {
         self.blocking.len()
     }
 
+    #[allow(dead_code)]
     fn priority(&self, account: &Account) -> f32 {
         if self.blocked(account) {
             return 0.0;

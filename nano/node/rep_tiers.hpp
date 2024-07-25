@@ -1,7 +1,5 @@
 #pragma once
 
-#include "nano/lib/rsnano.hpp"
-
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/utility.hpp>
 #include <nano/secure/common.hpp>
@@ -18,7 +16,6 @@ class network_params;
 class stats;
 class logger;
 class container_info_component;
-class online_reps;
 
 // Higher number means higher priority
 enum class rep_tier
@@ -32,12 +29,8 @@ enum class rep_tier
 class rep_tiers final
 {
 public:
-	rep_tiers (nano::ledger &, nano::network_params &, nano::online_reps &, nano::stats &);
 	rep_tiers (rsnano::RepTiersHandle * handle);
 	~rep_tiers ();
-
-	void start ();
-	void stop ();
 
 	/** Returns the representative tier for the account */
 	nano::rep_tier tier (nano::account const & representative) const;

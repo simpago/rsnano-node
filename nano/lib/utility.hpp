@@ -136,6 +136,11 @@ void create_load_memory_address_files ();
  */
 std::size_t get_file_descriptor_limit ();
 void set_file_descriptor_limit (std::size_t limit);
+/**
+ * This should be called from entry points. It sets the file descriptor limit to the maximum allowed and logs any errors.
+ */
+constexpr std::size_t DEFAULT_FILE_DESCRIPTOR_LIMIT = 16384;
+void initialize_file_descriptor_limit ();
 
 template <class InputIt, class OutputIt, class Pred, class Func>
 void transform_if (InputIt first, InputIt last, OutputIt dest, Pred pred, Func transform)

@@ -143,24 +143,6 @@ impl Deserialize for Amount {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Amount {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let raw_bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
-        if raw_bytes.len() != 16 {
-            return Err(serde::de::Error::custom("Invalid length for u128"));
-        }
-        let raw = u128::from_be_bytes(
-            raw_bytes
-                .try_into()
-                .map_err(|_| serde::de::Error::custom("Invalid byte array length"))?,
-        );
-        Ok(Amount::raw(raw))
-    }
-}
-
 impl std::ops::AddAssign for Amount {
     fn add_assign(&mut self, rhs: Self) {
         self.raw += rhs.raw;

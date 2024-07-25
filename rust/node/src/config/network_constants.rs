@@ -1,3 +1,4 @@
+use crate::bootstrap::BootstrapAscendingConfig;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use rsnano_core::{
@@ -6,16 +7,13 @@ use rsnano_core::{
     Networks,
 };
 use rsnano_messages::ProtocolInfo;
-use serde::Deserialize;
 use std::{sync::Mutex, time::Duration};
 
-use crate::bootstrap::BootstrapAscendingConfig;
-
 //todo: make configurable in builld script again!
-static ACTIVE_NETWORK: Lazy<Mutex<Networks>> = Lazy::new(|| Mutex::new(Networks::NanoDevNetwork));
+static ACTIVE_NETWORK: Lazy<Mutex<Networks>> = Lazy::new(|| Mutex::new(Networks::NanoBetaNetwork));
 
 pub static STUB_NETWORK_CONSTANTS: Lazy<NetworkConstants> =
-    Lazy::new(|| NetworkConstants::new(WORK_THRESHOLDS_STUB.clone(), Networks::NanoDevNetwork));
+    Lazy::new(|| NetworkConstants::new(WORK_THRESHOLDS_STUB.clone(), Networks::NanoBetaNetwork));
 
 #[derive(Clone)]
 pub struct NetworkConstants {

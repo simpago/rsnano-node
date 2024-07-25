@@ -3,17 +3,13 @@ use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
 use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
-    config::{
-        get_node_toml_config_path, get_rpc_toml_config_path, DaemonConfig, NetworkConstants,
-        NodeConfig, NodeFlags, RpcConfig,
-    },
+    config::{NetworkConstants, NodeConfig, NodeFlags},
     node::{Node, NodeExt},
     transport::NullSocketObserver,
-    utils::{AsyncRuntime, TomlConfig},
+    utils::AsyncRuntime,
     NetworkParams,
 };
 use std::{
-    path::Path,
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
@@ -122,21 +118,11 @@ impl RunDaemonArgs {
 
         init_tracing(dirs);
 
-        /*let network_params = if let Some(network) = &self.network {
-            NetworkParams::new(
-                Networks::from_str(&network).map_err(|e| anyhow!("Network is invalid: {:?}", e))?,
-            )
-        } else {
-            DEV_NETWORK_PARAMS.clone()
-            };*/
+        let path = get_path(&self.data_path, &self.network);
 
         let network_params = NetworkParams::new(NetworkConstants::active_network());
 
-        let path = get_path(&self.data_path, &self.network);
-
         std::fs::create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
-
-        // write_config_files(&path)?;
 
         let config = NodeConfig::new(
             Some(network_params.network.default_node_port),
@@ -266,45 +252,4 @@ impl RunDaemonArgs {
             node_flags.set_vote_processor_capacity(vote_processor_capacity);
         }
     }
-}
-
-fn write_config_files(data_path: &Path) -> Result<()> {
-    let network_params = NetworkParams::new(NetworkConstants::active_network());
-    write_node_config(data_path, &network_params)?;
-    write_rpc_config(data_path, &network_params)?;
-    Ok(())
-}
-
-fn write_node_config(data_path: &Path, network_params: &NetworkParams) -> Result<()> {
-    let daemon_config = DaemonConfig::new(network_params, get_cpu_count())?;
-    let mut toml = TomlConfig::new();
-    daemon_config.serialize_toml(&mut toml)?;
-    toml.write(get_node_toml_config_path(data_path))?;
-    Ok(())
-}
-
-fn write_rpc_config(data_path: &Path, network_params: &NetworkParams) -> Result<()> {
-    let mut rpc_config = RpcConfig::new(&network_params.network, get_cpu_count());
-    //rpc_config.enable_control = true;
-    let mut toml_rpc = TomlConfig::new();
-    rpc_config.serialize_toml(&mut toml_rpc)?;
-    toml_rpc.write(get_rpc_toml_config_path(data_path))?;
-    Ok(())
-}
-
-fn read_node_config_toml(
-    data_path: &Path,
-    config: &mut DaemonConfig,
-    config_overrides: &[String],
-) -> Result<()> {
-    let mut config = TomlConfig::new();
-    let toml_config_path = data_path.join("node_config.toml");
-
-    // Parse and deserialize
-    let mut config_overrides_stream = config_overrides.join("\n");
-    config_overrides_stream.push('\n');
-
-    //config.read(&config_overrides_stream, Some(&toml_config_path.as_path()))?;
-
-    Ok(())
 }

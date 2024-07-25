@@ -5,7 +5,6 @@ use blake2::{
     Blake2bVar,
 };
 use primitive_types::U512;
-use serde::{Deserialize, Deserializer};
 
 pub type Account = PublicKey;
 
@@ -55,16 +54,6 @@ impl serde::Serialize for Account {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.encode_account())
-    }
-}
-
-impl<'de> Deserialize<'de> for Account {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Account::decode_account(&s).map_err(serde::de::Error::custom)
     }
 }
 

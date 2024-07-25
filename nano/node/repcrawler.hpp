@@ -25,18 +25,12 @@ public:
 	representative (rsnano::RepresentativeHandle * handle_a);
 	~representative ();
 	representative & operator= (representative const & other_a);
-	size_t channel_id () const
-	{
-		return get_channel ()->channel_id ();
-	}
+	size_t channel_id () const;
 	bool operator== (nano::representative const & other_a) const
 	{
 		return get_account () == other_a.get_account ();
 	}
 	nano::account get_account () const;
-
-	std::shared_ptr<nano::transport::channel> get_channel () const;
-	void set_channel (std::shared_ptr<nano::transport::channel> new_channel);
 
 	rsnano::RepresentativeHandle * handle;
 };
@@ -63,11 +57,10 @@ public:
 	};
 
 	representative_register (rsnano::RepresentativeRegisterHandle * handle);
-	representative_register (nano::node & node_a);
 	representative_register (representative_register const &) = delete;
 	~representative_register ();
 
-	insert_result update_or_insert (nano::account account_a, std::shared_ptr<nano::transport::channel> const & channel_a);
+	void update_or_insert (nano::account account_a, std::shared_ptr<nano::transport::channel> const & channel_a);
 	/** Query if a peer manages a principle representative */
 	bool is_pr (std::shared_ptr<nano::transport::channel> const & target_channel) const;
 	/** Get total available weight from representatives */
@@ -75,7 +68,7 @@ public:
 
 	/** Request a list of the top \p count known representatives in descending order of weight, with at least \p mininum_weight voting weight, and optionally with a minimum version \p minimum_protocol_version
 	 */
-	std::vector<nano::representative> representatives (std::size_t count = std::numeric_limits<std::size_t>::max (), nano::uint128_t const minimum_weight = 0, std::optional<decltype (nano::network_constants::protocol_version)> const & minimum_protocol_version = {});
+	std::vector<nano::representative> representatives (std::size_t count = std::numeric_limits<std::size_t>::max (), nano::uint128_t const minimum_weight = 0);
 
 	/** Total number of representatives */
 	std::size_t representative_count ();
@@ -108,10 +101,6 @@ public:
 
 	/** Query if a peer manages a principle representative */
 	bool is_pr (std::shared_ptr<nano::transport::channel> const &) const;
-
-	/** Request a list of the top \p count known representatives in descending order of weight, with at least \p weight_a voting weight, and optionally with a minimum version \p minimum_protocol_version
-	 */
-	std::vector<representative> representatives (std::size_t count = std::numeric_limits<std::size_t>::max (), nano::uint128_t minimum_weight = 0, std::optional<decltype (nano::network_constants::protocol_version)> const & minimum_protocol_version = {});
 
 	/** Total number of representatives */
 	std::size_t representative_count ();

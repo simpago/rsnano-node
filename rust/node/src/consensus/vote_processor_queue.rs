@@ -2,13 +2,11 @@ use super::{RepTier, RepTiers, VoteProcessorConfig};
 use crate::{
     stats::{DetailType, StatType, Stats},
     transport::{ChannelEnum, FairQueue, Origin},
-    OnlineReps,
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
     Vote, VoteSource,
 };
-use rsnano_ledger::Ledger;
 use std::{
     collections::VecDeque,
     mem::size_of,
@@ -20,19 +18,11 @@ pub struct VoteProcessorQueue {
     condition: Condvar,
     pub config: VoteProcessorConfig,
     stats: Arc<Stats>,
-    online_reps: Arc<Mutex<OnlineReps>>,
-    ledger: Arc<Ledger>,
     rep_tiers: Arc<RepTiers>,
 }
 
 impl VoteProcessorQueue {
-    pub fn new(
-        config: VoteProcessorConfig,
-        stats: Arc<Stats>,
-        online_reps: Arc<Mutex<OnlineReps>>,
-        ledger: Arc<Ledger>,
-        rep_tiers: Arc<RepTiers>,
-    ) -> Self {
+    pub fn new(config: VoteProcessorConfig, stats: Arc<Stats>, rep_tiers: Arc<RepTiers>) -> Self {
         let conf = config.clone();
         Self {
             data: Mutex::new(VoteProcessorQueueData {
@@ -52,9 +42,7 @@ impl VoteProcessorQueue {
             }),
             condition: Condvar::new(),
             config,
-            online_reps,
             stats,
-            ledger,
             rep_tiers,
         }
     }

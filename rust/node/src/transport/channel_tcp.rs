@@ -1,6 +1,6 @@
 use super::{
-    write_queue::WriteCallback, BufferDropPolicy, Channel, ChannelDirection, ChannelMode,
-    OutboundBandwidthLimiter, Socket, SocketExtensions, TrafficType,
+    write_queue::WriteCallback, BufferDropPolicy, Channel, ChannelDirection, ChannelId,
+    ChannelMode, OutboundBandwidthLimiter, Socket, SocketExtensions, TrafficType,
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
@@ -29,7 +29,7 @@ pub struct TcpChannelData {
 }
 
 pub struct ChannelTcp {
-    channel_id: usize,
+    channel_id: ChannelId,
     channel_mutex: Mutex<TcpChannelData>,
     pub socket: Arc<Socket>,
     network_version: AtomicU8,
@@ -46,9 +46,13 @@ impl ChannelTcp {
         stats: Arc<Stats>,
         limiter: Arc<OutboundBandwidthLimiter>,
         async_rt: &Arc<AsyncRuntime>,
-        channel_id: usize,
+        channel_id: ChannelId,
         protocol: ProtocolInfo,
     ) -> Self {
+        let peering_endpoint = match socket.direction() {
+            ChannelDirection::Inbound => None,
+            ChannelDirection::Outbound => socket.get_remote(),
+        };
         Self {
             channel_id,
             channel_mutex: Mutex::new(TcpChannelData {
@@ -57,7 +61,7 @@ impl ChannelTcp {
                 last_packet_sent: now,
                 node_id: None,
                 remote_endpoint: SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0),
-                peering_endpoint: None,
+                peering_endpoint,
             }),
             socket,
             network_version: AtomicU8::new(protocol.version_using),
@@ -224,7 +228,7 @@ impl Channel for Arc<ChannelTcp> {
         self.socket().map(|s| s.is_alive()).unwrap_or(false)
     }
 
-    fn channel_id(&self) -> usize {
+    fn channel_id(&self) -> ChannelId {
         self.channel_id
     }
 
@@ -236,12 +240,8 @@ impl Channel for Arc<ChannelTcp> {
         self.channel_mutex.lock().unwrap().remote_endpoint
     }
 
-    fn peering_endpoint(&self) -> SocketAddrV6 {
-        let lock = self.channel_mutex.lock().unwrap();
-        match lock.peering_endpoint {
-            Some(addr) => addr,
-            None => lock.remote_endpoint,
-        }
+    fn peering_endpoint(&self) -> Option<SocketAddrV6> {
+        self.channel_mutex.lock().unwrap().peering_endpoint
     }
 
     fn network_version(&self) -> u8 {
@@ -278,12 +278,12 @@ impl Channel for Arc<ChannelTcp> {
             self.send_buffer(&buffer, callback, drop_policy, traffic_type);
             self.stats
                 .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);
-            trace!(channel_id = self.channel_id, message = ?message, "Message sent");
+            trace!(channel_id = %self.channel_id, message = ?message, "Message sent");
         } else {
             let detail_type = message.into();
             self.stats
                 .inc_dir_aggregate(StatType::Drop, detail_type, Direction::Out);
-            trace!(channel_id = self.channel_id, message = ?message, "Message dropped");
+            trace!(channel_id = %self.channel_id, message = ?message, "Message dropped");
 
             if let Some(callback) = callback {
                 if let Some(async_rt) = self.async_rt.upgrade() {

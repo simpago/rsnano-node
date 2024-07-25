@@ -1,8 +1,6 @@
 use super::NetworkConstants;
-use crate::utils::TomlConfig;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 use std::{
     net::Ipv6Addr,
     path::{Path, PathBuf},
@@ -24,7 +22,6 @@ fn get_default_rpc_filepath_from(node_exe_path: &Path) -> PathBuf {
     result
 }
 
-#[derive(Debug, Deserialize)]
 pub struct RpcConfig {
     pub address: String,
     pub port: u16,
@@ -121,7 +118,6 @@ impl RpcConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
 pub struct RpcLoggingConfig {
     pub log_rpc: bool,
 }
@@ -138,7 +134,6 @@ impl RpcLoggingConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
 pub struct RpcProcessConfig {
     pub io_threads: u32,
     pub ipc_address: String,

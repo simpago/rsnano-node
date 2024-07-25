@@ -53,12 +53,14 @@ public:
 	bool operator< (const address_library_pair & other) const;
 	bool operator== (const address_library_pair & other) const;
 };
+
 }
 
 int main (int argc, char * const * argv)
 {
 	rsnano::set_rsnano_callbacks ();
 	nano::set_umask (); // Make sure the process umask is set before any files are created
+	nano::initialize_file_descriptor_limit ();
 
 	nano::node_singleton_memory_pool_purge_guard memory_pool_cleanup_guard;
 

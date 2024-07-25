@@ -69,6 +69,51 @@ public:
 	double broadcast_rate_burst_ratio{ 3 };
 	std::chrono::seconds cleanup_interval{ 60 };
 };
+
+class confirming_set_config final
+{
+public:
+	confirming_set_config () = default;
+	confirming_set_config (rsnano::ConfirmingSetConfigDto const & dto);
+	rsnano::ConfirmingSetConfigDto into_dto () const;
+
+	/** Maximum number of dependent blocks to be stored in memory during processing */
+	size_t max_blocks{ 64 * 128 };
+	size_t max_queued_notifications{ 8 };
+};
+
+class monitor_config final
+{
+public:
+	monitor_config () = default;
+	monitor_config (rsnano::MonitorConfigDto const & dto);
+	rsnano::MonitorConfigDto into_dto () const;
+	nano::error deserialize (nano::tomlconfig &);
+
+public:
+	bool enabled{ true };
+	std::chrono::seconds interval{ 60s };
+};
+
+class priority_bucket_config final
+{
+public:
+	priority_bucket_config () = default;
+	priority_bucket_config (rsnano::PriorityBucketConfigDto const & dto);
+	rsnano::PriorityBucketConfigDto into_dto () const;
+	nano::error deserialize (nano::tomlconfig & toml);
+
+public:
+	// Maximum number of blocks to sort by priority per bucket.
+	std::size_t max_blocks{ 1024 * 8 };
+
+	// Number of guaranteed slots per bucket available for election activation.
+	std::size_t reserved_elections{ 100 };
+
+	// Maximum number of slots per bucket available for election activation if the active election count is below the configured limit. (node.active_elections.size)
+	std::size_t max_elections{ 150 };
+};
+
 /**
  * Node configuration
  */
@@ -91,6 +136,7 @@ public:
 	std::optional<uint16_t> peering_port{};
 	nano::scheduler::optimistic_config optimistic_scheduler;
 	nano::scheduler::hinted_config hinted_scheduler;
+	nano::priority_bucket_config priority_bucket;
 	std::vector<std::pair<std::string, uint16_t>> work_peers;
 	std::vector<std::pair<std::string, uint16_t>> secondary_work_peers;
 	std::vector<std::string> preconfigured_peers;
@@ -172,6 +218,8 @@ public:
 	nano::message_processor_config message_processor;
 	bool priority_scheduler_enabled{ true };
 	nano::local_block_broadcaster_config local_block_broadcaster;
+	nano::confirming_set_config confirming_set;
+	nano::monitor_config monitor;
 
 public:
 	nano::frontiers_confirmation_mode deserialize_frontiers_confirmation (std::string const &);

@@ -14,6 +14,7 @@ pub trait ThreadPool: Send + Sync {
     fn push_task(&self, callback: Box<dyn FnOnce() + Send>);
     fn add_delayed_task(&self, delay: Duration, callback: Box<dyn FnOnce() + Send>);
     fn stop(&self);
+    fn num_queued_tasks(&self) -> usize;
 }
 
 pub struct ThreadPoolImpl<T: TimerStrategy + 'static = TimerWrapper> {
@@ -118,6 +119,15 @@ impl<T: TimerStrategy + 'static> ThreadPool for ThreadPoolImpl<T> {
                 data.pool.join();
             }
         }
+    }
+
+    fn num_queued_tasks(&self) -> usize {
+        self.data
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|i| i.pool.queued_count())
+            .unwrap_or_default()
     }
 }
 

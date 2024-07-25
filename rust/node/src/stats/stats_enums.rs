@@ -20,6 +20,7 @@ pub enum StatType {
     VoteProcessorTier,
     VoteProcessorOverfill,
     Election,
+    ElectionCleanup,
     ElectionVote,
     HttpCallback,
     Ipc,
@@ -37,6 +38,8 @@ pub enum StatType {
     Aggregator,
     Requests,
     RequestAggregator,
+    RequestAggregatorVote,
+    RequestAggregatorReplies,
     Filter,
     Telemetry,
     VoteGenerator,
@@ -58,11 +61,13 @@ pub enum StatType {
     ActiveElectionsConfirmed,
     ActiveElectionsDropped,
     ActiveElectionsTimeout,
+    ActiveElectionsCancelled,
     ActiveElectionsCemented,
     ActiveTimeout,
     Backlog,
     Unchecked,
     ElectionScheduler,
+    ElectionBucket,
     OptimisticScheduler,
     Handshake,
     RepCrawler,
@@ -89,9 +94,8 @@ impl StatType {
 #[derive(FromPrimitive, Serialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum DetailType {
-    All = 0,
-
     // common
+    All = 0,
     Ok,
     Loop,
     LoopCleanup,
@@ -119,6 +123,7 @@ pub enum DetailType {
     Confirmed,
     Unconfirmed,
     Cemented,
+    Cooldown,
 
     // processing queue
     Queue,
@@ -166,6 +171,7 @@ pub enum DetailType {
 
     // block source
     Live,
+    LiveOriginator,
     Bootstrap,
     BootstrapLegacy,
     Unchecked,
@@ -322,10 +328,14 @@ pub enum DetailType {
     RequestsGeneratedVotes,
     RequestsCannotVote,
     RequestsUnknown,
+    RequestsNonFinal,
+    RequestsFinal,
 
     // request_aggregator
     RequestHashes,
     OverfillHashes,
+    NormalVote,
+    FinalVote,
 
     // duplicate
     DuplicatePublishMessage,
@@ -372,6 +382,7 @@ pub enum DetailType {
     // active
     Insert,
     InsertFailed,
+    ElectionCleanup,
 
     // active_elections
     Started,
@@ -447,19 +458,26 @@ pub enum DetailType {
     // confirming_set
     NotifyCemented,
     NotifyAlreadyCemented,
+    NotifyIntermediate,
     AlreadyCemented,
+    CementingHash,
 
     // election_state
     Passive,
     Active,
     ExpiredConfirmed,
     ExpiredUnconfirmed,
+    Cancelled,
 
     // election_status_type
     Ongoing,
     ActiveConfirmedQuorum,
     ActiveConfirmationHeight,
     InactiveConfirmationHeight,
+
+    // election bucket
+    ActivateSuccess,
+    CancelLowest,
 }
 
 impl DetailType {

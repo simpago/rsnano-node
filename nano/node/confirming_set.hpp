@@ -2,8 +2,6 @@
 
 #include <nano/lib/numbers.hpp>
 
-#include <chrono>
-
 namespace rsnano
 {
 class ConfirmingSetHandle;

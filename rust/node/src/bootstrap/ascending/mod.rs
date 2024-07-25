@@ -623,7 +623,7 @@ impl Default for BootstrapAscendingConfig {
             throttle_wait: Duration::from_millis(100),
             account_sets: Default::default(),
             block_wait_count: 1000,
-            min_protocol_version: 0x13,
+            min_protocol_version: 0x14,
         }
     }
 }

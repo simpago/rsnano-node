@@ -324,16 +324,15 @@ impl Networks {
 }
 
 impl FromStr for Networks {
-    type Err = ();
+    type Err = &'static str;
 
-    fn from_str(s: &str) -> Result<Networks, ()> {
+    fn from_str(s: &str) -> Result<Networks, Self::Err> {
         match s {
-            "invalid" => Ok(Networks::Invalid),
             "dev" => Ok(Networks::NanoDevNetwork),
             "beta" => Ok(Networks::NanoBetaNetwork),
             "live" => Ok(Networks::NanoLiveNetwork),
             "test" => Ok(Networks::NanoTestNetwork),
-            _ => Err(()),
+            _ => Err("Invalid network"),
         }
     }
 }

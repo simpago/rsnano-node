@@ -7,17 +7,13 @@ mod timer;
 mod timer_thread;
 mod toml;
 
-use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6},
-    sync::OnceLock,
-};
-
 pub use crate::utils::timer::{NullTimer, Timer, TimerStrategy, TimerWrapper};
 pub use async_runtime::AsyncRuntime;
 use blake2::{
     digest::{Update, VariableOutput},
     Blake2bVar,
 };
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6};
 
 mod hardened_constants;
 pub use hardened_constants::HardenedConstants;
@@ -93,8 +89,6 @@ impl ErrorCode {
         }
     }
 }
-
-static TOKIO_ENABLED_VALUE: OnceLock<bool> = OnceLock::new();
 
 pub fn ip_address_hash_raw(address: &Ipv6Addr, port: u16) -> u64 {
     let address_bytes = address.octets();

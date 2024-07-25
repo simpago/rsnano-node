@@ -1,9 +1,13 @@
+use super::TallyKey;
 use crate::stats::{DetailType, StatType, Stats};
+#[cfg(test)]
+use mock_instant::Instant;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent, TomlWriter},
     Account, Amount, BlockHash, Vote, VoteCode,
 };
-use serde::Deserialize;
+#[cfg(not(test))]
+use std::time::Instant;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
@@ -13,14 +17,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(test)]
-use mock_instant::Instant;
-#[cfg(not(test))]
-use std::time::Instant;
-
-use super::TallyKey;
-
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct VoteCacheConfig {
     pub max_size: usize,
     pub max_voters: usize,

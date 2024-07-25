@@ -4,7 +4,7 @@ use crate::{
     TransactionTracker,
 };
 use anyhow::bail;
-use lmdb::{DatabaseFlags, EnvironmentFlags};
+use lmdb::EnvironmentFlags;
 use lmdb_sys::MDB_SUCCESS;
 use rsnano_core::utils::{memory_intensive_instrumentation, PropertyTree};
 use std::collections::BTreeMap;
@@ -188,19 +188,6 @@ impl LmdbEnv {
         let env = LmdbEnvironment::new(env_options)?;
         Ok(env)
     }
-
-    /*pub fn clear_database(&self, database: &str) -> lmdb::Result<()> {
-        let mut txn = self.tx_begin_write();
-        let database = unsafe { txn.create_db(Some(database), DatabaseFlags::empty())? };
-        txn.clear_db(database)?;
-        Ok(())
-    }
-
-    pub fn get_database(&self, database: &str) -> lmdb::Result<LmdbDatabase> {
-    let mut txn = self.tx_begin_write();
-    let database = unsafe { txn.create_db(Some(database), DatabaseFlags::empty())? };
-    Ok(database)
-    }*/
 
     pub fn tx_begin_read(&self) -> LmdbReadTransaction {
         let txn_id = self.next_txn_id.fetch_add(1, Ordering::Relaxed);

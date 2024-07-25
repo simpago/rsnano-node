@@ -1,8 +1,6 @@
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 
-#[derive(Deserialize)]
 pub struct OpenclConfig {
     pub platform: u32,
     pub device: u32,

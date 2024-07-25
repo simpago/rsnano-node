@@ -20,8 +20,8 @@ use crate::{
 
 use super::{
     message_deserializer::{AsyncBufferReader, MessageDeserializer},
-    BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelEnum, ChannelMode,
-    NetworkFilter, OutboundBandwidthLimiter, TrafficType, WriteCallback,
+    BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelEnum, ChannelId,
+    ChannelMode, NetworkFilter, OutboundBandwidthLimiter, TrafficType, WriteCallback,
 };
 
 pub struct InProcChannelData {
@@ -34,7 +34,7 @@ pub struct InProcChannelData {
 pub type InboundCallback = Arc<dyn Fn(DeserializedMessage, Arc<ChannelEnum>) + Send + Sync>;
 
 pub struct ChannelInProc {
-    channel_id: usize,
+    channel_id: ChannelId,
     channel_mutex: Mutex<InProcChannelData>,
     network_constants: NetworkConstants,
     network_filter: Arc<NetworkFilter>,
@@ -52,7 +52,7 @@ pub struct ChannelInProc {
 
 impl ChannelInProc {
     pub fn new(
-        channel_id: usize,
+        channel_id: ChannelId,
         now: SystemTime,
         network_constants: NetworkConstants,
         network_filter: Arc<NetworkFilter>,
@@ -122,7 +122,7 @@ impl ChannelInProc {
             let filter = Arc::new(NetworkFilter::new(100000));
             // we create a temporary channel for the reply path, in case the receiver of the message wants to reply
             let remote_channel = Arc::new(ChannelEnum::InProc(ChannelInProc::new(
-                1,
+                1.into(),
                 SystemTime::now(),
                 network_constants.clone(),
                 filter,
@@ -256,7 +256,7 @@ impl Channel for ChannelInProc {
         true
     }
 
-    fn channel_id(&self) -> usize {
+    fn channel_id(&self) -> ChannelId {
         self.channel_id
     }
 
@@ -268,8 +268,8 @@ impl Channel for ChannelInProc {
         self.remote_endpoint
     }
 
-    fn peering_endpoint(&self) -> SocketAddrV6 {
-        self.remote_endpoint
+    fn peering_endpoint(&self) -> Option<SocketAddrV6> {
+        Some(self.remote_endpoint)
     }
 
     fn network_version(&self) -> u8 {

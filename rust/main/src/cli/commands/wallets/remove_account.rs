@@ -33,7 +33,7 @@ impl RemoveAccountArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
 
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
@@ -41,7 +41,7 @@ impl RemoveAccountArgs {
 
         wallets.ensure_wallet_is_unlocked(wallet_id, &password);
 
-        let account = Account::decode_hex(&self.account)?;
+        let account = Account::decode_account(&self.account)?;
 
         wallets
             .remove_account(&wallet_id, &account)

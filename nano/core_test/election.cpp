@@ -46,7 +46,7 @@ TEST (election, quorum_minimum_flip_success)
 				 .previous (latest_hash)
 				 .account (nano::dev::genesis_key.pub)
 				 .representative (nano::dev::genesis_key.pub)
-				 .balance (node1.online_reps.delta ())
+				 .balance (node1.quorum ().quorum_delta)
 				 .link (key1.pub)
 				 .work (*system.work.generate (latest_hash))
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
@@ -57,7 +57,7 @@ TEST (election, quorum_minimum_flip_success)
 				 .previous (latest_hash)
 				 .account (nano::dev::genesis_key.pub)
 				 .representative (nano::dev::genesis_key.pub)
-				 .balance (node1.online_reps.delta ())
+				 .balance (node1.quorum ().quorum_delta)
 				 .link (key2.pub)
 				 .work (*system.work.generate (latest_hash))
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
@@ -93,7 +93,7 @@ TEST (election, quorum_minimum_flip_fail)
 				 .previous (nano::dev::genesis->hash ())
 				 .account (nano::dev::genesis_key.pub)
 				 .representative (nano::dev::genesis_key.pub)
-				 .balance (node.online_reps.delta () - 1)
+				 .balance (node.quorum ().quorum_delta.number () - 1)
 				 .link (nano::keypair{}.pub)
 				 .work (*system.work.generate (nano::dev::genesis->hash ()))
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
@@ -103,7 +103,7 @@ TEST (election, quorum_minimum_flip_fail)
 				 .previous (nano::dev::genesis->hash ())
 				 .account (nano::dev::genesis_key.pub)
 				 .representative (nano::dev::genesis_key.pub)
-				 .balance (node.online_reps.delta () - 1)
+				 .balance (node.quorum ().quorum_delta.number () - 1)
 				 .link (nano::keypair{}.pub)
 				 .work (*system.work.generate (nano::dev::genesis->hash ()))
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
@@ -144,7 +144,7 @@ TEST (election, quorum_minimum_confirm_success)
 				 .account (nano::dev::genesis_key.pub)
 				 .previous (nano::dev::genesis->hash ())
 				 .representative (nano::dev::genesis_key.pub)
-				 .balance (node1.online_reps.delta ()) // Only minimum quorum remains
+				 .balance (node1.quorum ().quorum_delta) // Only minimum quorum remains
 				 .link (key1.pub)
 				 .work (0)
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
@@ -174,7 +174,7 @@ TEST (election, quorum_minimum_confirm_fail)
 				 .account (nano::dev::genesis_key.pub)
 				 .previous (nano::dev::genesis->hash ())
 				 .representative (nano::dev::genesis_key.pub)
-				 .balance (node1.online_reps.delta () - 1)
+				 .balance (node1.quorum ().quorum_delta.number () - 1)
 				 .link (nano::keypair{}.pub)
 				 .work (*system.work.generate (nano::dev::genesis->hash ()))
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
@@ -212,7 +212,7 @@ TEST (election, quorum_minimum_update_weight_before_quorum_checks)
 
 	nano::keypair key1;
 	nano::send_block_builder builder;
-	auto const amount = ((nano::uint256_t (node_config.online_weight_minimum.number ()) * nano::online_reps::online_weight_quorum ()) / 100).convert_to<nano::uint128_t> () - 1;
+	auto const amount = ((nano::uint256_t (node_config.online_weight_minimum.number ()) * node1.quorum ().online_weight_quorum_percent) / 100).convert_to<nano::uint128_t> () - 1;
 
 	auto const latest = node1.latest (nano::dev::genesis_key.pub);
 	auto const send1 = builder.make_block ()
@@ -262,7 +262,7 @@ TEST (election, quorum_minimum_update_weight_before_quorum_checks)
 	ASSERT_FALSE (node1.active.confirmed (*election));
 	{
 		// Modify online_m for online_reps to more than is available, this checks that voting below updates it to current online reps.
-		node1.online_reps.set_online (node_config.online_weight_minimum.number () + 20);
+		node1.set_online_weight (node_config.online_weight_minimum.number () + 20);
 	}
 	ASSERT_EQ (nano::vote_code::vote, node1.vote (*vote2, send1->hash ()));
 	ASSERT_TIMELY (5s, node1.active.confirmed (*election));

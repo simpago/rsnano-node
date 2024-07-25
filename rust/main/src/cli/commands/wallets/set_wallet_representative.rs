@@ -31,13 +31,13 @@ impl SetWalletRepresentativeArgs {
     pub(crate) fn set_representative_wallet(&self) -> Result<()> {
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
-        let representative = Account::decode_hex(&self.account)?;
+        let representative = Account::decode_account(&self.account)?;
 
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
 
         let password = self.password.clone().unwrap_or_default();
 

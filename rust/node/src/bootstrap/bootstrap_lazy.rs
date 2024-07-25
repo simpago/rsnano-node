@@ -37,7 +37,6 @@ struct LazyStateBacklogItem {
  */
 pub struct BootstrapAttemptLazy {
     pub attempt: BootstrapAttempt,
-    peer_count: usize,
     flags: NodeFlags,
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,
@@ -241,7 +240,6 @@ impl BootstrapAttemptLazy {
                 BootstrapMode::Lazy,
                 incremental_id,
             )?,
-            peer_count: 0,
             flags: flags.clone(),
             connections,
             ledger,

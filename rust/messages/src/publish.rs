@@ -15,19 +15,34 @@ pub struct Publish {
     pub block: BlockEnum,
     #[serde(skip_serializing)]
     pub digest: u128,
+    pub is_originator: bool,
 }
 
 impl Publish {
     const BLOCK_TYPE_MASK: u16 = 0x0f00;
+    const ORIGINATOR_FLAG: u16 = 1 << 2;
 
-    pub fn new(block: BlockEnum) -> Self {
-        Self { block, digest: 0 }
+    pub fn new_from_originator(block: BlockEnum) -> Self {
+        Self {
+            block,
+            digest: 0,
+            is_originator: true,
+        }
+    }
+
+    pub fn new_forward(block: BlockEnum) -> Self {
+        Self {
+            block,
+            digest: 0,
+            is_originator: false,
+        }
     }
 
     pub fn new_test_instance() -> Self {
         Self {
             block: BlockEnum::new_test_instance(),
             digest: 0,
+            is_originator: true,
         }
     }
 
@@ -39,6 +54,7 @@ impl Publish {
         let payload = Publish {
             block: BlockEnum::deserialize_block_type(Self::block_type(extensions), stream).ok()?,
             digest,
+            is_originator: extensions.data & Self::ORIGINATOR_FLAG > 0,
         };
 
         Some(payload)
@@ -69,7 +85,11 @@ impl Serialize for Publish {
 
 impl MessageVariant for Publish {
     fn header_extensions(&self, _payload_len: u16) -> BitArray<u16> {
-        BitArray::new((self.block.block_type() as u16) << 8)
+        let mut flags = (self.block.block_type() as u16) << 8;
+        if self.is_originator {
+            flags |= Self::ORIGINATOR_FLAG;
+        }
+        BitArray::new(flags)
     }
 }
 
@@ -97,9 +117,36 @@ mod tests {
     use rsnano_core::{utils::MemoryStream, BlockBuilder};
 
     #[test]
+    fn create_from_originator() {
+        let publish = Publish::new_from_originator(BlockEnum::new_test_instance());
+        assert_eq!(publish.is_originator, true)
+    }
+
+    #[test]
+    fn create_forward() {
+        let publish = Publish::new_forward(BlockEnum::new_test_instance());
+        assert_eq!(publish.is_originator, false);
+    }
+
+    #[test]
+    fn originator_flag_in_header() {
+        let publish = Publish::new_from_originator(BlockEnum::new_test_instance());
+        let flags = publish.header_extensions(0);
+        assert!(flags.data & Publish::ORIGINATOR_FLAG > 0);
+    }
+
+    #[test]
+    fn originator_flag_not_in_header() {
+        let publish = Publish::new_forward(BlockEnum::new_test_instance());
+        let flags = publish.header_extensions(0);
+        assert_eq!(flags.data & Publish::ORIGINATOR_FLAG, 0);
+    }
+
+    #[test]
     fn serialize() {
         let block = BlockBuilder::state().build();
-        let publish1 = Publish { block, digest: 123 };
+        let mut publish1 = Publish::new_from_originator(block);
+        publish1.digest = 123;
 
         let mut stream = MemoryStream::new();
         publish1.serialize(&mut stream);

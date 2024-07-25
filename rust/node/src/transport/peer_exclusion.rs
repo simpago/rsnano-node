@@ -210,8 +210,6 @@ impl PeersOrderedByExclusionDate {
     }
 }
 
-const PEERS_PERCENTAGE_LIMIT: f64 = 0.5;
-
 /// When `SCORE_LIMIT` is reached then a peer will be excluded
 const SCORE_LIMIT: u64 = 2;
 static EXCLUDE_TIME_HOURS: Duration = Duration::from_secs(60 * 60);

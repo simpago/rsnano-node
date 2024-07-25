@@ -1,6 +1,6 @@
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    BlockHash, KeyPair, PublicKey, Signature, WorkVersion,
+    KeyPair, Signature, WorkVersion,
 };
 use rsnano_ledger::Ledger;
 use rsnano_messages::{Message, TelemetryAck, TelemetryData, TelemetryMaker};
@@ -19,7 +19,7 @@ use crate::{
     config::NodeConfig,
     stats::{DetailType, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, ChannelMode, Network, TrafficType},
-    NetworkParams, DEV_NETWORK_PARAMS,
+    NetworkParams,
 };
 
 /**
@@ -49,24 +49,6 @@ pub struct Telemetry {
 
 impl Telemetry {
     const MAX_SIZE: usize = 1024;
-
-    pub fn new_null() -> Self {
-        Self {
-            config: TelementryConfig::default(),
-            node_config: NodeConfig::new_test_instance(),
-            stats: Arc::new(Stats::default()),
-            ledger: Arc::new(Ledger::new_null()),
-            unchecked: Arc::new(UncheckedMap::default()),
-            thread: Mutex::new(None),
-            condition: Condvar::default(),
-            mutex: Mutex::new(TelemetryImpl::default()),
-            network_params: DEV_NETWORK_PARAMS.to_owned(),
-            network: Arc::new(Network::new_null()),
-            node_id: KeyPair::new(),
-            startup_time: Instant::now(),
-            notify: Mutex::new(vec![]),
-        }
-    }
 
     pub fn new(
         config: TelementryConfig,
@@ -165,7 +147,6 @@ impl Telemetry {
                 endpoint,
                 data: data.clone(),
                 last_updated: Instant::now(),
-                channel: Arc::clone(channel),
             });
 
             if guard.telemetries.len() > Self::MAX_SIZE {
@@ -378,7 +359,7 @@ impl Telemetry {
     }
 }
 
-pub const MAJOR_VERSION: u8 = 27; // TODO: get this from cmake
+pub const MAJOR_VERSION: u8 = 28; // TODO: get this from cmake
 pub const MINOR_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PATCH_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PRE_RELEASE_VERSION: u8 = 99; // TODO: get this from cmake
@@ -394,150 +375,6 @@ struct VendorVersion {
     maker: u8,
 }
 
-pub fn consolidate_telemetry_data(telemetry_datas: &[TelemetryData]) -> TelemetryData {
-    if telemetry_datas.is_empty() {
-        return Default::default();
-    } else if telemetry_datas.len() == 1 {
-        // Only 1 element in the collection, so just return it.
-        return telemetry_datas.first().unwrap().clone();
-    }
-
-    let mut protocol_versions: HashMap<u8, i32> = HashMap::new();
-    let mut vendor_versions: HashMap<VendorVersion, i32> = HashMap::new();
-    let mut bandwidth_caps: HashMap<u64, i32> = HashMap::new();
-    let mut genesis_blocks: HashMap<BlockHash, i32> = HashMap::new();
-
-    // Use a trimmed average which excludes the upper and lower 10% of the results
-    let mut account_counts: Vec<u64> = Vec::new();
-    let mut block_counts: Vec<u64> = Vec::new();
-    let mut cemented_counts: Vec<u64> = Vec::new();
-    let mut peer_counts: Vec<u64> = Vec::new();
-    let mut unchecked_counts: Vec<u64> = Vec::new();
-    let mut uptimes: Vec<u64> = Vec::new();
-    let mut bandwidths: Vec<u64> = Vec::new();
-    let mut timestamps: Vec<u64> = Vec::new();
-    let mut active_difficulties: Vec<u64> = Vec::new();
-
-    for telemetry_data in telemetry_datas {
-        account_counts.push(telemetry_data.account_count);
-        block_counts.push(telemetry_data.block_count);
-        cemented_counts.push(telemetry_data.cemented_count);
-
-        let version = VendorVersion {
-            major: telemetry_data.major_version,
-            minor: telemetry_data.minor_version,
-            patch: telemetry_data.patch_version,
-            pre_release: telemetry_data.pre_release_version,
-            maker: telemetry_data.maker,
-        };
-        *vendor_versions.entry(version).or_default() += 1;
-        timestamps.push(
-            telemetry_data
-                .timestamp
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        );
-        *protocol_versions
-            .entry(telemetry_data.protocol_version)
-            .or_default() += 1;
-        peer_counts.push(telemetry_data.peer_count as u64);
-        unchecked_counts.push(telemetry_data.unchecked_count);
-        uptimes.push(telemetry_data.uptime);
-        // 0 has a special meaning (unlimited), don't include it in the average as it will be heavily skewed
-        if telemetry_data.bandwidth_cap != 0 {
-            bandwidths.push(telemetry_data.bandwidth_cap);
-        }
-
-        *bandwidth_caps
-            .entry(telemetry_data.bandwidth_cap)
-            .or_default() += 1;
-
-        *genesis_blocks
-            .entry(telemetry_data.genesis_block)
-            .or_default() += 1;
-
-        active_difficulties.push(telemetry_data.active_difficulty);
-    }
-
-    // Remove 10% of the results from the lower and upper bounds to catch any outliers. Need at least 10 responses before any are removed.
-    let num_either_side_to_remove = telemetry_datas.len() / 10;
-
-    let strip_outliers_and_sum = |counts: &mut Vec<u64>| {
-        if num_either_side_to_remove * 2 >= counts.len() {
-            return 0u128;
-        }
-        counts.sort();
-        counts
-            .iter()
-            .skip(num_either_side_to_remove)
-            .take(counts.len() - num_either_side_to_remove * 2)
-            .map(|i| u128::from(*i))
-            .sum()
-    };
-
-    let size = (telemetry_datas.len() - num_either_side_to_remove * 2) as u128;
-    let account_sum = strip_outliers_and_sum(&mut account_counts);
-    let block_sum = strip_outliers_and_sum(&mut block_counts);
-    let cemented_sum = strip_outliers_and_sum(&mut cemented_counts);
-    let peer_sum = strip_outliers_and_sum(&mut peer_counts);
-    let unchecked_sum = strip_outliers_and_sum(&mut unchecked_counts);
-    let uptime_sum = strip_outliers_and_sum(&mut uptimes);
-    let bandwidth_sum = strip_outliers_and_sum(&mut bandwidths);
-    let active_difficulty_sum = strip_outliers_and_sum(&mut active_difficulties);
-    let timestamp_sum = strip_outliers_and_sum(&mut timestamps);
-    let version = get_mode(&vendor_versions, size);
-
-    TelemetryData {
-        account_count: (account_sum / size) as u64,
-        block_count: (block_sum / size) as u64,
-        cemented_count: (cemented_sum / size) as u64,
-        peer_count: (peer_sum / size) as u32,
-        uptime: (uptime_sum / size) as u64,
-        unchecked_count: (unchecked_sum / size) as u64,
-        active_difficulty: (active_difficulty_sum / size) as u64,
-        timestamp: SystemTime::UNIX_EPOCH + Duration::from_millis((timestamp_sum / size) as u64),
-        // Use the mode of protocol version and vendor version. Also use it for bandwidth cap if there is 2 or more of the same cap.
-        bandwidth_cap: get_mode_or_average(&bandwidth_caps, bandwidth_sum, size),
-        protocol_version: get_mode(&protocol_versions, size),
-        genesis_block: get_mode(&genesis_blocks, size),
-        major_version: version.major,
-        minor_version: version.minor,
-        patch_version: version.patch,
-        pre_release_version: version.pre_release,
-        maker: version.maker,
-        unknown_data: Vec::new(),
-        node_id: PublicKey::zero(),
-        signature: Signature::default(),
-    }
-}
-
-fn get_mode_or_average(collection: &HashMap<u64, i32>, sum: u128, size: u128) -> u64 {
-    let Some((key, count)) = collection.iter().max_by_key(|(_k, v)| *v) else {
-        return Default::default();
-    };
-    if *count > 1 {
-        *key
-    } else {
-        (sum / size) as u64
-    }
-}
-
-fn get_mode<T>(collection: &HashMap<T, i32>, _size: u128) -> T
-where
-    T: Default + Clone,
-{
-    let Some((key, count)) = collection.iter().max_by_key(|(_k, v)| *v) else {
-        return Default::default();
-    };
-    if *count > 1 {
-        key.clone()
-    } else {
-        // Just pick the first one
-        collection.iter().next().unwrap().0.clone()
-    }
-}
-
 impl Drop for Telemetry {
     fn drop(&mut self) {
         // Thread must be stopped before destruction
@@ -545,7 +382,6 @@ impl Drop for Telemetry {
     }
 }
 
-#[derive(Default)]
 pub struct TelementryConfig {
     pub enable_ongoing_requests: bool,
     pub enable_ongoing_broadcasts: bool,
@@ -555,7 +391,6 @@ pub trait TelementryExt {
     fn start(&self);
 }
 
-#[derive(Default)]
 struct TelemetryImpl {
     stopped: bool,
     triggered: bool,
@@ -583,7 +418,6 @@ struct Entry {
     endpoint: SocketAddrV6,
     data: TelemetryData,
     last_updated: Instant,
-    channel: Arc<ChannelEnum>,
 }
 
 #[derive(Default)]

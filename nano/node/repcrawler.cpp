@@ -46,14 +46,9 @@ nano::account nano::representative::get_account () const
 	return account;
 }
 
-std::shared_ptr<nano::transport::channel> nano::representative::get_channel () const
+size_t nano::representative::channel_id () const
 {
-	return nano::transport::channel_handle_to_channel (rsnano::rsn_representative_channel (handle));
-}
-
-void nano::representative::set_channel (std::shared_ptr<nano::transport::channel> new_channel)
-{
-	rsnano::rsn_representative_set_channel (handle, new_channel->handle);
+	return rsnano::rsn_representative_channel_id (handle);
 }
 
 //------------------------------------------------------------------------------
@@ -65,44 +60,14 @@ nano::representative_register::representative_register (rsnano::RepresentativeRe
 {
 }
 
-nano::representative_register::representative_register (nano::node & node_a)
-{
-	auto network_dto{ node_a.config->network_params.network.to_dto () };
-	handle = rsnano::rsn_representative_register_create (
-	node_a.ledger.handle,
-	node_a.online_reps.get_handle (),
-	node_a.stats->handle,
-	&network_dto);
-}
-
 nano::representative_register::~representative_register ()
 {
 	rsnano::rsn_representative_register_destroy (handle);
 }
 
-nano::representative_register::insert_result nano::representative_register::update_or_insert (nano::account account_a, std::shared_ptr<nano::transport::channel> const & channel_a)
+void nano::representative_register::update_or_insert (nano::account account_a, std::shared_ptr<nano::transport::channel> const & channel_a)
 {
-	rsnano::EndpointDto endpoint_dto;
-	auto result_code = rsnano::rsn_representative_register_update_or_insert (handle, account_a.bytes.data (), channel_a->handle, &endpoint_dto);
-	nano::representative_register::insert_result result{};
-	if (result_code == 0)
-	{
-		result.inserted = true;
-	}
-	else if (result_code == 1)
-	{
-		// updated
-	}
-	else if (result_code == 2)
-	{
-		result.updated = true;
-		result.prev_endpoint = rsnano::dto_to_endpoint (endpoint_dto);
-	}
-	else
-	{
-		throw std::runtime_error ("unknown result code");
-	}
-	return result;
+	rsnano::rsn_representative_register_update_or_insert (handle, account_a.bytes.data (), channel_a->handle);
 }
 
 bool nano::representative_register::is_pr (std::shared_ptr<nano::transport::channel> const & target_channel) const
@@ -117,12 +82,11 @@ nano::uint128_t nano::representative_register::total_weight () const
 	return result.number ();
 }
 
-std::vector<nano::representative> nano::representative_register::representatives (std::size_t count, nano::uint128_t const minimum_weight, std::optional<decltype (nano::network_constants::protocol_version)> const & minimum_protocol_version)
+std::vector<nano::representative> nano::representative_register::representatives (std::size_t count, nano::uint128_t const minimum_weight)
 {
-	uint8_t min_version = minimum_protocol_version.value_or (0);
 	nano::amount weight{ minimum_weight };
 
-	auto result_handle = rsnano::rsn_representative_register_representatives (handle, count, weight.bytes.data (), min_version);
+	auto result_handle = rsnano::rsn_representative_register_representatives (handle, count, weight.bytes.data ());
 
 	auto len = rsnano::rsn_representative_list_len (result_handle);
 	std::vector<nano::representative> result;
@@ -179,11 +143,6 @@ bool nano::rep_crawler::is_pr (std::shared_ptr<nano::transport::channel> const &
 bool nano::rep_crawler::process (std::shared_ptr<nano::vote> const & vote, std::shared_ptr<nano::transport::channel> const & channel)
 {
 	return rsnano::rsn_rep_crawler_process (handle, vote->get_handle (), channel->handle);
-}
-
-std::vector<nano::representative> nano::rep_crawler::representatives (std::size_t count, nano::uint128_t const minimum_weight, std::optional<decltype (nano::network_constants::protocol_version)> const & minimum_protocol_version)
-{
-	return node.representative_register.representatives (count, minimum_weight, minimum_protocol_version);
 }
 
 std::size_t nano::rep_crawler::representative_count ()

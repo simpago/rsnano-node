@@ -9,11 +9,6 @@
 namespace nano
 {
 class node;
-namespace transport
-{
-	class channel_tcp;
-}
-
 class bootstrap_attempt;
 class bootstrap_connections;
 class pull_info;

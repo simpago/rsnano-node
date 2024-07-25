@@ -332,13 +332,9 @@ mod tests {
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
     enum TestSource {
-        Unknown,
         Live,
         Bootstrap,
-        BootstrapLegacy,
         Unchecked,
-        Local,
-        Forced,
     }
 
     #[test]
@@ -454,7 +450,6 @@ mod tests {
                 TestSource::Live => 1,
                 TestSource::Bootstrap => 2,
                 TestSource::Unchecked => 3,
-                _ => 0,
             }),
         );
 

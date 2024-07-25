@@ -52,7 +52,7 @@ impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
                 MessageHeader::SERIALIZED_SIZE,
             )
             .await
-            .map_err(|_| ParseMessageError::Other)?;
+            .map_err(|e| ParseMessageError::Other(e.to_string()))?;
 
         self.received_header().await
     }
@@ -74,7 +74,7 @@ impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
             self.buffer_reader
                 .read(Arc::clone(&self.read_buffer), payload_size)
                 .await
-                .map_err(|_| ParseMessageError::Other)?;
+                .map_err(|e| ParseMessageError::Other(e.to_string()))?;
             self.parse_message(header, payload_size)
         }
     }

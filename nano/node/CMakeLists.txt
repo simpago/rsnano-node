@@ -81,8 +81,6 @@ add_library(
   inactive_node.cpp
   node.hpp
   node.cpp
-  online_reps.hpp
-  online_reps.cpp
   openclconfig.hpp
   openclconfig.cpp
   repcrawler.hpp

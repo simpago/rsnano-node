@@ -2,7 +2,7 @@ use rsnano_core::{work::WorkPoolImpl, Amount, Networks, WalletId};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
     node::{Node, NodeExt},
-    transport::NullSocketObserver,
+    transport::{NullSocketObserver, PeerConnectorExt},
     unique_path,
     utils::AsyncRuntime,
     wallets::WalletsExt,
@@ -10,7 +10,10 @@ use rsnano_node::{
 };
 use std::{
     net::TcpListener,
-    sync::{Arc, OnceLock},
+    sync::{
+        atomic::{AtomicU16, Ordering},
+        Arc, OnceLock,
+    },
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -63,6 +66,10 @@ impl System {
         node
     }
 
+    pub(crate) fn make_node(&mut self) -> Arc<Node> {
+        self.build_node().finish()
+    }
+
     fn make_connected_node(&mut self, config: NodeConfig) -> Arc<Node> {
         let node = self.new_node(config, NodeFlags::default());
         let wallet_id = WalletId::random();
@@ -71,14 +78,10 @@ impl System {
         self.nodes.push(node.clone());
 
         if self.nodes.len() > 1 {
-            // TODO: connect to other nodes
-        } else {
-            // Ensure no bootstrap initiators are in progress
-            while node.bootstrap_initiator.in_progress() {
-                sleep(Duration::from_millis(10));
-            }
+            self.nodes[0]
+                .peer_connector
+                .connect_to(node.tcp_listener.local_address());
         }
-
         node
     }
 
@@ -132,8 +135,11 @@ impl<'a> NodeBuilder<'a> {
     }
 }
 
+static START_PORT: AtomicU16 = AtomicU16::new(1025);
+
 fn get_available_port() -> u16 {
-    (1025..65535)
+    let start = START_PORT.fetch_add(1, Ordering::SeqCst);
+    (start..65535)
         .find(|port| is_port_available(*port))
         .expect("Could not find an available port")
 }

@@ -20,7 +20,9 @@ TEST (election_scheduler, construction)
 
 TEST (election_scheduler, activate_one_timely)
 {
-	nano::test::system system{ 1 };
+	nano::test::system system;
+	auto & node = *system.add_node ();
+
 	nano::state_block_builder builder;
 	auto send1 = builder.make_block ()
 				 .account (nano::dev::genesis_key.pub)
@@ -31,14 +33,16 @@ TEST (election_scheduler, activate_one_timely)
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
 				 .work (*system.work.generate (nano::dev::genesis->hash ()))
 				 .build ();
-	system.nodes[0]->ledger.process (*system.nodes[0]->store.tx_begin_write (), send1);
-	system.nodes[0]->scheduler.priority.activate (*system.nodes[0]->store.tx_begin_read (), nano::dev::genesis_key.pub);
-	ASSERT_TIMELY (5s, system.nodes[0]->active.election (send1->qualified_root ()));
+	node.ledger.process (*node.store.tx_begin_write (), send1);
+	node.scheduler.priority.activate (*node.store.tx_begin_read (), nano::dev::genesis_key.pub);
+	ASSERT_TIMELY (5s, node.active.election (send1->qualified_root ()));
 }
 
 TEST (election_scheduler, activate_one_flush)
 {
-	nano::test::system system{ 1 };
+	nano::test::system system;
+	auto & node = *system.add_node ();
+
 	nano::state_block_builder builder;
 	auto send1 = builder.make_block ()
 				 .account (nano::dev::genesis_key.pub)
@@ -49,9 +53,9 @@ TEST (election_scheduler, activate_one_flush)
 				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
 				 .work (*system.work.generate (nano::dev::genesis->hash ()))
 				 .build ();
-	system.nodes[0]->ledger.process (*system.nodes[0]->store.tx_begin_write (), send1);
-	system.nodes[0]->scheduler.priority.activate (*system.nodes[0]->store.tx_begin_read (), nano::dev::genesis_key.pub);
-	ASSERT_TIMELY (5s, system.nodes[0]->active.election (send1->qualified_root ()));
+	node.ledger.process (*node.store.tx_begin_write (), send1);
+	node.scheduler.priority.activate (*node.store.tx_begin_read (), nano::dev::genesis_key.pub);
+	ASSERT_TIMELY (5s, node.active.election (send1->qualified_root ()));
 }
 
 /**
@@ -71,13 +75,14 @@ TEST (election_scheduler, activate_one_flush)
  */
 TEST (election_scheduler, no_vacancy)
 {
-	nano::test::system system{};
+	nano::test::system system;
 
 	nano::node_config config = system.default_config ();
 	config.active_elections.size = 1;
 	config.frontiers_confirmation = nano::frontiers_confirmation_mode::disabled;
 
 	auto & node = *system.add_node (config);
+
 	nano::state_block_builder builder{};
 	nano::keypair key{};
 

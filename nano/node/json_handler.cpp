@@ -1,3 +1,6 @@
+#include "nano/lib/rsnano.hpp"
+#include "nano/lib/rsnanoutils.hpp"
+
 #include <nano/lib/blocks.hpp>
 #include <nano/lib/config.hpp>
 #include <nano/lib/json_error_response.hpp>
@@ -2123,24 +2126,36 @@ void nano::json_handler::confirmation_info ()
 
 void nano::json_handler::confirmation_quorum ()
 {
-	response_l.put ("quorum_delta", node.online_reps.delta ().convert_to<std::string> ());
-	response_l.put ("online_weight_quorum_percent", std::to_string (nano::online_reps::online_weight_quorum ()));
-	response_l.put ("online_weight_minimum", node.config->online_weight_minimum.to_string_dec ());
-	response_l.put ("online_stake_total", node.online_reps.online ().convert_to<std::string> ());
-	response_l.put ("trended_stake_total", node.online_reps.trended ().convert_to<std::string> ());
-	response_l.put ("peers_stake_total", node.representative_register.total_weight ().convert_to<std::string> ());
+	auto quorum{ node.quorum () };
+
+	response_l.put ("quorum_delta", quorum.quorum_delta.to_string_dec ());
+	response_l.put ("online_weight_quorum_percent", std::to_string (quorum.online_weight_quorum_percent));
+	response_l.put ("online_weight_minimum", quorum.online_weight_minimum.to_string_dec ());
+	response_l.put ("online_stake_total", quorum.online_weight.to_string_dec ());
+	response_l.put ("trended_stake_total", quorum.trended_weight.to_string_dec ());
+	response_l.put ("peers_stake_total", quorum.peers_weight.to_string_dec ());
 	if (request.get<bool> ("peer_details", false))
 	{
+		auto details = rsnano::rsn_node_representative_details (node.handle);
+		auto len = rsnano::rsn_rep_details_len (details);
 		boost::property_tree::ptree peers;
-		for (auto & peer : node.representative_register.representatives ())
+		for (auto i = 0; i < len; ++i)
 		{
+			nano::account account;
+			nano::amount weight;
+			rsnano::EndpointDto endpoint;
+			rsnano::rsn_rep_details_get (details, i, account.bytes.data (), &endpoint, weight.bytes.data ());
+			auto ep = rsnano::dto_to_endpoint (endpoint);
+			auto ep_str = boost::str (boost::format ("%1%") % ep);
+
 			boost::property_tree::ptree peer_node;
-			peer_node.put ("account", peer.get_account ().to_account ());
-			peer_node.put ("ip", peer.get_channel ()->to_string ());
-			peer_node.put ("weight", nano::amount{ node.ledger.weight (peer.get_account ()) }.to_string_dec ());
+			peer_node.put ("account", account.to_account ());
+			peer_node.put ("ip", ep_str);
+			peer_node.put ("weight", weight.to_string_dec ());
 			peers.push_back (std::make_pair ("", peer_node));
 		}
 		response_l.add_child ("peers", peers);
+		rsnano::rsn_rep_details_destroy (details);
 	}
 	response_errors ();
 }
@@ -3512,7 +3527,7 @@ void nano::json_handler::representatives_online ()
 	if (!ec)
 	{
 		boost::property_tree::ptree representatives;
-		auto reps (node.online_reps.list ());
+		auto reps (node.list_online_reps ());
 		for (auto & i : reps)
 		{
 			if (accounts_node.is_initialized ())
@@ -4048,27 +4063,21 @@ void nano::json_handler::telemetry ()
 		}
 		else
 		{
-			nano::jsonconfig config_l;
-			std::vector<nano::telemetry_data> telemetry_datas;
-			telemetry_datas.reserve (telemetry_responses.size ());
-			std::transform (telemetry_responses.begin (), telemetry_responses.end (), std::back_inserter (telemetry_datas), [] (auto const & endpoint_telemetry_data) {
-				return endpoint_telemetry_data.second;
-			});
+			// Default case without any parameters, requesting telemetry metrics locally
+			auto telemetry_data = node.local_telemetry ();
 
-			auto average_telemetry_metrics = nano::consolidate_telemetry_data (telemetry_datas);
-			// Don't add node_id/signature in consolidated metrics
-			auto const should_ignore_identification_metrics = true;
-			auto err = average_telemetry_metrics.serialize_json (config_l, should_ignore_identification_metrics);
+			nano::jsonconfig config_l;
+			auto const should_ignore_identification_metrics = false;
+			auto err = telemetry_data.serialize_json (config_l, should_ignore_identification_metrics);
 			auto const & ptree = config_l.get_tree ();
 
 			if (!err)
 			{
 				response_l.insert (response_l.begin (), ptree.begin (), ptree.end ());
 			}
-			else
-			{
-				ec = nano::error_rpc::generic;
-			}
+
+			response_errors ();
+			return;
 		}
 
 		response_errors ();

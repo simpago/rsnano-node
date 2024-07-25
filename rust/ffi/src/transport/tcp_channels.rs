@@ -53,7 +53,7 @@ pub unsafe extern "C" fn rsn_tcp_channels_find_channel(
     handle: &mut TcpChannelsHandle,
     endpoint: &EndpointDto,
 ) -> *mut ChannelHandle {
-    match handle.find_channel(&endpoint.into()) {
+    match handle.find_channel_by_remote_addr(&endpoint.into()) {
         Some(channel) => ChannelHandle::new(channel),
         None => std::ptr::null_mut(),
     }
@@ -97,7 +97,7 @@ pub unsafe extern "C" fn rsn_tcp_channels_random_fill(
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_tcp_channels_get_next_channel_id(handle: &TcpChannelsHandle) -> usize {
-    handle.get_next_channel_id()
+    handle.get_next_channel_id().as_usize()
 }
 
 #[no_mangle]

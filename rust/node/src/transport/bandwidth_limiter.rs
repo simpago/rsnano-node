@@ -79,7 +79,6 @@ impl From<&NodeConfig> for OutboundBandwidthLimiterConfig {
 }
 
 pub struct OutboundBandwidthLimiter {
-    config: OutboundBandwidthLimiterConfig,
     limiter_standard: BandwidthLimiter,
     limiter_bootstrap: BandwidthLimiter,
 }
@@ -95,7 +94,6 @@ impl OutboundBandwidthLimiter {
                 config.bootstrap_burst_ratio,
                 config.bootstrap_limit,
             ),
-            config,
         }
     }
 

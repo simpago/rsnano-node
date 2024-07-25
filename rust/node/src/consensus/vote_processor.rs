@@ -4,7 +4,6 @@ use crate::{
     transport::ChannelEnum,
 };
 use rsnano_core::{utils::TomlWriter, Vote, VoteCode, VoteSource};
-use serde::Deserialize;
 use std::{
     cmp::{max, min},
     sync::{
@@ -16,7 +15,7 @@ use std::{
 };
 use tracing::{debug, trace};
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct VoteProcessorConfig {
     pub max_pr_queue: usize,
     pub max_non_pr_queue: usize,
@@ -177,7 +176,7 @@ impl VoteProcessor {
         }
 
         self.stats.inc(StatType::Vote, DetailType::VoteProcessed);
-        trace!(?vote, ?result, "vote processed");
+        trace!(?vote, ?result, ?source, "vote processed");
 
         result
     }

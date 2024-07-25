@@ -89,13 +89,6 @@ impl AttemptContainer {
         }
     }
 
-    pub fn count_by_direction(&self, direction: ChannelDirection) -> usize {
-        self.by_endpoint
-            .values()
-            .filter(|i| i.direction == direction)
-            .count()
-    }
-
     pub fn len(&self) -> usize {
         self.by_endpoint.len()
     }

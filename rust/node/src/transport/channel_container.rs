@@ -1,6 +1,6 @@
-use super::{ChannelDirection, ChannelEnum, ChannelMode, ChannelTcp, ResponseServerImpl};
+use super::{ChannelDirection, ChannelEnum, ChannelId, ChannelMode, ResponseServerImpl};
 use crate::utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork};
-use rsnano_core::{Account, PublicKey};
+use rsnano_core::PublicKey;
 use std::{
     collections::{BTreeMap, HashMap},
     hash::Hash,
@@ -19,6 +19,7 @@ pub struct ChannelContainer {
     by_network_version: BTreeMap<u8, Vec<SocketAddrV6>>,
     by_ip_address: HashMap<Ipv6Addr, Vec<SocketAddrV6>>,
     by_subnet: HashMap<Ipv6Addr, Vec<SocketAddrV6>>,
+    by_id: HashMap<ChannelId, SocketAddrV6>,
 }
 
 impl ChannelContainer {
@@ -52,6 +53,7 @@ impl ChannelContainer {
             .entry(entry.subnetwork())
             .or_default()
             .push(endpoint);
+        self.by_id.insert(entry.channel.channel_id(), endpoint);
         self.by_endpoint.insert(entry.endpoint(), entry);
         true
     }
@@ -93,21 +95,32 @@ impl ChannelContainer {
             );
             remove_endpoint_map(&mut self.by_ip_address, &entry.ip_address(), endpoint);
             remove_endpoint_map(&mut self.by_subnet, &entry.subnetwork(), endpoint);
+            self.by_id.remove(&entry.channel.channel_id());
             Some(entry.channel.clone())
         } else {
             None
         }
     }
 
-    pub fn get(&self, endpoint: &SocketAddrV6) -> Option<&Arc<ChannelEntry>> {
-        self.by_endpoint.get(endpoint)
+    pub fn get_by_remote_addr(&self, remote_addr: &SocketAddrV6) -> Option<&Arc<ChannelEntry>> {
+        self.by_endpoint.get(remote_addr)
+    }
+
+    pub fn get_by_peering_addr(&self, peering_addr: &SocketAddrV6) -> Option<&Arc<ChannelEntry>> {
+        // TODO use a hashmap?
+        self.by_endpoint
+            .values()
+            .find(|i| i.channel.peering_endpoint().as_ref() == Some(peering_addr))
     }
 
     pub fn get_by_index(&self, index: usize) -> Option<&Arc<ChannelEntry>> {
         self.by_random_access
             .get(index)
-            .map(|ep| self.by_endpoint.get(ep))
-            .flatten()
+            .and_then(|ep| self.by_endpoint.get(ep))
+    }
+
+    pub fn get_by_id(&self, id: ChannelId) -> Option<&Arc<ChannelEntry>> {
+        self.by_id.get(&id).and_then(|ep| self.by_endpoint.get(ep))
     }
 
     pub fn get_by_node_id(&self, node_id: &PublicKey) -> Option<&Arc<ChannelEntry>> {
@@ -165,6 +178,7 @@ impl ChannelContainer {
         self.by_network_version.clear();
         self.by_ip_address.clear();
         self.by_subnet.clear();
+        self.by_id.clear();
     }
 
     pub fn close_idle_channels(&mut self, cutoff: SystemTime) {
@@ -177,7 +191,7 @@ impl ChannelContainer {
     }
 
     /// Removes dead channels and returns their channel ids
-    pub fn remove_dead(&mut self) -> Vec<usize> {
+    pub fn remove_dead(&mut self) -> Vec<ChannelId> {
         let dead_channels: Vec<_> = self
             .by_endpoint
             .values()
@@ -231,13 +245,6 @@ impl ChannelEntry {
         }
     }
 
-    pub fn tcp_channel(&self) -> &Arc<ChannelTcp> {
-        match self.channel.as_ref() {
-            ChannelEnum::Tcp(tcp) => tcp,
-            _ => panic!("not a tcp channel"),
-        }
-    }
-
     pub fn endpoint(&self) -> SocketAddrV6 {
         self.channel.remote_endpoint()
     }
@@ -255,10 +262,6 @@ impl ChannelEntry {
         if let Some(server) = &self.response_server {
             server.stop();
         }
-    }
-
-    pub fn node_id(&self) -> Option<Account> {
-        self.channel.get_node_id()
     }
 
     pub fn network_version(&self) -> u8 {

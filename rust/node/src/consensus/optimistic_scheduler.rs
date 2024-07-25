@@ -183,9 +183,9 @@ impl OptimisticScheduler {
             {
                 // Try to insert it into AEC
                 // We check for AEC vacancy inside our predicate
-                let (inserted, _) = self
-                    .active
-                    .insert(&Arc::new(block), ElectionBehavior::Optimistic);
+                let (inserted, _) =
+                    self.active
+                        .insert(&Arc::new(block), ElectionBehavior::Optimistic, None);
                 self.stats.inc(
                     StatType::OptimisticScheduler,
                     if inserted {
@@ -244,10 +244,6 @@ impl OrderedCandidates {
 
     fn len(&self) -> usize {
         self.sequenced.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.sequenced.is_empty()
     }
 
     fn contains(&self, account: &Account) -> bool {

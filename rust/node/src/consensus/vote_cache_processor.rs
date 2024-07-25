@@ -95,10 +95,6 @@ impl VoteCacheProcessor {
         self.state.lock().unwrap().triggered.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
         ContainerInfoComponent::Composite(
             name.into(),

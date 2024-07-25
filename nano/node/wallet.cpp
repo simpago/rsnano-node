@@ -457,7 +457,7 @@ rsnano::LmdbWalletsHandle * create_wallets (nano::node & node_a)
 	&network_params_dto,
 	node_a.workers->handle,
 	node_a.block_processor.handle,
-	node_a.online_reps.get_handle (),
+	node_a.representative_register.handle,
 	node_a.network->tcp_channels->handle,
 	node_a.confirming_set.handle);
 }

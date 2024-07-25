@@ -32,7 +32,7 @@ impl DecryptWalletArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
 
         let password = self.password.clone().unwrap_or_default();
 

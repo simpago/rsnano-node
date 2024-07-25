@@ -32,12 +32,11 @@ pub use lmdb_config::{LmdbConfig, SyncStrategy};
 pub use lmdb_env::*;
 pub use nullable_lmdb::*;
 pub use online_weight_store::LmdbOnlineWeightStore;
-pub use peer_store::tests;
 pub use peer_store::*;
 pub use pending_store::{ConfiguredPendingDatabaseBuilder, LmdbPendingStore};
 pub use pruned_store::{ConfiguredPrunedDatabaseBuilder, LmdbPrunedStore};
 pub use rep_weight_store::*;
-pub use store::{create_backup_file, LmdbStore};
+pub use store::{create_backup_file, LedgerCache, LmdbStore};
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
 

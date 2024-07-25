@@ -16,6 +16,7 @@ void force_nano_dev_network ();
 
 int main (int argc, char ** argv)
 {
+	nano::initialize_file_descriptor_limit ();
 	rsnano::set_rsnano_callbacks ();
 	nano::logger::initialize_for_tests ();
 	nano::force_nano_dev_network ();

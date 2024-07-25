@@ -12,7 +12,7 @@ use crate::{
     fill_node_config_dto,
     ledger::datastore::{lmdb::LmdbStoreHandle, LedgerHandle},
     messages::MessageHandle,
-    representatives::{OnlineRepsHandle, RepCrawlerHandle, RepresentativeRegisterHandle},
+    representatives::{RepCrawlerHandle, RepresentativeRegisterHandle},
     telemetry::TelemetryHandle,
     to_rust_string,
     transport::{
@@ -23,9 +23,12 @@ use crate::{
     wallets::LmdbWalletsHandle,
     websocket::WebsocketListenerHandle,
     work::{DistributedWorkFactoryHandle, WorkPoolHandle},
-    NetworkParamsDto, NodeConfigDto, NodeFlagsHandle, StatHandle, VoidPointerCallback,
+    NetworkParamsDto, NodeConfigDto, NodeFlagsHandle, StatHandle, U256ArrayDto,
+    VoidPointerCallback,
 };
-use rsnano_core::{Account, Amount, BlockHash, Root, Vote, VoteCode, VoteSource};
+use rsnano_core::{
+    utils::NULL_ENDPOINT, Account, Amount, BlockHash, Root, Vote, VoteCode, VoteSource,
+};
 use rsnano_node::{
     consensus::{AccountBalanceChangedCallback, ElectionEndCallback},
     node::{Node, NodeExt},
@@ -33,6 +36,7 @@ use rsnano_node::{
 };
 use std::{
     ffi::{c_char, c_void},
+    net::SocketAddrV6,
     sync::Arc,
 };
 
@@ -218,19 +222,11 @@ pub extern "C" fn rsn_node_bootstrap_server(handle: &NodeHandle) -> *mut Bootstr
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_node_online_reps(handle: &NodeHandle) -> *mut OnlineRepsHandle {
-    Box::into_raw(Box::new(OnlineRepsHandle {
-        online_reps: Arc::clone(&handle.0.online_reps),
-        sampler: Arc::clone(&handle.0.online_reps_sampler),
-    }))
-}
-
-#[no_mangle]
 pub extern "C" fn rsn_node_representative_register(
     handle: &NodeHandle,
 ) -> *mut RepresentativeRegisterHandle {
     Box::into_raw(Box::new(RepresentativeRegisterHandle(Arc::clone(
-        &handle.0.representative_register,
+        &handle.0.online_reps,
     ))))
 }
 
@@ -489,4 +485,84 @@ pub unsafe extern "C" fn rsn_node_collect_container_info(
 ) -> *mut ContainerInfoComponentHandle {
     let container_info = handle.0.collect_container_info(to_rust_string(name));
     Box::into_raw(Box::new(ContainerInfoComponentHandle(container_info)))
+}
+
+#[no_mangle]
+pub extern "C" fn rsn_node_confirmation_quorum(
+    handle: &NodeHandle,
+    result: &mut ConfirmationQuorumDto,
+) {
+    let reps = handle.0.online_reps.lock().unwrap();
+    result.quorum_delta = reps.quorum_delta().to_be_bytes();
+    result.online_weight_quorum_percent = reps.quorum_percent();
+    result.online_weight_minimum = reps.online_weight_minimum().to_be_bytes();
+    result.online_weight = reps.online_weight().to_be_bytes();
+    result.trended_weight = reps.trended_weight().to_be_bytes();
+    result.peers_weight = reps.peered_weight().to_be_bytes();
+    result.minimum_principal_weight = reps.minimum_principal_weight().to_be_bytes();
+}
+
+#[repr(C)]
+pub struct ConfirmationQuorumDto {
+    pub quorum_delta: [u8; 16],
+    pub online_weight_quorum_percent: u8,
+    pub online_weight_minimum: [u8; 16],
+    pub online_weight: [u8; 16],
+    pub trended_weight: [u8; 16],
+    pub peers_weight: [u8; 16],
+    pub minimum_principal_weight: [u8; 16],
+}
+
+pub struct RepDetailsHandle(Vec<(Account, SocketAddrV6, Amount)>);
+
+#[no_mangle]
+pub extern "C" fn rsn_node_representative_details(handle: &NodeHandle) -> *mut RepDetailsHandle {
+    let mut result = Vec::new();
+    for rep in handle.0.online_reps.lock().unwrap().peered_reps() {
+        let endpoint = handle
+            .0
+            .network
+            .endpoint_for(rep.channel_id)
+            .unwrap_or(NULL_ENDPOINT);
+
+        result.push((rep.account, endpoint, handle.0.ledger.weight(&rep.account)))
+    }
+    Box::into_raw(Box::new(RepDetailsHandle(result)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_rep_details_destroy(handle: *mut RepDetailsHandle) {
+    drop(Box::from_raw(handle))
+}
+
+#[no_mangle]
+pub extern "C" fn rsn_rep_details_len(handle: &RepDetailsHandle) -> usize {
+    handle.0.len()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_rep_details_get(
+    handle: &RepDetailsHandle,
+    index: usize,
+    account: *mut u8,
+    endpoint: &mut EndpointDto,
+    amount: *mut u8,
+) {
+    let (acc, ep, weight) = &handle.0[index];
+    acc.copy_bytes(account);
+    *endpoint = ep.into();
+    weight.copy_bytes(amount);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_node_list_online_reps(handle: &NodeHandle, result: *mut U256ArrayDto) {
+    let reps = handle.0.online_reps.lock().unwrap();
+    let data = reps.online_reps().map(|a| *a.as_bytes()).collect();
+    (*result).initialize(data);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_node_set_online_weight(handle: &NodeHandle, online: *const u8) {
+    let amount = Amount::from_ptr(online);
+    handle.0.online_reps.lock().unwrap().set_online(amount);
 }

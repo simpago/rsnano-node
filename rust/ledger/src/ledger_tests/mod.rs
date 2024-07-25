@@ -3,8 +3,7 @@ pub mod helpers;
 use crate::{
     ledger_constants::LEDGER_CONSTANTS_STUB,
     ledger_tests::helpers::{setup_legacy_open_block, setup_open_block, AccountBlockFactory},
-    Ledger, LedgerCache, LedgerContext, RepWeightCache, DEV_GENESIS, DEV_GENESIS_ACCOUNT,
-    DEV_GENESIS_HASH,
+    Ledger, LedgerContext, RepWeightCache, DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, TEST_ENDPOINT_1},
@@ -552,37 +551,25 @@ fn ledger_cache() {
             pruned_count: i,
         };
 
-        let check_impl = |cache: &LedgerCache, expected: &ExpectedCache| {
-            assert_eq!(
-                cache.account_count.load(Ordering::Relaxed),
-                expected.account_count
-            );
-            assert_eq!(
-                cache.block_count.load(Ordering::Relaxed),
-                expected.block_count
-            );
-            assert_eq!(
-                cache.cemented_count.load(Ordering::Relaxed),
-                expected.cemented_count
-            );
-            assert_eq!(
-                cache.pruned_count.load(Ordering::Relaxed),
-                expected.pruned_count
-            );
+        let check_impl = |ledger: &Ledger, expected: &ExpectedCache| {
+            assert_eq!(ledger.account_count(), expected.account_count);
+            assert_eq!(ledger.block_count(), expected.block_count);
+            assert_eq!(ledger.cemented_count(), expected.cemented_count);
+            assert_eq!(ledger.pruned_count(), expected.pruned_count);
         };
 
-        let cache_check = |cache: &LedgerCache, expected: &ExpectedCache| {
-            check_impl(cache, expected);
+        let cache_check = |ledger: &Ledger, expected: &ExpectedCache| {
+            check_impl(ledger, expected);
 
+            ctx.ledger.store.cache.reset();
             let new_ledger = Ledger::new(
                 ctx.ledger.store.clone(),
                 LEDGER_CONSTANTS_STUB.clone(),
                 Amount::zero(),
                 Arc::new(RepWeightCache::new()),
-                Arc::new(LedgerCache::new()),
             )
             .unwrap();
-            check_impl(&new_ledger.cache, expected);
+            check_impl(&new_ledger, expected);
         };
 
         let destination = ctx.block_factory();
@@ -593,7 +580,7 @@ fn ledger_cache() {
             expected.block_count += 1;
             send
         };
-        cache_check(&ctx.ledger.cache, &expected);
+        cache_check(&ctx.ledger, &expected);
 
         let open = {
             let mut txn = ctx.ledger.rw_txn();
@@ -603,40 +590,43 @@ fn ledger_cache() {
             expected.account_count += 1;
             open
         };
-        cache_check(&ctx.ledger.cache, &expected);
+        cache_check(&ctx.ledger, &expected);
 
         {
             let mut txn = ctx.ledger.rw_txn();
             ctx.inc_confirmation_height(&mut txn, &DEV_GENESIS_ACCOUNT);
             ctx.ledger
+                .store
                 .cache
                 .cemented_count
                 .fetch_add(1, Ordering::Relaxed);
             expected.cemented_count += 1;
         }
-        cache_check(&ctx.ledger.cache, &expected);
+        cache_check(&ctx.ledger, &expected);
 
         {
             let mut txn = ctx.ledger.rw_txn();
             ctx.inc_confirmation_height(&mut txn, &destination.account());
             ctx.ledger
+                .store
                 .cache
                 .cemented_count
                 .fetch_add(1, Ordering::Relaxed);
             expected.cemented_count += 1;
         }
-        cache_check(&ctx.ledger.cache, &expected);
+        cache_check(&ctx.ledger, &expected);
 
         {
             let mut txn = ctx.ledger.rw_txn();
             ctx.ledger.store.pruned.put(&mut txn, &open.hash());
             ctx.ledger
+                .store
                 .cache
                 .pruned_count
                 .fetch_add(1, Ordering::Relaxed);
             expected.pruned_count += 1;
         }
-        cache_check(&ctx.ledger.cache, &expected);
+        cache_check(&ctx.ledger, &expected);
     }
 }
 

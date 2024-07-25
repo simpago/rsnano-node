@@ -1,7 +1,7 @@
 use crate::{
     representatives::RepresentativeHandle, transport::TcpChannelsHandle, NetworkParamsDto,
 };
-use rsnano_node::{consensus::ConfirmationSolicitor, representatives::Representative};
+use rsnano_node::{consensus::ConfirmationSolicitor, representatives::PeeredRep};
 use std::ops::Deref;
 
 use super::election::{ElectionHandle, ElectionLockHandle};
@@ -60,7 +60,7 @@ pub extern "C" fn rsn_confirmation_solicitor_flush(handle: &mut ConfirmationSoli
     handle.0.flush()
 }
 
-pub struct RepresentativeVecHandle(Vec<Representative>);
+pub struct RepresentativeVecHandle(Vec<PeeredRep>);
 
 #[no_mangle]
 pub extern "C" fn rsn_representative_vec_create() -> *mut RepresentativeVecHandle {

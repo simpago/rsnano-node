@@ -5210,11 +5210,11 @@ TEST (rpc, online_reps)
 	auto wallet_id2 = node2->wallets.first_wallet_id ();
 	nano::keypair key;
 	(void)node1->wallets.insert_adhoc (wallet_id1, nano::dev::genesis_key.prv);
-	ASSERT_EQ (node2->online_reps.online (), 0);
+	ASSERT_EQ (node2->quorum ().online_weight, 0);
 	auto send_block (node1->wallets.send_action (wallet_id1, nano::dev::genesis_key.pub, key.pub, nano::Gxrb_ratio));
 	ASSERT_NE (nullptr, send_block);
-	ASSERT_TIMELY (10s, !node2->online_reps.list ().empty ());
-	ASSERT_EQ (node2->online_reps.online (), nano::dev::constants.genesis_amount - nano::Gxrb_ratio);
+	ASSERT_TIMELY (10s, !node2->list_online_reps ().empty ());
+	ASSERT_EQ (node2->quorum ().online_weight.number (), nano::dev::constants.genesis_amount - nano::Gxrb_ratio);
 	auto const rpc_ctx = add_rpc (system, node2);
 	boost::property_tree::ptree request;
 	request.put ("action", "representatives_online");
@@ -5247,7 +5247,7 @@ TEST (rpc, online_reps)
 	auto change (node1->wallets.change_action (wallet_id1, nano::dev::genesis_key.pub, new_rep));
 	ASSERT_NE (nullptr, change);
 	ASSERT_TIMELY (5s, node2->block (change->hash ()));
-	ASSERT_TIMELY_EQ (5s, node2->online_reps.list ().size (), 2);
+	ASSERT_TIMELY_EQ (5s, node2->list_online_reps ().size (), 2);
 	boost::property_tree::ptree child_rep;
 	child_rep.put ("", new_rep.to_account ());
 	boost::property_tree::ptree filtered_accounts;
@@ -6425,8 +6425,6 @@ TEST (rpc, telemetry_all)
 		auto const should_ignore_identification_metrics = true;
 		ASSERT_FALSE (telemetry_data.deserialize_json (config, should_ignore_identification_metrics));
 		ASSERT_TRUE (nano::test::compare_telemetry_data (telemetry_data, node->local_telemetry ()));
-		ASSERT_FALSE (response.get_optional<std::string> ("node_id").is_initialized ());
-		ASSERT_FALSE (response.get_optional<std::string> ("signature").is_initialized ());
 	}
 
 	request.put ("raw", "true");

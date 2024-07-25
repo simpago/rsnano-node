@@ -14,7 +14,7 @@ use std::{
 };
 
 use super::{
-    BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelMode,
+    BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelId, ChannelMode,
     OutboundBandwidthLimiter, TrafficType, WriteCallback,
 };
 
@@ -26,7 +26,7 @@ pub struct FakeChannelData {
 }
 
 pub struct ChannelFake {
-    channel_id: usize,
+    channel_id: ChannelId,
     async_rt: Weak<AsyncRuntime>,
     channel_mutex: Mutex<FakeChannelData>,
     limiter: Arc<OutboundBandwidthLimiter>,
@@ -40,7 +40,7 @@ pub struct ChannelFake {
 impl ChannelFake {
     pub fn new(
         now: SystemTime,
-        channel_id: usize,
+        channel_id: ChannelId,
         async_rt: &Arc<AsyncRuntime>,
         limiter: Arc<OutboundBandwidthLimiter>,
         stats: Arc<Stats>,
@@ -84,7 +84,7 @@ impl ChannelFake {
 }
 
 impl Channel for ChannelFake {
-    fn channel_id(&self) -> usize {
+    fn channel_id(&self) -> ChannelId {
         self.channel_id
     }
 
@@ -132,8 +132,8 @@ impl Channel for ChannelFake {
         self.endpoint
     }
 
-    fn peering_endpoint(&self) -> SocketAddrV6 {
-        self.endpoint
+    fn peering_endpoint(&self) -> Option<SocketAddrV6> {
+        Some(self.endpoint)
     }
 
     fn network_version(&self) -> u8 {

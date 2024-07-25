@@ -1,6 +1,6 @@
 use super::{
     ChannelDirection, ChannelMode, CompositeSocketObserver, Network, ResponseServerFactory,
-    SocketBuilder, SocketObserver, TcpConfig,
+    SocketBuilder, SocketObserver,
 };
 use crate::{
     config::NodeConfig,
@@ -24,7 +24,6 @@ use tracing::{debug, error};
 /// Server side portion of tcp sessions. Listens for new socket connections and spawns tcp_server objects when connected.
 pub struct TcpListener {
     port: AtomicU16,
-    config: TcpConfig,
     node_config: NodeConfig,
     network: Arc<Network>,
     stats: Arc<Stats>,
@@ -52,7 +51,6 @@ struct TcpListenerData {
 impl TcpListener {
     pub(crate) fn new(
         port: u16,
-        config: TcpConfig,
         node_config: NodeConfig,
         network: Arc<Network>,
         network_params: NetworkParams,
@@ -64,7 +62,6 @@ impl TcpListener {
     ) -> Self {
         Self {
             port: AtomicU16::new(port),
-            config,
             node_config,
             network,
             data: Mutex::new(TcpListenerData {

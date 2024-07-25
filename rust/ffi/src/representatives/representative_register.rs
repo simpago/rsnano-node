@@ -1,47 +1,22 @@
-use crate::{
-    ledger::datastore::LedgerHandle,
-    transport::{ChannelHandle, EndpointDto},
-    NetworkConstantsDto, StatHandle,
-};
+use crate::transport::ChannelHandle;
 use rsnano_core::{Account, Amount};
-use rsnano_node::{
-    config::NetworkConstants,
-    representatives::{RegisterRepresentativeResult, Representative, RepresentativeRegister},
-};
+use rsnano_node::representatives::{OnlineReps, PeeredRep};
 use std::{
     ops::Deref,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
-use super::{representative::RepresentativeHandle, OnlineRepsHandle};
+use super::representative::RepresentativeHandle;
 
-pub struct RepresentativeRegisterHandle(pub Arc<Mutex<RepresentativeRegister>>);
+pub struct RepresentativeRegisterHandle(pub Arc<Mutex<OnlineReps>>);
 
 impl Deref for RepresentativeRegisterHandle {
-    type Target = Arc<Mutex<RepresentativeRegister>>;
+    type Target = Arc<Mutex<OnlineReps>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}
-
-#[no_mangle]
-pub extern "C" fn rsn_representative_register_create(
-    ledger: &LedgerHandle,
-    online_reps: &OnlineRepsHandle,
-    stats: &StatHandle,
-    network_constants: &NetworkConstantsDto,
-) -> *mut RepresentativeRegisterHandle {
-    Box::into_raw(Box::new(RepresentativeRegisterHandle(Arc::new(
-        Mutex::new(RepresentativeRegister::new(
-            ledger.rep_weights.clone(),
-            Arc::clone(online_reps),
-            Arc::clone(stats),
-            NetworkConstants::try_from(network_constants)
-                .unwrap()
-                .protocol_info(),
-        )),
-    ))))
 }
 
 #[no_mangle]
@@ -56,18 +31,10 @@ pub unsafe extern "C" fn rsn_representative_register_update_or_insert(
     handle: &mut RepresentativeRegisterHandle,
     account: *const u8,
     channel: &ChannelHandle,
-    old_endpoint: &mut EndpointDto,
-) -> u32 {
+) {
     let account = Account::from_ptr(account);
     let mut guard = handle.0.lock().unwrap();
-    match guard.update_or_insert(account, Arc::clone(channel)) {
-        RegisterRepresentativeResult::Inserted => 0,
-        RegisterRepresentativeResult::Updated => 1,
-        RegisterRepresentativeResult::ChannelChanged(addr) => {
-            *old_endpoint = addr.into();
-            2
-        }
-    }
+    guard.vote_observed_directly(account, channel.channel_id(), Duration::MAX);
 }
 
 #[no_mangle]
@@ -83,7 +50,7 @@ pub unsafe extern "C" fn rsn_representative_register_total_weight(
     handle: &RepresentativeRegisterHandle,
     result: *mut u8,
 ) {
-    let weight = handle.lock().unwrap().total_weight();
+    let weight = handle.lock().unwrap().peered_weight();
     weight.copy_bytes(result);
 }
 
@@ -92,24 +59,16 @@ pub unsafe extern "C" fn rsn_representative_register_representatives(
     handle: &RepresentativeRegisterHandle,
     max_results: usize,
     min_weight: *const u8,
-    min_version: u8,
 ) -> *mut RepresentativeListHandle {
     let min_weight = Amount::from_ptr(min_weight);
-    let min_version = if min_version == 0 {
-        None
-    } else {
-        Some(min_version)
-    };
 
-    let resp = handle
-        .lock()
-        .unwrap()
-        .representatives_filter(max_results, min_weight, min_version);
+    let mut resp = handle.lock().unwrap().representatives_filter(min_weight);
+    resp.truncate(max_results);
 
     Box::into_raw(Box::new(RepresentativeListHandle(resp)))
 }
 
-pub struct RepresentativeListHandle(Vec<Representative>);
+pub struct RepresentativeListHandle(Vec<PeeredRep>);
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_representative_list_destroy(handle: *mut RepresentativeListHandle) {
@@ -134,5 +93,5 @@ pub unsafe extern "C" fn rsn_representative_list_get(
 pub unsafe extern "C" fn rsn_representative_register_count(
     handle: &RepresentativeRegisterHandle,
 ) -> usize {
-    handle.0.lock().unwrap().representatives_count()
+    handle.0.lock().unwrap().peered_reps_count()
 }

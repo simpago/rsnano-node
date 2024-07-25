@@ -28,8 +28,8 @@ use crate::{
         BufferReader, BufferWriter, Deserialize, MemoryStream, PropertyTree, SerdePropertyTree,
         Stream,
     },
-    Account, Amount, BlockHash, BlockHashBuilder, Epoch, FullHash, KeyPair, Link, QualifiedRoot,
-    Root, Signature, WorkVersion,
+    Account, Amount, BlockHash, BlockHashBuilder, Epoch, Epochs, FullHash, KeyPair, Link,
+    QualifiedRoot, Root, Signature, WorkVersion,
 };
 use num::FromPrimitive;
 use std::{
@@ -403,6 +403,34 @@ impl BlockEnum {
             BlockType::from_u8(stream.read_u8()?).ok_or_else(|| anyhow!("invalid block type"))?;
         Self::deserialize_block_type(block_type, stream)
     }
+
+    /// There can be at most two dependencies per block, namely "previous" and "link/source".
+    pub fn dependent_blocks(&self, epochs: &Epochs, genensis_account: &Account) -> DependentBlocks {
+        match self {
+            BlockEnum::LegacySend(_) | BlockEnum::LegacyChange(_) => {
+                DependentBlocks::new(self.previous(), BlockHash::zero())
+            }
+            BlockEnum::LegacyReceive(receive) => {
+                DependentBlocks::new(receive.previous(), receive.source())
+            }
+            BlockEnum::LegacyOpen(open) => {
+                if &open.account() == genensis_account {
+                    DependentBlocks::none()
+                } else {
+                    DependentBlocks::new(open.source(), BlockHash::zero())
+                }
+            }
+            BlockEnum::State(state) => {
+                let link_refers_to_block = !self.is_send() && !epochs.is_epoch_link(&state.link());
+                let linked_block = if link_refers_to_block {
+                    state.link().into()
+                } else {
+                    BlockHash::zero()
+                };
+                DependentBlocks::new(self.previous(), linked_block)
+            }
+        }
+    }
 }
 
 impl FullHash for BlockEnum {
@@ -497,6 +525,45 @@ pub static DEV_PUBLIC_KEY_DATA: &str =
     "B0311EA55708D6A53C75CDBF88300259C6D018522FE3D4D0A242E431F9E8B6D0"; // xrb_3e3j5tkog48pnny9dmfzj1r16pg8t1e76dz5tmac6iq689wyjfpiij4txtdo
 pub static DEV_GENESIS_KEY: Lazy<KeyPair> =
     Lazy::new(|| KeyPair::from_priv_key_hex(DEV_PRIVATE_KEY_DATA).unwrap());
+
+#[derive(Default)]
+pub struct DependentBlocks {
+    dependents: [BlockHash; 2],
+}
+
+impl DependentBlocks {
+    pub fn new(previous: BlockHash, link: BlockHash) -> Self {
+        Self {
+            dependents: [previous, link],
+        }
+    }
+
+    pub fn none() -> Self {
+        Self::new(BlockHash::zero(), BlockHash::zero())
+    }
+
+    pub fn previous(&self) -> Option<BlockHash> {
+        self.get_index(0)
+    }
+
+    pub fn link(&self) -> Option<BlockHash> {
+        self.get_index(1)
+    }
+
+    fn get_index(&self, index: usize) -> Option<BlockHash> {
+        if self.dependents[index].is_zero() {
+            None
+        } else {
+            Some(self.dependents[index])
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &BlockHash> {
+        self.dependents
+            .iter()
+            .flat_map(|i| if i.is_zero() { None } else { Some(i) })
+    }
+}
 
 #[cfg(test)]
 mod tests {

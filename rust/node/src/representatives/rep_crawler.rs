@@ -1,14 +1,14 @@
-use super::{RegisterRepresentativeResult, RepresentativeRegister};
+use super::{InsertResult, OnlineReps};
 use crate::{
     config::NodeConfig,
     consensus::ActiveElections,
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::{
-        BufferDropPolicy, ChannelEnum, Network, PeerConnector, PeerConnectorExt, TrafficType,
-        TransportType,
+        BufferDropPolicy, ChannelEnum, ChannelId, Network, PeerConnector, PeerConnectorExt,
+        TrafficType, TransportType,
     },
     utils::{into_ipv6_socket_address, AsyncRuntime},
-    NetworkParams, OnlineReps,
+    NetworkParams,
 };
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
@@ -31,7 +31,6 @@ use tracing::{debug, error, info, warn};
 /// random block and observing the corresponding vote.
 pub struct RepCrawler {
     rep_crawler_impl: Mutex<RepCrawlerImpl>,
-    representative_register: Arc<Mutex<RepresentativeRegister>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     stats: Arc<Stats>,
     config: NodeConfig,
@@ -43,16 +42,16 @@ pub struct RepCrawler {
     ledger: Arc<Ledger>,
     active: Arc<ActiveElections>,
     thread: Mutex<Option<JoinHandle<()>>>,
+    relative_time: Instant,
 }
 
 impl RepCrawler {
     const MAX_RESPONSES: usize = 1024 * 4;
 
     pub fn new(
-        representative_register: Arc<Mutex<RepresentativeRegister>>,
+        online_reps: Arc<Mutex<OnlineReps>>,
         stats: Arc<Stats>,
         query_timeout: Duration,
-        online_reps: Arc<Mutex<OnlineReps>>,
         config: NodeConfig,
         network_params: NetworkParams,
         network: Arc<Network>,
@@ -60,11 +59,11 @@ impl RepCrawler {
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
         peer_connector: Arc<PeerConnector>,
+        relative_time: Instant,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();
         Self {
-            representative_register: Arc::clone(&representative_register),
-            online_reps,
+            online_reps: Arc::clone(&online_reps),
             stats: Arc::clone(&stats),
             config,
             network_params,
@@ -75,10 +74,11 @@ impl RepCrawler {
             active,
             thread: Mutex::new(None),
             peer_connector,
+            relative_time,
             rep_crawler_impl: Mutex::new(RepCrawlerImpl {
                 is_dev_network,
                 queries: OrderedQueries::new(),
-                representative_register,
+                online_reps,
                 stats,
                 query_timeout,
                 stopped: false,
@@ -118,7 +118,7 @@ impl RepCrawler {
 
             if found {
                 debug!(
-                    "Processing response for block {} from {}",
+                    "Processing response for block: {} from: {}",
                     target_hash,
                     channel.remote_endpoint()
                 );
@@ -161,9 +161,13 @@ impl RepCrawler {
         let mut guard = self.rep_crawler_impl.lock().unwrap();
 
         for channel in target_channels {
-            guard.track_rep_request(hash_root, Arc::clone(&channel));
+            guard.track_rep_request(
+                hash_root,
+                Arc::clone(&channel),
+                self.relative_time.elapsed(),
+            );
             debug!(
-                "Sending query for block {} to {}",
+                "Sending query for block: {} to: {}",
                 hash_root.0,
                 channel.remote_endpoint()
             );
@@ -215,8 +219,13 @@ impl RepCrawler {
         while !guard.stopped {
             drop(guard);
 
-            let current_total_weight = self.representative_register.lock().unwrap().total_weight();
-            let sufficient_weight = current_total_weight > self.online_reps.lock().unwrap().delta();
+            let current_total_weight;
+            let sufficient_weight;
+            {
+                let reps = self.online_reps.lock().unwrap();
+                current_total_weight = reps.peered_weight();
+                sufficient_weight = current_total_weight > reps.quorum_delta();
+            }
 
             // If online weight drops below minimum, reach out to preconfigured peers
             if !sufficient_weight {
@@ -252,7 +261,8 @@ impl RepCrawler {
             if guard.query_predicate(interval) {
                 guard.last_query = Some(Instant::now());
 
-                let targets = guard.prepare_crawl_targets(sufficient_weight);
+                let targets =
+                    guard.prepare_crawl_targets(sufficient_weight, self.relative_time.elapsed());
                 drop(guard);
                 self.query(targets);
                 guard = self.rep_crawler_impl.lock().unwrap();
@@ -285,7 +295,7 @@ impl RepCrawler {
             let rep_weight = self.ledger.weight(&vote.voting_account);
             if rep_weight < minimum {
                 debug!(
-                    "Ignoring vote from account {} with too little voting weight: {}",
+                    "Ignoring vote from account: {} with too little voting weight: {}",
                     vote.voting_account.encode_account(),
                     rep_weight.to_string_dec()
                 );
@@ -293,29 +303,29 @@ impl RepCrawler {
             }
 
             let endpoint = channel.remote_endpoint();
-            let result = self
-                .representative_register
-                .lock()
-                .unwrap()
-                .update_or_insert(vote.voting_account, channel);
+            let result = self.online_reps.lock().unwrap().vote_observed_directly(
+                vote.voting_account,
+                channel.channel_id(),
+                self.relative_time.elapsed(),
+            );
 
             match result {
-                RegisterRepresentativeResult::Inserted => {
+                InsertResult::Inserted => {
                     info!(
-                        "Found representative {} at {}",
+                        "Found representative: {} at: {}",
                         vote.voting_account.encode_account(),
                         endpoint
                     );
                 }
-                RegisterRepresentativeResult::ChannelChanged(previous) => {
+                InsertResult::ChannelChanged(previous) => {
                     warn!(
-                        "Updated representative {} at {} (was at: {})",
+                        "Updated representative: {} at: {} (was at: {})",
                         vote.voting_account.encode_account(),
                         endpoint,
                         previous
                     )
                 }
-                RegisterRepresentativeResult::Updated => {}
+                InsertResult::Updated => {}
             }
         }
     }
@@ -385,7 +395,7 @@ impl RepCrawler {
                 Ok(addresses) => {
                     for address in addresses {
                         let endpoint = into_ipv6_socket_address(address);
-                        match network.find_channel(&endpoint) {
+                        match network.find_channel_by_peering_addr(&endpoint) {
                             Some(channel) => {
                                 let keepalive = network.create_keepalive_message();
                                 channel.send(
@@ -412,21 +422,10 @@ impl RepCrawler {
     }
 
     pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        let reps_count = self
-            .representative_register
-            .lock()
-            .unwrap()
-            .representatives_count();
-
         let guard = self.rep_crawler_impl.lock().unwrap();
         ContainerInfoComponent::Composite(
             name.into(),
             vec![
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "reps".to_string(),
-                    count: reps_count,
-                    sizeof_element: RepresentativeRegister::ELEMENT_SIZE,
-                }),
                 ContainerInfoComponent::Leaf(ContainerInfo {
                     name: "queries".to_string(),
                     count: guard.queries.len(),
@@ -451,7 +450,7 @@ impl Drop for RepCrawler {
 
 struct RepCrawlerImpl {
     queries: OrderedQueries,
-    representative_register: Arc<Mutex<RepresentativeRegister>>,
+    online_reps: Arc<Mutex<OnlineReps>>,
     stats: Arc<Stats>,
     network: Arc<Network>,
     query_timeout: Duration,
@@ -469,7 +468,11 @@ impl RepCrawlerImpl {
         }
     }
 
-    fn prepare_crawl_targets(&self, sufficient_weight: bool) -> Vec<Arc<ChannelEnum>> {
+    fn prepare_crawl_targets(
+        &self,
+        sufficient_weight: bool,
+        now: Duration,
+    ) -> Vec<Arc<ChannelEnum>> {
         // TODO: Make these values configurable
         const CONSERVATIVE_COUNT: usize = 160;
         const AGGRESSIVE_COUNT: usize = 160;
@@ -503,10 +506,10 @@ impl RepCrawlerImpl {
 
         random_peers.retain(|channel| {
             match self
-                .representative_register
+                .online_reps
                 .lock()
                 .unwrap()
-                .last_request_elapsed(channel.channel_id())
+                .last_request_elapsed(channel.channel_id(), now)
             {
                 Some(last_request_elapsed) => {
                     // Throttle queries to active reps
@@ -527,7 +530,12 @@ impl RepCrawlerImpl {
         random_peers
     }
 
-    fn track_rep_request(&mut self, hash_root: (BlockHash, Root), channel: Arc<ChannelEnum>) {
+    fn track_rep_request(
+        &mut self,
+        hash_root: (BlockHash, Root),
+        channel: Arc<ChannelEnum>,
+        now: Duration,
+    ) {
         self.queries.insert(QueryEntry {
             hash: hash_root.0,
             channel: Arc::clone(&channel),
@@ -535,10 +543,10 @@ impl RepCrawlerImpl {
             replies: 0,
         });
         // Find and update the timestamp on all reps available on the endpoint (a single host may have multiple reps)
-        self.representative_register
+        self.online_reps
             .lock()
             .unwrap()
-            .on_rep_request(channel.channel_id());
+            .on_rep_request(channel.channel_id(), now);
     }
 
     fn cleanup(&mut self) {
@@ -550,7 +558,7 @@ impl RepCrawlerImpl {
 
             if query.replies == 0 {
                 debug!(
-                    "Aborting unresponsive query for block {} from {}",
+                    "Aborting unresponsive query for block: {} from: {}",
                     query.hash,
                     query.channel.remote_endpoint()
                 );
@@ -561,7 +569,7 @@ impl RepCrawlerImpl {
                 );
             } else {
                 debug!(
-                    "Completion of query with {} replies for block {} from {}",
+                    "Completion of query with: {} replies for block: {} from: {}",
                     query.replies,
                     query.hash,
                     query.channel.remote_endpoint()
@@ -589,7 +597,7 @@ struct QueryEntry {
 struct OrderedQueries {
     entries: HashMap<usize, QueryEntry>,
     sequenced: Vec<usize>,
-    by_channel: HashMap<usize, Vec<usize>>,
+    by_channel: HashMap<ChannelId, Vec<usize>>,
     by_hash: HashMap<BlockHash, Vec<usize>>,
     next_id: usize,
 }
@@ -659,7 +667,7 @@ impl OrderedQueries {
         self.by_hash.get(hash).map(|i| i.len()).unwrap_or_default()
     }
 
-    fn count_by_channel(&self, channel_id: usize) -> usize {
+    fn count_by_channel(&self, channel_id: ChannelId) -> usize {
         self.by_channel
             .get(&channel_id)
             .map(|i| i.len())
@@ -668,7 +676,7 @@ impl OrderedQueries {
 
     fn modify_for_channel(
         &mut self,
-        channel_id: usize,
+        channel_id: ChannelId,
         mut f: impl FnMut(&mut QueryEntry) -> bool,
     ) {
         if let Some(ids) = self.by_channel.get(&channel_id) {

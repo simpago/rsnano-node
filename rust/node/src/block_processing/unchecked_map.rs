@@ -12,11 +12,6 @@ use std::{
     thread::JoinHandle,
 };
 
-struct UncheckedMapFlags {
-    stopped: bool,
-    active: bool,
-}
-
 pub struct UncheckedMap {
     join_handle: Mutex<Option<JoinHandle<()>>>,
     thread: Arc<UncheckedMapThread>,
@@ -202,7 +197,6 @@ struct ThreadMutableData {
     buffer: VecDeque<HashOrAccount>,
     writing_back_buffer: bool,
     entries_container: EntriesContainer,
-    counter: u8,
     satisfied_callback: Option<Box<dyn Fn(&UncheckedInfo) + Send>>,
 }
 
@@ -213,7 +207,6 @@ impl ThreadMutableData {
             buffer: VecDeque::new(),
             writing_back_buffer: false,
             entries_container: EntriesContainer::new(),
-            counter: 0,
             satisfied_callback: None,
         }
     }

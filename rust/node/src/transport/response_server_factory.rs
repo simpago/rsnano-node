@@ -8,7 +8,7 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     bootstrap::{BootstrapInitiator, BootstrapInitiatorConfig, BootstrapMessageVisitorFactory},
-    config::{NodeConfig, NodeFlags},
+    config::NodeFlags,
     stats::Stats,
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
     NetworkParams,
@@ -27,14 +27,13 @@ pub(crate) struct ResponseServerFactory {
     pub(crate) inbound_queue: Arc<InboundMessageQueue>,
     pub(crate) node_flags: NodeFlags,
     pub(crate) network_params: NetworkParams,
-    pub(crate) node_config: NodeConfig,
     pub(crate) syn_cookies: Arc<SynCookies>,
 }
 
 impl ResponseServerFactory {
+    #[allow(dead_code)]
     pub(crate) fn new_null() -> Self {
         let ledger = Arc::new(Ledger::new_null());
-        let node_config = NodeConfig::new_test_instance();
         let flags = NodeFlags::default();
         let network = Arc::new(Network::new_null());
         let runtime = Arc::new(AsyncRuntime::default());
@@ -67,21 +66,19 @@ impl ResponseServerFactory {
             inbound_queue: Arc::new(InboundMessageQueue::default()),
             node_flags: flags,
             network_params,
-            node_config,
             syn_cookies: Arc::new(SynCookies::new(1)),
         }
     }
 
     pub(crate) fn create_response_server(&self, socket: Arc<Socket>) -> Arc<ResponseServerImpl> {
         let message_visitor_factory = Arc::new(BootstrapMessageVisitorFactory::new(
-            Arc::clone(&self.runtime),
-            Arc::clone(&self.stats),
+            self.runtime.clone(),
+            self.stats.clone(),
             self.network_params.network.clone(),
-            self.node_id.clone(),
-            Arc::clone(&self.ledger),
-            Arc::clone(&self.workers),
-            Arc::clone(&self.block_processor),
-            Arc::clone(&self.bootstrap_initiator),
+            self.ledger.clone(),
+            self.workers.clone(),
+            self.block_processor.clone(),
+            self.bootstrap_initiator.clone(),
             self.node_flags.clone(),
         ));
 
@@ -89,7 +86,6 @@ impl ResponseServerFactory {
             &self.network.clone(),
             self.inbound_queue.clone(),
             socket,
-            Arc::new(self.node_config.clone()),
             Arc::clone(&self.network.publish_filter),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),

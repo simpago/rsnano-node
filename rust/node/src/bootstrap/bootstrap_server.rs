@@ -9,7 +9,6 @@ use rsnano_messages::{
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
-use serde::Deserialize;
 use std::{
     cmp::min,
     sync::{
@@ -19,7 +18,7 @@ use std::{
     thread::JoinHandle,
 };
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct BootstrapServerConfig {
     pub max_queue: usize,
     pub threads: usize,

@@ -1,10 +1,9 @@
 use super::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 use std::net::Ipv6Addr;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct WebsocketConfig {
     pub enabled: bool,
     pub port: u16,
@@ -42,9 +41,8 @@ impl WebsocketConfig {
 
 #[cfg(test)]
 mod tests {
-    use rsnano_core::work::WorkThresholds;
-
     use super::*;
+    use rsnano_core::work::WorkThresholds;
 
     #[test]
     fn websocket_config() {

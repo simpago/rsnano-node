@@ -1,10 +1,8 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
+use std::time::Duration;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct StatsConfig {
     /** How many sample intervals to keep in the ring buffer */
     pub max_samples: usize,

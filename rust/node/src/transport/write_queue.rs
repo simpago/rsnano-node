@@ -87,9 +87,4 @@ impl WriteQueue {
         let queues = self.queues.lock().unwrap();
         queues.get(traffic_type).len()
     }
-
-    pub fn is_empty(&self) -> bool {
-        let queues = self.queues.lock().unwrap();
-        queues.generic_queue.is_empty() && queues.bootstrap_queue.is_empty()
-    }
 }

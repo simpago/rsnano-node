@@ -21,7 +21,6 @@
 #include <nano/node/network.hpp>
 #include <nano/node/node_observers.hpp>
 #include <nano/node/nodeconfig.hpp>
-#include <nano/node/online_reps.hpp>
 #include <nano/node/rep_tiers.hpp>
 #include <nano/node/repcrawler.hpp>
 #include <nano/node/request_aggregator.hpp>
@@ -53,6 +52,18 @@ namespace transport
 {
 	class tcp_listener;
 }
+
+class ConfirmationQuorum
+{
+public:
+	nano::amount quorum_delta;
+	uint8_t online_weight_quorum_percent;
+	nano::amount online_weight_minimum;
+	nano::amount online_weight;
+	nano::amount trended_weight;
+	nano::amount peers_weight;
+	nano::amount minimum_principal_weight;
+};
 
 class node final : public std::enable_shared_from_this<nano::node>
 {
@@ -101,7 +112,6 @@ public:
 	bool block_confirmed_or_being_confirmed (nano::store::transaction const &, nano::block_hash const &);
 	bool block_confirmed_or_being_confirmed (nano::block_hash const &);
 
-	bool online () const;
 	nano::vote_code vote (nano::vote const & vote, nano::block_hash hash = nano::block_hash (0));
 	bool election_active (nano::block_hash const & hash) const;
 	bool init_error () const;
@@ -112,6 +122,7 @@ public:
 	void enqueue_vote_request (nano::root const & root, nano::block_hash const & hash);
 	nano::amount get_rep_weight (nano::account const & account);
 	std::unordered_map<nano::account, nano::uint128_t> get_rep_weights () const;
+	nano::ConfirmationQuorum quorum () const;
 
 public:
 	nano::keypair node_id;
@@ -134,7 +145,6 @@ public:
 	std::shared_ptr<nano::telemetry> telemetry;
 	nano::bootstrap_server bootstrap_server;
 	std::filesystem::path application_path;
-	nano::online_reps online_reps;
 	nano::representative_register representative_register;
 	nano::rep_tiers rep_tiers;
 	nano::vote_processor_queue vote_processor_queue;
@@ -178,6 +188,8 @@ public: // Testing convenience functions
 	[[nodiscard]] nano::block_status process (store::write_transaction const &, std::shared_ptr<nano::block> block);
 	nano::block_hash latest (nano::account const &);
 	nano::uint128_t balance (nano::account const &);
+	std::vector<nano::account> list_online_reps ();
+	void set_online_weight (nano::uint128_t online_a);
 
 private:
 	static std::string make_logger_identifier (nano::keypair const & node_id);

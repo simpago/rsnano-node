@@ -54,7 +54,13 @@ pub(crate) use response_server_factory::*;
 use rsnano_core::Account;
 use rsnano_messages::Message;
 pub use socket::*;
-use std::{net::SocketAddrV6, ops::Deref, sync::Arc, time::SystemTime};
+use std::{
+    fmt::{Debug, Display},
+    net::SocketAddrV6,
+    ops::Deref,
+    sync::Arc,
+    time::SystemTime,
+};
 pub use syn_cookies::SynCookies;
 pub use tcp_listener::*;
 pub use tcp_stream::TcpStream;
@@ -62,6 +68,33 @@ pub use tcp_stream_factory::TcpStreamFactory;
 use token_bucket::TokenBucket;
 pub use tokio_socket_facade::*;
 pub use write_queue::WriteCallback;
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
+pub struct ChannelId(usize);
+
+impl ChannelId {
+    pub fn as_usize(&self) -> usize {
+        self.0
+    }
+}
+
+impl Display for ChannelId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl Debug for ChannelId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl From<usize> for ChannelId {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
 
 #[repr(u8)]
 #[derive(FromPrimitive, PartialEq, Eq)]
@@ -73,7 +106,7 @@ pub enum TransportType {
 }
 
 pub trait Channel {
-    fn channel_id(&self) -> usize;
+    fn channel_id(&self) -> ChannelId;
     fn get_last_bootstrap_attempt(&self) -> SystemTime; //todo switch back to Instant
     fn set_last_bootstrap_attempt(&self, time: SystemTime); //todo switch back to Instant
     fn get_last_packet_received(&self) -> SystemTime; //todo switch back to Instant
@@ -85,7 +118,7 @@ pub trait Channel {
     fn is_alive(&self) -> bool;
     fn get_type(&self) -> TransportType;
     fn remote_endpoint(&self) -> SocketAddrV6;
-    fn peering_endpoint(&self) -> SocketAddrV6;
+    fn peering_endpoint(&self) -> Option<SocketAddrV6>;
     fn network_version(&self) -> u8;
     fn direction(&self) -> ChannelDirection;
     fn mode(&self) -> ChannelMode;
@@ -115,13 +148,13 @@ pub enum ChannelEnum {
 }
 
 impl ChannelEnum {
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn new_null() -> Self {
         Self::new_null_with_channel_id(42)
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_null_with_channel_id(channel_id: usize) -> Self {
+    #[allow(dead_code)]
+    pub(crate) fn new_null_with_channel_id(channel_id: impl Into<ChannelId>) -> Self {
         use crate::{stats::Stats, utils::AsyncRuntime};
         use rsnano_messages::ProtocolInfo;
         use std::net::Ipv6Addr;
@@ -132,7 +165,7 @@ impl ChannelEnum {
 
         Self::Fake(ChannelFake::new(
             SystemTime::now(),
-            channel_id,
+            channel_id.into(),
             &async_rt,
             limiter,
             stats,

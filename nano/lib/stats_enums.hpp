@@ -21,6 +21,7 @@ enum class type : uint8_t
 	vote_processor_tier,
 	vote_processor_overfill,
 	election,
+	election_cleanup,
 	election_vote,
 	http_callback,
 	ipc,
@@ -38,6 +39,8 @@ enum class type : uint8_t
 	aggregator,
 	requests,
 	request_aggregator,
+	request_aggregator_vote,
+	request_aggregator_replies,
 	filter,
 	telemetry,
 	vote_generator,
@@ -59,11 +62,13 @@ enum class type : uint8_t
 	active_elections_confirmed,
 	active_elections_dropped,
 	active_elections_timeout,
+	active_elections_cancelled,
 	active_elections_cemented,
 	active_timeout,
 	backlog,
 	unchecked,
 	election_scheduler,
+	election_bucket,
 	optimistic_scheduler,
 	handshake,
 	rep_crawler,
@@ -82,9 +87,8 @@ enum class type : uint8_t
 /** Optional detail type */
 enum class detail : uint16_t
 {
-	all = 0,
-
 	// common
+	all = 0,
 	ok,
 	loop,
 	loop_cleanup,
@@ -112,6 +116,7 @@ enum class detail : uint16_t
 	confirmed,
 	unconfirmed,
 	cemented,
+	cooldown,
 
 	// processing queue
 	queue,
@@ -159,6 +164,7 @@ enum class detail : uint16_t
 
 	// block source
 	live,
+	live_originator,
 	bootstrap,
 	bootstrap_legacy,
 	unchecked,
@@ -315,10 +321,14 @@ enum class detail : uint16_t
 	requests_generated_votes,
 	requests_cannot_vote,
 	requests_unknown,
+	requests_non_final,
+	requests_final,
 
 	// request_aggregator
 	request_hashes,
 	overfill_hashes,
+	normal_vote,
+	final_vote,
 
 	// duplicate
 	duplicate_publish_message,
@@ -365,7 +375,8 @@ enum class detail : uint16_t
 	// active
 	insert,
 	insert_failed,
-	//
+	election_cleanup,
+
 	// active_elections
 	started,
 	stopped,
@@ -440,19 +451,26 @@ enum class detail : uint16_t
 	// confirming_set
 	notify_cemented,
 	notify_already_cemented,
+	notify_intermediate,
 	already_cemented,
+	cementing_hash,
 
 	// election_state
 	passive,
 	active,
 	expired_confirmed,
 	expired_unconfirmed,
+	cancelled,
 
 	// election_status_type
 	ongoing,
 	active_confirmed_quorum,
 	active_confirmation_height,
 	inactive_confirmation_height,
+
+	// election bucket
+	activate_success,
+	cancel_lowest,
 };
 
 /** Direction of the stat. If the direction is irrelevant, use in */

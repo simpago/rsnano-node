@@ -89,7 +89,7 @@ TEST (websocket, confirmation)
 	nano::keypair key;
 	(void)node1->wallets.insert_adhoc (node1->wallets.first_wallet_id (), nano::dev::genesis_key.prv);
 	auto balance = nano::dev::constants.genesis_amount;
-	auto send_amount = node1->online_reps.delta () + 1;
+	auto send_amount = node1->quorum ().quorum_delta.number () + 1;
 	// Quick-confirm a block, legacy blocks should work without filtering
 	{
 		nano::block_hash previous (node1->latest (nano::dev::genesis_key.pub));
@@ -254,7 +254,7 @@ TEST (websocket, confirmation_options)
 	(void)node1->wallets.insert_adhoc (node1->wallets.first_wallet_id (), nano::dev::genesis_key.prv);
 	nano::keypair key;
 	auto balance = nano::dev::constants.genesis_amount;
-	auto send_amount = node1->online_reps.delta () + 1;
+	auto send_amount = node1->quorum ().quorum_delta.number () + 1;
 	nano::block_hash previous (node1->latest (nano::dev::genesis_key.pub));
 	{
 		balance -= send_amount;
@@ -634,7 +634,7 @@ TEST (websocket, vote)
 				.account (nano::dev::genesis_key.pub)
 				.previous (previous)
 				.representative (nano::dev::genesis_key.pub)
-				.balance (nano::dev::constants.genesis_amount - (node1->online_reps.delta () + 1))
+				.balance (nano::dev::constants.genesis_amount - (node1->quorum ().quorum_delta.number () + 1))
 				.link (key.pub)
 				.sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
 				.work (*system.work.generate (previous))
@@ -727,7 +727,7 @@ TEST (websocket, vote_options_representatives)
 	nano::keypair key;
 	auto balance = nano::dev::constants.genesis_amount;
 	(void)node1->wallets.insert_adhoc (node1->wallets.first_wallet_id (), nano::dev::genesis_key.prv);
-	auto send_amount = node1->online_reps.delta () + 1;
+	auto send_amount = node1->quorum ().quorum_delta.number () + 1;
 	auto confirm_block = [&] () {
 		nano::block_hash previous (node1->latest (nano::dev::genesis_key.pub));
 		balance -= send_amount;

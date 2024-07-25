@@ -3,7 +3,6 @@ use crate::{
     WorkVersion,
 };
 use once_cell::sync::Lazy;
-use serde::Deserialize;
 use std::cmp::{max, min};
 
 pub static WORK_THRESHOLDS_STUB: Lazy<WorkThresholds> = Lazy::new(|| {
@@ -15,7 +14,6 @@ pub static WORK_THRESHOLDS_STUB: Lazy<WorkThresholds> = Lazy::new(|| {
     )
 });
 
-//#[derive(Deserialize)]
 pub struct WorkThresholds {
     pub epoch_1: u64,
     pub epoch_2: u64,

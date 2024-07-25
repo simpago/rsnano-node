@@ -94,7 +94,6 @@ impl BootstrapMessageVisitorImpl {
                     return false;
                 };
                 let connection = Arc::clone(&self.connection);
-                let ledger = Arc::clone(&self.ledger);
                 let thread_pool2 = Arc::clone(&thread_pool);
                 let stats = Arc::clone(&self.stats);
                 let work_thresholds = self.work_thresholds.clone();
@@ -104,7 +103,6 @@ impl BootstrapMessageVisitorImpl {
                     let bulk_push_server = BulkPushServer::new(
                         async_rt,
                         connection,
-                        ledger,
                         thread_pool2,
                         block_processor,
                         bootstrap_initiator,

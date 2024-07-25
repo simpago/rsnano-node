@@ -46,7 +46,6 @@ pub unsafe extern "C" fn rsn_request_response_visitor_factory_create(
         async_rt,
         Arc::clone(&stats),
         network.network.clone(),
-        node_id,
         ledger,
         workers,
         block_processor,

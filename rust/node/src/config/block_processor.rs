@@ -1,8 +1,7 @@
 use crate::block_processing::BlockProcessorConfig;
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct BlockProcessorToml {
     // Maximum number of blocks to queue from network peers
     pub max_peer_queue: usize,

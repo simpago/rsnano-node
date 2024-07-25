@@ -105,7 +105,8 @@ enum class election_state
 	active, // actively request confirmations
 	confirmed, // confirmed but still listening for votes
 	expired_confirmed,
-	expired_unconfirmed
+	expired_unconfirmed,
+	cancelled,
 };
 
 class election_lock
@@ -158,6 +159,7 @@ public: // Interface
 	void set_last_vote (nano::account const & account, nano::vote_info vote_info);
 	nano::election_status get_status () const;
 	std::chrono::milliseconds age () const;
+	bool contains (nano::block_hash const &) const;
 
 public: // Information
 	nano::qualified_root qualified_root () const;

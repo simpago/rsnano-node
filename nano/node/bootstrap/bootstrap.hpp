@@ -11,11 +11,6 @@
 #include <boost/multi_index_container.hpp>
 #include <boost/thread/thread.hpp>
 
-#include <atomic>
-#include <queue>
-
-namespace mi = boost::multi_index;
-
 namespace nano::store
 {
 class transaction;
@@ -26,10 +21,6 @@ namespace nano
 class node;
 
 class bootstrap_connections;
-namespace transport
-{
-	class channel_tcp;
-}
 enum class bootstrap_mode
 {
 	legacy,

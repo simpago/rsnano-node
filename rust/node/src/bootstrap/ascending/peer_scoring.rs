@@ -1,10 +1,9 @@
-use crate::transport::{ChannelEnum, TrafficType};
+use super::BootstrapAscendingConfig;
+use crate::transport::{ChannelEnum, ChannelId, TrafficType};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Weak},
 };
-
-use super::BootstrapAscendingConfig;
 
 /// Container for tracking and scoring peers with respect to bootstrapping
 pub(crate) struct PeerScoring {
@@ -77,7 +76,7 @@ impl PeerScoring {
 }
 
 struct PeerScore {
-    channel_id: usize,
+    channel_id: ChannelId,
     channel: Weak<ChannelEnum>,
     /// Number of outstanding requests to a peer
     outstanding: usize,
@@ -112,8 +111,8 @@ impl PeerScore {
 
 #[derive(Default)]
 struct Scoring {
-    by_channel: HashMap<usize, PeerScore>,
-    by_outstanding: BTreeMap<usize, Vec<usize>>,
+    by_channel: HashMap<ChannelId, PeerScore>,
+    by_outstanding: BTreeMap<usize, Vec<ChannelId>>,
 }
 
 impl Scoring {
@@ -121,11 +120,12 @@ impl Scoring {
         self.by_channel.len()
     }
 
-    fn get(&self, channel_id: usize) -> Option<&PeerScore> {
+    #[allow(dead_code)]
+    fn get(&self, channel_id: ChannelId) -> Option<&PeerScore> {
         self.by_channel.get(&channel_id)
     }
 
-    fn contains(&self, channel_id: usize) -> bool {
+    fn contains(&self, channel_id: ChannelId) -> bool {
         self.by_channel.contains_key(&channel_id)
     }
 
@@ -143,7 +143,7 @@ impl Scoring {
         old
     }
 
-    fn modify(&mut self, channel_id: usize, mut f: impl FnMut(&mut PeerScore)) {
+    fn modify(&mut self, channel_id: ChannelId, mut f: impl FnMut(&mut PeerScore)) {
         if let Some(scoring) = self.by_channel.get_mut(&channel_id) {
             let old_outstanding = scoring.outstanding;
             f(scoring);
@@ -156,7 +156,7 @@ impl Scoring {
     }
 
     fn modify_all(&mut self, mut f: impl FnMut(&mut PeerScore)) {
-        let channel_ids: Vec<usize> = self.by_channel.keys().cloned().collect();
+        let channel_ids: Vec<ChannelId> = self.by_channel.keys().cloned().collect();
         for id in channel_ids {
             self.modify(id, &mut f);
         }
@@ -166,7 +166,7 @@ impl Scoring {
         let to_delete = self
             .by_channel
             .values()
-            .filter(|i| f(i))
+            .filter(|i| !f(i))
             .map(|i| i.channel_id)
             .collect::<Vec<_>>();
 
@@ -175,20 +175,20 @@ impl Scoring {
         }
     }
 
-    fn remove(&mut self, channel_id: usize) {
+    fn remove(&mut self, channel_id: ChannelId) {
         if let Some(scoring) = self.by_channel.remove(&channel_id) {
             self.remove_outstanding(channel_id, scoring.outstanding);
         }
     }
 
-    fn insert_outstanding(&mut self, channel_id: usize, outstanding: usize) {
+    fn insert_outstanding(&mut self, channel_id: ChannelId, outstanding: usize) {
         self.by_outstanding
             .entry(outstanding)
             .or_default()
             .push(channel_id);
     }
 
-    fn remove_outstanding(&mut self, channel_id: usize, outstanding: usize) {
+    fn remove_outstanding(&mut self, channel_id: ChannelId, outstanding: usize) {
         let channel_ids = self.by_outstanding.get_mut(&outstanding).unwrap();
         if channel_ids.len() > 1 {
             channel_ids.retain(|i| *i != channel_id);

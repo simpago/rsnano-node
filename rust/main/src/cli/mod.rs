@@ -31,7 +31,7 @@ impl Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
-    /// Commands to read from and write to the ledger
+    /// Commands related to the ledger
     Ledger(LedgerCommand),
     /// Commands related to running the node
     Node(NodeCommand),

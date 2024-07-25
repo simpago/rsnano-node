@@ -1,15 +1,18 @@
 use crate::cli::get_path;
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
-use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl, Networks};
+use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
-    config::{NodeConfig, NodeFlags},
+    config::{NetworkConstants, NodeConfig, NodeFlags},
     node::{Node, NodeExt},
     transport::NullSocketObserver,
     utils::AsyncRuntime,
-    NetworkParams, DEV_NETWORK_PARAMS,
+    NetworkParams,
 };
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Condvar, Mutex},
+    time::Duration,
+};
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input")
@@ -25,15 +28,9 @@ pub(crate) struct InitializeArgs {
 
 impl InitializeArgs {
     pub(crate) fn initialize(&self) -> Result<()> {
-        let network_params = if let Some(network) = &self.network {
-            NetworkParams::new(
-                Networks::from_str(&network).map_err(|e| anyhow!("Network is invalid: {:?}", e))?,
-            )
-        } else {
-            DEV_NETWORK_PARAMS.to_owned()
-        };
-
         let path = get_path(&self.data_path, &self.network);
+
+        let network_params = NetworkParams::new(NetworkConstants::active_network());
 
         std::fs::create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
 
@@ -66,7 +63,16 @@ impl InitializeArgs {
         ));
 
         node.start();
+
+        let finished = Arc::new((Mutex::new(false), Condvar::new()));
+        let finished_clone = finished.clone();
+
         node.stop();
+        *finished_clone.0.lock().unwrap() = true;
+        finished_clone.1.notify_all();
+
+        let guard = finished.0.lock().unwrap();
+        drop(finished.1.wait_while(guard, |g| !*g).unwrap());
 
         Ok(())
     }

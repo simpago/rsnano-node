@@ -1,6 +1,7 @@
 use crate::{
+    representatives::OnlineReps,
     stats::{DetailType, Direction, StatType, Stats},
-    NetworkParams, OnlineReps,
+    NetworkParams,
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -38,7 +39,6 @@ impl From<RepTier> for DetailType {
 
 pub struct RepTiers {
     network_params: NetworkParams,
-    stats: Arc<Stats>,
     thread: Mutex<Option<JoinHandle<()>>>,
     stopped: Arc<Mutex<bool>>,
     condition: Arc<Condvar>,
@@ -49,7 +49,7 @@ impl RepTiers {
     pub fn new(
         ledger: Arc<Ledger>,
         network_params: NetworkParams,
-        online_reps: Arc<Mutex<OnlineReps>>,
+        representatives: Arc<Mutex<OnlineReps>>,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
@@ -57,8 +57,7 @@ impl RepTiers {
             thread: Mutex::new(None),
             stopped: Arc::new(Mutex::new(false)),
             condition: Arc::new(Condvar::new()),
-            rep_tiers_impl: Arc::new(RepTiersImpl::new(Arc::clone(&stats), online_reps, ledger)),
-            stats,
+            rep_tiers_impl: Arc::new(RepTiersImpl::new(stats, representatives, ledger)),
         }
     }
 
@@ -158,16 +157,20 @@ struct Tiers {
 
 struct RepTiersImpl {
     stats: Arc<Stats>,
-    online_reps: Arc<Mutex<OnlineReps>>,
+    representatives: Arc<Mutex<OnlineReps>>,
     ledger: Arc<Ledger>,
     tiers: Mutex<Tiers>,
 }
 
 impl RepTiersImpl {
-    fn new(stats: Arc<Stats>, online_reps: Arc<Mutex<OnlineReps>>, ledger: Arc<Ledger>) -> Self {
+    fn new(
+        stats: Arc<Stats>,
+        representatives: Arc<Mutex<OnlineReps>>,
+        ledger: Arc<Ledger>,
+    ) -> Self {
         Self {
             stats,
-            online_reps,
+            representatives,
             ledger,
             tiers: Mutex::new(Tiers::default()),
         }
@@ -175,7 +178,11 @@ impl RepTiersImpl {
 
     fn calculate_tiers(&self) {
         self.stats.inc(StatType::RepTiers, DetailType::Loop);
-        let stake = self.online_reps.lock().unwrap().trended();
+        let stake = self
+            .representatives
+            .lock()
+            .unwrap()
+            .trended_weight_or_minimum_online_weight();
         let mut representatives_1_l = HashSet::new();
         let mut representatives_2_l = HashSet::new();
         let mut representatives_3_l = HashSet::new();

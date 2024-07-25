@@ -61,7 +61,6 @@ pub unsafe extern "C" fn rsn_tcp_server_create(
         &channels,
         channels.inbound_queue.clone(),
         socket,
-        config,
         publish_filter,
         network_params,
         stats,

@@ -14,7 +14,6 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include <memory>
 #include <optional>
 
 using namespace std::chrono_literals;
@@ -72,15 +71,4 @@ std::unordered_map<nano::endpoint, nano::telemetry_data> nano::telemetry::get_al
 	}
 	rsnano::rsn_telemetry_data_map_destroy (map_handle);
 	return result;
-}
-
-nano::telemetry_data nano::consolidate_telemetry_data (std::vector<nano::telemetry_data> const & telemetry_datas)
-{
-	std::vector<rsnano::TelemetryDataHandle *> data_handles;
-	data_handles.reserve (telemetry_datas.size ());
-	for (auto const & i : telemetry_datas)
-	{
-		data_handles.push_back (i.handle);
-	}
-	return { rsnano::rsn_consolidate_telemetry_data (data_handles.data (), data_handles.size ()) };
 }

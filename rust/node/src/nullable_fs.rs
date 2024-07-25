@@ -44,6 +44,7 @@ pub(crate) struct NullableFilesystem {
     listener: OutputListener<FsEvent>,
 }
 
+#[allow(dead_code)]
 enum FsStrategy {
     Real(RealFilesystem),
     Nulled(FilesystemStub),
@@ -77,6 +78,7 @@ impl NullableFilesystem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_null() -> Self {
         Self {
             fs: RefCell::new(FsStrategy::Nulled(FilesystemStub::default())),
@@ -84,6 +86,7 @@ impl NullableFilesystem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn null_builder() -> NullableFilesystemBuilder {
         NullableFilesystemBuilder {
             stub: FilesystemStub::default(),
@@ -111,6 +114,7 @@ impl NullableFilesystem {
         self.fs.borrow_mut().write(path, contents)
     }
 
+    #[allow(dead_code)]
     pub fn track(&self) -> Rc<OutputTracker<FsEvent>> {
         self.listener.track()
     }
@@ -122,10 +126,12 @@ impl Default for NullableFilesystem {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) struct NullableFilesystemBuilder {
     stub: FilesystemStub,
 }
 
+#[allow(dead_code)]
 impl NullableFilesystemBuilder {
     pub fn path_exists(mut self, path: impl Into<PathBuf>) -> Self {
         self.stub.exists.insert(path.into());

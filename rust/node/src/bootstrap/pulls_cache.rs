@@ -57,7 +57,6 @@ impl PullsCache {
         let time = Instant::now();
         let inserted = CachedPulls {
             time,
-            account_head: head_512,
             new_head: pull.head,
         };
         self.by_account_head.insert(head_512, inserted);
@@ -118,7 +117,6 @@ fn to_head_512(pull: &PullInfo) -> [u8; 64] {
 
 struct CachedPulls {
     time: Instant,
-    account_head: [u8; 64],
     new_head: BlockHash,
 }
 

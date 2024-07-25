@@ -13,6 +13,7 @@ pub(crate) struct NodeIdKeyFile {
 }
 
 impl NodeIdKeyFile {
+    #[allow(dead_code)]
     fn new(fs: NullableFilesystem, key_factory: KeyPairFactory) -> Self {
         Self { fs, key_factory }
     }

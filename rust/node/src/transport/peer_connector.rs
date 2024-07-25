@@ -56,6 +56,7 @@ impl PeerConnector {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn new_null() -> Self {
         Self {
             config: Default::default(),

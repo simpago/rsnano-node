@@ -1,9 +1,8 @@
 use crate::bootstrap::{AccountSetsConfig, BootstrapAscendingConfig};
 use rsnano_core::utils::TomlWriter;
-use serde::Deserialize;
 use std::time::Duration;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct BootstrapAscendingToml {
     /// Maximum number of un-responded requests per channel
     pub requests_limit: usize,
@@ -63,7 +62,7 @@ impl Default for BootstrapAscendingToml {
     }
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct AccountSetsToml {
     pub consideration_count: usize,
     pub priorities_max: usize,

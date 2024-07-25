@@ -328,3 +328,8 @@ pub extern "C" fn rsn_vote_info_with_relative_time(
         hash: handle.0.hash,
     })
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn rsn_election_contains(handle: &ElectionHandle, hash: *const u8) -> bool {
+    handle.0.contains(&BlockHash::from_ptr(hash))
+}

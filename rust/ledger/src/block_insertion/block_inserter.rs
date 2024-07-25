@@ -49,7 +49,11 @@ impl<'a> BlockInserter<'a> {
         self.ledger
             .observer
             .block_added(self.block, self.instructions.is_epoch_block);
-        self.ledger.cache.block_count.fetch_add(1, Ordering::SeqCst);
+        self.ledger
+            .store
+            .cache
+            .block_count
+            .fetch_add(1, Ordering::SeqCst);
     }
 
     fn set_block_sideband(&mut self) {
@@ -123,7 +127,7 @@ mod tests {
                 .weight(&instructions.set_account_info.representative),
             instructions.set_account_info.balance
         );
-        assert_eq!(ledger.cache.block_count.load(Ordering::Relaxed), 1);
+        assert_eq!(ledger.store.cache.block_count.load(Ordering::Relaxed), 1);
         assert_eq!(result.deleted_pending, Vec::new());
     }
 

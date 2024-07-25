@@ -2,8 +2,8 @@ use crate::{
     cementation::ConfirmingSet,
     config::HintedSchedulerConfig,
     consensus::ActiveElectionsExt,
+    representatives::OnlineReps,
     stats::{DetailType, StatType, Stats},
-    OnlineReps,
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -34,7 +34,7 @@ pub struct HintedScheduler {
     confirming_set: Arc<ConfirmingSet>,
     stats: Arc<Stats>,
     vote_cache: Arc<Mutex<VoteCache>>,
-    online_reps: Arc<Mutex<OnlineReps>>,
+    representatives: Arc<Mutex<OnlineReps>>,
     stopped: AtomicBool,
     stopped_mutex: Mutex<()>,
     cooldowns: Mutex<OrderedCooldowns>,
@@ -48,7 +48,7 @@ impl HintedScheduler {
         stats: Arc<Stats>,
         vote_cache: Arc<Mutex<VoteCache>>,
         confirming_set: Arc<ConfirmingSet>,
-        online_reps: Arc<Mutex<OnlineReps>>,
+        representatives: Arc<Mutex<OnlineReps>>,
     ) -> Self {
         Self {
             thread: Mutex::new(None),
@@ -59,7 +59,7 @@ impl HintedScheduler {
             stats,
             vote_cache,
             confirming_set,
-            online_reps,
+            representatives,
             stopped: AtomicBool::new(false),
             stopped_mutex: Mutex::new(()),
             cooldowns: Mutex::new(OrderedCooldowns::new()),
@@ -147,9 +147,9 @@ impl HintedScheduler {
                 }
 
                 // Try to insert it into AEC as hinted election
-                let (inserted, _) = self
-                    .active
-                    .insert(&Arc::new(block), ElectionBehavior::Hinted);
+                let (inserted, _) =
+                    self.active
+                        .insert(&Arc::new(block), ElectionBehavior::Hinted, None);
                 self.stats.inc(
                     StatType::Hinting,
                     if inserted {
@@ -224,12 +224,17 @@ impl HintedScheduler {
     }
 
     fn tally_threshold(&self) -> Amount {
-        (self.online_reps.lock().unwrap().trended() / 100)
+        (self
+            .representatives
+            .lock()
+            .unwrap()
+            .trended_weight_or_minimum_online_weight()
+            / 100)
             * self.config.hinting_theshold_percent as u128
     }
 
     fn final_tally_threshold(&self) -> Amount {
-        self.online_reps.lock().unwrap().delta()
+        self.representatives.lock().unwrap().quorum_delta()
     }
 
     fn cooldown(&self, hash: BlockHash) -> bool {

@@ -1,19 +1,19 @@
 use super::{
     confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionData,
-    ElectionState, ElectionStatus, ElectionStatusType, LocalVoteHistory, RecentlyConfirmedCache,
-    VoteApplier, VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter, NEXT_ELECTION_ID,
+    ElectionState, ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier,
+    VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter, NEXT_ELECTION_ID,
 };
 use crate::{
     block_processing::BlockProcessor,
     cementation::ConfirmingSet,
     config::{NodeConfig, NodeFlags},
     consensus::VoteApplierExt,
-    representatives::RepresentativeRegister,
+    representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::{BufferDropPolicy, Network},
-    utils::{HardenedConstants, ThreadPool},
+    utils::HardenedConstants,
     wallets::Wallets,
-    NetworkParams, OnlineReps,
+    NetworkParams,
 };
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
@@ -23,7 +23,6 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
-use serde::Deserialize;
 use std::{
     cmp::max,
     collections::{BTreeMap, HashMap},
@@ -43,7 +42,7 @@ pub type ElectionEndCallback = Box<
 
 pub type AccountBalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct ActiveElectionsConfig {
     // Maximum number of simultaneous active elections (AEC size)
     pub size: usize,
@@ -92,20 +91,18 @@ impl Default for ActiveElectionsConfig {
 }
 
 pub struct ActiveElections {
+    relative_time: Instant,
     pub mutex: Mutex<ActiveElectionsState>,
     pub condition: Condvar,
     network_params: NetworkParams,
-    pub online_reps: Arc<Mutex<OnlineReps>>,
     wallets: Arc<Wallets>,
     node_config: NodeConfig,
     config: ActiveElectionsConfig,
     ledger: Arc<Ledger>,
     confirming_set: Arc<ConfirmingSet>,
-    workers: Arc<dyn ThreadPool>,
     pub recently_confirmed: Arc<RecentlyConfirmedCache>,
     /// Helper container for storing recently cemented elections (a block from election might be confirmed but not yet cemented by confirmation height processor)
     pub recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
-    history: Arc<LocalVoteHistory>,
     block_processor: Arc<BlockProcessor>,
     vote_generators: Arc<VoteGenerators>,
     network: Arc<Network>,
@@ -117,7 +114,7 @@ pub struct ActiveElections {
     activate_successors: Mutex<Box<dyn Fn(&LmdbReadTransaction, &Arc<BlockEnum>) + Send + Sync>>,
     election_end: Mutex<Vec<ElectionEndCallback>>,
     account_balance_changed: AccountBalanceChangedCallback,
-    representative_register: Arc<Mutex<RepresentativeRegister>>,
+    online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
     pub vote_applier: Arc<VoteApplier>,
@@ -128,13 +125,10 @@ pub struct ActiveElections {
 impl ActiveElections {
     pub(crate) fn new(
         network_params: NetworkParams,
-        online_reps: Arc<Mutex<OnlineReps>>,
         wallets: Arc<Wallets>,
         node_config: NodeConfig,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
-        workers: Arc<dyn ThreadPool>,
-        history: Arc<LocalVoteHistory>,
         block_processor: Arc<BlockProcessor>,
         vote_generators: Arc<VoteGenerators>,
         network: Arc<Network>,
@@ -142,12 +136,13 @@ impl ActiveElections {
         stats: Arc<Stats>,
         election_end: ElectionEndCallback,
         account_balance_changed: AccountBalanceChangedCallback,
-        representative_register: Arc<Mutex<RepresentativeRegister>>,
+        online_reps: Arc<Mutex<OnlineReps>>,
         flags: NodeFlags,
         recently_confirmed: Arc<RecentlyConfirmedCache>,
         vote_applier: Arc<VoteApplier>,
         vote_router: Arc<VoteRouter>,
         vote_cache_processor: Arc<VoteCacheProcessor>,
+        relative_time: Instant,
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
@@ -160,18 +155,15 @@ impl ActiveElections {
             }),
             condition: Condvar::new(),
             network_params,
-            online_reps,
             wallets,
             ledger,
             confirming_set,
-            workers,
             recently_confirmed,
             recently_cemented: Arc::new(Mutex::new(BoundedVecDeque::new(
                 node_config.active_elections.confirmation_history_size,
             ))),
             config: node_config.active_elections.clone(),
             node_config,
-            history,
             block_processor,
             vote_generators,
             network,
@@ -183,17 +175,28 @@ impl ActiveElections {
             activate_successors: Mutex::new(Box::new(|_tx, _block| {})),
             election_end: Mutex::new(vec![election_end]),
             account_balance_changed,
-            representative_register,
+            online_reps,
             thread: Mutex::new(None),
             flags,
             vote_applier,
             vote_router,
             vote_cache_processor,
+            relative_time,
         }
     }
 
     pub fn len(&self) -> usize {
         self.mutex.lock().unwrap().roots.len()
+    }
+
+    pub(crate) fn info(&self) -> ActiveElectionsInfo {
+        let guard = self.mutex.lock().unwrap();
+        ActiveElectionsInfo {
+            total: guard.roots.len(),
+            priority: guard.priority_count,
+            hinted: guard.hinted_count,
+            optimistic: guard.optimistic_count,
+        }
     }
 
     pub fn add_election_end_callback(&self, f: ElectionEndCallback) {
@@ -409,10 +412,12 @@ impl ActiveElections {
     }
 
     pub fn clear(&self) {
+        // TODO: Call erased_callback for each election
         {
             let mut guard = self.mutex.lock().unwrap();
             guard.roots.clear();
         }
+
         (self.vacancy_update.lock().unwrap())()
     }
 
@@ -510,7 +515,7 @@ impl ActiveElections {
                     .insert(block.hash(), Arc::clone(block));
                 if election_guard.status.winner.as_ref().unwrap().hash() == block.hash() {
                     election_guard.status.winner = Some(Arc::clone(block));
-                    let message = Message::Publish(Publish::new(block.as_ref().clone()));
+                    let message = Message::Publish(Publish::new_forward(block.as_ref().clone()));
                     self.network
                         .flood_message2(&message, BufferDropPolicy::NoLimiterDrop, 1.0);
                 }
@@ -627,7 +632,11 @@ impl ActiveElections {
 
         self.vote_router.disconnect_election(election);
 
-        guard.roots.erase(&election.qualified_root);
+        // Erase root info
+        let entry = guard
+            .roots
+            .erase(&election.qualified_root)
+            .expect("election not found");
 
         let state = election.state();
         self.stats
@@ -659,11 +668,17 @@ impl ActiveElections {
 
         drop(guard);
 
+        // Track election duration
         self.stats.sample(
             Sample::ActiveElectionDuration,
             election.duration().as_millis() as i64,
             (0, 1000 * 60 * 10),
         ); // 0-10 minutes range
+
+        // Notify observers without holding the lock
+        if let Some(callback) = entry.erased_callback {
+            callback(election)
+        }
 
         (self.vacancy_update.lock().unwrap())();
 
@@ -727,7 +742,7 @@ impl ActiveElections {
 
     pub fn election(&self, hash: &QualifiedRoot) -> Option<Arc<Election>> {
         let guard = self.mutex.lock().unwrap();
-        guard.roots.get(hash).cloned()
+        guard.roots.get(hash).map(|i| i.election.clone())
     }
 
     pub fn votes_with_weight(&self, election: &Election) -> Vec<VoteWithWeightInfo> {
@@ -777,13 +792,7 @@ impl ActiveElections {
         drop(guard);
 
         let mut solicitor = ConfirmationSolicitor::new(&self.network_params, &self.network);
-        solicitor.prepare(
-            &self
-                .representative_register
-                .lock()
-                .unwrap()
-                .principal_representatives(),
-        );
+        solicitor.prepare(&self.online_reps.lock().unwrap().peered_principal_reps());
 
         /*
          * Loop through active elections in descending order of proof-of-work difficulty, requesting confirmation
@@ -810,7 +819,7 @@ impl ActiveElections {
             .unwrap()
             .roots
             .iter_sequenced()
-            .map(|(_, election)| Arc::clone(election))
+            .map(|i| i.election.clone())
             .take(max)
             .collect()
     }
@@ -823,15 +832,15 @@ impl ActiveElections {
         guard
             .roots
             .iter_sequenced()
-            .map(|(_, election)| Arc::clone(election))
+            .map(|i| i.election.clone())
             .take(max)
             .collect()
     }
 
     pub fn erase(&self, root: &QualifiedRoot) -> bool {
         let guard = self.mutex.lock().unwrap();
-        if let Some(election) = guard.roots.get(root) {
-            let election = Arc::clone(election);
+        if let Some(entry) = guard.roots.get(root) {
+            let election = entry.election.clone();
             self.cleanup_election(guard, &election);
             true
         } else {
@@ -870,6 +879,9 @@ impl ActiveElections {
             }
             ElectionState::ExpiredConfirmed | ElectionState::ExpiredUnconfirmed => {
                 unreachable!()
+            }
+            ElectionState::Cancelled => {
+                return true; // Clean up cancelled elections immediately
             }
         }
 
@@ -1002,7 +1014,7 @@ impl From<Amount> for TallyKey {
 }
 
 pub struct ActiveElectionsState {
-    pub roots: OrderedRoots,
+    roots: OrderedRoots,
     pub stopped: bool,
     pub manual_count: usize,
     pub priority_count: usize,
@@ -1031,31 +1043,31 @@ impl ActiveElectionsState {
 }
 
 #[derive(Default)]
-pub struct OrderedRoots {
-    by_root: HashMap<QualifiedRoot, Arc<Election>>,
+pub(crate) struct OrderedRoots {
+    by_root: HashMap<QualifiedRoot, Entry>,
     sequenced: Vec<QualifiedRoot>,
 }
 
 impl OrderedRoots {
-    pub fn new() -> Self {
-        Default::default()
-    }
     pub const ELEMENT_SIZE: usize = size_of::<QualifiedRoot>() * 2 + size_of::<Arc<Election>>();
 
-    pub fn insert(&mut self, root: QualifiedRoot, election: Arc<Election>) {
-        if self.by_root.insert(root.clone(), election).is_none() {
+    pub fn insert(&mut self, entry: Entry) {
+        let root = entry.root.clone();
+        if self.by_root.insert(root.clone(), entry).is_none() {
             self.sequenced.push(root);
         }
     }
 
-    pub fn get(&self, root: &QualifiedRoot) -> Option<&Arc<Election>> {
+    pub fn get(&self, root: &QualifiedRoot) -> Option<&Entry> {
         self.by_root.get(root)
     }
 
-    pub fn erase(&mut self, root: &QualifiedRoot) {
-        if let Some(_) = self.by_root.remove(root) {
+    pub fn erase(&mut self, root: &QualifiedRoot) -> Option<Entry> {
+        let erased = self.by_root.remove(root);
+        if erased.is_some() {
             self.sequenced.retain(|x| x != root)
         }
+        erased
     }
 
     pub fn clear(&mut self) {
@@ -1067,10 +1079,8 @@ impl OrderedRoots {
         self.sequenced.len()
     }
 
-    pub fn iter_sequenced(&self) -> impl Iterator<Item = (&QualifiedRoot, &Arc<Election>)> {
-        self.sequenced
-            .iter()
-            .map(|r| (r, self.by_root.get(r).unwrap()))
+    pub fn iter_sequenced(&self) -> impl Iterator<Item = &Entry> {
+        self.sequenced.iter().map(|r| self.by_root.get(r).unwrap())
     }
 }
 
@@ -1092,6 +1102,7 @@ pub trait ActiveElectionsExt {
         &self,
         block: &Arc<BlockEnum>,
         election_behavior: ElectionBehavior,
+        erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Election>>);
 }
 
@@ -1234,8 +1245,8 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         let mut guard = self.mutex.lock().unwrap();
         let root = block.qualified_root();
         let mut result = true;
-        if let Some(election) = guard.roots.get(&root) {
-            let election = Arc::clone(election);
+        if let Some(entry) = guard.roots.get(&root) {
+            let election = entry.election.clone();
             drop(guard);
             result = self.publish(block, &election);
             if !result {
@@ -1248,6 +1259,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
 
                 self.stats
                     .inc(StatType::Active, DetailType::ElectionBlockConflict);
+                debug!("Block was added to an existing election: {}", block.hash());
             }
         }
 
@@ -1258,6 +1270,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         &self,
         block: &Arc<BlockEnum>,
         election_behavior: ElectionBehavior,
+        erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Election>>) {
         let mut election_result = None;
         let mut inserted = false;
@@ -1273,14 +1286,18 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         let existing = guard.roots.get(&root);
 
         if let Some(existing) = existing {
-            election_result = Some(Arc::clone(existing));
+            election_result = Some(existing.election.clone());
         } else {
             if !self.recently_confirmed.root_exists(&root) {
                 inserted = true;
-                let online_reps = Arc::clone(&self.online_reps);
+                let online_reps = self.online_reps.clone();
+                let relative_time = self.relative_time;
                 let observer_rep_cb = Box::new(move |rep| {
                     // Representative is defined as online if replying to live votes or rep_crawler queries
-                    online_reps.lock().unwrap().observe(rep);
+                    online_reps
+                        .lock()
+                        .unwrap()
+                        .vote_observed(rep, relative_time.elapsed());
                 });
 
                 let id = NEXT_ELECTION_ID.fetch_add(1, Ordering::Relaxed);
@@ -1291,7 +1308,11 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                     Box::new(|_| {}),
                     observer_rep_cb,
                 ));
-                guard.roots.insert(root, Arc::clone(&election));
+                guard.roots.insert(Entry {
+                    root,
+                    election: election.clone(),
+                    erased_callback,
+                });
                 self.vote_router.connect(hash, Arc::downgrade(&election));
 
                 // Keep track of election count by election type
@@ -1339,3 +1360,18 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         (inserted, election_result)
     }
 }
+
+pub(crate) struct ActiveElectionsInfo {
+    pub total: usize,
+    pub priority: usize,
+    pub hinted: usize,
+    pub optimistic: usize,
+}
+
+pub(crate) struct Entry {
+    root: QualifiedRoot,
+    election: Arc<Election>,
+    erased_callback: Option<ErasedCallback>,
+}
+
+pub(crate) type ErasedCallback = Box<dyn Fn(&Arc<Election>) + Send + Sync>;

@@ -15,7 +15,6 @@ use rsnano_core::{
     utils::BufferReader, work::WorkThresholds, BlockEnum, BlockType, ChangeBlock, OpenBlock,
     ReceiveBlock, SendBlock, StateBlock,
 };
-use rsnano_ledger::Ledger;
 use tokio::task::spawn_blocking;
 use tracing::debug;
 
@@ -28,7 +27,6 @@ impl BulkPushServer {
     pub fn new(
         async_rt: Arc<AsyncRuntime>,
         connection: Arc<ResponseServerImpl>,
-        ledger: Arc<Ledger>,
         thread_pool: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,
         bootstrap_initiator: Arc<BootstrapInitiator>,
@@ -38,7 +36,6 @@ impl BulkPushServer {
         let server_impl = BulkPushServerImpl {
             async_rt,
             connection,
-            ledger,
             thread_pool: Arc::downgrade(&thread_pool),
             block_processor: Arc::downgrade(&block_processor),
             receive_buffer: Arc::new(Mutex::new(vec![0; 256])),
@@ -63,7 +60,6 @@ impl BulkPushServer {
 
 struct BulkPushServerImpl {
     async_rt: Arc<AsyncRuntime>,
-    ledger: Arc<Ledger>,
     connection: Arc<ResponseServerImpl>,
     thread_pool: Weak<dyn ThreadPool>,
     block_processor: Weak<BlockProcessor>,

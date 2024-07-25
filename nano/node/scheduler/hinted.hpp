@@ -15,7 +15,6 @@ class node;
 class node_config;
 class active_elections;
 class vote_cache;
-class online_reps;
 }
 
 namespace nano::scheduler

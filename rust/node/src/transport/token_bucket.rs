@@ -84,6 +84,7 @@ impl TokenBucket {
     }
 
     /** Returns the largest burst observed */
+    #[allow(dead_code)]
     pub fn largest_burst(&self) -> usize {
         self.max_token_count - self.smallest_size
     }
