@@ -46,7 +46,7 @@ impl System {
     pub(crate) fn default_config() -> NodeConfig {
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
         let port = get_available_port();
-        let mut config = NodeConfig::new(Some(port), &network_params, 1);
+        let mut config = NodeConfig::default(Some(port), &network_params, 1);
         config.representative_vote_weight_minimum = Amount::zero();
         config
     }

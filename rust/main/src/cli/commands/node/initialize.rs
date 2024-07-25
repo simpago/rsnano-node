@@ -34,7 +34,7 @@ impl InitializeArgs {
 
         std::fs::create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
 
-        let config = NodeConfig::new(
+        let config = NodeConfig::default(
             Some(network_params.network.default_node_port),
             &network_params,
             get_cpu_count(),

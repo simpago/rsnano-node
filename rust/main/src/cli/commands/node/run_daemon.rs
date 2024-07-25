@@ -10,7 +10,8 @@ use rsnano_node::{
     NetworkParams,
 };
 use std::{
-    fs::{create_dir_all, read},
+    fs::{create_dir_all, File},
+    io::{BufRead, BufReader},
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
@@ -128,18 +129,28 @@ impl RunDaemonArgs {
 
         let config_node_toml_path = path.join("config-node.toml");
 
-        let config = if config_node_toml_path.exists() {
-            let toml_str: String =
-                bincode::deserialize(&read(config_node_toml_path).unwrap()).unwrap();
+        let mut config = NodeConfig::default(
+            Some(network_params.network.default_node_port),
+            &network_params,
+            get_cpu_count(),
+        );
+
+        if config_node_toml_path.exists() {
+            let file = File::open(config_node_toml_path)?;
+            let reader = BufReader::new(file);
+
+            // Read the file line by line, ignoring lines that start with `#`
+            let mut toml_str = String::new();
+            for line in reader.lines() {
+                let line = line?;
+                if !line.trim_start().starts_with('#') {
+                    toml_str.push_str(&line);
+                    toml_str.push('\n');
+                }
+            }
             let toml: TomlNodeConfig = from_str(&toml_str).unwrap();
-            NodeConfig::from_toml_node_config(&toml, &network_params, get_cpu_count())
-        } else {
-            NodeConfig::new(
-                Some(network_params.network.default_node_port),
-                &network_params,
-                get_cpu_count(),
-            )
-        };
+            config.override_config(&toml);
+        }
 
         let mut flags = NodeFlags::new();
         self.set_flags(&mut flags);
