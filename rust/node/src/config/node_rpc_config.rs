@@ -3,7 +3,6 @@ use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize)]
 pub struct RpcChildProcessConfig {
     pub enable: bool,
     pub rpc_path: PathBuf,

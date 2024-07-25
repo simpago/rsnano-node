@@ -1,6 +1,6 @@
 use super::{
     block_processor::BlockProcessorToml, BootstrapAscendingToml, DiagnosticsConfig,
-    HintedSchedulerConfig, Networks, OptimisticSchedulerConfig, WebsocketConfig,
+    HintedSchedulerConfig, Networks, OptimisticSchedulerConfig, TomlNodeConfig, WebsocketConfig,
 };
 use crate::{
     block_processing::{BlockProcessorConfig, LocalBlockBroadcasterConfig},
@@ -22,10 +22,11 @@ use rsnano_core::{
     Account, Amount, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
+use serde::Deserialize;
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize)]
 pub enum FrontiersConfirmationMode {
     Always,    // Always confirm frontiers
     Automatic, // Always mode if node contains representative with at least 50% of principal weight, less frequest requests if not
@@ -115,7 +116,7 @@ pub struct NodeConfig {
     pub monitor: MonitorConfig,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct Peer {
     pub address: String,
     pub port: u16,
@@ -294,6 +295,199 @@ impl NodeConfig {
             secondary_work_peers: vec![Peer::new("127.0.0.1", 8076)],
             preconfigured_peers,
             preconfigured_representatives,
+            max_pruning_age_s: if !network_params.network.is_beta_network() {
+                24 * 60 * 60
+            } else {
+                5 * 60
+            }, // 1 day; 5 minutes for beta network
+            max_pruning_depth: 0,
+            callback_address: String::new(),
+            callback_port: 0,
+            callback_target: String::new(),
+            websocket_config: WebsocketConfig::new(&network_params.network),
+            ipc_config: IpcConfig::new(&network_params.network),
+            diagnostics_config: DiagnosticsConfig::new(),
+            stat_config: StatsConfig::new(),
+            lmdb_config: LmdbConfig::new(),
+            backlog_scan_batch_size: 10 * 1000,
+            backlog_scan_frequency: 10,
+            optimistic_scheduler: OptimisticSchedulerConfig::new(),
+            hinted_scheduler: if network_params.network.is_dev_network() {
+                HintedSchedulerConfig::default_for_dev_network()
+            } else {
+                HintedSchedulerConfig::default()
+            },
+            priority_bucket: Default::default(),
+            vote_cache: Default::default(),
+            active_elections: Default::default(),
+            rep_crawler_query_timeout: if network_params.network.is_dev_network() {
+                Duration::from_secs(1)
+            } else {
+                Duration::from_secs(60)
+            },
+            block_processor: BlockProcessorToml::new(),
+            vote_processor: VoteProcessorConfig::new(parallelism),
+            tcp: if network_params.network.is_dev_network() {
+                TcpConfig::for_dev_network()
+            } else {
+                Default::default()
+            },
+            request_aggregator: RequestAggregatorConfig::new(parallelism),
+            message_processor: MessageProcessorConfig::new(parallelism),
+            priority_scheduler_enabled: true,
+            local_block_broadcaster: LocalBlockBroadcasterConfig::new(
+                network_params.network.current_network,
+            ),
+            confirming_set: Default::default(),
+            monitor: Default::default(),
+        }
+    }
+
+    pub fn from_toml_node_config(
+        toml: &TomlNodeConfig,
+        //peering_port: Option<u16>,
+        network_params: &NetworkParams,
+        parallelism: usize,
+    ) -> Self {
+        //if peering_port == Some(0) {
+        // comment for posterity:
+        // - we used to consider ports being 0 a sentinel that meant to use a default port for that specific purpose
+        // - the actual default value was determined based on the active network (e.g. dev network peering port = 44000)
+        // - now, the 0 value means something different instead: user wants to let the OS pick a random port
+        // - for the specific case of the peering port, after it gets picked, it can be retrieved by client code via
+        //   node.network.endpoint ().port ()
+        // - the config value does not get back-propagated because it represents the choice of the user, and that was 0
+        //}
+
+        let mut enable_voting = false;
+        let mut preconfigured_peers = Vec::new();
+        let mut preconfigured_representatives = Vec::new();
+        match network_params.network.current_network {
+            Networks::NanoDevNetwork => {
+                enable_voting = true;
+                preconfigured_representatives.push(network_params.ledger.genesis_account);
+            }
+            Networks::NanoBetaNetwork => {
+                preconfigured_peers.push(DEFAULT_BETA_PEER_NETWORK.clone());
+                preconfigured_representatives.push(
+                    Account::decode_account(
+                        "nano_1defau1t9off1ine9rep99999999999999999999999999999999wgmuzxxy",
+                    )
+                    .unwrap(),
+                );
+            }
+            Networks::NanoLiveNetwork => {
+                preconfigured_peers.push(DEFAULT_LIVE_PEER_NETWORK.clone());
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "A30E0A32ED41C8607AA9212843392E853FCBCB4E7CB194E35C94F07F91DE59EF",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "67556D31DDFC2A440BF6147501449B4CB9572278D034EE686A6BEE29851681DF",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "5C2FBB148E006A8E8BA7A75DD86C9FE00C83F5FFDBFD76EAA09531071436B6AF",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "AE7AC63990DAAAF2A69BF11C913B928844BF5012355456F2F164166464024B29",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "BD6267D6ECD8038327D2BCC0850BDF8F56EC0414912207E81BCF90DFAC8A4AAA",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "2399A083C600AA0572F5E36247D978FCFC840405F8D4B6D33161C0066A55F431",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "2298FAB7C61058E77EA554CB93EDEEDA0692CBFCC540AB213B2836B29029E23A",
+                    )
+                    .unwrap(),
+                );
+                preconfigured_representatives.push(
+                    Account::decode_hex(
+                        "3FE80B4BC842E82C1C18ABFEEC47EA989E63953BC82AC411F304D13833D52A56",
+                    )
+                    .unwrap(),
+                );
+            }
+            Networks::NanoTestNetwork => {
+                preconfigured_peers.push(DEFAULT_TEST_PEER_NETWORK.clone());
+                preconfigured_representatives.push(network_params.ledger.genesis_account);
+            }
+            Networks::Invalid => panic!("invalid network"),
+        }
+
+        Self {
+            peering_port: toml.peering_port,
+            bootstrap_fraction_numerator: toml.bootstrap_fraction_numerator,
+            receive_minimum: toml.receive_minimum,
+            online_weight_minimum: toml.online_weight_minimum,
+            representative_vote_weight_minimum: Amount::nano(10),
+            password_fanout: toml.password_fanout,
+            io_threads: toml.io_threads,
+            network_threads: toml.network_threads,
+            work_threads: toml.work_threads,
+            background_threads: toml.background_threads,
+            /* Use half available threads on the system for signature checking. The calling thread does checks as well, so these are extra worker threads */
+            signature_checker_threads: toml.signature_checker_threads,
+            enable_voting: toml.enable_voting,
+            bootstrap_connections: toml.bootstrap_connections,
+            bootstrap_connections_max: toml.bootstrap_connections_max,
+            bootstrap_initiator_threads: toml.bootstrap_initiator_threads,
+            bootstrap_serving_threads: toml.bootstrap_serving_threads,
+            bootstrap_frontier_request_count: toml.bootstrap_frontier_request_count,
+            block_processor_batch_max_time_ms: toml.block_processor_batch_max_time_ms,
+            allow_local_peers: toml.allow_local_peers, // disable by default for live network
+            vote_minimum: toml.vote_minimum,
+            vote_generator_delay_ms: toml.vote_generator_delay_ms,
+            vote_generator_threshold: toml.vote_generator_threshold,
+            unchecked_cutoff_time_s: toml.unchecked_cutoff_time_s, // 4 hours
+            tcp_io_timeout_s: toml.tcp_io_timeout_s,
+            pow_sleep_interval_ns: toml.pow_sleep_interval_ns,
+            external_address: toml.external_address.clone(),
+            external_port: toml.external_port,
+            // Default maximum incoming TCP connections, including realtime network & bootstrap
+            tcp_incoming_connections_max: toml.tcp_incoming_connections_max,
+            use_memory_pools: toml.use_memory_pools,
+            // Default outbound traffic shaping is 10MB/s
+            bandwidth_limit: toml.bandwidth_limit,
+            // By default, allow bursts of 15MB/s (not sustainable)
+            bandwidth_limit_burst_ratio: toml.bandwidth_limit_burst_ratio,
+            // Default boostrap outbound traffic limit is 5MB/s
+            bootstrap_bandwidth_limit: toml.bootstrap_bandwidth_limit,
+            // Bootstrap traffic does not need bursts
+            bootstrap_bandwidth_burst_ratio: toml.bootstrap_bandwidth_burst_ratio,
+            bootstrap_ascending: Default::default(),
+            bootstrap_server: Default::default(),
+            confirming_set_batch_time: toml.confirming_set_batch_time,
+            backup_before_upgrade: toml.backup_before_upgrade,
+            max_work_generate_multiplier: toml.max_work_generate_multiplier,
+            frontiers_confirmation: toml.frontiers_confirmation,
+            max_queued_requests: toml.max_queued_requests,
+            request_aggregator_threads: toml.request_aggregator_threads,
+            max_unchecked_blocks: toml.max_unchecked_blocks,
+            rep_crawler_weight_minimum: toml.rep_crawler_weight_minimum,
+            work_peers: toml.work_peers.clone(),
+            secondary_work_peers: vec![Peer::new("127.0.0.1", 8076)],
+            preconfigured_peers: toml.preconfigured_peers.clone(),
+            preconfigured_representatives: toml.preconfigured_representatives.clone(),
             max_pruning_age_s: if !network_params.network.is_beta_network() {
                 24 * 60 * 60
             } else {

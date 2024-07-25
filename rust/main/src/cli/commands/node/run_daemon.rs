@@ -3,16 +3,18 @@ use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
 use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
-    config::{NetworkConstants, NodeConfig, NodeFlags},
+    config::{NetworkConstants, NodeConfig, NodeFlags, TomlNodeConfig},
     node::{Node, NodeExt},
     transport::NullSocketObserver,
     utils::AsyncRuntime,
     NetworkParams,
 };
 use std::{
+    fs::{create_dir_all, read},
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
+use toml::from_str;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -122,13 +124,22 @@ impl RunDaemonArgs {
 
         let network_params = NetworkParams::new(NetworkConstants::active_network());
 
-        std::fs::create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
+        create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
 
-        let config = NodeConfig::new(
-            Some(network_params.network.default_node_port),
-            &network_params,
-            get_cpu_count(),
-        );
+        let config_node_toml_path = path.join("config-node.toml");
+
+        let config = if config_node_toml_path.exists() {
+            let toml_str: String =
+                bincode::deserialize(&read(config_node_toml_path).unwrap()).unwrap();
+            let toml: TomlNodeConfig = from_str(&toml_str).unwrap();
+            NodeConfig::from_toml_node_config(&toml, &network_params, get_cpu_count())
+        } else {
+            NodeConfig::new(
+                Some(network_params.network.default_node_port),
+                &network_params,
+                get_cpu_count(),
+            )
+        };
 
         let mut flags = NodeFlags::new();
         self.set_flags(&mut flags);

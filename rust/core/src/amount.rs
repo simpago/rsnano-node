@@ -1,8 +1,9 @@
 use crate::utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream};
 use anyhow::Result;
 use once_cell::sync::Lazy;
+use serde::Deserialize as SerdeDeserialize;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, SerdeDeserialize)]
 pub struct Amount {
     raw: u128, // native endian!
 }
