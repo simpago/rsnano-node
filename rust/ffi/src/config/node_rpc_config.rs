@@ -12,7 +12,7 @@ pub struct NodeRpcConfigDto {
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_node_rpc_config_create(dto: *mut NodeRpcConfigDto) -> i32 {
-    let config = match NodeRpcConfig::new() {
+    let config = match NodeRpcConfig::default() {
         Ok(c) => c,
         Err(_) => return -1,
     };

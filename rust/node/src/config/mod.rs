@@ -12,8 +12,7 @@ mod optimistic_scheduler_config;
 mod rpc_config;
 mod websocket_config;
 
-use std::path::{Path, PathBuf};
-
+use crate::NetworkParams;
 pub use block_processor::*;
 pub use bootstrap_ascending::*;
 pub use daemon_config::*;
@@ -26,9 +25,8 @@ pub use opencl_config::*;
 pub use optimistic_scheduler_config::*;
 pub use rpc_config::*;
 use rsnano_core::Networks;
+use std::path::{Path, PathBuf};
 pub use websocket_config::*;
-
-use crate::NetworkParams;
 
 pub fn get_node_toml_config_path(data_path: &Path) -> PathBuf {
     let mut node_toml = data_path.to_owned();

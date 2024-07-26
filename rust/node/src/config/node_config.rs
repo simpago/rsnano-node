@@ -22,11 +22,11 @@ use rsnano_core::{
     Account, Amount, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize, Serialize)]
 pub enum FrontiersConfirmationMode {
     Always,    // Always confirm frontiers
     Automatic, // Always mode if node contains representative with at least 50% of principal weight, less frequest requests if not
@@ -116,7 +116,7 @@ pub struct NodeConfig {
     pub monitor: MonitorConfig,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Peer {
     pub address: String,
     pub port: u16,
@@ -343,7 +343,7 @@ impl NodeConfig {
         }
     }
 
-    pub fn override_config(&mut self, toml: &TomlNodeConfig) {
+    pub fn config_override(&mut self, toml: &TomlNodeConfig) {
         if let Some(allow_local_peers) = toml.allow_local_peers {
             self.allow_local_peers = allow_local_peers;
         }
@@ -580,33 +580,33 @@ impl NodeConfig {
         )?;
 
         toml.create_array ("preconfigured_peers", "A list of \"address\" (hostname or ipv6 notation ip address) entries to identify preconfigured peers.\nThe contents of the NANO_DEFAULT_PEER environment variable are added to preconfigured_peers.",
-        &mut |peers| {
-            for peer in &self.preconfigured_peers {
-                peers.push_back_str(peer)?;
-            }
-            Ok(())
-        })?;
+            &mut |peers| {
+                for peer in &self.preconfigured_peers {
+                    peers.push_back_str(peer)?;
+                }
+                Ok(())
+            })?;
 
         toml.create_array ("preconfigured_representatives", "A list of representative account addresses used when creating new accounts in internal wallets.",
-        &mut |reps|{
-            for rep in &self.preconfigured_representatives {
-                reps.push_back_str(&rep.encode_account())?;
-            }
-            Ok(())
-        })?;
+            &mut |reps|{
+                for rep in &self.preconfigured_representatives {
+                    reps.push_back_str(&rep.encode_account())?;
+                }
+                Ok(())
+            })?;
 
         toml.put_child("experimental", &mut|child|{
-            child.create_array ("secondary_work_peers", "A list of \"address:port\" entries to identify work peers for secondary work generation.",
-        &mut |peers|{
-            for p in &self.secondary_work_peers{
-                peers.push_back_str(&format!("{}:{}", p.address, p.port))?;
-            }
-            Ok(())
-        })?;
-            child.put_i64("max_pruning_age", self.max_pruning_age_s, "Time limit for blocks age after pruning.\ntype:seconds")?;
-            child.put_u64("max_pruning_depth", self.max_pruning_depth, "Limit for full blocks in chain after pruning.\ntype:uint64")?;
-            Ok(())
-        })?;
+                child.create_array ("secondary_work_peers", "A list of \"address:port\" entries to identify work peers for secondary work generation.",
+            &mut |peers|{
+                for p in &self.secondary_work_peers{
+                    peers.push_back_str(&format!("{}:{}", p.address, p.port))?;
+                }
+                Ok(())
+            })?;
+                child.put_i64("max_pruning_age", self.max_pruning_age_s, "Time limit for blocks age after pruning.\ntype:seconds")?;
+                child.put_u64("max_pruning_depth", self.max_pruning_depth, "Limit for full blocks in chain after pruning.\ntype:uint64")?;
+                Ok(())
+            })?;
 
         toml.put_child("httpcallback", &mut |callback| {
             callback.put_str(

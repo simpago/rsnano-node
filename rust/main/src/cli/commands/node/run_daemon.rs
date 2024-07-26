@@ -149,7 +149,7 @@ impl RunDaemonArgs {
                 }
             }
             let toml: TomlNodeConfig = from_str(&toml_str).unwrap();
-            config.override_config(&toml);
+            config.config_override(&toml);
         }
 
         let mut flags = NodeFlags::new();

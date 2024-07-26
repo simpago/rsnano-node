@@ -1,9 +1,9 @@
 use crate::utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream};
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use serde::Deserialize as SerdeDeserialize;
+use serde::de;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, SerdeDeserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Amount {
     raw: u128, // native endian!
 }
@@ -191,6 +191,26 @@ impl std::cmp::PartialOrd for Amount {
 impl std::cmp::Ord for Amount {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.raw.cmp(&other.raw)
+    }
+}
+
+impl serde::Serialize for Amount {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.raw.to_string())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Amount {
+    fn deserialize<D>(deserializer: D) -> Result<Amount, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let raw = s.parse::<u128>().map_err(de::Error::custom)?;
+        Ok(Amount { raw })
     }
 }
 
