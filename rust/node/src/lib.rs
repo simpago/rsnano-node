@@ -22,6 +22,7 @@ pub mod representatives;
 mod secure;
 pub mod stats;
 mod telemetry;
+pub mod toml;
 pub mod transport;
 pub mod utils;
 pub mod wallets;

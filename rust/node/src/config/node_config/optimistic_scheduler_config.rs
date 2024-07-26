@@ -37,7 +37,7 @@ impl OptimisticSchedulerConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct HintedSchedulerConfig {
     pub enabled: bool,
     pub check_interval: Duration,

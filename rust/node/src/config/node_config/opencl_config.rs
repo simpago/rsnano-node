@@ -2,7 +2,7 @@ use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 
 pub struct OpenclConfig {
-    pub opencl_enable: bool,
+    pub enable: bool,
     pub platform: u32,
     pub device: u32,
     pub threads: u32,
@@ -24,7 +24,7 @@ impl OpenclConfig {
 impl Default for OpenclConfig {
     fn default() -> Self {
         Self {
-            opencl_enable: false,
+            enable: false,
             platform: 0,
             device: 0,
             threads: 1024 * 1024,

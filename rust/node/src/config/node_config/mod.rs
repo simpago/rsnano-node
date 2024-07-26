@@ -1,16 +1,13 @@
-use super::{
-    block_processor::BlockProcessorToml, BootstrapAscendingToml, DiagnosticsConfig,
-    HintedSchedulerConfig, Networks, OptimisticSchedulerConfig, TomlNodeConfig, WebsocketConfig,
-};
 use crate::{
-    block_processing::{BlockProcessorConfig, LocalBlockBroadcasterConfig},
-    bootstrap::{BootstrapInitiatorConfig, BootstrapServerConfig},
+    block_processing::LocalBlockBroadcasterConfig,
+    bootstrap::BootstrapInitiatorConfig,
     cementation::ConfirmingSetConfig,
     consensus::{
         ActiveElectionsConfig, PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig,
         VoteProcessorConfig,
     },
     stats::StatsConfig,
+    toml::NodeConfigToml,
     transport::{MessageProcessorConfig, TcpConfig},
     IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
@@ -19,11 +16,29 @@ use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
 use rsnano_core::{
     utils::{get_env_or_default_string, is_sanitizer_build, TomlWriter},
-    Account, Amount, GXRB_RATIO, XRB_RATIO,
+    Account, Amount, Networks, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
 use serde::{Deserialize, Serialize};
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
+
+mod block_processor;
+mod bootstrap_ascending;
+mod bootstrap_server;
+mod diagnostics_config;
+mod node_rpc_config;
+mod opencl_config;
+mod optimistic_scheduler_config;
+mod websocket_config;
+
+pub use block_processor::*;
+pub use bootstrap_ascending::*;
+pub use bootstrap_server::*;
+pub use diagnostics_config::*;
+pub use node_rpc_config::*;
+pub use opencl_config::*;
+pub use optimistic_scheduler_config::*;
+pub use websocket_config::*;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize, Serialize)]
@@ -72,7 +87,7 @@ pub struct NodeConfig {
     pub use_memory_pools: bool,
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
-    pub bootstrap_ascending: BootstrapAscendingToml,
+    pub bootstrap_ascending: BootstrapAscendingConfig,
     pub bootstrap_server: BootstrapServerConfig,
     pub bootstrap_bandwidth_limit: usize,
     pub bootstrap_bandwidth_burst_ratio: f64,
@@ -104,7 +119,7 @@ pub struct NodeConfig {
     pub backlog_scan_frequency: u32,
     pub vote_cache: VoteCacheConfig,
     pub rep_crawler_query_timeout: Duration,
-    pub block_processor: BlockProcessorToml,
+    pub block_processor: BlockProcessorConfig,
     pub active_elections: ActiveElectionsConfig,
     pub vote_processor: VoteProcessorConfig,
     pub tcp: TcpConfig,
@@ -325,7 +340,7 @@ impl NodeConfig {
             } else {
                 Duration::from_secs(60)
             },
-            block_processor: BlockProcessorToml::new(),
+            block_processor: BlockProcessorConfig::new(),
             vote_processor: VoteProcessorConfig::new(parallelism),
             tcp: if network_params.network.is_dev_network() {
                 TcpConfig::for_dev_network()
@@ -343,7 +358,7 @@ impl NodeConfig {
         }
     }
 
-    pub fn config_override(&mut self, toml: &TomlNodeConfig) {
+    pub fn config_override(&mut self, toml: &NodeConfigToml) {
         if let Some(allow_local_peers) = toml.allow_local_peers {
             self.allow_local_peers = allow_local_peers;
         }
@@ -804,8 +819,8 @@ fn serialize_frontiers_confirmation(mode: FrontiersConfirmationMode) -> &'static
     }
 }
 
-impl From<TomlNodeConfig> for NodeConfig {
-    fn from(toml: TomlNodeConfig) -> Self {
+impl From<NodeConfigToml> for NodeConfig {
+    fn from(toml: NodeConfigToml) -> Self {
         Self {
             peering_port: toml.peering_port,
             optimistic_scheduler: toml.optimistic_scheduler.unwrap(),

@@ -1,9 +1,10 @@
-use crate::block_processing::BlockProcessorConfig;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
+use crate::config::BlockProcessorConfig;
+
 #[derive(Clone, Deserialize, Serialize)]
-pub struct BlockProcessorToml {
+pub struct BlockProcessorConfigToml {
     // Maximum number of blocks to queue from network peers
     pub max_peer_queue: usize,
     // Maximum number of blocks to queue from system components (local RPC, bootstrap)
@@ -15,9 +16,8 @@ pub struct BlockProcessorToml {
     pub priority_local: usize,
 }
 
-impl Default for BlockProcessorToml {
-    fn default() -> Self {
-        let config = BlockProcessorConfig::default();
+impl From<BlockProcessorConfig> for BlockProcessorConfigToml {
+    fn from(config: BlockProcessorConfig) -> Self {
         Self {
             max_peer_queue: config.max_peer_queue,
             max_system_queue: config.max_system_queue,
@@ -28,7 +28,7 @@ impl Default for BlockProcessorToml {
     }
 }
 
-impl BlockProcessorToml {
+impl BlockProcessorConfigToml {
     pub fn new() -> Self {
         Default::default()
     }

@@ -1,4 +1,4 @@
-use super::get_default_rpc_filepath;
+use crate::config::get_default_rpc_filepath;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use std::path::PathBuf;
@@ -18,7 +18,7 @@ impl RpcChildProcessConfig {
 }
 
 pub struct NodeRpcConfig {
-    pub rpc_enable: bool,
+    pub enable: bool,
     pub enable_sign_hash: bool,
     pub child_process: RpcChildProcessConfig,
 }
@@ -26,7 +26,7 @@ pub struct NodeRpcConfig {
 impl NodeRpcConfig {
     pub fn default() -> Result<Self> {
         Ok(Self {
-            rpc_enable: false,
+            enable: false,
             enable_sign_hash: false,
             child_process: RpcChildProcessConfig::default()?,
         })

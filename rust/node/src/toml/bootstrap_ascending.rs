@@ -1,10 +1,10 @@
-use crate::bootstrap::{AccountSetsConfig, BootstrapAscendingConfig};
+use crate::{bootstrap::AccountSetsConfig, config::BootstrapAscendingConfig};
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct BootstrapAscendingToml {
+pub struct BootstrapAscendingConfigToml {
     /// Maximum number of un-responded requests per channel
     pub requests_limit: usize,
     pub database_requests_limit: usize,
@@ -16,7 +16,7 @@ pub struct BootstrapAscendingToml {
     pub block_wait_count: usize,
 }
 
-impl BootstrapAscendingToml {
+impl BootstrapAscendingConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize ("requests_limit", self.requests_limit, "Request limit to ascending bootstrap after which requests will be dropped.\nNote: changing to unlimited (0) is not recommended.\ntype:uint64")?;
         toml.put_usize ("database_requests_limit", self.database_requests_limit, "Request limit for accounts from database after which requests will be dropped.\nNote: changing to unlimited (0) is not recommended as this operation competes for resources on querying the database.\ntype:uint64")?;
@@ -47,9 +47,8 @@ impl BootstrapAscendingToml {
     }
 }
 
-impl Default for BootstrapAscendingToml {
-    fn default() -> Self {
-        let config = BootstrapAscendingConfig::default();
+impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
+    fn from(config: BootstrapAscendingConfig) -> Self {
         Self {
             requests_limit: config.requests_limit,
             database_requests_limit: config.database_requests_limit,
@@ -92,8 +91,13 @@ impl AccountSetsToml {
     }
 }
 
-impl Default for AccountSetsToml {
-    fn default() -> Self {
-        (&AccountSetsConfig::default()).into()
+impl From<AccountSetsConfig> for AccountSetsToml {
+    fn from(config: AccountSetsConfig) -> Self {
+        Self {
+            consideration_count: config.consideration_count,
+            priorities_max: config.priorities_max,
+            blocking_max: config.blocking_max,
+            cooldown: config.cooldown,
+        }
     }
 }

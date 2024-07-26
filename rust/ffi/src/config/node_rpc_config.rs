@@ -34,7 +34,7 @@ pub fn fill_node_rpc_config_dto(dto: &mut NodeRpcConfigDto, config: &NodeRpcConf
 impl From<&NodeRpcConfigDto> for NodeRpcConfig {
     fn from(dto: &NodeRpcConfigDto) -> Self {
         Self {
-            rpc_enable: dto.rpc_enable,
+            enable: dto.rpc_enable,
             enable_sign_hash: dto.enable_sign_hash,
             child_process: RpcChildProcessConfig {
                 enable: dto.enable_child_process,
