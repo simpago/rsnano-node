@@ -1,6 +1,6 @@
 use super::{
-    bootstrap_attempt::BootstrapAttemptHandle, bootstrap_attempts::BootstrapAttemptsHandle,
-    bootstrap_connections::BootstrapConnectionsHandle, pulls_cache::PullsCacheHandle,
+    bootstrap_attempts::BootstrapAttemptsHandle, bootstrap_connections::BootstrapConnectionsHandle,
+    pulls_cache::PullsCacheHandle,
 };
 use crate::{to_rust_string, transport::EndpointDto};
 use rsnano_core::{Account, HashOrAccount};
@@ -69,33 +69,17 @@ pub unsafe extern "C" fn rsn_bootstrap_initiator_in_progress(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_bootstrap_initiator_current_attempt(
+pub extern "C" fn rsn_bootstrap_initiator_has_lazy_attempt(
     handle: &BootstrapInitiatorHandle,
-) -> *mut BootstrapAttemptHandle {
-    match handle.current_attempt() {
-        Some(attempt) => BootstrapAttemptHandle::new(attempt),
-        None => std::ptr::null_mut(),
-    }
+) -> bool {
+    handle.current_legacy_attempt().is_some()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_bootstrap_initiator_current_lazy_attempt(
+pub extern "C" fn rsn_bootstrap_initiator_has_legacy_attempt(
     handle: &BootstrapInitiatorHandle,
-) -> *mut BootstrapAttemptHandle {
-    match handle.current_lazy_attempt() {
-        Some(attempt) => BootstrapAttemptHandle::new(attempt),
-        None => std::ptr::null_mut(),
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_bootstrap_initiator_current_wallet_attempt(
-    handle: &BootstrapInitiatorHandle,
-) -> *mut BootstrapAttemptHandle {
-    match handle.current_wallet_attempt() {
-        Some(attempt) => BootstrapAttemptHandle::new(attempt),
-        None => std::ptr::null_mut(),
-    }
+) -> bool {
+    handle.current_legacy_attempt().is_some()
 }
 
 #[no_mangle]

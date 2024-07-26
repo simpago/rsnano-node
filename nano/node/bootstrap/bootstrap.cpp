@@ -3,41 +3,11 @@
 
 #include <nano/lib/threading.hpp>
 #include <nano/node/bootstrap/bootstrap.hpp>
-#include <nano/node/bootstrap/bootstrap_lazy.hpp>
-#include <nano/node/bootstrap/bootstrap_legacy.hpp>
 #include <nano/node/common.hpp>
 #include <nano/node/node.hpp>
 
 #include <cassert>
 #include <memory>
-
-namespace
-{
-std::shared_ptr<nano::bootstrap_attempt> attempt_from_handle (rsnano::BootstrapAttemptHandle * attempt_handle)
-{
-	std::shared_ptr<nano::bootstrap_attempt> result{};
-	if (attempt_handle)
-	{
-		auto mode = static_cast<nano::bootstrap_mode> (rsnano::rsn_bootstrap_attempt_bootstrap_mode (attempt_handle));
-		switch (mode)
-		{
-			case nano::bootstrap_mode::lazy:
-				result = std::make_shared<nano::bootstrap_attempt_lazy> (attempt_handle);
-				break;
-			case nano::bootstrap_mode::legacy:
-				result = std::make_shared<nano::bootstrap_attempt_legacy> (attempt_handle);
-				break;
-			case nano::bootstrap_mode::wallet_lazy:
-				result = std::make_shared<nano::bootstrap_attempt_wallet> (attempt_handle);
-				break;
-			default:
-				assert (false);
-				break;
-		}
-	}
-	return result;
-}
-}
 
 nano::bootstrap_initiator::bootstrap_initiator (rsnano::BootstrapInitiatorHandle * handle) :
 	handle{ handle },
@@ -74,22 +44,12 @@ bool nano::bootstrap_initiator::in_progress ()
 	return rsnano::rsn_bootstrap_initiator_in_progress (handle);
 }
 
-std::shared_ptr<nano::bootstrap_attempt> nano::bootstrap_initiator::current_attempt ()
-{
-	auto attempt_handle = rsnano::rsn_bootstrap_initiator_current_attempt (handle);
-	return attempt_from_handle (attempt_handle);
+bool nano::bootstrap_initiator::has_legacy_attempt(){
+	return rsnano::rsn_bootstrap_initiator_has_legacy_attempt(handle);
 }
 
-std::shared_ptr<nano::bootstrap_attempt_lazy> nano::bootstrap_initiator::current_lazy_attempt ()
-{
-	auto attempt_handle = rsnano::rsn_bootstrap_initiator_current_lazy_attempt (handle);
-	return std::dynamic_pointer_cast<nano::bootstrap_attempt_lazy> (attempt_from_handle (attempt_handle));
-}
-
-std::shared_ptr<nano::bootstrap_attempt_wallet> nano::bootstrap_initiator::current_wallet_attempt ()
-{
-	auto attempt_handle = rsnano::rsn_bootstrap_initiator_current_wallet_attempt (handle);
-	return std::dynamic_pointer_cast<nano::bootstrap_attempt_wallet> (attempt_from_handle (attempt_handle));
+bool nano::bootstrap_initiator::has_lazy_attempt(){
+	return rsnano::rsn_bootstrap_initiator_has_lazy_attempt(handle);
 }
 
 rsnano::BootstrapInitiatorHandle * nano::bootstrap_initiator::get_handle () const

@@ -26,6 +26,7 @@
 #include <boost/optional.hpp>
 
 #include <thread>
+#include <future>
 
 using namespace std::chrono_literals;
 

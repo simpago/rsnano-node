@@ -48,11 +48,6 @@ pub unsafe extern "C" fn rsn_ledger_pruning_enabled(handle: *mut LedgerHandle) -
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_ledger_enable_pruning(handle: *mut LedgerHandle) {
-    (*handle).0.enable_pruning()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn rsn_ledger_any(handle: &LedgerHandle) -> *mut LedgerSetAnyHandle {
     let any = std::mem::transmute::<LedgerSetAny, LedgerSetAny<'static>>(handle.any());
     Box::into_raw(Box::new(LedgerSetAnyHandle(any)))

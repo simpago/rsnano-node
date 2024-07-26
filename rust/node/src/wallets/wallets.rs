@@ -16,7 +16,7 @@ use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo, ContainerInfoComponent},
     work::{WorkPoolImpl, WorkThresholds},
     Account, Amount, BlockDetails, BlockEnum, BlockHash, Epoch, HackyUnsafeMutBlock,
-    KeyDerivationFunction, Link, NoValue, PendingKey, PublicKey, RawKey, Root, StateBlock,
+    KeyDerivationFunction, KeyPair, Link, NoValue, PendingKey, PublicKey, RawKey, Root, StateBlock,
     WalletId, WorkVersion,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
@@ -603,14 +603,14 @@ impl Wallets {
                 if work == 0 {
                     work = wallet.store.work_get(tx, &source).unwrap_or_default();
                 }
+                let keys = KeyPair::from(prv_key);
                 let state_block = BlockEnum::State(StateBlock::new(
                     source,
                     info.head,
                     info.representative,
                     balance - amount,
                     account.into(),
-                    &prv_key,
-                    &source,
+                    &keys,
                     work,
                 ));
                 block = Some(state_block);
@@ -666,14 +666,14 @@ impl Wallets {
                     if work == 0 {
                         work = wallet.store.work_get(tx, &source).unwrap_or_default();
                     }
+                    let keys = KeyPair::from(prv_key);
                     let state_block = BlockEnum::State(StateBlock::new(
                         source,
                         info.head,
                         info.representative,
                         balance - amount,
                         account.into(),
-                        &prv_key,
-                        &source,
+                        &keys,
                         work,
                     ));
                     details = BlockDetails::new(info.epoch, true, false, false);
@@ -1408,14 +1408,14 @@ impl WalletsExt for Arc<Wallets> {
                         .work_get(&wallet_tx, &source)
                         .unwrap_or_default();
                 }
+                let keys = KeyPair::from(prv);
                 let state_block = BlockEnum::State(StateBlock::new(
                     source,
                     info.head,
                     representative,
                     info.balance,
                     Link::zero(),
-                    &prv,
-                    &source,
+                    &keys,
                     work,
                 ));
                 block = Some(state_block);
@@ -1485,6 +1485,7 @@ impl WalletsExt for Arc<Wallets> {
                             .work_get(&wallet_tx, &account)
                             .unwrap_or_default();
                     }
+                    let keys = KeyPair::from(prv);
                     if let Some(info) = self.ledger.account_info(&block_tx, &account) {
                         block = Some(BlockEnum::State(StateBlock::new(
                             account,
@@ -1492,8 +1493,7 @@ impl WalletsExt for Arc<Wallets> {
                             info.representative,
                             info.balance + pending_info.amount,
                             send_hash.into(),
-                            &prv,
-                            &account,
+                            &keys,
                             work,
                         )));
                         epoch = std::cmp::max(info.epoch, pending_info.epoch);
@@ -1504,8 +1504,7 @@ impl WalletsExt for Arc<Wallets> {
                             representative,
                             pending_info.amount,
                             send_hash.into(),
-                            &prv,
-                            &account,
+                            &keys,
                             work,
                         )));
                         epoch = pending_info.epoch;

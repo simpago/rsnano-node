@@ -1,6 +1,6 @@
 use super::{
-    bootstrap_limits, BootstrapAttempt, BootstrapConnections, BootstrapConnectionsExt,
-    BootstrapInitiator, BootstrapMode,
+    bootstrap_limits, BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections,
+    BootstrapConnectionsExt, BootstrapInitiator, BootstrapMode,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -632,5 +632,23 @@ impl Drop for BootstrapAttemptLazy {
     fn drop(&mut self) {
         let data = self.data.lock().unwrap();
         debug_assert_eq!(data.lazy_blocks.len(), data.lazy_blocks_count)
+    }
+}
+
+impl BootstrapAttemptTrait for BootstrapAttemptLazy {
+    fn incremental_id(&self) -> u64 {
+        self.attempt.incremental_id
+    }
+
+    fn id(&self) -> &str {
+        &self.attempt.id
+    }
+
+    fn started(&self) -> bool {
+        self.attempt.started.load(Ordering::SeqCst)
+    }
+
+    fn stopped(&self) -> bool {
+        self.attempt.stopped()
     }
 }

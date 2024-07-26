@@ -1,9 +1,7 @@
 #include "nano/lib/numbers.hpp"
 #include "nano/lib/rsnano.hpp"
 
-#include <nano/node/bootstrap/bootstrap_attempt.hpp>
 #include <nano/node/bootstrap/bootstrap_frontier.hpp>
-#include <nano/node/bootstrap/bootstrap_legacy.hpp>
 #include <nano/node/node.hpp>
 #include <nano/node/transport/tcp.hpp>
 #include <nano/secure/ledger.hpp>

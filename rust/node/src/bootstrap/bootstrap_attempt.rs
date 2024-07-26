@@ -1,10 +1,11 @@
+use super::{bootstrap_limits, BootstrapInitiator, BootstrapMode};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     utils::HardenedConstants,
     websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
 };
 use anyhow::Result;
-use rsnano_core::{encode_hex, Account, BlockEnum};
+use rsnano_core::{encode_hex, BlockEnum};
 use rsnano_ledger::Ledger;
 use serde::Serialize;
 use std::{
@@ -16,7 +17,12 @@ use std::{
 };
 use tracing::debug;
 
-use super::{bootstrap_limits, BootstrapInitiator, BootstrapMode};
+pub trait BootstrapAttemptTrait {
+    fn incremental_id(&self) -> u64;
+    fn id(&self) -> &str;
+    fn started(&self) -> bool;
+    fn stopped(&self) -> bool;
+}
 
 pub struct BootstrapAttempt {
     pub incremental_id: u64,
@@ -85,9 +91,11 @@ impl BootstrapAttempt {
     }
 
     fn start(&self) -> Result<()> {
-        let mode = self.mode_text();
         let id = &self.id;
-        debug!("Starting bootstrap attempt with ID: {id} (mode: {mode}) ");
+        debug!(
+            "Starting bootstrap attempt with ID: {id} (mode: {}) ",
+            self.mode.as_str()
+        );
         if let Some(websocket) = &self.websocket_server {
             websocket.broadcast(&self.bootstrap_started());
         }
@@ -100,7 +108,7 @@ impl BootstrapAttempt {
             BootstrapStarted {
                 reason: "started",
                 id: &self.id,
-                mode: self.mode_text(),
+                mode: self.mode.as_str(),
             },
         )
     }
@@ -111,7 +119,7 @@ impl BootstrapAttempt {
             BootstrapExited {
                 reason: "exited",
                 id: &self.id,
-                mode: self.mode_text(),
+                mode: self.mode.as_str(),
                 total_blocks: self.total_blocks.load(Ordering::SeqCst).to_string(),
                 duration: self.duration().as_secs().to_string(),
             },
@@ -139,24 +147,7 @@ impl BootstrapAttempt {
         }
     }
 
-    pub fn mode_text(&self) -> &'static str {
-        match self.mode {
-            BootstrapMode::Legacy => "legacy",
-            BootstrapMode::Lazy => "lazy",
-            BootstrapMode::WalletLazy => "wallet_lazy",
-            BootstrapMode::Ascending => "ascending",
-        }
-    }
-
-    pub fn process_block(
-        &self,
-        block: Arc<BlockEnum>,
-        _known_account: &Account,
-        pull_blocks_processed: u64,
-        _max_blocks: u32,
-        _block_expected: bool,
-        _retry_limit: u32,
-    ) -> bool {
+    pub fn process_block(&self, block: Arc<BlockEnum>, pull_blocks_processed: u64) -> bool {
         let mut stop_pull = false;
         let hash = block.hash();
         // If block already exists in the ledger, then we can avoid next part of long account chain
@@ -235,9 +226,11 @@ impl BootstrapAttempt {
 
 impl Drop for BootstrapAttempt {
     fn drop(&mut self) {
-        let mode = self.mode_text();
         let id = &self.id;
-        debug!("Exiting bootstrap attempt with ID: {id} (mode: {mode})");
+        debug!(
+            "Exiting bootstrap attempt with ID: {id} (mode: {})",
+            self.mode.as_str()
+        );
 
         if let Some(websocket) = &self.websocket_server {
             websocket.broadcast(&self.bootstrap_exited());

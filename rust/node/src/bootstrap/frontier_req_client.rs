@@ -250,7 +250,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
                 return;
             }
 
-            if attempt.attempt.should_log() {
+            if attempt.should_log() {
                 debug!(
                     "Received {} frontiers from {}",
                     guard.count,
@@ -289,7 +289,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
                                     attempts: 0,
                                     processed: 0,
                                     retry_limit: self.retry_limit,
-                                    bootstrap_id: attempt.attempt.incremental_id,
+                                    bootstrap_id: attempt.incremental_id(),
                                 };
                                 attempt.add_frontier(pull);
                                 // Either we're behind or there's a fork we differ on
@@ -309,7 +309,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
                             attempts: 0,
                             processed: 0,
                             retry_limit: self.retry_limit,
-                            bootstrap_id: attempt.attempt.incremental_id,
+                            bootstrap_id: attempt.incremental_id(),
                         };
                         attempt.add_frontier(pull);
                     }
@@ -323,7 +323,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
                         attempts: 0,
                         processed: 0,
                         retry_limit: self.retry_limit,
-                        bootstrap_id: attempt.attempt.incremental_id,
+                        bootstrap_id: attempt.incremental_id(),
                     };
 
                     attempt.add_frontier(pull);

@@ -9,7 +9,6 @@
 namespace nano
 {
 class node;
-class bootstrap_attempt;
 class bootstrap_connections;
 class pull_info;
 class bootstrap_initiator;

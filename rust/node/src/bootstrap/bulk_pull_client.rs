@@ -95,7 +95,7 @@ impl Drop for BulkPullClient {
         let expected = self.expected.lock().unwrap();
         if *expected != self.pull.end && !expected.is_zero() {
             self.pull.head = *expected;
-            if self.attempt.attempt().mode != BootstrapMode::Legacy {
+            if self.attempt.mode() != BootstrapMode::Legacy {
                 self.pull.account_or_head = expected.clone().into();
             }
             self.pull.processed += self.pull_blocks.load(Ordering::SeqCst)
@@ -187,9 +187,7 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
             self.workers.add_delayed_task(
                 Duration::from_secs(1),
                 Box::new(move || {
-                    if !self_clone.connection.pending_stop()
-                        && !self_clone.attempt.attempt().stopped.load(Ordering::SeqCst)
-                    {
+                    if !self_clone.connection.pending_stop() && !self_clone.attempt.stopped() {
                         self_clone.throttled_receive_block();
                     }
                 }),
@@ -281,7 +279,7 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
             /* Process block in lazy pull if not stopped
             Stop usual pull request with unexpected block & more than 16k blocks processed
             to prevent spam */
-            if self.attempt.attempt().mode != BootstrapMode::Legacy
+            if self.attempt.mode() != BootstrapMode::Legacy
                 || self.unexpected_count.load(Ordering::SeqCst) < 16384
             {
                 self.throttled_receive_block();

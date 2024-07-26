@@ -32,7 +32,7 @@ impl BootstrapAttempts {
 
     pub fn add(&mut self, attempt: Arc<BootstrapStrategy>) {
         self.attempts
-            .insert(attempt.attempt().incremental_id as usize, attempt);
+            .insert(attempt.incremental_id() as usize, attempt);
     }
 
     pub fn remove(&mut self, incremental_id: usize) {
@@ -58,19 +58,10 @@ impl BootstrapAttempts {
     pub fn attempts_information(&self, attempts: &mut dyn PropertyTree) {
         for (_, attempt) in &self.attempts {
             let mut entry = create_property_tree();
-            entry.put_string("id", &attempt.attempt().id).unwrap();
+            entry.put_string("id", attempt.id()).unwrap();
+            entry.put_string("mode", attempt.mode().as_str()).unwrap();
             entry
-                .put_string("mode", attempt.attempt().mode_text())
-                .unwrap();
-            entry
-                .put_string(
-                    "started",
-                    if attempt.attempt().started.load(Ordering::SeqCst) {
-                        "true"
-                    } else {
-                        "false"
-                    },
-                )
+                .put_string("started", if attempt.started() { "true" } else { "false" })
                 .unwrap();
             entry
                 .put_string(

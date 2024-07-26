@@ -1222,7 +1222,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         self.stats
             .inc(StatType::ActiveElections, DetailType::Cemented);
         self.stats.inc(
-            StatType::ActiveElections,
+            StatType::ActiveElectionsCemented,
             status.election_status_type.into(),
         );
 

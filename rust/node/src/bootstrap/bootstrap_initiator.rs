@@ -204,7 +204,7 @@ impl BootstrapInitiator {
 
     fn remove_attempt(&self, attempt_a: Arc<BootstrapStrategy>) {
         let mut guard = self.mutex.lock().unwrap();
-        let incremental_id = attempt_a.attempt().incremental_id as usize;
+        let incremental_id = attempt_a.incremental_id() as usize;
         let attempt = guard.attempts_list.get(&incremental_id).cloned();
         if let Some(attempt) = attempt {
             self.attempts.lock().unwrap().remove(incremental_id);
@@ -221,7 +221,7 @@ impl BootstrapInitiator {
         self.condition.notify_all();
     }
 
-    pub fn current_attempt(&self) -> Option<Arc<BootstrapStrategy>> {
+    pub fn current_legacy_attempt(&self) -> Option<Arc<BootstrapStrategy>> {
         let guard = self.mutex.lock().unwrap();
         guard.find_attempt(BootstrapMode::Legacy)
     }
@@ -535,7 +535,7 @@ impl Data {
 
     fn has_new_attempts(&self) -> bool {
         for i in self.attempts_list.values() {
-            if !i.attempt().started.load(Ordering::SeqCst) {
+            if !i.started() {
                 return true;
             }
         }

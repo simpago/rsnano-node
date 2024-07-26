@@ -47,8 +47,9 @@ use rsnano_core::{
         as_nano_json, system_time_as_nanoseconds, ContainerInfoComponent, SerdePropertyTree,
         SystemTimeFactory,
     },
-    work::WorkPoolImpl,
-    BlockEnum, BlockHash, BlockType, KeyPair, PublicKey, Vote, VoteCode, VoteSource,
+    work::{WorkPool, WorkPoolImpl},
+    Account, Amount, BlockEnum, BlockHash, BlockType, KeyPair, PublicKey, Root, Vote, VoteCode,
+    VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, DeserializedMessage, Message};
@@ -1186,6 +1187,26 @@ impl Node {
             .add_blocking(Arc::new(block), BlockSource::Local)
     }
 
+    pub fn process_multi(&self, blocks: &[BlockEnum]) {
+        let mut tx = self.ledger.rw_txn();
+        for block in blocks {
+            self.ledger.process(&mut tx, &mut block.clone()).unwrap();
+        }
+    }
+
+    pub fn process_active(&self, block: BlockEnum) {
+        self.block_processor.process_active(Arc::new(block));
+    }
+
+    pub fn process_local_multi(&self, blocks: &[BlockEnum]) {
+        for block in blocks {
+            let status = self.process_local(block.clone()).unwrap();
+            if !matches!(status, BlockStatus::Progress | BlockStatus::Old) {
+                panic!("could not process block!");
+            }
+        }
+    }
+
     pub fn block(&self, hash: &BlockHash) -> Option<BlockEnum> {
         let tx = self.ledger.read_txn();
         self.ledger.any().get_block(&tx, hash)
@@ -1193,6 +1214,52 @@ impl Node {
 
     pub fn get_node_id(&self) -> PublicKey {
         self.node_id.public_key()
+    }
+
+    pub fn work_generate_dev(&self, root: Root) -> u64 {
+        self.work.generate_dev2(root).unwrap()
+    }
+
+    pub fn block_exists(&self, hash: &BlockHash) -> bool {
+        let tx = self.ledger.read_txn();
+        self.ledger.any().block_exists(&tx, hash)
+    }
+
+    pub fn blocks_exist(&self, hashes: &[BlockEnum]) -> bool {
+        self.block_hashes_exist(hashes.iter().map(|b| b.hash()))
+    }
+
+    pub fn block_hashes_exist(&self, hashes: impl IntoIterator<Item = BlockHash>) -> bool {
+        let tx = self.ledger.read_txn();
+        hashes
+            .into_iter()
+            .all(|h| self.ledger.any().block_exists(&tx, &h))
+    }
+
+    pub fn balance(&self, account: &Account) -> Amount {
+        let tx = self.ledger.read_txn();
+        self.ledger
+            .any()
+            .account_balance(&tx, account)
+            .unwrap_or_default()
+    }
+
+    pub fn confirm_multi(&self, blocks: &[BlockEnum]) {
+        for block in blocks {
+            self.confirm(block.hash());
+        }
+    }
+
+    pub fn confirm(&self, hash: BlockHash) {
+        let mut tx = self.ledger.rw_txn();
+        self.ledger.confirm(&mut tx, hash);
+    }
+
+    pub fn blocks_confirmed(&self, blocks: &[BlockEnum]) -> bool {
+        let tx = self.ledger.read_txn();
+        blocks
+            .iter()
+            .all(|b| self.ledger.confirmed().block_exists(&tx, &b.hash()))
     }
 }
 

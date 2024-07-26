@@ -73,7 +73,7 @@ pub extern "C" fn rsn_state_block_create(dto: &StateBlockDto) -> *mut BlockHandl
 
 #[no_mangle]
 pub extern "C" fn rsn_state_block_create2(dto: &StateBlockDto2) -> *mut BlockHandle {
-    let block = StateBlock::new(
+    let block = StateBlock::new_obsolete(
         Account::from_bytes(dto.account),
         BlockHash::from_bytes(dto.previous),
         Account::from_bytes(dto.representative),

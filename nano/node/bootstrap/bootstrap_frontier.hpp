@@ -13,7 +13,6 @@ class FrontierReqClientHandle;
 
 namespace nano
 {
-class bootstrap_attempt_legacy;
 class bootstrap_client;
 class node;
 namespace transport

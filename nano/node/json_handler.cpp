@@ -6,7 +6,6 @@
 #include <nano/lib/json_error_response.hpp>
 #include <nano/lib/timer.hpp>
 #include <nano/node/active_elections.hpp>
-#include <nano/node/bootstrap/bootstrap_lazy.hpp>
 #include <nano/node/common.hpp>
 #include <nano/node/election.hpp>
 #include <nano/node/json_handler.hpp>
@@ -1854,7 +1853,7 @@ void nano::json_handler::bootstrap_lazy ()
 	{
 		if (!node.flags.disable_lazy_bootstrap ())
 		{
-			auto existed (node.bootstrap_initiator.current_lazy_attempt () != nullptr);
+			auto existed = node.bootstrap_initiator.has_lazy_attempt();
 			std::string bootstrap_id (request.get<std::string> ("id", ""));
 			auto key_inserted (node.bootstrap_initiator.bootstrap_lazy (hash, force, bootstrap_id));
 			bool started = !existed && key_inserted;

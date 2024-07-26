@@ -1,11 +1,11 @@
 use super::{
-    BootstrapAttempt, BootstrapConnections, BootstrapConnectionsExt, BootstrapInitiator,
-    BootstrapMode, BulkPullAccountClient, BulkPullAccountClientExt,
+    BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections, BootstrapConnectionsExt,
+    BootstrapInitiator, BootstrapMode, BulkPullAccountClient, BulkPullAccountClientExt,
 };
 use crate::{
     block_processing::BlockProcessor, stats::Stats, utils::ThreadPool, websocket::WebsocketListener,
 };
-use rsnano_core::{utils::PropertyTree, Account, Amount};
+use rsnano_core::{utils::PropertyTree, Account, Amount, BlockEnum};
 use rsnano_ledger::Ledger;
 use std::{
     collections::VecDeque,
@@ -58,6 +58,10 @@ impl BootstrapAttemptWallet {
             ledger,
             bootstrap_initiator: Arc::downgrade(&bootstrap_initiator),
         })
+    }
+
+    pub(crate) fn process_block(&self, block: Arc<BlockEnum>, pull_blocks_processed: u64) -> bool {
+        self.attempt.process_block(block, pull_blocks_processed)
     }
 
     pub fn requeue_pending(&self, account: Account) {
@@ -170,5 +174,22 @@ impl BootstrapAttemptWalletExt for Arc<BootstrapAttemptWallet> {
             }));
         }
         guard
+    }
+}
+impl BootstrapAttemptTrait for BootstrapAttemptWallet {
+    fn incremental_id(&self) -> u64 {
+        self.attempt.incremental_id
+    }
+
+    fn id(&self) -> &str {
+        &self.attempt.id
+    }
+
+    fn started(&self) -> bool {
+        self.attempt.started.load(Ordering::SeqCst)
+    }
+
+    fn stopped(&self) -> bool {
+        self.attempt.stopped()
     }
 }

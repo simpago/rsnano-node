@@ -272,7 +272,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 is_lazy = true;
                 pull.count = lazy.lazy_batch_size();
             }
-            if attempt_l.attempt().mode == BootstrapMode::Legacy
+            if attempt_l.mode() == BootstrapMode::Legacy
                 && (pull.attempts
                     < pull.retry_limit
                         + (pull.processed
@@ -321,7 +321,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                         unreachable!()
                     };
                     lazy.lazy_add(&pull);
-                } else if attempt_l.attempt().mode == BootstrapMode::Legacy {
+                } else if attempt_l.mode() == BootstrapMode::Legacy {
                     self.pulls_cache.lock().unwrap().add(&pull);
                 }
             }

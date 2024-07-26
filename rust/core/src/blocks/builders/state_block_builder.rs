@@ -2,7 +2,7 @@ use crate::work::WorkPool;
 use crate::{work::STUB_WORK_POOL, Block, StateBlock};
 use crate::{
     Account, Amount, BlockDetails, BlockEnum, BlockHash, BlockSideband, Epoch, KeyPair, Link,
-    PublicKey, RawKey, Signature,
+    Signature,
 };
 use anyhow::Result;
 
@@ -12,8 +12,7 @@ pub struct StateBlockBuilder {
     representative: Account,
     balance: Amount,
     link: Link,
-    prv_key: RawKey,
-    pub_key: PublicKey,
+    key_pair: KeyPair,
     work: Option<u64>,
     signature: Option<Signature>,
     previous_balance: Option<Amount>,
@@ -29,8 +28,7 @@ impl StateBlockBuilder {
             representative: Account::from(3),
             balance: Amount::from(4),
             link: Link::from(5),
-            prv_key: key.private_key(),
-            pub_key: key.public_key(),
+            key_pair: key,
             previous_balance: None,
             build_sideband: false,
             work: None,
@@ -115,8 +113,7 @@ impl StateBlockBuilder {
 
     pub fn sign(mut self, key: &KeyPair) -> Self {
         self.signature = None;
-        self.prv_key = key.private_key();
-        self.pub_key = key.public_key();
+        self.key_pair = key.clone();
         self
     }
 
@@ -176,8 +173,7 @@ impl StateBlockBuilder {
                 self.representative,
                 self.balance,
                 self.link,
-                &self.prv_key,
-                &self.pub_key,
+                &self.key_pair,
                 work,
             ),
         };
@@ -322,8 +318,7 @@ mod tests {
             Account::from(key2.public_key()),
             Amount::raw(2),
             Link::from(4),
-            &key1.private_key(),
-            &key1.public_key(),
+            &key1,
             5,
         );
 

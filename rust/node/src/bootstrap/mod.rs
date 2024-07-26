@@ -44,7 +44,7 @@ pub use frontier_req_server::FrontierReqServer;
 pub use ongoing_bootstrap::*;
 pub use pulls_cache::{PullInfo, PullsCache};
 use rsnano_core::{utils::PropertyTree, Account, BlockEnum};
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 pub mod bootstrap_limits {
     pub const PULL_COUNT_PER_CHECK: u64 = 8 * 1024;
@@ -70,11 +70,33 @@ pub enum BootstrapMode {
     Ascending,
 }
 
+impl BootstrapMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            BootstrapMode::Legacy => "legacy",
+            BootstrapMode::Lazy => "lazy",
+            BootstrapMode::WalletLazy => "wallet_lazy",
+            BootstrapMode::Ascending => "ascending",
+        }
+    }
+}
+
 pub enum BootstrapStrategy {
     Lazy(BootstrapAttemptLazy),
     Legacy(Arc<BootstrapAttemptLegacy>),
     Wallet(Arc<BootstrapAttemptWallet>),
-    Other(BootstrapAttempt),
+}
+
+impl Deref for BootstrapStrategy {
+    type Target = dyn BootstrapAttemptTrait;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            BootstrapStrategy::Lazy(i) => i,
+            BootstrapStrategy::Legacy(i) => i.as_ref(),
+            BootstrapStrategy::Wallet(i) => i.as_ref(),
+        }
+    }
 }
 
 impl BootstrapStrategy {
@@ -83,13 +105,11 @@ impl BootstrapStrategy {
             BootstrapStrategy::Lazy(_) => BootstrapMode::Lazy,
             BootstrapStrategy::Legacy(_) => BootstrapMode::Legacy,
             BootstrapStrategy::Wallet(_) => BootstrapMode::WalletLazy,
-            BootstrapStrategy::Other(_) => panic!("unknown bootstrap mode"),
         }
     }
 
     pub fn attempt(&self) -> &BootstrapAttempt {
         match self {
-            BootstrapStrategy::Other(i) => i,
             BootstrapStrategy::Lazy(i) => &i.attempt,
             BootstrapStrategy::Legacy(i) => &i.attempt,
             BootstrapStrategy::Wallet(i) => &i.attempt,
@@ -99,7 +119,6 @@ impl BootstrapStrategy {
     pub fn run(&self) {
         match self {
             BootstrapStrategy::Lazy(i) => i.run(),
-            BootstrapStrategy::Other(_) => {}
             BootstrapStrategy::Legacy(i) => i.run(),
             BootstrapStrategy::Wallet(i) => i.run(),
         }
@@ -109,7 +128,6 @@ impl BootstrapStrategy {
         match self {
             BootstrapStrategy::Legacy(i) => i.stop(),
             BootstrapStrategy::Lazy(i) => i.attempt.stop(),
-            BootstrapStrategy::Other(i) => i.stop(),
             BootstrapStrategy::Wallet(i) => i.attempt.stop(),
         }
     }
@@ -119,7 +137,6 @@ impl BootstrapStrategy {
             BootstrapStrategy::Lazy(i) => i.get_information(tree).unwrap(),
             BootstrapStrategy::Legacy(i) => i.get_information(tree),
             BootstrapStrategy::Wallet(i) => i.get_information(tree),
-            BootstrapStrategy::Other(_) => {}
         }
     }
 
@@ -133,22 +150,7 @@ impl BootstrapStrategy {
         retry_limit: u32,
     ) -> bool {
         match self {
-            BootstrapStrategy::Other(i) => i.process_block(
-                block,
-                known_account,
-                pull_blocks_processed,
-                max_blocks,
-                block_expected,
-                retry_limit,
-            ),
-            BootstrapStrategy::Legacy(i) => i.attempt.process_block(
-                block,
-                known_account,
-                pull_blocks_processed,
-                max_blocks,
-                block_expected,
-                retry_limit,
-            ),
+            BootstrapStrategy::Legacy(i) => i.process_block(block, pull_blocks_processed),
             BootstrapStrategy::Lazy(i) => i.process_block(
                 block,
                 known_account,
@@ -157,14 +159,7 @@ impl BootstrapStrategy {
                 block_expected,
                 retry_limit,
             ),
-            BootstrapStrategy::Wallet(i) => i.attempt.process_block(
-                block,
-                known_account,
-                pull_blocks_processed,
-                max_blocks,
-                block_expected,
-                retry_limit,
-            ),
+            BootstrapStrategy::Wallet(i) => i.process_block(block, pull_blocks_processed),
         }
     }
 }

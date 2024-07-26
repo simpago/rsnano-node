@@ -9,8 +9,6 @@
 #include <nano/lib/tomlconfig.hpp>
 #include <nano/node/blockprocessor.hpp>
 #include <nano/node/bootstrap/bootstrap.hpp>
-#include <nano/node/bootstrap/bootstrap_lazy.hpp>
-#include <nano/node/bootstrap/bootstrap_legacy.hpp>
 #include <nano/node/node_observers.hpp>
 #include <nano/node/rsnano_callbacks.hpp>
 #include <nano/node/transport/tcp.hpp>

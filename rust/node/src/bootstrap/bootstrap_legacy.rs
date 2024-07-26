@@ -1,6 +1,7 @@
 use super::{
-    BootstrapAttempt, BootstrapConnections, BootstrapInitiator, BootstrapMode, BulkPushClient,
-    BulkPushClientExt, FrontierReqClient, FrontierReqClientExt, PullInfo,
+    BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections, BootstrapInitiator,
+    BootstrapMode, BulkPushClient, BulkPushClientExt, FrontierReqClient, FrontierReqClientExt,
+    PullInfo,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -10,7 +11,7 @@ use crate::{
     websocket::WebsocketListener,
 };
 use rand::{thread_rng, Rng};
-use rsnano_core::{utils::PropertyTree, Account, BlockHash};
+use rsnano_core::{utils::PropertyTree, Account, BlockEnum, BlockHash};
 use rsnano_ledger::Ledger;
 use std::{
     collections::VecDeque,
@@ -84,6 +85,18 @@ impl BootstrapAttemptLegacy {
             block_processor,
             workers,
         })
+    }
+
+    pub(crate) fn should_log(&self) -> bool {
+        self.attempt.should_log()
+    }
+
+    pub(crate) fn incremental_id(&self) -> u64 {
+        self.attempt.incremental_id
+    }
+
+    pub(crate) fn process_block(&self, block: Arc<BlockEnum>, pull_blocks_processed: u64) -> bool {
+        self.attempt.process_block(block, pull_blocks_processed)
     }
 
     pub fn request_bulk_push_target(&self) -> Option<(BlockHash, BlockHash)> {
@@ -356,4 +369,21 @@ pub struct LegacyData {
     push: Option<Weak<BulkPushClient>>,
     frontiers: Option<Weak<FrontierReqClient>>,
     bulk_push_targets: Vec<(BlockHash, BlockHash)>,
+}
+impl BootstrapAttemptTrait for BootstrapAttemptLegacy {
+    fn incremental_id(&self) -> u64 {
+        self.attempt.incremental_id
+    }
+
+    fn id(&self) -> &str {
+        &self.attempt.id
+    }
+
+    fn started(&self) -> bool {
+        self.attempt.started.load(Ordering::SeqCst)
+    }
+
+    fn stopped(&self) -> bool {
+        self.attempt.stopped()
+    }
 }

@@ -63,6 +63,28 @@ impl StateBlock {
         representative: Account,
         balance: Amount,
         link: Link,
+        keys: &KeyPair,
+        work: u64,
+    ) -> Self {
+        Self::new_obsolete(
+            account,
+            previous,
+            representative,
+            balance,
+            link,
+            &keys.private_key(),
+            &keys.public_key(),
+            work,
+        )
+    }
+
+    // Don't use this anymore
+    pub fn new_obsolete(
+        account: Account,
+        previous: BlockHash,
+        representative: Account,
+        balance: Amount,
+        link: Link,
         prv_key: &RawKey,
         pub_key: &PublicKey,
         work: u64,
@@ -94,8 +116,7 @@ impl StateBlock {
             Account::from(789),
             Amount::raw(420),
             Link::from(111),
-            &key.private_key(),
-            &key.public_key(),
+            &key,
             69420,
         )
     }
