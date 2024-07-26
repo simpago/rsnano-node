@@ -13,7 +13,7 @@ pub(crate) struct GetWalletRepresentativeArgs {
     /// Gets the representative of the supplied <wallet>
     #[arg(long)]
     wallet: String,
-    /// Optional <password> to unlock the wallet
+    /// Optional password to unlock the wallet
     #[arg(long)]
     password: Option<String>,
     #[arg(long)]

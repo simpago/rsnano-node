@@ -14,7 +14,7 @@ use std::sync::Arc;
 #[command(group = ArgGroup::new("input2")
     .args(&["data_path", "network"]))]
 pub(crate) struct ConfirmationHeightArgs {
-    /// Clears the confirmation height of the supplied account
+    /// Clears the confirmation height of the account
     #[arg(long, group = "input1")]
     account: Option<String>,
     /// Clears the confirmation height of all accounts

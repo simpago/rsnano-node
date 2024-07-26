@@ -11,10 +11,10 @@ use std::sync::Arc;
 #[command(group = ArgGroup::new("input")
     .args(&["data_path", "network"]))]
 pub(crate) struct CreateWalletArgs {
-    /// Optional <seed> of the new wallet
+    /// Optional seed of the new wallet
     #[arg(long)]
     seed: Option<String>,
-    /// Optional <password> of the new wallet
+    /// Optional password of the new wallet
     #[arg(long)]
     password: Option<String>,
     /// Uses the supplied path as the data directory

@@ -15,7 +15,7 @@ pub(crate) struct FinalVoteArgs {
     /// Clears the supplied final vote
     #[arg(long, group = "input1")]
     root: Option<String>,
-    /// Clears all final votes
+    /// Clears all final votes (not recommended)
     #[arg(long, group = "input1")]
     all: bool,
     /// Uses the supplied path as the data directory
@@ -35,8 +35,6 @@ impl FinalVoteArgs {
         let final_vote_store = LmdbFinalVoteStore::new(env.clone())?;
 
         let mut txn = env.tx_begin_write();
-
-        println!("{}", final_vote_store.count(&mut env.tx_begin_read()));
 
         if let Some(root) = &self.root {
             let root_decoded = Root::decode_hex(root)?;

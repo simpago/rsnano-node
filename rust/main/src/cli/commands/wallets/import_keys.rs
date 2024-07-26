@@ -15,12 +15,12 @@ pub(crate) struct ImportKeysArgs {
     #[arg(long)]
     file: String,
     #[arg(long)]
-    /// Optional <password> to unlock the wallet
+    /// Optional password to unlock the wallet
     password: Option<String>,
     #[arg(long)]
     /// Forces the command if the wallet is locked
     force: bool,
-    /// The <wallet> importing the keys
+    /// The wallet importing the keys
     #[arg(long)]
     wallet: String,
     /// Uses the supplied path as the data directory

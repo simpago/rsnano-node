@@ -12,13 +12,13 @@ pub(crate) mod peers;
 
 #[derive(Subcommand)]
 pub(crate) enum ClearSubcommands {
-    /// Clears the provided final vote or all final votes (not recommended)
+    /// Clears final votes
     FinalVote(FinalVoteArgs),
     /// Clears online weight history records
     OnlineWeight(OnlineWeightArgs),
     /// Clears online peers database
     Peers(PeersArgs),
-    /// Clears the confirmation height of the provided account or all accounts
+    /// Clears the confirmation height of accounts
     ConfirmationHeight(ConfirmationHeightArgs),
 }
 

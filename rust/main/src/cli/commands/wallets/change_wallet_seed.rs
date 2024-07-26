@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[command(group = ArgGroup::new("input")
     .args(&["data_path", "network"]))]
 pub(crate) struct ChangeWalletSeedArgs {
-    /// Changes the seed of the supplied <wallet>
+    /// Changes the seed of the supplied wallet
     #[arg(long)]
     wallet: String,
     /// The new <seed> of the wallet

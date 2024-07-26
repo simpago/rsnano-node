@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[command(group = ArgGroup::new("input")
     .args(&["data_path", "network"]))]
 pub(crate) struct AddPrivateKeyArgs {
-    /// Adds the key to the supplied <wallet>
+    /// Adds the key to the supplied wallet
     #[arg(long)]
     wallet: String,
     /// Adds the supplied <private_key> to the wallet

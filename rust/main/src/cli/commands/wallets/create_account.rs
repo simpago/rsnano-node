@@ -13,7 +13,7 @@ pub(crate) struct CreateAccountArgs {
     /// Creates an account in the supplied <wallet>
     #[arg(long)]
     wallet: String,
-    /// Optional <password> to unlock the wallet
+    /// Optional password to unlock the wallet
     #[arg(long)]
     password: Option<String>,
     /// Uses the supplied path as the data directory

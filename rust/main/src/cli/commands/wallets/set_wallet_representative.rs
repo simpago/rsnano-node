@@ -13,10 +13,10 @@ pub(crate) struct SetWalletRepresentativeArgs {
     /// Sets the representative for the supplied <wallet>
     #[arg(long)]
     wallet: String,
-    /// Sets the supplied <account> as the wallet representative
+    /// Sets the supplied account as the wallet representative
     #[arg(long)]
     account: String,
-    /// Optional <password> to unlock the wallet
+    /// Optional password to unlock the wallet
     #[arg(long)]
     password: Option<String>,
     /// Uses the supplied path as the data directory

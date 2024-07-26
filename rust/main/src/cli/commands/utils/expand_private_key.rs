@@ -4,7 +4,7 @@ use rsnano_core::{Account, PublicKey, RawKey};
 
 #[derive(Parser)]
 pub(crate) struct ExpandPrivateKeyArgs {
-    /// Derives the public key and the account from the <private_key>
+    /// Derives the public key and the account from the private_key
     #[arg(long)]
     private_key: String,
 }

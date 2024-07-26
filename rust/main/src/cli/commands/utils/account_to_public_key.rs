@@ -4,7 +4,7 @@ use rsnano_core::Account;
 
 #[derive(Parser)]
 pub(crate) struct AccountToPublicKeyArgs {
-    /// Converts the <account> into the public key
+    /// Converts the account into the public key
     #[arg(long)]
     account: String,
 }

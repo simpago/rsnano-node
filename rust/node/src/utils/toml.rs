@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rsnano_core::utils::{TomlArrayWriter, TomlWriter};
-use std::path::Path;
+use std::{io::BufRead, path::Path};
 use toml_edit::Document;
 
 #[derive(Default)]
@@ -15,6 +15,35 @@ impl TomlConfig {
 
     pub fn to_string(&self) -> String {
         self.doc.to_string()
+    }
+
+    pub fn to_string_with_comments(&self, comment_values: bool) -> String {
+        let mut ss_processed = String::new();
+
+        // Convert the TOML value to a string
+        let toml_string = self.doc.to_string();
+
+        // Use a buffered reader to read the TOML string line by line
+        let reader = std::io::BufReader::new(toml_string.as_bytes());
+
+        for line in reader.lines() {
+            let mut line = line.unwrap();
+            if !line.is_empty() && !line.starts_with('[') {
+                if line.starts_with('#') {
+                    line = format!("\t{}", line);
+                } else {
+                    line = if comment_values {
+                        format!("\t# {}", line)
+                    } else {
+                        format!("\t{}", line)
+                    };
+                }
+            }
+            ss_processed.push_str(&line);
+            ss_processed.push('\n');
+        }
+
+        ss_processed
     }
 
     pub fn write(&self, file: impl AsRef<Path>) -> Result<()> {
