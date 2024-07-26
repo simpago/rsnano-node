@@ -7,22 +7,22 @@ use rsnano_node::{
 use std::io::BufRead;
 
 #[derive(Parser)]
-#[command(group = ArgGroup::new("input1")
+#[command(group = ArgGroup::new("input")
     .args(&["node", "rpc"])
     .required(true))]
-pub(crate) struct GenerateConfigArgs {
-    /// Generates the node config
-    #[arg(long, group = "input1")]
+pub(crate) struct DefaultConfigArgs {
+    /// Prints the default node config
+    #[arg(long, group = "input")]
     node: bool,
-    /// Generates the rpc config
-    #[arg(long, group = "input1")]
+    /// Prints the default rpc config
+    #[arg(long, group = "input")]
     rpc: bool,
     /// Uncomments the entries of the config
     #[arg(long)]
     use_defaults: bool,
 }
 
-impl GenerateConfigArgs {
+impl DefaultConfigArgs {
     pub(crate) fn generate_config(&self) -> Result<()> {
         let network = NetworkConstants::active_network();
 

@@ -12,13 +12,14 @@ use rsnano_node::{
     NetworkParams,
 };
 use std::{
-    fs::{create_dir_all, File},
-    io::{BufRead, BufReader},
+    fs::create_dir_all,
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
 use toml::from_str;
 use tracing_subscriber::EnvFilter;
+
+use super::read_node_config_toml;
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input")
@@ -138,18 +139,7 @@ impl RunDaemonArgs {
         );
 
         if node_toml_config_path.exists() {
-            let file = File::open(node_toml_config_path)?;
-            let reader = BufReader::new(file);
-
-            // Read the file line by line, ignoring lines that start with `#`
-            let mut toml_str = String::new();
-            for line in reader.lines() {
-                let line = line?;
-                if !line.trim_start().starts_with('#') {
-                    toml_str.push_str(&line);
-                    toml_str.push('\n');
-                }
-            }
+            let toml_str = read_node_config_toml(&node_toml_config_path)?;
             let toml_daemon_config: TomlDaemonConfig = from_str(&toml_str)?;
             if let Some(toml_node_config) = toml_daemon_config.node {
                 node_config.config_override(&toml_node_config);

@@ -78,6 +78,35 @@ impl TomlDaemonConfig {
             opencl: Some(TomlOpenclConfig::default()),
         })
     }
+
+    pub fn merge_defaults(&self, default_config: &TomlDaemonConfig) -> Result<String> {
+        let defaults_str = toml::to_string(default_config)?;
+        let current_str = toml::to_string(self)?;
+
+        let mut result = String::new();
+        let mut stream_defaults = defaults_str.lines();
+        let mut stream_current = current_str.lines();
+
+        while let (Some(line_defaults), Some(line_current)) =
+            (stream_defaults.next(), stream_current.next())
+        {
+            if line_defaults == line_current {
+                result.push_str(line_defaults);
+                result.push('\n');
+            } else {
+                if let Some(pos) = line_current.find('#') {
+                    result.push_str(&line_current[0..pos]);
+                    result.push_str(&line_current[pos + 1..]);
+                    result.push('\n');
+                } else {
+                    result.push_str(line_current);
+                    result.push('\n');
+                }
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 #[derive(Deserialize, Serialize)]

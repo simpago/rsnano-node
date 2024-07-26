@@ -1,35 +1,40 @@
 use crate::cli::get_path;
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use generate_config::GenerateConfigArgs;
+use generate_config::DefaultConfigArgs;
 use initialize::InitializeArgs;
 use rsnano_core::{Account, Amount, BlockHash, PublicKey, RawKey, SendBlock};
 use rsnano_node::{wallets::Wallets, BUILD_INFO, VERSION_STRING};
 use rsnano_store_lmdb::LmdbEnv;
 use run_daemon::RunDaemonArgs;
-use std::{sync::Arc, time::Instant};
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+    path::PathBuf,
+    sync::Arc,
+    time::Instant,
+};
+use update_config::CurrentConfigArgs;
 
 pub(crate) mod generate_config;
 pub(crate) mod initialize;
 pub(crate) mod run_daemon;
+pub(crate) mod update_config;
 
 #[derive(Subcommand)]
 pub(crate) enum NodeSubcommands {
-    /// Start node daemon.
+    /// Starts the node daemon
     RunDaemon(RunDaemonArgs),
-    /// Initialize the data folder, if it is not already initialised.
-    ///
-    /// This command is meant to be run when the data folder is empty, to populate it with the genesis block.
+    /// Initializes the data folder, if it is not already initialised
     Initialize(InitializeArgs),
-    /// Run internal diagnostics.
+    /// Runs internal diagnostics
     Diagnostics,
-    /// Prints out version.
+    /// Prints out the version
     Version,
-    /// Writes node or rpc configuration to stdout, populated with defaults suitable for this system.
-    ///
-    /// Pass the configuration type node or rpc.
-    /// See also use_defaults.
-    GenerateConfig(GenerateConfigArgs),
+    /// Prints the default configuration
+    DefaultConfig(DefaultConfigArgs),
+    /// Prints the current configuration
+    CurrentConfig(CurrentConfigArgs),
 }
 
 #[derive(Parser)]
@@ -43,7 +48,8 @@ impl NodeCommand {
         match &self.subcommand {
             Some(NodeSubcommands::RunDaemon(args)) => args.run_daemon()?,
             Some(NodeSubcommands::Initialize(args)) => args.initialize()?,
-            Some(NodeSubcommands::GenerateConfig(args)) => args.generate_config()?,
+            Some(NodeSubcommands::DefaultConfig(args)) => args.generate_config()?,
+            Some(NodeSubcommands::CurrentConfig(args)) => args.update_config()?,
             Some(NodeSubcommands::Version) => Self::version(),
             Some(NodeSubcommands::Diagnostics) => Self::diagnostics()?,
             None => NodeCommand::command().print_long_help()?,
@@ -93,4 +99,20 @@ impl NodeCommand {
 
         Ok(())
     }
+}
+
+fn read_node_config_toml(path: &PathBuf) -> Result<String> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    // Read the file line by line, ignoring lines that start with `#`
+    let mut toml_str = String::new();
+    for line in reader.lines() {
+        let line = line?;
+        if !line.trim_start().starts_with('#') {
+            toml_str.push_str(&line);
+            toml_str.push('\n');
+        }
+    }
+    Ok(toml_str)
 }
