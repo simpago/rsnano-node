@@ -1,3 +1,4 @@
+use crate::cli::{commands::node::read_node_config_toml, get_path};
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
 use rsnano_core::utils::get_cpu_count;
@@ -6,8 +7,6 @@ use rsnano_node::{
     NetworkParams,
 };
 use toml::from_str;
-
-use crate::cli::{commands::node::read_node_config_toml, get_path};
 
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input1")

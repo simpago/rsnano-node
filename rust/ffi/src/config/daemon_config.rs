@@ -12,10 +12,8 @@ use std::{
 
 #[repr(C)]
 pub struct DaemonConfigDto {
-    pub rpc_enable: bool,
     pub node: NodeConfigDto,
     pub opencl: OpenclConfigDto,
-    pub opencl_enable: bool,
     pub rpc: NodeRpcConfigDto,
 }
 
@@ -33,11 +31,11 @@ pub unsafe extern "C" fn rsn_daemon_config_create(
         Err(_) => return -1,
     };
     let dto = &mut (*dto);
-    dto.rpc_enable = cfg.rpc_enable;
+    dto.rpc.rpc_enable = cfg.rpc.rpc_enable;
     fill_node_config_dto(&mut dto.node, &cfg.node);
     fill_opencl_config_dto(&mut dto.opencl, &cfg.opencl);
     fill_node_rpc_config_dto(&mut dto.rpc, &cfg.rpc);
-    dto.opencl_enable = cfg.opencl_enable;
+    dto.opencl.opencl_enable = cfg.opencl.opencl_enable;
     0
 }
 
@@ -62,10 +60,8 @@ impl TryFrom<&DaemonConfigDto> for DaemonConfig {
 
     fn try_from(dto: &DaemonConfigDto) -> Result<Self, Self::Error> {
         let result = Self {
-            rpc_enable: dto.rpc_enable,
             node: (&dto.node).try_into()?,
             opencl: (&dto.opencl).into(),
-            opencl_enable: dto.opencl_enable,
             rpc: (&dto.rpc).into(),
         };
         Ok(result)

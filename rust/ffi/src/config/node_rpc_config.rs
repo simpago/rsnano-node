@@ -4,6 +4,7 @@ use rsnano_node::config::{NodeRpcConfig, RpcChildProcessConfig};
 
 #[repr(C)]
 pub struct NodeRpcConfigDto {
+    pub rpc_enable: bool,
     pub rpc_path: [u8; 512],
     pub rpc_path_length: usize,
     pub enable_child_process: bool,
@@ -33,6 +34,7 @@ pub fn fill_node_rpc_config_dto(dto: &mut NodeRpcConfigDto, config: &NodeRpcConf
 impl From<&NodeRpcConfigDto> for NodeRpcConfig {
     fn from(dto: &NodeRpcConfigDto) -> Self {
         Self {
+            rpc_enable: dto.rpc_enable,
             enable_sign_hash: dto.enable_sign_hash,
             child_process: RpcChildProcessConfig {
                 enable: dto.enable_child_process,
