@@ -11,6 +11,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -21,7 +22,7 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct LocalBlockBroadcasterConfig {
     pub max_size: usize,
     pub rebroadcast_interval: Duration,

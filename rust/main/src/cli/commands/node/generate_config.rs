@@ -29,11 +29,7 @@ impl GenerateConfigArgs {
 
         let toml_str = if self.node {
             let network_params = NetworkParams::new(network);
-            let config = TomlNodeConfig::default(
-                Some(network_params.network.default_node_port),
-                &network_params,
-                0,
-            );
+            let config = TomlNodeConfig::default(&network_params, 0);
             toml::to_string(&config).unwrap()
         } else {
             config_type = "rpc";

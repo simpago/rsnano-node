@@ -2,6 +2,7 @@ use blake2::{
     digest::{Update, VariableOutput},
     Blake2bVar,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::mem::size_of;
 
@@ -39,7 +40,7 @@ pub trait Difficulty: Send + Sync {
     fn clone(&self) -> Box<dyn Difficulty>;
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 pub struct DifficultyV1 {}
 impl DifficultyV1 {
     pub fn to_multiplier(difficulty: u64, base_difficulty: u64) -> f64 {

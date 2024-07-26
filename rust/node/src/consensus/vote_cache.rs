@@ -6,6 +6,7 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent, TomlWriter},
     Account, Amount, BlockHash, Vote, VoteCode,
 };
+use serde::{Deserialize, Serialize};
 #[cfg(not(test))]
 use std::time::Instant;
 use std::{
@@ -17,7 +18,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct VoteCacheConfig {
     pub max_size: usize,
     pub max_voters: usize,

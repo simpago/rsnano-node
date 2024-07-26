@@ -392,8 +392,9 @@ impl NodeConfig {
         if let Some(bootstrap_serving_threads) = toml.bootstrap_serving_threads {
             self.bootstrap_serving_threads = bootstrap_serving_threads;
         }
-        if let Some(confirming_set_batch_time) = toml.confirming_set_batch_time {
-            self.confirming_set_batch_time = confirming_set_batch_time;
+        if let Some(confirming_set_batch_time) = &toml.confirming_set_batch_time {
+            self.confirming_set_batch_time =
+                Duration::from_millis(confirming_set_batch_time.0 as u64);
         }
         if let Some(enable_voting) = toml.enable_voting {
             self.enable_voting = enable_voting;
@@ -481,6 +482,98 @@ impl NodeConfig {
         }
         if let Some(work_threads) = toml.work_threads {
             self.work_threads = work_threads;
+        }
+
+        if let Some(optimistic_scheduler) = &toml.optimistic_scheduler {
+            self.optimistic_scheduler = optimistic_scheduler.clone();
+        }
+        if let Some(hinted_scheduler) = &toml.hinted_scheduler {
+            self.hinted_scheduler = hinted_scheduler.clone();
+        }
+        if let Some(priority_bucket) = &toml.priority_bucket {
+            self.priority_bucket = priority_bucket.clone();
+        }
+        if let Some(bootstrap_ascending) = &toml.bootstrap_ascending {
+            self.bootstrap_ascending = bootstrap_ascending.clone();
+        }
+        if let Some(bootstrap_server) = &toml.bootstrap_server {
+            self.bootstrap_server = bootstrap_server.clone();
+        }
+        if let Some(secondary_work_peers) = &toml.secondary_work_peers {
+            self.secondary_work_peers = secondary_work_peers.clone();
+        }
+        if let Some(max_pruning_age_s) = toml.max_pruning_age_s {
+            self.max_pruning_age_s = max_pruning_age_s;
+        }
+        if let Some(max_pruning_depth) = toml.max_pruning_depth {
+            self.max_pruning_depth = max_pruning_depth;
+        }
+        if let Some(callback_address) = &toml.callback_address {
+            self.callback_address = callback_address.clone();
+        }
+        if let Some(callback_port) = toml.callback_port {
+            self.callback_port = callback_port;
+        }
+        if let Some(callback_target) = &toml.callback_target {
+            self.callback_target = callback_target.clone();
+        }
+        if let Some(websocket_config) = &toml.websocket_config {
+            self.websocket_config = websocket_config.clone();
+        }
+        if let Some(ipc_config) = &toml.ipc_config {
+            self.ipc_config = ipc_config.clone();
+        }
+        if let Some(diagnostics_config) = &toml.diagnostics_config {
+            self.diagnostics_config = diagnostics_config.clone();
+        }
+        if let Some(stat_config) = &toml.stat_config {
+            self.stat_config = stat_config.clone();
+        }
+        if let Some(lmdb_config) = &toml.lmdb_config {
+            self.lmdb_config = lmdb_config.clone();
+        }
+        if let Some(backlog_scan_batch_size) = toml.backlog_scan_batch_size {
+            self.backlog_scan_batch_size = backlog_scan_batch_size;
+        }
+        if let Some(backlog_scan_frequency) = toml.backlog_scan_frequency {
+            self.backlog_scan_frequency = backlog_scan_frequency;
+        }
+        if let Some(vote_cache) = &toml.vote_cache {
+            self.vote_cache = vote_cache.clone();
+        }
+        if let Some(rep_crawler_query_timeout) = &toml.rep_crawler_query_timeout {
+            self.rep_crawler_query_timeout =
+                Duration::from_millis(rep_crawler_query_timeout.0 as u64);
+        }
+        if let Some(block_processor) = &toml.block_processor {
+            self.block_processor = block_processor.clone();
+        }
+        if let Some(active_elections) = &toml.active_elections {
+            self.active_elections = active_elections.clone();
+        }
+        if let Some(vote_processor) = &toml.vote_processor {
+            self.vote_processor = vote_processor.clone();
+        }
+        if let Some(tcp) = &toml.tcp {
+            self.tcp = tcp.clone();
+        }
+        if let Some(request_aggregator) = &toml.request_aggregator {
+            self.request_aggregator = request_aggregator.clone();
+        }
+        if let Some(message_processor) = &toml.message_processor {
+            self.message_processor = message_processor.clone();
+        }
+        if let Some(priority_scheduler_enabled) = toml.priority_scheduler_enabled {
+            self.priority_scheduler_enabled = priority_scheduler_enabled;
+        }
+        if let Some(local_block_broadcaster) = &toml.local_block_broadcaster {
+            self.local_block_broadcaster = local_block_broadcaster.clone();
+        }
+        if let Some(confirming_set) = &toml.confirming_set {
+            self.confirming_set = confirming_set.clone();
+        }
+        if let Some(monitor) = &toml.monitor {
+            self.monitor = monitor.clone();
         }
     }
 
@@ -711,7 +804,92 @@ fn serialize_frontiers_confirmation(mode: FrontiersConfirmationMode) -> &'static
     }
 }
 
-#[derive(Clone)]
+impl From<TomlNodeConfig> for NodeConfig {
+    fn from(toml: TomlNodeConfig) -> Self {
+        Self {
+            peering_port: toml.peering_port,
+            optimistic_scheduler: toml.optimistic_scheduler.unwrap(),
+            hinted_scheduler: toml.hinted_scheduler.unwrap(),
+            priority_bucket: toml.priority_bucket.unwrap(),
+            bootstrap_fraction_numerator: toml.bootstrap_fraction_numerator.unwrap(),
+            receive_minimum: toml.receive_minimum.unwrap(),
+            online_weight_minimum: toml.online_weight_minimum.unwrap(),
+            representative_vote_weight_minimum: toml.representative_vote_weight_minimum.unwrap(),
+            password_fanout: toml.password_fanout.unwrap(),
+            io_threads: toml.io_threads.unwrap(),
+            network_threads: toml.network_threads.unwrap(),
+            work_threads: toml.work_threads.unwrap(),
+            background_threads: toml.background_threads.unwrap(),
+            signature_checker_threads: toml.signature_checker_threads.unwrap(),
+            enable_voting: toml.enable_voting.unwrap(),
+            bootstrap_connections: toml.bootstrap_connections.unwrap(),
+            bootstrap_connections_max: toml.bootstrap_connections_max.unwrap(),
+            bootstrap_initiator_threads: toml.bootstrap_initiator_threads.unwrap(),
+            bootstrap_serving_threads: toml.bootstrap_serving_threads.unwrap(),
+            bootstrap_frontier_request_count: toml.bootstrap_frontier_request_count.unwrap(),
+            block_processor_batch_max_time_ms: toml.block_processor_batch_max_time_ms.unwrap(),
+            allow_local_peers: toml.allow_local_peers.unwrap(),
+            vote_minimum: toml.vote_minimum.unwrap(),
+            vote_generator_delay_ms: toml.vote_generator_delay_ms.unwrap(),
+            vote_generator_threshold: toml.vote_generator_threshold.unwrap(),
+            unchecked_cutoff_time_s: toml.unchecked_cutoff_time_s.unwrap(),
+            tcp_io_timeout_s: toml.tcp_io_timeout_s.unwrap(),
+            pow_sleep_interval_ns: toml.pow_sleep_interval_ns.unwrap(),
+            external_address: toml.external_address.unwrap(),
+            external_port: toml.external_port.unwrap(),
+            tcp_incoming_connections_max: toml.tcp_incoming_connections_max.unwrap(),
+            use_memory_pools: toml.use_memory_pools.unwrap(),
+            bandwidth_limit: toml.bandwidth_limit.unwrap(),
+            bandwidth_limit_burst_ratio: toml.bandwidth_limit_burst_ratio.unwrap(),
+            bootstrap_ascending: toml.bootstrap_ascending.unwrap(),
+            bootstrap_server: toml.bootstrap_server.unwrap(),
+            bootstrap_bandwidth_limit: toml.bootstrap_bandwidth_limit.unwrap(),
+            bootstrap_bandwidth_burst_ratio: toml.bootstrap_bandwidth_burst_ratio.unwrap(),
+            confirming_set_batch_time: Duration::from_millis(
+                toml.confirming_set_batch_time.unwrap().0 as u64,
+            ),
+            backup_before_upgrade: toml.backup_before_upgrade.unwrap(),
+            max_work_generate_multiplier: toml.max_work_generate_multiplier.unwrap(),
+            frontiers_confirmation: toml.frontiers_confirmation.unwrap(),
+            max_queued_requests: toml.max_queued_requests.unwrap(),
+            request_aggregator_threads: toml.request_aggregator_threads.unwrap(),
+            max_unchecked_blocks: toml.max_unchecked_blocks.unwrap(),
+            rep_crawler_weight_minimum: toml.rep_crawler_weight_minimum.unwrap(),
+            work_peers: toml.work_peers.unwrap(),
+            secondary_work_peers: toml.secondary_work_peers.unwrap(),
+            preconfigured_peers: toml.preconfigured_peers.unwrap(),
+            preconfigured_representatives: toml.preconfigured_representatives.unwrap(),
+            max_pruning_age_s: toml.max_pruning_age_s.unwrap(),
+            max_pruning_depth: toml.max_pruning_depth.unwrap(),
+            callback_address: toml.callback_address.unwrap(),
+            callback_port: toml.callback_port.unwrap(),
+            callback_target: toml.callback_target.unwrap(),
+            websocket_config: toml.websocket_config.unwrap(),
+            ipc_config: toml.ipc_config.unwrap(),
+            diagnostics_config: toml.diagnostics_config.unwrap(),
+            stat_config: toml.stat_config.unwrap(),
+            lmdb_config: toml.lmdb_config.unwrap(),
+            backlog_scan_batch_size: toml.backlog_scan_batch_size.unwrap(),
+            backlog_scan_frequency: toml.backlog_scan_frequency.unwrap(),
+            vote_cache: toml.vote_cache.unwrap(),
+            rep_crawler_query_timeout: Duration::from_millis(
+                toml.rep_crawler_query_timeout.unwrap().0 as u64,
+            ),
+            block_processor: toml.block_processor.unwrap(),
+            active_elections: toml.active_elections.unwrap(),
+            vote_processor: toml.vote_processor.unwrap(),
+            tcp: toml.tcp.unwrap(),
+            request_aggregator: toml.request_aggregator.unwrap(),
+            message_processor: toml.message_processor.unwrap(),
+            priority_scheduler_enabled: toml.priority_scheduler_enabled.unwrap(),
+            local_block_broadcaster: toml.local_block_broadcaster.unwrap(),
+            confirming_set: toml.confirming_set.unwrap(),
+            monitor: toml.monitor.unwrap(),
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct MonitorConfig {
     pub enabled: bool,
     pub interval: Duration,

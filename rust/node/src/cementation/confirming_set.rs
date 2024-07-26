@@ -9,6 +9,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{Ledger, WriteGuard, Writer};
 use rsnano_store_lmdb::LmdbWriteTransaction;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashSet, VecDeque},
     sync::{Arc, Condvar, Mutex},
@@ -16,7 +17,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ConfirmingSetConfig {
     /// Maximum number of dependent blocks to be stored in memory during processing
     pub max_blocks: usize,

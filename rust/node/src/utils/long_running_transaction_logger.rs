@@ -1,6 +1,7 @@
 use backtrace::Backtrace;
 use rsnano_core::utils::PropertyTree;
 use rsnano_store_lmdb::TransactionTracker;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::Mutex,
@@ -8,7 +9,7 @@ use std::{
 };
 use tracing::warn;
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct TxnTrackingConfig {
     /** If true, enable tracking for transaction read/writes held open longer than the min time variables */
     pub enable: bool,

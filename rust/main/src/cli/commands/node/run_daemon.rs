@@ -3,7 +3,9 @@ use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
 use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
-    config::{NetworkConstants, NodeConfig, NodeFlags, TomlNodeConfig},
+    config::{
+        get_node_toml_config_path, NetworkConstants, NodeConfig, NodeFlags, TomlDaemonConfig,
+    },
     node::{Node, NodeExt},
     transport::NullSocketObserver,
     utils::AsyncRuntime,
@@ -127,16 +129,16 @@ impl RunDaemonArgs {
 
         create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
 
-        let config_node_toml_path = path.join("config-node.toml");
+        let node_toml_config_path = get_node_toml_config_path(&path);
 
-        let mut config = NodeConfig::default(
+        let mut node_config = NodeConfig::default(
             Some(network_params.network.default_node_port),
             &network_params,
             get_cpu_count(),
         );
 
-        if config_node_toml_path.exists() {
-            let file = File::open(config_node_toml_path)?;
+        if node_toml_config_path.exists() {
+            let file = File::open(node_toml_config_path)?;
             let reader = BufReader::new(file);
 
             // Read the file line by line, ignoring lines that start with `#`
@@ -148,8 +150,10 @@ impl RunDaemonArgs {
                     toml_str.push('\n');
                 }
             }
-            let toml: TomlNodeConfig = from_str(&toml_str).unwrap();
-            config.config_override(&toml);
+            let toml_daemon_config: TomlDaemonConfig = from_str(&toml_str)?;
+            if let Some(toml_node_config) = toml_daemon_config.node {
+                node_config.config_override(&toml_node_config);
+            }
         }
 
         let mut flags = NodeFlags::new();
@@ -159,14 +163,14 @@ impl RunDaemonArgs {
 
         let work = Arc::new(WorkPoolImpl::new(
             network_params.work.clone(),
-            config.work_threads as usize,
-            Duration::from_nanos(config.pow_sleep_interval_ns as u64),
+            node_config.work_threads as usize,
+            Duration::from_nanos(node_config.pow_sleep_interval_ns as u64),
         ));
 
         let node = Arc::new(Node::new(
             async_rt,
             path,
-            config,
+            node_config,
             network_params,
             flags,
             work,

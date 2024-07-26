@@ -1,9 +1,10 @@
 use super::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 use std::net::Ipv6Addr;
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct WebsocketConfig {
     pub enabled: bool,
     pub port: u16,

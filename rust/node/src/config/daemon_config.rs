@@ -1,25 +1,37 @@
-use super::{FrontiersConfirmationMode, NodeConfig, NodeRpcConfig, OpenclConfig, Peer};
-use crate::NetworkParams;
+use super::{
+    BlockProcessorToml, BootstrapAscendingToml, DiagnosticsConfig, FrontiersConfirmationMode,
+    HintedSchedulerConfig, MonitorConfig, NodeConfig, NodeRpcConfig, OpenclConfig,
+    OptimisticSchedulerConfig, Peer, WebsocketConfig,
+};
+use crate::{
+    block_processing::LocalBlockBroadcasterConfig,
+    bootstrap::BootstrapServerConfig,
+    cementation::ConfirmingSetConfig,
+    consensus::{
+        ActiveElectionsConfig, PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig,
+        VoteProcessorConfig,
+    },
+    stats::StatsConfig,
+    transport::{MessageProcessorConfig, TcpConfig},
+    IpcConfig, NetworkParams,
+};
 use anyhow::Result;
 use rsnano_core::{utils::TomlWriter, Account, Amount};
-use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, time::Duration};
+use rsnano_store_lmdb::LmdbConfig;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use std::path::PathBuf;
 
 pub struct DaemonConfig {
-    pub rpc_enable: bool,
     pub rpc: NodeRpcConfig,
     pub node: NodeConfig,
     pub opencl: OpenclConfig,
-    pub opencl_enable: bool,
 }
 
 impl DaemonConfig {
     pub fn new(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
         Ok(Self {
-            rpc_enable: false,
             node: NodeConfig::default(None, network_params, parallelism),
             opencl: OpenclConfig::new(),
-            opencl_enable: false,
             rpc: NodeRpcConfig::default()?,
         })
     }
@@ -29,7 +41,7 @@ impl DaemonConfig {
             self.rpc.serialize_toml(rpc)?;
             rpc.put_bool(
                 "enable",
-                self.rpc_enable,
+                self.rpc.rpc_enable,
                 "Enable or disable RPC\ntype:bool",
             )?;
             Ok(())
@@ -41,7 +53,7 @@ impl DaemonConfig {
             self.opencl.serialize_toml(opencl)?;
             opencl.put_bool(
                 "enable",
-                self.opencl_enable,
+                self.opencl.opencl_enable,
                 "Enable or disable OpenCL work generation\nIf enabled, consider freeing up CPU resources by setting [work_threads] to zero\ntype:bool",
             )?;
             Ok(())
@@ -51,12 +63,25 @@ impl DaemonConfig {
     }
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct TomlDaemonConfig {
-    pub(crate) rpc_enable: bool,
-    pub(crate) rpc: TomlNodeRpcConfig,
-    pub(crate) node: TomlNodeConfig,
-    pub(crate) opencl: TomlOpenclConfig,
-    pub(crate) opencl_enable: bool,
+    //pub(crate) rpc_enable: bool,
+    pub(crate) rpc: Option<TomlNodeRpcConfig>,
+    pub node: Option<TomlNodeConfig>,
+    pub(crate) opencl: Option<TomlOpenclConfig>,
+    //pub(crate) opencl_enable: bool,
+}
+
+impl TomlDaemonConfig {
+    pub fn default(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
+        Ok(Self {
+            //rpc_enable: false,
+            rpc: Some(TomlNodeRpcConfig::default()?),
+            node: Some(TomlNodeConfig::default(&network_params, parallelism)),
+            opencl: Some(TomlOpenclConfig::default()),
+            //opencl_enable: false,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -77,7 +102,7 @@ pub struct TomlNodeConfig {
     pub(crate) bootstrap_frontier_request_count: Option<u32>,
     pub(crate) bootstrap_initiator_threads: Option<u32>,
     pub(crate) bootstrap_serving_threads: Option<u32>,
-    pub(crate) confirming_set_batch_time: Option<Duration>,
+    pub(crate) confirming_set_batch_time: Option<Miliseconds>,
     pub(crate) enable_voting: Option<bool>,
     pub(crate) external_address: Option<String>,
     pub(crate) external_port: Option<u16>,
@@ -107,15 +132,43 @@ pub struct TomlNodeConfig {
     pub(crate) vote_minimum: Option<Amount>,
     pub(crate) work_peers: Option<Vec<Peer>>,
     pub(crate) work_threads: Option<u32>,
+    pub(crate) optimistic_scheduler: Option<OptimisticSchedulerConfig>,
+    pub(crate) hinted_scheduler: Option<HintedSchedulerConfig>,
+    pub(crate) priority_bucket: Option<PriorityBucketConfig>,
+    pub(crate) bootstrap_ascending: Option<BootstrapAscendingToml>,
+    pub(crate) bootstrap_server: Option<BootstrapServerConfig>,
+    pub(crate) secondary_work_peers: Option<Vec<Peer>>,
+    pub(crate) max_pruning_age_s: Option<i64>,
+    pub(crate) max_pruning_depth: Option<u64>,
+    pub(crate) callback_address: Option<String>,
+    pub(crate) callback_port: Option<u16>,
+    pub(crate) callback_target: Option<String>,
+    pub(crate) websocket_config: Option<WebsocketConfig>,
+    pub(crate) ipc_config: Option<IpcConfig>,
+    pub(crate) diagnostics_config: Option<DiagnosticsConfig>,
+    pub(crate) stat_config: Option<StatsConfig>,
+    pub(crate) lmdb_config: Option<LmdbConfig>,
+    pub(crate) vote_cache: Option<VoteCacheConfig>,
+    pub(crate) rep_crawler_query_timeout: Option<Miliseconds>,
+    pub(crate) block_processor: Option<BlockProcessorToml>,
+    pub(crate) active_elections: Option<ActiveElectionsConfig>,
+    pub(crate) vote_processor: Option<VoteProcessorConfig>,
+    pub(crate) tcp: Option<TcpConfig>,
+    pub(crate) request_aggregator: Option<RequestAggregatorConfig>,
+    pub(crate) message_processor: Option<MessageProcessorConfig>,
+    pub(crate) priority_scheduler_enabled: Option<bool>,
+    pub(crate) local_block_broadcaster: Option<LocalBlockBroadcasterConfig>,
+    pub(crate) confirming_set: Option<ConfirmingSetConfig>,
+    pub(crate) monitor: Option<MonitorConfig>,
 }
 
 impl TomlNodeConfig {
-    pub fn default(
-        peering_port: Option<u16>,
-        network_params: &NetworkParams,
-        parallelism: usize,
-    ) -> Self {
-        let default_config = NodeConfig::default(peering_port, network_params, parallelism);
+    pub fn default(network_params: &NetworkParams, parallelism: usize) -> Self {
+        let default_config = NodeConfig::default(
+            Some(network_params.network.default_node_port),
+            network_params,
+            parallelism,
+        );
 
         Self {
             allow_local_peers: Some(default_config.allow_local_peers),
@@ -136,7 +189,9 @@ impl TomlNodeConfig {
             bootstrap_frontier_request_count: Some(default_config.bootstrap_frontier_request_count),
             bootstrap_initiator_threads: Some(default_config.bootstrap_initiator_threads),
             bootstrap_serving_threads: Some(default_config.bootstrap_serving_threads),
-            confirming_set_batch_time: Some(default_config.confirming_set_batch_time),
+            confirming_set_batch_time: Some(Miliseconds(
+                default_config.confirming_set_batch_time.as_millis(),
+            )),
             enable_voting: Some(default_config.enable_voting),
             external_address: Some(default_config.external_address.clone()),
             external_port: Some(default_config.external_port),
@@ -168,9 +223,61 @@ impl TomlNodeConfig {
             vote_generator_delay_ms: Some(default_config.vote_generator_delay_ms),
             vote_generator_threshold: Some(default_config.vote_generator_threshold),
             vote_minimum: Some(default_config.vote_minimum),
-            work_peers: Some(default_config.work_peers.clone()),
+            work_peers: Some(default_config.work_peers),
             work_threads: Some(default_config.work_threads),
+            optimistic_scheduler: Some(default_config.optimistic_scheduler),
+            hinted_scheduler: Some(default_config.hinted_scheduler),
+            priority_bucket: Some(default_config.priority_bucket),
+            bootstrap_ascending: Some(default_config.bootstrap_ascending),
+            bootstrap_server: Some(default_config.bootstrap_server),
+            secondary_work_peers: Some(default_config.secondary_work_peers),
+            max_pruning_age_s: Some(default_config.max_pruning_age_s),
+            max_pruning_depth: Some(default_config.max_pruning_depth),
+            callback_address: Some(default_config.callback_address),
+            callback_port: Some(default_config.callback_port),
+            callback_target: Some(default_config.callback_target),
+            websocket_config: Some(default_config.websocket_config),
+            ipc_config: Some(default_config.ipc_config),
+            diagnostics_config: Some(default_config.diagnostics_config),
+            stat_config: Some(default_config.stat_config),
+            lmdb_config: Some(default_config.lmdb_config),
+            vote_cache: Some(default_config.vote_cache),
+            rep_crawler_query_timeout: Some(Miliseconds(
+                default_config.rep_crawler_query_timeout.as_millis(),
+            )),
+            block_processor: Some(default_config.block_processor),
+            active_elections: Some(default_config.active_elections),
+            vote_processor: Some(default_config.vote_processor),
+            tcp: Some(default_config.tcp),
+            request_aggregator: Some(default_config.request_aggregator),
+            message_processor: Some(default_config.message_processor),
+            priority_scheduler_enabled: Some(default_config.priority_scheduler_enabled),
+            local_block_broadcaster: Some(default_config.local_block_broadcaster),
+            confirming_set: Some(default_config.confirming_set),
+            monitor: Some(default_config.monitor),
         }
+    }
+}
+
+pub(crate) struct Miliseconds(pub(crate) u128);
+
+impl Serialize for Miliseconds {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Miliseconds {
+    fn deserialize<D>(deserializer: D) -> Result<Miliseconds, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let miliseconds = s.parse::<u128>().map_err(de::Error::custom)?;
+        Ok(Miliseconds(miliseconds))
     }
 }
 
@@ -205,4 +312,15 @@ pub struct TomlOpenclConfig {
     pub platform: u32,
     pub device: u32,
     pub threads: u32,
+}
+impl TomlOpenclConfig {
+    fn default() -> TomlOpenclConfig {
+        let default_config = OpenclConfig::default();
+
+        Self {
+            platform: default_config.platform,
+            device: default_config.device,
+            threads: default_config.threads,
+        }
+    }
 }

@@ -2,6 +2,7 @@ use super::{ChannelEnum, InboundMessageQueue, Origin, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
 use rsnano_core::{utils::TomlWriter, NoValue};
 use rsnano_messages::DeserializedMessage;
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     collections::VecDeque,
@@ -14,7 +15,7 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct MessageProcessorConfig {
     pub threads: usize,
     pub max_queue: usize,

@@ -1,8 +1,9 @@
 use crate::utils::TxnTrackingConfig;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct DiagnosticsConfig {
     pub txn_tracking: TxnTrackingConfig,
 }

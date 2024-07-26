@@ -4,13 +4,14 @@ use crate::{
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{utils::TomlWriter, Amount, BlockEnum, QualifiedRoot};
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, Mutex},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct PriorityBucketConfig {
     /// Maximum number of blocks to sort by priority per bucket.
     pub max_blocks: usize,

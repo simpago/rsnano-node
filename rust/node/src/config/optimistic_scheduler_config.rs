@@ -1,7 +1,8 @@
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct OptimisticSchedulerConfig {
     pub enabled: bool,
 
@@ -36,7 +37,7 @@ impl OptimisticSchedulerConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct HintedSchedulerConfig {
     pub enabled: bool,
     pub check_interval: Duration,
