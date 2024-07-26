@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
 use rsnano_node::{
-    config::{NetworkConstants, TomlNodeConfig, TomlNodeRpcConfig},
+    config::{NetworkConstants, TomlDaemonConfig},
     NetworkParams,
 };
 use std::io::BufRead;
@@ -25,16 +25,14 @@ pub(crate) struct GenerateConfigArgs {
 impl GenerateConfigArgs {
     pub(crate) fn generate_config(&self) -> Result<()> {
         let network = NetworkConstants::active_network();
-        let mut config_type = "node";
 
-        let toml_str = if self.node {
+        let (toml_str, config_type) = if self.node {
             let network_params = NetworkParams::new(network);
-            let config = TomlNodeConfig::default(&network_params, 0);
-            toml::to_string(&config).unwrap()
+            let toml_daemon_config = TomlDaemonConfig::default(&network_params, 0)?;
+            (toml::to_string(&toml_daemon_config).unwrap(), "node")
         } else {
-            config_type = "rpc";
-            let config = TomlNodeRpcConfig::default()?;
-            toml::to_string(&config).unwrap()
+            // todo: rpc config
+            (String::new(), "rpc")
         };
 
         println!("# This is an example configuration file for Nano. Visit https://docs.nano.org/running-a-node/configuration/ for more information.");

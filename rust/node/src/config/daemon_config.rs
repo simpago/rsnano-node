@@ -65,21 +65,17 @@ impl DaemonConfig {
 
 #[derive(Deserialize, Serialize)]
 pub struct TomlDaemonConfig {
-    //pub(crate) rpc_enable: bool,
-    pub(crate) rpc: Option<TomlNodeRpcConfig>,
     pub node: Option<TomlNodeConfig>,
+    pub(crate) rpc: Option<TomlNodeRpcConfig>,
     pub(crate) opencl: Option<TomlOpenclConfig>,
-    //pub(crate) opencl_enable: bool,
 }
 
 impl TomlDaemonConfig {
     pub fn default(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
         Ok(Self {
-            //rpc_enable: false,
             rpc: Some(TomlNodeRpcConfig::default()?),
             node: Some(TomlNodeConfig::default(&network_params, parallelism)),
             opencl: Some(TomlOpenclConfig::default()),
-            //opencl_enable: false,
         })
     }
 }
