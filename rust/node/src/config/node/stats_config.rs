@@ -1,4 +1,4 @@
-use crate::config::Miliseconds;
+use crate::config::{Miliseconds, TomlConfigOverride};
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
@@ -88,6 +88,32 @@ impl From<StatsConfig> for StatsConfigToml {
             log_headers: Some(config.log_headers),
             log_counters_filename: Some(config.log_counters_filename),
             log_samples_filename: Some(config.log_samples_filename),
+        }
+    }
+}
+
+impl<'de> TomlConfigOverride<'de, StatsConfigToml> for StatsConfig {
+    fn toml_config_override(&mut self, toml: &'de StatsConfigToml) {
+        if let Some(log_counters_filename) = &toml.log_counters_filename {
+            self.log_counters_filename = log_counters_filename.clone();
+        }
+        if let Some(log_counters_interval) = &toml.log_counters_interval {
+            self.log_counters_interval = Duration::from_millis(log_counters_interval.0 as u64);
+        }
+        if let Some(log_headers) = toml.log_headers {
+            self.log_headers = log_headers;
+        }
+        if let Some(log_rotation_count) = toml.log_rotation_count {
+            self.log_rotation_count = log_rotation_count;
+        }
+        if let Some(max_samples) = toml.max_samples {
+            self.max_samples = max_samples;
+        }
+        if let Some(log_samples_filename) = &toml.log_samples_filename {
+            self.log_samples_filename = log_samples_filename.clone();
+        }
+        if let Some(log_samples_interval) = &toml.log_samples_interval {
+            self.log_samples_interval = Duration::from_millis(log_samples_interval.0 as u64);
         }
     }
 }

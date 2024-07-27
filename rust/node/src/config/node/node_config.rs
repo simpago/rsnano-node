@@ -1,8 +1,9 @@
 use super::{
     BlockProcessorConfig, BootstrapAscendingConfig, BootstrapServerConfig,
     BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml, HintedSchedulerConfig,
-    LmdbConfigToml, MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml, StatsConfig,
-    StatsConfigToml, VoteCacheConfig, VoteCacheConfigToml, WebsocketConfig,
+    LmdbConfigToml, MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml,
+    PriorityBucketConfigToml, StatsConfig, StatsConfigToml, VoteCacheConfig, VoteCacheConfigToml,
+    WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
 use crate::config::{Miliseconds, OptimisticSchedulerConfig, TomlConfigOverride};
@@ -489,13 +490,14 @@ impl NodeConfig {
             self.optimistic_scheduler
                 .toml_config_override(optimistic_scheduler_toml);
         }
-        /*
-        if let Some(priority_bucket) = &toml.priority_bucket {
-            self.priority_bucket = priority_bucket.clone();
-            }
-        if let Some(bootstrap_ascending) = &toml.bootstrap_ascending {
-            self.bootstrap_ascending = bootstrap_ascending.into();
-            }*/
+        if let Some(priority_bucket_toml) = &toml.priority_bucket {
+            self.priority_bucket
+                .toml_config_override(priority_bucket_toml);
+        }
+        if let Some(bootstrap_ascending_toml) = &toml.bootstrap_ascending {
+            self.bootstrap_ascending
+                .toml_config_override(bootstrap_ascending_toml);
+        }
         if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
             self.bootstrap_server
                 .toml_config_override(bootstrap_server_toml);
@@ -515,13 +517,14 @@ impl NodeConfig {
         }
         /*if let Some(ipc_config) = &toml.ipc_config {
             self.ipc_config = ipc_config.clone();
+        }*/
+        if let Some(diagnostics_config_toml) = &toml.diagnostics_config {
+            self.diagnostics_config
+                .toml_config_override(diagnostics_config_toml);
         }
-        if let Some(diagnostics_config) = &toml.diagnostics_config {
-            self.diagnostics_config = diagnostics_config.clone();
+        if let Some(stat_config_toml) = &toml.stat_config {
+            self.stat_config.toml_config_override(stat_config_toml);
         }
-        if let Some(stat_config) = &toml.stat_config {
-            self.stat_config = stat_config.clone();
-            }*/
         if let Some(lmdb_config_toml) = &toml.lmdb_config {
             self.lmdb_config.toml_config_override(lmdb_config_toml);
         }
@@ -544,23 +547,11 @@ impl NodeConfig {
         if let Some(vote_processor) = &toml.vote_processor {
             self.vote_processor = vote_processor.clone();
         }
-        if let Some(tcp) = &toml.tcp {
-            self.tcp = tcp.clone();
-        }
         if let Some(request_aggregator) = &toml.request_aggregator {
             self.request_aggregator = request_aggregator.clone();
         }
         if let Some(message_processor) = &toml.message_processor {
             self.message_processor = message_processor.clone();
-        }
-        if let Some(priority_scheduler_enabled) = toml.priority_scheduler_enabled {
-            self.priority_scheduler_enabled = priority_scheduler_enabled;
-        }
-        if let Some(local_block_broadcaster) = &toml.local_block_broadcaster {
-            self.local_block_broadcaster = local_block_broadcaster.clone();
-        }
-        if let Some(confirming_set) = &toml.confirming_set {
-            self.confirming_set = confirming_set.clone();
         }
         if let Some(monitor) = &toml.monitor {
             self.monitor = monitor.clone();
@@ -843,7 +834,7 @@ pub struct NodeConfigToml {
     pub(crate) work_peers: Option<Vec<Peer>>,
     pub(crate) work_threads: Option<u32>,
     pub(crate) optimistic_scheduler: Option<OptimisticSchedulerConfigToml>,
-    //pub(crate) priority_bucket: Option<PriorityBucketConfigToml>,
+    pub(crate) priority_bucket: Option<PriorityBucketConfigToml>,
     pub(crate) bootstrap_ascending: Option<BootstrapAscendingConfigToml>,
     pub(crate) bootstrap_server: Option<BootstrapServerConfigToml>,
     pub(crate) secondary_work_peers: Option<Vec<Peer>>,
@@ -917,7 +908,7 @@ impl From<NodeConfig> for NodeConfigToml {
             work_peers: Some(node_config.work_peers),
             work_threads: Some(node_config.work_threads),
             optimistic_scheduler: Some(node_config.optimistic_scheduler.into()),
-            //priority_bucket: Some(node_config.priority_bucket),
+            priority_bucket: Some(node_config.priority_bucket.into()),
             bootstrap_ascending: Some(node_config.bootstrap_ascending.into()),
             bootstrap_server: Some(node_config.bootstrap_server.into()),
             secondary_work_peers: Some(node_config.secondary_work_peers),

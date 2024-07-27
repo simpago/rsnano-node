@@ -2,6 +2,8 @@ use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
+use crate::config::TomlConfigOverride;
+
 #[derive(Clone)]
 pub struct TxnTrackingConfig {
     /** If true, enable tracking for transaction read/writes held open longer than the min time variables */
@@ -87,6 +89,28 @@ impl From<DiagnosticsConfig> for DiagnosticsConfigToml {
     fn from(config: DiagnosticsConfig) -> Self {
         Self {
             txn_tracking: config.txn_tracking.into(),
+        }
+    }
+}
+
+impl<'de> TomlConfigOverride<'de, DiagnosticsConfigToml> for DiagnosticsConfig {
+    fn toml_config_override(&mut self, toml: &'de DiagnosticsConfigToml) {
+        if let Some(enable) = toml.txn_tracking.enable {
+            self.txn_tracking.enable = enable;
+        }
+        if let Some(ignore_writes_below_block_processor_max_time) = toml
+            .txn_tracking
+            .ignore_writes_below_block_processor_max_time
+        {
+            self.txn_tracking
+                .ignore_writes_below_block_processor_max_time =
+                ignore_writes_below_block_processor_max_time;
+        }
+        if let Some(min_read_txn_time_ms) = toml.txn_tracking.min_read_txn_time_ms {
+            self.txn_tracking.min_read_txn_time_ms = min_read_txn_time_ms;
+        }
+        if let Some(min_write_txn_time_ms) = toml.txn_tracking.min_write_txn_time_ms {
+            self.txn_tracking.min_write_txn_time_ms = min_write_txn_time_ms;
         }
     }
 }
