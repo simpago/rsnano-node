@@ -13,7 +13,6 @@ use rsnano_core::{
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     sync::{Arc, Condvar, Mutex, MutexGuard},
@@ -21,7 +20,7 @@ use std::{
 };
 use tracing::trace;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub struct RequestAggregatorConfig {
     pub threads: usize,
     pub max_queue: usize,

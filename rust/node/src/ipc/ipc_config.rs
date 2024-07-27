@@ -1,11 +1,10 @@
 use crate::config::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /** Base for transport configurations */
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct IpcConfigTransport {
     pub enabled: bool,
     pub allow_unsafe: bool,
@@ -33,7 +32,7 @@ impl IpcConfigTransport {
 /**
  * Flatbuffers encoding config. See TOML serialization calls for details about each field.
  */
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct IpcConfigFlatbuffers {
     pub skip_unexpected_fields_in_json: bool,
     pub verify_buffers: bool,
@@ -55,7 +54,7 @@ impl IpcConfigFlatbuffers {
 }
 
 /** Domain socket specific transport config */
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct IpcConfigDomainSocket {
     pub transport: IpcConfigTransport,
     /**
@@ -81,7 +80,7 @@ impl IpcConfigDomainSocket {
 }
 
 /** TCP specific transport config */
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct IpcConfigTcpSocket {
     pub transport: IpcConfigTransport,
     /** Listening port */
@@ -97,7 +96,7 @@ impl IpcConfigTcpSocket {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct IpcConfig {
     pub transport_domain: IpcConfigDomainSocket,
     pub transport_tcp: IpcConfigTcpSocket,

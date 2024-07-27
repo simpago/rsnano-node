@@ -23,7 +23,6 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::max,
     collections::{BTreeMap, HashMap},

@@ -1,9 +1,10 @@
 use super::{
     ActiveElectionsConfigToml, BlockProcessorConfig, BootstrapAscendingConfig,
     BootstrapServerConfig, BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml,
-    HintedSchedulerConfig, LmdbConfigToml, MonitorConfig, MonitorConfigToml,
-    OptimisticSchedulerConfigToml, PriorityBucketConfigToml, StatsConfig, StatsConfigToml,
-    VoteCacheConfig, VoteCacheConfigToml, VoteProcessorConfigToml, WebsocketConfig,
+    HintedSchedulerConfig, IpcConfigToml, LmdbConfigToml, MessageProcessorConfigToml,
+    MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml, PriorityBucketConfigToml,
+    RequestAggregatorConfigToml, StatsConfig, StatsConfigToml, VoteCacheConfig,
+    VoteCacheConfigToml, VoteProcessorConfigToml, WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
 use crate::config::{Miliseconds, OptimisticSchedulerConfig, TomlConfigOverride};
@@ -515,9 +516,9 @@ impl NodeConfig {
             self.websocket_config
                 .toml_config_override(websocket_config_toml);
         }
-        /*if let Some(ipc_config) = &toml.ipc_config {
-            self.ipc_config = ipc_config.clone();
-        }*/
+        if let Some(ipc_config_toml) = &toml.ipc_config {
+            self.ipc_config.toml_config_override(ipc_config_toml);
+        }
         if let Some(diagnostics_config_toml) = &toml.diagnostics_config {
             self.diagnostics_config
                 .toml_config_override(diagnostics_config_toml);
@@ -549,14 +550,14 @@ impl NodeConfig {
             self.vote_processor
                 .toml_config_override(vote_processor_toml);
         }
-        /*if let Some(request_aggregator_toml) = &toml.request_aggregator {
+        if let Some(request_aggregator_toml) = &toml.request_aggregator {
             self.request_aggregator
                 .toml_config_override(request_aggregator_toml);
         }
         if let Some(message_processor_toml) = &toml.message_processor {
             self.message_processor
                 .toml_config_override(message_processor_toml);
-                }*/
+        }
         if let Some(monitor_toml) = &toml.monitor {
             self.monitor.toml_config_override(monitor_toml);
         }
@@ -845,7 +846,7 @@ pub struct NodeConfigToml {
     pub(crate) max_pruning_age_s: Option<i64>,
     pub(crate) max_pruning_depth: Option<u64>,
     pub(crate) toml_websocket_config: Option<WebsocketConfigToml>,
-    //pub(crate) ipc_config: Option<IpcConfigToml>,
+    pub(crate) ipc_config: Option<IpcConfigToml>,
     pub(crate) diagnostics_config: Option<DiagnosticsConfigToml>,
     pub(crate) stat_config: Option<StatsConfigToml>,
     pub(crate) lmdb_config: Option<LmdbConfigToml>,
@@ -853,8 +854,8 @@ pub struct NodeConfigToml {
     pub(crate) block_processor: Option<BlockProcessorConfigToml>,
     pub(crate) active_elections: Option<ActiveElectionsConfigToml>,
     pub(crate) vote_processor: Option<VoteProcessorConfigToml>,
-    //pub(crate) request_aggregator: Option<RequestAggregatorConfigToml>,
-    //pub(crate) message_processor: Option<MessageProcessorConfigToml>,
+    pub(crate) request_aggregator: Option<RequestAggregatorConfigToml>,
+    pub(crate) message_processor: Option<MessageProcessorConfigToml>,
     pub(crate) monitor: Option<MonitorConfigToml>,
 }
 
@@ -919,7 +920,7 @@ impl From<NodeConfig> for NodeConfigToml {
             max_pruning_age_s: Some(node_config.max_pruning_age_s),
             max_pruning_depth: Some(node_config.max_pruning_depth),
             toml_websocket_config: Some(node_config.websocket_config.into()),
-            //ipc_config: Some(node_config.ipc_config),
+            ipc_config: Some(node_config.ipc_config.into()),
             diagnostics_config: Some(node_config.diagnostics_config.into()),
             stat_config: Some(node_config.stat_config.into()),
             lmdb_config: Some(node_config.lmdb_config.into()),
@@ -927,8 +928,8 @@ impl From<NodeConfig> for NodeConfigToml {
             block_processor: Some(node_config.block_processor.into()),
             active_elections: Some(node_config.active_elections.into()),
             vote_processor: Some(node_config.vote_processor.into()),
-            //request_aggregator: Some(node_config.request_aggregator),
-            //message_processor: Some(node_config.message_processor),
+            request_aggregator: Some(node_config.request_aggregator.into()),
+            message_processor: Some(node_config.message_processor.into()),
             monitor: Some(node_config.monitor.into()),
         }
     }
