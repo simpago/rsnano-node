@@ -26,7 +26,7 @@ pub use timer_thread::*;
 pub use toml::*;
 
 mod long_running_transaction_logger;
-pub use long_running_transaction_logger::{LongRunningTransactionLogger, TxnTrackingConfig};
+pub use long_running_transaction_logger::LongRunningTransactionLogger;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ErrorCode {

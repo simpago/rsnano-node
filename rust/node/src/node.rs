@@ -8,7 +8,7 @@ use crate::{
         BootstrapServer, OngoingBootstrap, OngoingBootstrapExt,
     },
     cementation::ConfirmingSet,
-    config::{GlobalConfig, NodeConfig, NodeFlags},
+    config::{GlobalConfig, NodeConfig, NodeFlags, TxnTrackingConfig},
     consensus::{
         create_loopback_channel, get_bootstrap_weights, log_bootstrap_weights,
         AccountBalanceChangedCallback, ActiveElections, ActiveElectionsExt, ElectionEndCallback,
@@ -31,10 +31,7 @@ use crate::{
         RealtimeMessageHandler, ResponseServerFactory, SocketObserver, SynCookies, TcpListener,
         TcpListenerExt, TrafficType,
     },
-    utils::{
-        AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread,
-        TxnTrackingConfig,
-    },
+    utils::{AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread},
     wallets::{Wallets, WalletsExt},
     websocket::{create_websocket_server, WebsocketListenerExt},
     work::{DistributedWorkFactory, HttpClient},

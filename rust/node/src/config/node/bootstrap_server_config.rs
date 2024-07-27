@@ -1,4 +1,5 @@
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
 pub struct BootstrapServerConfig {
@@ -37,7 +38,7 @@ impl BootstrapServerConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Deserialize, Serialize)]
 pub struct BootstrapServerConfigToml {
     pub max_queue: usize,
     pub threads: usize,

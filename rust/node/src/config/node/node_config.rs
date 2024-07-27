@@ -1,7 +1,8 @@
 use super::{
-    BlockProcessorConfig, BootstrapAscendingConfig, BootstrapServerConfig, DiagnosticsConfig,
-    HintedSchedulerConfig, MonitorConfig, OptimisticSchedulerConfigToml, StatsConfig,
-    StatsConfigToml, VoteCacheConfig, WebsocketConfig,
+    BlockProcessorConfig, BootstrapAscendingConfig, BootstrapServerConfig,
+    BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml, HintedSchedulerConfig,
+    MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml, StatsConfig, StatsConfigToml,
+    VoteCacheConfig, WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
 use crate::config::{Miliseconds, OptimisticSchedulerConfig};
@@ -508,10 +509,11 @@ impl NodeConfig {
         if let Some(max_pruning_depth) = toml.max_pruning_depth {
             self.max_pruning_depth = max_pruning_depth;
         }
-        /*if let Some(websocket_config) = &toml.toml_websocket_config {
-            self.websocket_config = websocket_config.clone();
+        if let Some(websocket_config_toml) = &toml.toml_websocket_config {
+            self.websocket_config
+                .config_toml_override(websocket_config_toml);
         }
-        if let Some(ipc_config) = &toml.ipc_config {
+        /*if let Some(ipc_config) = &toml.ipc_config {
             self.ipc_config = ipc_config.clone();
         }
         if let Some(diagnostics_config) = &toml.diagnostics_config {
@@ -932,13 +934,13 @@ pub struct NodeConfigToml {
     pub(crate) optimistic_scheduler: Option<OptimisticSchedulerConfigToml>,
     //pub(crate) priority_bucket: Option<PriorityBucketConfigToml>,
     pub(crate) bootstrap_ascending: Option<BootstrapAscendingConfigToml>,
-    //pub(crate) bootstrap_server: Option<BootstrapServerConfigToml>,
+    pub(crate) bootstrap_server: Option<BootstrapServerConfigToml>,
     pub(crate) secondary_work_peers: Option<Vec<Peer>>,
     pub(crate) max_pruning_age_s: Option<i64>,
     pub(crate) max_pruning_depth: Option<u64>,
     pub(crate) toml_websocket_config: Option<WebsocketConfigToml>,
     //pub(crate) ipc_config: Option<IpcConfigToml>,
-    //pub(crate) diagnostics_config: Option<DiagnosticsConfigToml>,
+    pub(crate) diagnostics_config: Option<DiagnosticsConfigToml>,
     pub(crate) stat_config: Option<StatsConfigToml>,
     //pub(crate) lmdb_config: Option<LmdbConfigToml>,
     //pub(crate) vote_cache: Option<VoteCacheConfigToml>,
@@ -947,7 +949,7 @@ pub struct NodeConfigToml {
     //pub(crate) vote_processor: Option<VoteProcessorConfigToml>,
     //pub(crate) request_aggregator: Option<RequestAggregatorConfigToml>,
     //pub(crate) message_processor: Option<MessageProcessorConfigToml>,
-    //pub(crate) monitor: Option<MonitorConfigToml>,
+    pub(crate) monitor: Option<MonitorConfigToml>,
 }
 
 impl From<NodeConfig> for NodeConfigToml {
@@ -1006,13 +1008,13 @@ impl From<NodeConfig> for NodeConfigToml {
             optimistic_scheduler: Some(node_config.optimistic_scheduler.into()),
             //priority_bucket: Some(node_config.priority_bucket),
             bootstrap_ascending: Some(node_config.bootstrap_ascending.into()),
-            //bootstrap_server: Some(node_config.bootstrap_server),
+            bootstrap_server: Some(node_config.bootstrap_server.into()),
             secondary_work_peers: Some(node_config.secondary_work_peers),
             max_pruning_age_s: Some(node_config.max_pruning_age_s),
             max_pruning_depth: Some(node_config.max_pruning_depth),
             toml_websocket_config: Some(node_config.websocket_config.into()),
             //ipc_config: Some(node_config.ipc_config),
-            //diagnostics_config: Some(node_config.diagnostics_config),
+            diagnostics_config: Some(node_config.diagnostics_config.into()),
             stat_config: Some(node_config.stat_config.into()),
             //lmdb_config: Some(node_config.lmdb_config),
             //vote_cache: Some(node_config.vote_cache),
@@ -1021,7 +1023,7 @@ impl From<NodeConfig> for NodeConfigToml {
             //vote_processor: Some(node_config.vote_processor),
             //request_aggregator: Some(node_config.request_aggregator),
             //message_processor: Some(node_config.message_processor),
-            //monitor: Some(node_config.monitor),
+            monitor: Some(node_config.monitor.into()),
         }
     }
 }

@@ -35,7 +35,7 @@ impl Default for BootstrapAscendingConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct BootstrapAscendingConfigToml {
     pub requests_limit: usize,
     pub database_requests_limit: usize,
@@ -93,7 +93,7 @@ impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct AccountSetsToml {
     pub consideration_count: usize,
     pub priorities_max: usize,

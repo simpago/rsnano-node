@@ -38,21 +38,33 @@ impl WebsocketConfig {
         )?;
         Ok(())
     }
+
+    pub(crate) fn config_toml_override(&mut self, toml: &WebsocketConfigToml) {
+        if let Some(enabled) = toml.enabled {
+            self.enabled = enabled;
+        }
+        if let Some(port) = toml.port {
+            self.port = port;
+        }
+        if let Some(address) = &toml.address {
+            self.address = address.clone();
+        }
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct WebsocketConfigToml {
-    pub enabled: bool,
-    pub port: u16,
-    pub address: String,
+    pub enabled: Option<bool>,
+    pub port: Option<u16>,
+    pub address: Option<String>,
 }
 
 impl From<WebsocketConfig> for WebsocketConfigToml {
     fn from(websocket_config: WebsocketConfig) -> Self {
         Self {
-            enabled: websocket_config.enabled,
-            port: websocket_config.port,
-            address: websocket_config.address,
+            enabled: Some(websocket_config.enabled),
+            port: Some(websocket_config.port),
+            address: Some(websocket_config.address),
         }
     }
 }

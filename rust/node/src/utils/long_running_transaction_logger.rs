@@ -1,39 +1,13 @@
+use crate::config::TxnTrackingConfig;
 use backtrace::Backtrace;
 use rsnano_core::utils::PropertyTree;
 use rsnano_store_lmdb::TransactionTracker;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::Mutex,
     time::{Duration, Instant},
 };
 use tracing::warn;
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct TxnTrackingConfig {
-    /** If true, enable tracking for transaction read/writes held open longer than the min time variables */
-    pub enable: bool,
-    pub min_read_txn_time_ms: i64,
-    pub min_write_txn_time_ms: i64,
-    pub ignore_writes_below_block_processor_max_time: bool,
-}
-
-impl TxnTrackingConfig {
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl Default for TxnTrackingConfig {
-    fn default() -> Self {
-        Self {
-            enable: false,
-            min_read_txn_time_ms: 5000,
-            min_write_txn_time_ms: 500,
-            ignore_writes_below_block_processor_max_time: true,
-        }
-    }
-}
 
 pub struct LongRunningTransactionLogger {
     stats: Mutex<HashMap<u64, TxnStats>>,

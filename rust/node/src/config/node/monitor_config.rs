@@ -40,3 +40,12 @@ pub struct MonitorConfigToml {
     pub enabled: bool,
     pub interval: Miliseconds,
 }
+
+impl From<MonitorConfig> for MonitorConfigToml {
+    fn from(config: MonitorConfig) -> Self {
+        Self {
+            enabled: config.enabled,
+            interval: Miliseconds(config.interval.as_millis()),
+        }
+    }
+}

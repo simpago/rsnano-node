@@ -20,6 +20,22 @@ pub struct BlockProcessorConfig {
     pub work_thresholds: WorkThresholds,
 }
 
+impl Default for BlockProcessorConfig {
+    fn default() -> Self {
+        Self {
+            max_peer_queue: 128,
+            max_system_queue: 16 * 1024,
+            priority_live: 1,
+            priority_bootstrap: 8,
+            priority_local: 16,
+            batch_max_time: Duration::from_millis(500),
+            full_size: 65536,
+            batch_size: 0,
+            work_thresholds: WorkThresholds::default(),
+        }
+    }
+}
+
 impl BlockProcessorConfig {
     pub(crate) fn config_toml_override(&mut self, toml: &BlockProcessorConfigToml) {
         if let Some(max_peer_queue) = toml.max_peer_queue {
@@ -38,25 +54,7 @@ impl BlockProcessorConfig {
             self.priority_bootstrap = priority_bootstrap;
         }
     }
-}
 
-impl Default for BlockProcessorConfig {
-    fn default() -> Self {
-        Self {
-            max_peer_queue: 128,
-            max_system_queue: 16 * 1024,
-            priority_live: 1,
-            priority_bootstrap: 8,
-            priority_local: 16,
-            batch_max_time: Duration::from_millis(500),
-            full_size: 65536,
-            batch_size: 0,
-            work_thresholds: WorkThresholds::default(),
-        }
-    }
-}
-
-impl BlockProcessorConfig {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "max_peer_queue",
@@ -70,7 +68,7 @@ impl BlockProcessorConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct BlockProcessorConfigToml {
     pub max_peer_queue: Option<usize>,
     pub max_system_queue: Option<usize>,
