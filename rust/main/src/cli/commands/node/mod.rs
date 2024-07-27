@@ -1,7 +1,7 @@
 use crate::cli::get_path;
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use generate_config::DefaultConfigArgs;
+use generate_config::GenerateConfigArgs;
 use initialize::InitializeArgs;
 use rsnano_core::{Account, Amount, BlockHash, PublicKey, RawKey, SendBlock};
 use rsnano_node::{wallets::Wallets, BUILD_INFO, VERSION_STRING};
@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use update_config::CurrentConfigArgs;
+use update_config::UpdateConfigArgs;
 
 pub(crate) mod generate_config;
 pub(crate) mod initialize;
@@ -32,9 +32,9 @@ pub(crate) enum NodeSubcommands {
     /// Prints out the version
     Version,
     /// Prints the default configuration
-    DefaultConfig(DefaultConfigArgs),
+    GenerateConfig(GenerateConfigArgs),
     /// Prints the current configuration
-    CurrentConfig(CurrentConfigArgs),
+    UpdateConfig(UpdateConfigArgs),
 }
 
 #[derive(Parser)]
@@ -48,8 +48,8 @@ impl NodeCommand {
         match &self.subcommand {
             Some(NodeSubcommands::RunDaemon(args)) => args.run_daemon()?,
             Some(NodeSubcommands::Initialize(args)) => args.initialize()?,
-            Some(NodeSubcommands::DefaultConfig(args)) => args.generate_config()?,
-            Some(NodeSubcommands::CurrentConfig(args)) => args.update_config()?,
+            Some(NodeSubcommands::GenerateConfig(args)) => args.generate_config()?,
+            Some(NodeSubcommands::UpdateConfig(args)) => args.update_config()?,
             Some(NodeSubcommands::Version) => Self::version(),
             Some(NodeSubcommands::Diagnostics) => Self::diagnostics()?,
             None => NodeCommand::command().print_long_help()?,

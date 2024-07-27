@@ -1,3 +1,26 @@
+mod block_processor;
+mod bootstrap_ascending;
+mod bootstrap_server;
+mod diagnostics;
+mod monitor;
+mod opencl;
+mod optimistic_scheduler;
+mod rpc;
+mod stats;
+mod websocket;
+
+pub use block_processor::*;
+pub use bootstrap_ascending::*;
+pub use bootstrap_server::*;
+pub use diagnostics::*;
+pub use monitor::*;
+pub use opencl::*;
+pub use optimistic_scheduler::*;
+pub use rpc::*;
+pub use stats::*;
+pub use websocket::*;
+
+use super::NodeConfigToml;
 use crate::{
     block_processing::LocalBlockBroadcasterConfig,
     bootstrap::BootstrapInitiatorConfig,
@@ -6,8 +29,6 @@ use crate::{
         ActiveElectionsConfig, PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig,
         VoteProcessorConfig,
     },
-    stats::StatsConfig,
-    toml::NodeConfigToml,
     transport::{MessageProcessorConfig, TcpConfig},
     IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
@@ -21,24 +42,6 @@ use rsnano_core::{
 use rsnano_store_lmdb::LmdbConfig;
 use serde::{Deserialize, Serialize};
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
-
-mod block_processor;
-mod bootstrap_ascending;
-mod bootstrap_server;
-mod diagnostics_config;
-mod node_rpc_config;
-mod opencl_config;
-mod optimistic_scheduler_config;
-mod websocket_config;
-
-pub use block_processor::*;
-pub use bootstrap_ascending::*;
-pub use bootstrap_server::*;
-pub use diagnostics_config::*;
-pub use node_rpc_config::*;
-pub use opencl_config::*;
-pub use optimistic_scheduler_config::*;
-pub use websocket_config::*;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize, Serialize)]
@@ -340,7 +343,7 @@ impl NodeConfig {
             } else {
                 Duration::from_secs(60)
             },
-            block_processor: BlockProcessorConfig::new(),
+            block_processor: BlockProcessorConfig::default(),
             vote_processor: VoteProcessorConfig::new(parallelism),
             tcp: if network_params.network.is_dev_network() {
                 TcpConfig::for_dev_network()
@@ -358,7 +361,7 @@ impl NodeConfig {
         }
     }
 
-    pub fn config_override(&mut self, toml: &NodeConfigToml) {
+    pub fn config_toml_override(&mut self, toml: &NodeConfigToml) {
         if let Some(allow_local_peers) = toml.allow_local_peers {
             self.allow_local_peers = allow_local_peers;
         }
@@ -502,18 +505,18 @@ impl NodeConfig {
         if let Some(optimistic_scheduler) = &toml.optimistic_scheduler {
             self.optimistic_scheduler = optimistic_scheduler.clone();
         }
-        if let Some(hinted_scheduler) = &toml.hinted_scheduler {
+        /*if let Some(hinted_scheduler) = &toml.hinted_scheduler {
             self.hinted_scheduler = hinted_scheduler.clone();
         }
         if let Some(priority_bucket) = &toml.priority_bucket {
             self.priority_bucket = priority_bucket.clone();
-        }
+            }
         if let Some(bootstrap_ascending) = &toml.bootstrap_ascending {
-            self.bootstrap_ascending = bootstrap_ascending.clone();
+            self.bootstrap_ascending = bootstrap_ascending.into();
         }
         if let Some(bootstrap_server) = &toml.bootstrap_server {
             self.bootstrap_server = bootstrap_server.clone();
-        }
+            }*/
         if let Some(secondary_work_peers) = &toml.secondary_work_peers {
             self.secondary_work_peers = secondary_work_peers.clone();
         }
@@ -523,16 +526,7 @@ impl NodeConfig {
         if let Some(max_pruning_depth) = toml.max_pruning_depth {
             self.max_pruning_depth = max_pruning_depth;
         }
-        if let Some(callback_address) = &toml.callback_address {
-            self.callback_address = callback_address.clone();
-        }
-        if let Some(callback_port) = toml.callback_port {
-            self.callback_port = callback_port;
-        }
-        if let Some(callback_target) = &toml.callback_target {
-            self.callback_target = callback_target.clone();
-        }
-        if let Some(websocket_config) = &toml.websocket_config {
+        /*if let Some(websocket_config) = &toml.toml_websocket_config {
             self.websocket_config = websocket_config.clone();
         }
         if let Some(ipc_config) = &toml.ipc_config {
@@ -559,11 +553,12 @@ impl NodeConfig {
         if let Some(rep_crawler_query_timeout) = &toml.rep_crawler_query_timeout {
             self.rep_crawler_query_timeout =
                 Duration::from_millis(rep_crawler_query_timeout.0 as u64);
+                }*/
+        if let Some(block_processor_toml) = &toml.block_processor {
+            self.block_processor
+                .config_toml_override(block_processor_toml);
         }
-        if let Some(block_processor) = &toml.block_processor {
-            self.block_processor = block_processor.clone();
-        }
-        if let Some(active_elections) = &toml.active_elections {
+        /*if let Some(active_elections) = &toml.active_elections {
             self.active_elections = active_elections.clone();
         }
         if let Some(vote_processor) = &toml.vote_processor {
@@ -589,7 +584,7 @@ impl NodeConfig {
         }
         if let Some(monitor) = &toml.monitor {
             self.monitor = monitor.clone();
-        }
+            }*/
     }
 
     pub fn new_test_instance() -> Self {
@@ -759,9 +754,9 @@ impl NodeConfig {
             self.priority_bucket.serialize_toml(opt)
         })?;
 
-        toml.put_child("bootstrap_ascending", &mut |writer| {
-            self.bootstrap_ascending.serialize_toml(writer)
-        })?;
+        //toml.put_child("bootstrap_ascending", &mut |writer| {
+        //self.bootstrap_ascending.serialize_toml(writer)
+        //})?));
 
         toml.put_child("bootstrap_server", &mut |writer| {
             self.bootstrap_server.serialize_toml(writer)
@@ -783,9 +778,9 @@ impl NodeConfig {
             self.active_elections.serialize_toml(writer)
         })?;
 
-        toml.put_child("block_processor", &mut |writer| {
-            self.block_processor.serialize_toml(writer)
-        })?;
+        //toml.put_child("block_processor", &mut |writer| {
+        //self.block_processor.serialize_toml(writer)
+        //})?;
 
         toml.put_child("vote_processor", &mut |writer| {
             self.vote_processor.serialize_toml(writer)
@@ -819,7 +814,7 @@ fn serialize_frontiers_confirmation(mode: FrontiersConfirmationMode) -> &'static
     }
 }
 
-impl From<NodeConfigToml> for NodeConfig {
+/*impl From<NodeConfigToml> for NodeConfig {
     fn from(toml: NodeConfigToml) -> Self {
         Self {
             peering_port: toml.peering_port,
@@ -856,7 +851,7 @@ impl From<NodeConfigToml> for NodeConfig {
             use_memory_pools: toml.use_memory_pools.unwrap(),
             bandwidth_limit: toml.bandwidth_limit.unwrap(),
             bandwidth_limit_burst_ratio: toml.bandwidth_limit_burst_ratio.unwrap(),
-            bootstrap_ascending: toml.bootstrap_ascending.unwrap(),
+            bootstrap_ascending: toml.bootstrap_ascending.unwrap().into(),
             bootstrap_server: toml.bootstrap_server.unwrap(),
             bootstrap_bandwidth_limit: toml.bootstrap_bandwidth_limit.unwrap(),
             bootstrap_bandwidth_burst_ratio: toml.bootstrap_bandwidth_burst_ratio.unwrap(),
@@ -902,35 +897,4 @@ impl From<NodeConfigToml> for NodeConfig {
             monitor: toml.monitor.unwrap(),
         }
     }
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct MonitorConfig {
-    pub enabled: bool,
-    pub interval: Duration,
-}
-
-impl Default for MonitorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            interval: Duration::from_secs(60),
-        }
-    }
-}
-
-impl MonitorConfig {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_bool(
-            "enable",
-            self.enabled,
-            "Enable or disable periodic node status logging\ntype:bool",
-        )?;
-
-        toml.put_u64(
-            "interval",
-            self.interval.as_secs(),
-            "Interval between status logs\ntype:seconds",
-        )
-    }
-}
+}*/

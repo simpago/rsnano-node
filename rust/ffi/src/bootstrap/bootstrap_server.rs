@@ -1,5 +1,5 @@
 use rsnano_messages::{DeserializedMessage, Message};
-use rsnano_node::bootstrap::{BootstrapServer, BootstrapServerConfig};
+use rsnano_node::{bootstrap::BootstrapServer, config::BootstrapServerConfig};
 use std::{ffi::c_void, ops::Deref, sync::Arc};
 
 use crate::{

@@ -1,11 +1,11 @@
 use super::UncheckedMap;
 use crate::{
+    config::BlockProcessorConfig,
     stats::{DetailType, StatType, Stats},
     transport::{ChannelEnum, FairQueue, Origin},
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    work::WorkThresholds,
     BlockEnum, BlockType, Epoch, HackyUnsafeMutBlock, HashOrAccount, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};

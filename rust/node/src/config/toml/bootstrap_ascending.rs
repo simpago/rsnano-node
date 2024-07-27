@@ -3,7 +3,7 @@ use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Default)]
 pub struct BootstrapAscendingConfigToml {
     /// Maximum number of un-responded requests per channel
     pub requests_limit: usize,
@@ -62,7 +62,7 @@ impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Default)]
 pub struct AccountSetsToml {
     pub consideration_count: usize,
     pub priorities_max: usize,

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
 use rsnano_node::{
-    config::{NetworkConstants, TomlDaemonConfig},
+    config::{DaemonConfig, DaemonConfigToml, NetworkConstants},
     NetworkParams,
 };
 use std::io::BufRead;
@@ -10,7 +10,7 @@ use std::io::BufRead;
 #[command(group = ArgGroup::new("input")
     .args(&["node", "rpc"])
     .required(true))]
-pub(crate) struct DefaultConfigArgs {
+pub(crate) struct GenerateConfigArgs {
     /// Prints the default node config
     #[arg(long, group = "input")]
     node: bool,
@@ -22,14 +22,15 @@ pub(crate) struct DefaultConfigArgs {
     use_defaults: bool,
 }
 
-impl DefaultConfigArgs {
+impl GenerateConfigArgs {
     pub(crate) fn generate_config(&self) -> Result<()> {
         let network = NetworkConstants::active_network();
 
         let (toml_str, config_type) = if self.node {
             let network_params = NetworkParams::new(network);
-            let toml_daemon_config = TomlDaemonConfig::default(&network_params, 0)?;
-            (toml::to_string(&toml_daemon_config).unwrap(), "node")
+            let daemon_config_toml: DaemonConfigToml =
+                DaemonConfig::new(&network_params, 0)?.into();
+            (toml::to_string(&daemon_config_toml).unwrap(), "node")
         } else {
             // todo: rpc config
             (String::new(), "rpc")

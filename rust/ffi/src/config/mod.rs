@@ -11,6 +11,8 @@ mod optimistic_scheduler_config;
 mod rpc_config;
 mod websocket_config;
 
+use std::time::Duration;
+
 pub use diagnostics_config::*;
 pub use lmdb_config::LmdbConfigDto;
 pub use network_constants::*;
@@ -20,7 +22,8 @@ pub use node_rpc_config::*;
 pub use opencl_config::*;
 pub use optimistic_scheduler_config::*;
 pub use rpc_config::*;
-use rsnano_node::config::BlockProcessorToml;
+use rsnano_core::work::WorkThresholds;
+use rsnano_node::config::{BlockProcessorConfig, BlockProcessorConfigToml};
 pub use websocket_config::*;
 
 #[repr(C)]
@@ -32,8 +35,8 @@ pub struct BlockProcessorConfigDto {
     pub priority_local: usize,
 }
 
-impl From<&BlockProcessorConfigDto> for BlockProcessorToml {
-    fn from(value: &BlockProcessorConfigDto) -> Self {
+impl From<&BlockProcessorConfig> for BlockProcessorConfigDto {
+    fn from(value: &BlockProcessorConfig) -> Self {
         Self {
             max_peer_queue: value.max_peer_queue,
             max_system_queue: value.max_system_queue,
@@ -44,14 +47,42 @@ impl From<&BlockProcessorConfigDto> for BlockProcessorToml {
     }
 }
 
-impl From<&BlockProcessorToml> for BlockProcessorConfigDto {
-    fn from(value: &BlockProcessorToml) -> Self {
+impl From<&BlockProcessorConfigDto> for BlockProcessorConfig {
+    fn from(value: &BlockProcessorConfigDto) -> Self {
         Self {
             max_peer_queue: value.max_peer_queue,
             max_system_queue: value.max_system_queue,
             priority_live: value.priority_live,
             priority_bootstrap: value.priority_bootstrap,
             priority_local: value.priority_local,
+            batch_max_time: Duration::new(0, 0),
+            full_size: 0,
+            batch_size: 0,
+            work_thresholds: WorkThresholds::new(0, 0, 0),
+        }
+    }
+}
+
+impl From<&BlockProcessorConfigDto> for BlockProcessorConfigToml {
+    fn from(value: &BlockProcessorConfigDto) -> Self {
+        Self {
+            max_peer_queue: Some(value.max_peer_queue),
+            max_system_queue: Some(value.max_system_queue),
+            priority_live: Some(value.priority_live),
+            priority_bootstrap: Some(value.priority_bootstrap),
+            priority_local: Some(value.priority_local),
+        }
+    }
+}
+
+impl From<&BlockProcessorConfigToml> for BlockProcessorConfigDto {
+    fn from(value: &BlockProcessorConfigToml) -> Self {
+        Self {
+            max_peer_queue: value.max_peer_queue.unwrap(),
+            max_system_queue: value.max_system_queue.unwrap(),
+            priority_live: value.priority_live.unwrap(),
+            priority_bootstrap: value.priority_bootstrap.unwrap(),
+            priority_local: value.priority_local.unwrap(),
         }
     }
 }

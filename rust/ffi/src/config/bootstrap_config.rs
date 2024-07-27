@@ -1,4 +1,7 @@
-use rsnano_node::config::{AccountSetsToml, BootstrapAscendingToml};
+use rsnano_node::{
+    bootstrap::AccountSetsConfig,
+    config::{AccountSetsToml, BootstrapAscendingConfig, BootstrapAscendingConfigToml},
+};
 use std::time::Duration;
 
 #[repr(C)]
@@ -21,8 +24,8 @@ pub struct AccountSetsConfigDto {
     pub cooldown_ms: u64,
 }
 
-impl From<&BootstrapAscendingToml> for BootstrapAscendingConfigDto {
-    fn from(value: &BootstrapAscendingToml) -> Self {
+impl From<&BootstrapAscendingConfig> for BootstrapAscendingConfigDto {
+    fn from(value: &BootstrapAscendingConfig) -> Self {
         Self {
             requests_limit: value.requests_limit,
             database_requests_limit: value.database_requests_limit,
@@ -36,7 +39,7 @@ impl From<&BootstrapAscendingToml> for BootstrapAscendingConfigDto {
     }
 }
 
-impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingToml {
+impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfigToml {
     fn from(value: &BootstrapAscendingConfigDto) -> Self {
         Self {
             requests_limit: value.requests_limit,
@@ -51,8 +54,24 @@ impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingToml {
     }
 }
 
-impl From<&AccountSetsToml> for AccountSetsConfigDto {
-    fn from(value: &AccountSetsToml) -> Self {
+impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfig {
+    fn from(value: &BootstrapAscendingConfigDto) -> Self {
+        Self {
+            requests_limit: value.requests_limit,
+            database_requests_limit: value.database_requests_limit,
+            pull_count: value.pull_count,
+            timeout: Duration::from_millis(value.timeout_ms),
+            throttle_coefficient: value.throttle_coefficient,
+            throttle_wait: Duration::from_millis(value.throttle_wait_ms),
+            account_sets: AccountSetsConfig::default(),
+            block_wait_count: value.block_wait_count,
+            min_protocol_version: 0,
+        }
+    }
+}
+
+impl From<&AccountSetsConfig> for AccountSetsConfigDto {
+    fn from(value: &AccountSetsConfig) -> Self {
         Self {
             consideration_count: value.consideration_count,
             priorities_max: value.priorities_max,
@@ -75,10 +94,10 @@ impl From<&AccountSetsConfigDto> for AccountSetsToml {
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_account_sets_config_create(result: *mut AccountSetsConfigDto) {
-    (*result) = (&AccountSetsToml::default()).into()
+    (*result) = (&AccountSetsConfig::default()).into()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_bootstrap_config_create(result: *mut BootstrapAscendingConfigDto) {
-    (*result) = (&BootstrapAscendingToml::default()).into()
+    (*result) = (&BootstrapAscendingConfig::default()).into()
 }

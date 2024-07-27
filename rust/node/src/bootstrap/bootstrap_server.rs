@@ -1,15 +1,15 @@
 use crate::{
+    config::BootstrapServerConfig,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
 };
-use rsnano_core::{utils::TomlWriter, BlockEnum, BlockHash, Frontier, NoValue};
+use rsnano_core::{BlockEnum, BlockHash, Frontier, NoValue};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::min,
     sync::{

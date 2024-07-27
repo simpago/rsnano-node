@@ -1,9 +1,10 @@
-use crate::bootstrap::BootstrapAscendingConfig;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use rsnano_core::{utils::get_env_or_default, work::WorkThresholds, Networks};
 use rsnano_messages::ProtocolInfo;
 use std::{sync::Mutex, time::Duration};
+
+use super::BootstrapAscendingConfig;
 
 //todo: make configurable in builld script again!
 static ACTIVE_NETWORK: Lazy<Mutex<Networks>> = Lazy::new(|| Mutex::new(Networks::NanoBetaNetwork));

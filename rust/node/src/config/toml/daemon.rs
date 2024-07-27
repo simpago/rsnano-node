@@ -1,4 +1,7 @@
+use crate::config::DaemonConfig;
+
 use super::{NodeConfigToml, NodeRpcConfigToml, OpenclConfigToml};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -39,20 +42,30 @@ impl DaemonConfigToml {
     }
 }
 
+impl From<DaemonConfig> for DaemonConfigToml {
+    fn from(config: DaemonConfig) -> Self {
+        Self {
+            node: Some(config.node.into()),
+            rpc: Some(config.rpc.into()),
+            opencl: Some(config.opencl.into()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
-        config::{NetworkConstants, TomlDaemonConfig},
+        config::{DaemonConfigToml, NetworkConstants},
         NetworkParams,
     };
 
     #[test]
     fn test_toml_serialization() {
         let network_params = NetworkParams::new(NetworkConstants::active_network());
-        let config = TomlDaemonConfig::default(&network_params, 0).unwrap();
+        let config = DaemonConfigToml::default(&network_params, 0).unwrap();
         let toml_str = toml::to_string(&config).unwrap();
 
-        let deserialized_config: TomlDaemonConfig = toml::from_str(&toml_str).unwrap();
+        let deserialized_config: DaemonConfigToml = toml::from_str(&toml_str).unwrap();
 
         assert_eq!(
             serde_json::to_string(&config).unwrap(),
@@ -305,6 +318,6 @@ mod tests {
            	threads = 1048576
         "#;
 
-        toml::from_str::<TomlDaemonConfig>(toml_str).unwrap();
+        toml::from_str::<DaemonConfigToml>(toml_str).unwrap();
     }
 }

@@ -4,7 +4,7 @@ use clap::{ArgGroup, Parser};
 use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
     config::{
-        get_node_toml_config_path, NetworkConstants, NodeConfig, NodeFlags, TomlDaemonConfig,
+        get_node_toml_config_path, DaemonConfigToml, NetworkConstants, NodeConfig, NodeFlags,
     },
     node::{Node, NodeExt},
     transport::NullSocketObserver,
@@ -140,9 +140,9 @@ impl RunDaemonArgs {
 
         if node_toml_config_path.exists() {
             let toml_str = read_node_config_toml(&node_toml_config_path)?;
-            let toml_daemon_config: TomlDaemonConfig = from_str(&toml_str)?;
+            let toml_daemon_config: DaemonConfigToml = from_str(&toml_str)?;
             if let Some(toml_node_config) = toml_daemon_config.node {
-                node_config.config_override(&toml_node_config);
+                node_config.config_toml_override(&toml_node_config);
             }
         }
 

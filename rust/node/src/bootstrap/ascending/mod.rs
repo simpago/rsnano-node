@@ -16,6 +16,7 @@ use self::{
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::ascending::ordered_tags::QueryType,
+    config::BootstrapAscendingConfig,
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::{BandwidthLimiter, BufferDropPolicy, ChannelEnum, Network, TrafficType},
 };

@@ -1,7 +1,10 @@
-use super::{AccountSetsToml, FrontiersConfirmationMode, GlobalConfig};
+use super::{
+    AccountSetsToml, BlockProcessorConfig, BootstrapAscendingConfig, FrontiersConfirmationMode,
+    GlobalConfig,
+};
 use crate::{
-    block_processing::{BacklogPopulationConfig, BlockProcessorConfig},
-    bootstrap::{AccountSetsConfig, BootstrapAscendingConfig, BootstrapInitiatorConfig},
+    block_processing::BacklogPopulationConfig,
+    bootstrap::{AccountSetsConfig, BootstrapInitiatorConfig},
 };
 use std::time::Duration;
 
@@ -34,7 +37,7 @@ impl From<&GlobalConfig> for BootstrapAscendingConfig {
             timeout: config.timeout,
             throttle_coefficient: config.throttle_coefficient,
             throttle_wait: config.throttle_wait,
-            account_sets: (&config.account_sets).into(),
+            account_sets: config.account_sets.clone(),
             block_wait_count: config.block_wait_count,
             min_protocol_version: value.network_params.network.bootstrap_protocol_version_min,
         }
