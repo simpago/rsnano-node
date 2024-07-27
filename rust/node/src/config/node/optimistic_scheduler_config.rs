@@ -36,19 +36,19 @@ impl OptimisticSchedulerConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct OptimisticSchedulerConfigToml {
-    pub enabled: bool,
-    pub gap_threshold: u64,
-    pub max_size: usize,
+    pub enabled: Option<bool>,
+    pub gap_threshold: Option<u64>,
+    pub max_size: Option<usize>,
 }
 
 impl From<OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
     fn from(config: OptimisticSchedulerConfig) -> Self {
         Self {
-            enabled: config.enabled,
-            gap_threshold: config.gap_threshold,
-            max_size: config.max_size,
+            enabled: Some(config.enabled),
+            gap_threshold: Some(config.gap_threshold),
+            max_size: Some(config.max_size),
         }
     }
 }

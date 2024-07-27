@@ -1,4 +1,4 @@
-use crate::config::NetworkConstants;
+use crate::config::{NetworkConstants, TomlConfigOverride};
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
@@ -38,8 +38,10 @@ impl WebsocketConfig {
         )?;
         Ok(())
     }
+}
 
-    pub(crate) fn config_toml_override(&mut self, toml: &WebsocketConfigToml) {
+impl<'de> TomlConfigOverride<'de, WebsocketConfigToml> for WebsocketConfig {
+    fn toml_config_override(&mut self, toml: &'de WebsocketConfigToml) {
         if let Some(enabled) = toml.enabled {
             self.enabled = enabled;
         }
@@ -52,7 +54,7 @@ impl WebsocketConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct WebsocketConfigToml {
     pub enabled: Option<bool>,
     pub port: Option<u16>,

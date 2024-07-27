@@ -2,6 +2,8 @@ use rsnano_core::{utils::TomlWriter, work::WorkThresholds};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+use crate::config::TomlConfigOverride;
+
 #[derive(Clone)]
 pub struct BlockProcessorConfig {
     // Maximum number of blocks to queue from network peers
@@ -36,8 +38,8 @@ impl Default for BlockProcessorConfig {
     }
 }
 
-impl BlockProcessorConfig {
-    pub(crate) fn config_toml_override(&mut self, toml: &BlockProcessorConfigToml) {
+impl<'de> TomlConfigOverride<'de, BlockProcessorConfigToml> for BlockProcessorConfig {
+    fn toml_config_override(&mut self, toml: &'de BlockProcessorConfigToml) {
         if let Some(max_peer_queue) = toml.max_peer_queue {
             self.max_peer_queue = max_peer_queue;
         }
@@ -54,7 +56,9 @@ impl BlockProcessorConfig {
             self.priority_bootstrap = priority_bootstrap;
         }
     }
+}
 
+impl BlockProcessorConfig {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "max_peer_queue",

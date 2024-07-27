@@ -35,17 +35,17 @@ impl MonitorConfig {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct MonitorConfigToml {
-    pub enabled: bool,
-    pub interval: Miliseconds,
+    pub enabled: Option<bool>,
+    pub interval: Option<Miliseconds>,
 }
 
 impl From<MonitorConfig> for MonitorConfigToml {
     fn from(config: MonitorConfig) -> Self {
         Self {
-            enabled: config.enabled,
-            interval: Miliseconds(config.interval.as_millis()),
+            enabled: Some(config.enabled),
+            interval: Some(Miliseconds(config.interval.as_millis())),
         }
     }
 }

@@ -30,20 +30,21 @@ impl Default for TxnTrackingConfig {
 
 #[derive(Deserialize, Serialize)]
 pub struct TxnTrackingConfigToml {
-    pub enable: bool,
-    pub min_read_txn_time_ms: i64,
-    pub min_write_txn_time_ms: i64,
-    pub ignore_writes_below_block_processor_max_time: bool,
+    pub enable: Option<bool>,
+    pub min_read_txn_time_ms: Option<i64>,
+    pub min_write_txn_time_ms: Option<i64>,
+    pub ignore_writes_below_block_processor_max_time: Option<bool>,
 }
 
 impl From<TxnTrackingConfig> for TxnTrackingConfigToml {
     fn from(config: TxnTrackingConfig) -> Self {
         Self {
-            enable: config.enable,
-            min_read_txn_time_ms: config.min_read_txn_time_ms,
-            min_write_txn_time_ms: config.min_write_txn_time_ms,
-            ignore_writes_below_block_processor_max_time: config
-                .ignore_writes_below_block_processor_max_time,
+            enable: Some(config.enable),
+            min_read_txn_time_ms: Some(config.min_read_txn_time_ms),
+            min_write_txn_time_ms: Some(config.min_write_txn_time_ms),
+            ignore_writes_below_block_processor_max_time: Some(
+                config.ignore_writes_below_block_processor_max_time,
+            ),
         }
     }
 }

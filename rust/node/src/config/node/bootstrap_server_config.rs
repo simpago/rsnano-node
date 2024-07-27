@@ -40,17 +40,17 @@ impl BootstrapServerConfig {
 
 #[derive(Deserialize, Serialize)]
 pub struct BootstrapServerConfigToml {
-    pub max_queue: usize,
-    pub threads: usize,
-    pub batch_size: usize,
+    pub max_queue: Option<usize>,
+    pub threads: Option<usize>,
+    pub batch_size: Option<usize>,
 }
 
 impl From<BootstrapServerConfig> for BootstrapServerConfigToml {
     fn from(config: BootstrapServerConfig) -> Self {
         Self {
-            max_queue: config.max_queue,
-            threads: config.threads,
-            batch_size: config.batch_size,
+            max_queue: Some(config.max_queue),
+            threads: Some(config.threads),
+            batch_size: Some(config.batch_size),
         }
     }
 }

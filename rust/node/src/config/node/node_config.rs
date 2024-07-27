@@ -5,7 +5,7 @@ use super::{
     VoteCacheConfig, WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
-use crate::config::{Miliseconds, OptimisticSchedulerConfig};
+use crate::config::{Miliseconds, OptimisticSchedulerConfig, TomlConfigOverride};
 use crate::{
     block_processing::LocalBlockBroadcasterConfig,
     bootstrap::BootstrapInitiatorConfig,
@@ -511,7 +511,7 @@ impl NodeConfig {
         }
         if let Some(websocket_config_toml) = &toml.toml_websocket_config {
             self.websocket_config
-                .config_toml_override(websocket_config_toml);
+                .toml_config_override(websocket_config_toml);
         }
         /*if let Some(ipc_config) = &toml.ipc_config {
             self.ipc_config = ipc_config.clone();
@@ -540,7 +540,7 @@ impl NodeConfig {
                 }*/
         if let Some(block_processor_toml) = &toml.block_processor {
             self.block_processor
-                .config_toml_override(block_processor_toml);
+                .toml_config_override(block_processor_toml);
         }
         /*if let Some(active_elections) = &toml.active_elections {
             self.active_elections = active_elections.clone();
@@ -797,91 +797,6 @@ fn serialize_frontiers_confirmation(mode: FrontiersConfirmationMode) -> &'static
         FrontiersConfirmationMode::Invalid => "auto",
     }
 }
-
-/*impl From<NodeConfigToml> for NodeConfig {
-    fn from(toml: NodeConfigToml) -> Self {
-        Self {
-            peering_port: toml.peering_port,
-            optimistic_scheduler: toml.optimistic_scheduler.unwrap(),
-            hinted_scheduler: toml.hinted_scheduler.unwrap(),
-            priority_bucket: toml.priority_bucket.unwrap(),
-            bootstrap_fraction_numerator: toml.bootstrap_fraction_numerator.unwrap(),
-            receive_minimum: toml.receive_minimum.unwrap(),
-            online_weight_minimum: toml.online_weight_minimum.unwrap(),
-            representative_vote_weight_minimum: toml.representative_vote_weight_minimum.unwrap(),
-            password_fanout: toml.password_fanout.unwrap(),
-            io_threads: toml.io_threads.unwrap(),
-            network_threads: toml.network_threads.unwrap(),
-            work_threads: toml.work_threads.unwrap(),
-            background_threads: toml.background_threads.unwrap(),
-            signature_checker_threads: toml.signature_checker_threads.unwrap(),
-            enable_voting: toml.enable_voting.unwrap(),
-            bootstrap_connections: toml.bootstrap_connections.unwrap(),
-            bootstrap_connections_max: toml.bootstrap_connections_max.unwrap(),
-            bootstrap_initiator_threads: toml.bootstrap_initiator_threads.unwrap(),
-            bootstrap_serving_threads: toml.bootstrap_serving_threads.unwrap(),
-            bootstrap_frontier_request_count: toml.bootstrap_frontier_request_count.unwrap(),
-            block_processor_batch_max_time_ms: toml.block_processor_batch_max_time_ms.unwrap(),
-            allow_local_peers: toml.allow_local_peers.unwrap(),
-            vote_minimum: toml.vote_minimum.unwrap(),
-            vote_generator_delay_ms: toml.vote_generator_delay_ms.unwrap(),
-            vote_generator_threshold: toml.vote_generator_threshold.unwrap(),
-            unchecked_cutoff_time_s: toml.unchecked_cutoff_time_s.unwrap(),
-            tcp_io_timeout_s: toml.tcp_io_timeout_s.unwrap(),
-            pow_sleep_interval_ns: toml.pow_sleep_interval_ns.unwrap(),
-            external_address: toml.external_address.unwrap(),
-            external_port: toml.external_port.unwrap(),
-            tcp_incoming_connections_max: toml.tcp_incoming_connections_max.unwrap(),
-            use_memory_pools: toml.use_memory_pools.unwrap(),
-            bandwidth_limit: toml.bandwidth_limit.unwrap(),
-            bandwidth_limit_burst_ratio: toml.bandwidth_limit_burst_ratio.unwrap(),
-            bootstrap_ascending: toml.bootstrap_ascending.unwrap().into(),
-            bootstrap_server: toml.bootstrap_server.unwrap(),
-            bootstrap_bandwidth_limit: toml.bootstrap_bandwidth_limit.unwrap(),
-            bootstrap_bandwidth_burst_ratio: toml.bootstrap_bandwidth_burst_ratio.unwrap(),
-            confirming_set_batch_time: Duration::from_millis(
-                toml.confirming_set_batch_time.unwrap().0 as u64,
-            ),
-            backup_before_upgrade: toml.backup_before_upgrade.unwrap(),
-            max_work_generate_multiplier: toml.max_work_generate_multiplier.unwrap(),
-            frontiers_confirmation: toml.frontiers_confirmation.unwrap(),
-            max_queued_requests: toml.max_queued_requests.unwrap(),
-            request_aggregator_threads: toml.request_aggregator_threads.unwrap(),
-            max_unchecked_blocks: toml.max_unchecked_blocks.unwrap(),
-            rep_crawler_weight_minimum: toml.rep_crawler_weight_minimum.unwrap(),
-            work_peers: toml.work_peers.unwrap(),
-            secondary_work_peers: toml.secondary_work_peers.unwrap(),
-            preconfigured_peers: toml.preconfigured_peers.unwrap(),
-            preconfigured_representatives: toml.preconfigured_representatives.unwrap(),
-            max_pruning_age_s: toml.max_pruning_age_s.unwrap(),
-            max_pruning_depth: toml.max_pruning_depth.unwrap(),
-            callback_address: toml.callback_address.unwrap(),
-            callback_port: toml.callback_port.unwrap(),
-            callback_target: toml.callback_target.unwrap(),
-            websocket_config: toml.websocket_config.unwrap(),
-            ipc_config: toml.ipc_config.unwrap(),
-            diagnostics_config: toml.diagnostics_config.unwrap(),
-            stat_config: toml.stat_config.unwrap(),
-            lmdb_config: toml.lmdb_config.unwrap(),
-            backlog_scan_batch_size: toml.backlog_scan_batch_size.unwrap(),
-            backlog_scan_frequency: toml.backlog_scan_frequency.unwrap(),
-            vote_cache: toml.vote_cache.unwrap(),
-            rep_crawler_query_timeout: Duration::from_millis(
-                toml.rep_crawler_query_timeout.unwrap().0 as u64,
-            ),
-            block_processor: toml.block_processor.unwrap(),
-            active_elections: toml.active_elections.unwrap(),
-            vote_processor: toml.vote_processor.unwrap(),
-            tcp: toml.tcp.unwrap(),
-            request_aggregator: toml.request_aggregator.unwrap(),
-            message_processor: toml.message_processor.unwrap(),
-            priority_scheduler_enabled: toml.priority_scheduler_enabled.unwrap(),
-            local_block_broadcaster: toml.local_block_broadcaster.unwrap(),
-            confirming_set: toml.confirming_set.unwrap(),
-            monitor: toml.monitor.unwrap(),
-        }
-    }
-}*/
 
 #[derive(Deserialize, Serialize)]
 pub struct NodeConfigToml {

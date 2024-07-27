@@ -98,14 +98,14 @@ impl From<DaemonConfig> for DaemonConfigToml {
 #[cfg(test)]
 mod tests {
     use crate::{
-        config::{DaemonConfigToml, NetworkConstants},
+        config::{DaemonConfig, DaemonConfigToml, NetworkConstants},
         NetworkParams,
     };
 
     #[test]
     fn test_toml_serialization() {
         let network_params = NetworkParams::new(NetworkConstants::active_network());
-        let config = DaemonConfigToml::default(&network_params, 0).unwrap();
+        let config: DaemonConfigToml = DaemonConfig::new(&network_params, 0).unwrap().into();
         let toml_str = toml::to_string(&config).unwrap();
 
         let deserialized_config: DaemonConfigToml = toml::from_str(&toml_str).unwrap();
