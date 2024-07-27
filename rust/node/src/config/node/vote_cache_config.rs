@@ -2,7 +2,7 @@ use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::config::TomlConfigOverride;
+use crate::config::{Miliseconds, TomlConfigOverride};
 
 #[derive(Clone)]
 pub struct VoteCacheConfig {
@@ -47,7 +47,7 @@ impl Default for VoteCacheConfig {
 pub struct VoteCacheConfigToml {
     pub max_size: Option<usize>,
     pub max_voters: Option<usize>,
-    pub age_cutoff: Option<Duration>,
+    pub age_cutoff: Option<Miliseconds>,
 }
 
 impl From<VoteCacheConfig> for VoteCacheConfigToml {
@@ -55,7 +55,7 @@ impl From<VoteCacheConfig> for VoteCacheConfigToml {
         Self {
             max_size: Some(config.max_size),
             max_voters: Some(config.max_voters),
-            age_cutoff: Some(config.age_cutoff),
+            age_cutoff: Some(Miliseconds(config.age_cutoff.as_millis())),
         }
     }
 }
@@ -68,8 +68,8 @@ impl<'de> TomlConfigOverride<'de, VoteCacheConfigToml> for VoteCacheConfig {
         if let Some(max_voters) = toml.max_voters {
             self.max_voters = max_voters;
         }
-        if let Some(age_cutoff) = toml.age_cutoff {
-            self.age_cutoff = age_cutoff;
+        if let Some(age_cutoff) = &toml.age_cutoff {
+            self.age_cutoff = Duration::from_millis(age_cutoff.0 as u64);
         }
     }
 }

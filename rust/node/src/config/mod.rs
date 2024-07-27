@@ -47,8 +47,8 @@ pub trait TomlConfigOverride<'de, T: Deserialize<'de> + Serialize> {
     fn toml_config_override(&mut self, toml: &'de T);
 }
 
-#[derive(Clone)]
-pub struct Miliseconds(pub(crate) u128);
+#[derive(Clone, Default)]
+pub struct Miliseconds(pub u128);
 
 impl Serialize for Miliseconds {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

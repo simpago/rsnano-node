@@ -1,4 +1,7 @@
-use crate::{bootstrap::AccountSetsConfig, config::TomlConfigOverride};
+use crate::{
+    bootstrap::AccountSetsConfig,
+    config::{Miliseconds, TomlConfigOverride},
+};
 use rsnano_core::utils::TomlWriter;
 use rsnano_messages::BlocksAckPayload;
 use serde::{Deserialize, Serialize};
@@ -40,9 +43,9 @@ pub struct BootstrapAscendingConfigToml {
     pub requests_limit: Option<usize>,
     pub database_requests_limit: Option<usize>,
     pub pull_count: Option<usize>,
-    pub timeout: Option<Duration>,
+    pub timeout: Option<Miliseconds>,
     pub throttle_coefficient: Option<usize>,
-    pub throttle_wait: Option<Duration>,
+    pub throttle_wait: Option<Miliseconds>,
     pub account_sets: Option<AccountSetsToml>,
     pub block_wait_count: Option<usize>,
 }
@@ -81,7 +84,18 @@ impl BootstrapAscendingConfig {
 impl<'de> TomlConfigOverride<'de, BootstrapAscendingConfigToml> for BootstrapAscendingConfig {
     fn toml_config_override(&mut self, toml: &'de BootstrapAscendingConfigToml) {
         if let Some(account_sets) = &toml.account_sets {
-            self.account_sets = account_sets.into();
+            if let Some(blocking_max) = account_sets.blocking_max {
+                self.account_sets.blocking_max = blocking_max;
+            }
+            if let Some(consideration_count) = account_sets.consideration_count {
+                self.account_sets.consideration_count = consideration_count;
+            }
+            if let Some(priorities_max) = account_sets.priorities_max {
+                self.account_sets.priorities_max = priorities_max;
+            }
+            if let Some(cooldown) = &account_sets.cooldown {
+                self.account_sets.cooldown = Duration::from_millis(cooldown.0 as u64);
+            }
         }
         if let Some(block_wait_count) = toml.block_wait_count {
             self.block_wait_count = block_wait_count;
@@ -95,6 +109,15 @@ impl<'de> TomlConfigOverride<'de, BootstrapAscendingConfigToml> for BootstrapAsc
         if let Some(requests_limit) = toml.requests_limit {
             self.requests_limit = requests_limit;
         }
+        if let Some(timeout) = &toml.timeout {
+            self.timeout = Duration::from_millis(timeout.0 as u64);
+        }
+        if let Some(throttle_wait) = &toml.throttle_wait {
+            self.throttle_wait = Duration::from_millis(throttle_wait.0 as u64);
+        }
+        if let Some(throttle_coefficient) = toml.throttle_coefficient {
+            self.throttle_coefficient = throttle_coefficient;
+        }
     }
 }
 
@@ -104,10 +127,10 @@ impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
             requests_limit: Some(config.requests_limit),
             database_requests_limit: Some(config.database_requests_limit),
             pull_count: Some(config.pull_count),
-            timeout: Some(config.timeout),
+            timeout: Some(Miliseconds(config.timeout.as_millis())),
             throttle_coefficient: Some(config.throttle_coefficient),
-            throttle_wait: Some(config.throttle_wait),
-            account_sets: Some((&config.account_sets).into()),
+            throttle_wait: Some(Miliseconds(config.throttle_wait.as_millis())),
+            account_sets: Some(config.account_sets.into()),
             block_wait_count: Some(config.block_wait_count),
         }
     }
@@ -115,10 +138,21 @@ impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
 
 #[derive(Deserialize, Serialize, Default)]
 pub struct AccountSetsToml {
-    pub consideration_count: usize,
-    pub priorities_max: usize,
-    pub blocking_max: usize,
-    pub cooldown: Duration,
+    pub consideration_count: Option<usize>,
+    pub priorities_max: Option<usize>,
+    pub blocking_max: Option<usize>,
+    pub cooldown: Option<Miliseconds>,
+}
+
+impl From<AccountSetsConfig> for AccountSetsToml {
+    fn from(value: AccountSetsConfig) -> Self {
+        Self {
+            consideration_count: Some(value.consideration_count),
+            priorities_max: Some(value.priorities_max),
+            blocking_max: Some(value.blocking_max),
+            cooldown: Some(Miliseconds(value.cooldown.as_millis())),
+        }
+    }
 }
 
 impl AccountSetsConfig {

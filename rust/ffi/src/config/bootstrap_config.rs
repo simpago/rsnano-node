@@ -1,6 +1,8 @@
 use rsnano_node::{
     bootstrap::AccountSetsConfig,
-    config::{AccountSetsToml, BootstrapAscendingConfig, BootstrapAscendingConfigToml},
+    config::{
+        AccountSetsToml, BootstrapAscendingConfig, BootstrapAscendingConfigToml, Miliseconds,
+    },
 };
 use std::time::Duration;
 
@@ -45,9 +47,9 @@ impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfigToml {
             requests_limit: Some(value.requests_limit),
             database_requests_limit: Some(value.database_requests_limit),
             pull_count: Some(value.pull_count),
-            timeout: Some(Duration::from_millis(value.timeout_ms)),
+            timeout: Some(Miliseconds(value.timeout_ms as u128)),
             throttle_coefficient: Some(value.throttle_coefficient),
-            throttle_wait: Some(Duration::from_millis(value.throttle_wait_ms)),
+            throttle_wait: Some(Miliseconds(value.throttle_wait_ms as u128)),
             account_sets: Some((&value.account_sets).into()),
             block_wait_count: Some(value.block_wait_count),
         }
@@ -84,10 +86,10 @@ impl From<&AccountSetsConfig> for AccountSetsConfigDto {
 impl From<&AccountSetsConfigDto> for AccountSetsToml {
     fn from(value: &AccountSetsConfigDto) -> Self {
         Self {
-            consideration_count: value.consideration_count,
-            priorities_max: value.priorities_max,
-            blocking_max: value.blocking_max,
-            cooldown: Duration::from_millis(value.cooldown_ms),
+            consideration_count: Some(value.consideration_count),
+            priorities_max: Some(value.priorities_max),
+            blocking_max: Some(value.blocking_max),
+            cooldown: Some(Miliseconds(value.cooldown_ms as u128)),
         }
     }
 }
