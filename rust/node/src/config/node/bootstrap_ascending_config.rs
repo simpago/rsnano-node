@@ -1,4 +1,4 @@
-use crate::bootstrap::AccountSetsConfig;
+use crate::{bootstrap::AccountSetsConfig, config::TomlConfigOverride};
 use rsnano_core::utils::TomlWriter;
 use rsnano_messages::BlocksAckPayload;
 use serde::{Deserialize, Serialize};
@@ -37,17 +37,17 @@ impl Default for BootstrapAscendingConfig {
 
 #[derive(Deserialize, Serialize, Default)]
 pub struct BootstrapAscendingConfigToml {
-    pub requests_limit: usize,
-    pub database_requests_limit: usize,
-    pub pull_count: usize,
-    pub timeout: Duration,
-    pub throttle_coefficient: usize,
-    pub throttle_wait: Duration,
-    pub account_sets: AccountSetsToml,
-    pub block_wait_count: usize,
+    pub requests_limit: Option<usize>,
+    pub database_requests_limit: Option<usize>,
+    pub pull_count: Option<usize>,
+    pub timeout: Option<Duration>,
+    pub throttle_coefficient: Option<usize>,
+    pub throttle_wait: Option<Duration>,
+    pub account_sets: Option<AccountSetsToml>,
+    pub block_wait_count: Option<usize>,
 }
 
-impl BootstrapAscendingConfigToml {
+impl BootstrapAscendingConfig {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize ("requests_limit", self.requests_limit, "Request limit to ascending bootstrap after which requests will be dropped.\nNote: changing to unlimited (0) is not recommended.\ntype:uint64")?;
         toml.put_usize ("database_requests_limit", self.database_requests_limit, "Request limit for accounts from database after which requests will be dropped.\nNote: changing to unlimited (0) is not recommended as this operation competes for resources on querying the database.\ntype:uint64")?;
@@ -78,17 +78,37 @@ impl BootstrapAscendingConfigToml {
     }
 }
 
+impl<'de> TomlConfigOverride<'de, BootstrapAscendingConfigToml> for BootstrapAscendingConfig {
+    fn toml_config_override(&mut self, toml: &'de BootstrapAscendingConfigToml) {
+        if let Some(account_sets) = &toml.account_sets {
+            self.account_sets = account_sets.into();
+        }
+        if let Some(block_wait_count) = toml.block_wait_count {
+            self.block_wait_count = block_wait_count;
+        }
+        if let Some(database_requests_limit) = toml.database_requests_limit {
+            self.database_requests_limit = database_requests_limit;
+        }
+        if let Some(pull_count) = toml.pull_count {
+            self.pull_count = pull_count;
+        }
+        if let Some(requests_limit) = toml.requests_limit {
+            self.requests_limit = requests_limit;
+        }
+    }
+}
+
 impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
     fn from(config: BootstrapAscendingConfig) -> Self {
         Self {
-            requests_limit: config.requests_limit,
-            database_requests_limit: config.database_requests_limit,
-            pull_count: config.pull_count,
-            timeout: config.timeout,
-            throttle_coefficient: config.throttle_coefficient,
-            throttle_wait: config.throttle_wait,
-            account_sets: (&config.account_sets).into(),
-            block_wait_count: config.block_wait_count,
+            requests_limit: Some(config.requests_limit),
+            database_requests_limit: Some(config.database_requests_limit),
+            pull_count: Some(config.pull_count),
+            timeout: Some(config.timeout),
+            throttle_coefficient: Some(config.throttle_coefficient),
+            throttle_wait: Some(config.throttle_wait),
+            account_sets: Some((&config.account_sets).into()),
+            block_wait_count: Some(config.block_wait_count),
         }
     }
 }
@@ -101,7 +121,7 @@ pub struct AccountSetsToml {
     pub cooldown: Duration,
 }
 
-impl AccountSetsToml {
+impl AccountSetsConfig {
     pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize ("consideration_count", self.consideration_count, "Limit the number of account candidates to consider and also the number of iterations.\ntype:uint64")?;
         toml.put_usize(
@@ -119,16 +139,5 @@ impl AccountSetsToml {
             self.cooldown.as_millis() as u64,
             "Waiting time for an account to become available.\ntype:milliseconds",
         )
-    }
-}
-
-impl From<AccountSetsConfig> for AccountSetsToml {
-    fn from(config: AccountSetsConfig) -> Self {
-        Self {
-            consideration_count: config.consideration_count,
-            priorities_max: config.priorities_max,
-            blocking_max: config.blocking_max,
-            cooldown: config.cooldown,
-        }
     }
 }

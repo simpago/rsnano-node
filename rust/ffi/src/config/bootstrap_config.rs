@@ -42,14 +42,14 @@ impl From<&BootstrapAscendingConfig> for BootstrapAscendingConfigDto {
 impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfigToml {
     fn from(value: &BootstrapAscendingConfigDto) -> Self {
         Self {
-            requests_limit: value.requests_limit,
-            database_requests_limit: value.database_requests_limit,
-            pull_count: value.pull_count,
-            timeout: Duration::from_millis(value.timeout_ms),
-            throttle_coefficient: value.throttle_coefficient,
-            throttle_wait: Duration::from_millis(value.throttle_wait_ms),
-            account_sets: (&value.account_sets).into(),
-            block_wait_count: value.block_wait_count,
+            requests_limit: Some(value.requests_limit),
+            database_requests_limit: Some(value.database_requests_limit),
+            pull_count: Some(value.pull_count),
+            timeout: Some(Duration::from_millis(value.timeout_ms)),
+            throttle_coefficient: Some(value.throttle_coefficient),
+            throttle_wait: Some(Duration::from_millis(value.throttle_wait_ms)),
+            account_sets: Some((&value.account_sets).into()),
+            block_wait_count: Some(value.block_wait_count),
         }
     }
 }

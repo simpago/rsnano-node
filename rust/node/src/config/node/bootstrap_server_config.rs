@@ -1,6 +1,8 @@
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
+use crate::config::TomlConfigOverride;
+
 #[derive(Clone, Debug)]
 pub struct BootstrapServerConfig {
     pub max_queue: usize,
@@ -51,6 +53,20 @@ impl From<BootstrapServerConfig> for BootstrapServerConfigToml {
             max_queue: Some(config.max_queue),
             threads: Some(config.threads),
             batch_size: Some(config.batch_size),
+        }
+    }
+}
+
+impl<'de> TomlConfigOverride<'de, BootstrapServerConfigToml> for BootstrapServerConfig {
+    fn toml_config_override(&mut self, toml: &'de BootstrapServerConfigToml) {
+        if let Some(max_queue) = toml.max_queue {
+            self.max_queue = max_queue;
+        }
+        if let Some(threads) = toml.threads {
+            self.threads = threads;
+        }
+        if let Some(batch_size) = toml.batch_size {
+            self.batch_size = batch_size;
         }
     }
 }

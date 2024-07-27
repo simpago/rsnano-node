@@ -1,8 +1,8 @@
 use super::{
     BlockProcessorConfig, BootstrapAscendingConfig, BootstrapServerConfig,
     BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml, HintedSchedulerConfig,
-    MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml, StatsConfig, StatsConfigToml,
-    VoteCacheConfig, WebsocketConfig,
+    LmdbConfigToml, MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml, StatsConfig,
+    StatsConfigToml, VoteCacheConfig, VoteCacheConfigToml, WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
 use crate::config::{Miliseconds, OptimisticSchedulerConfig, TomlConfigOverride};
@@ -485,21 +485,21 @@ impl NodeConfig {
         if let Some(work_threads) = toml.work_threads {
             self.work_threads = work_threads;
         }
-        //if let Some(optimistic_scheduler) = &toml.optimistic_scheduler {
-        //self.optimistic_scheduler = optimistic_scheduler.clone();
-        //}
-        /*if l et Some(hinted_scheduler) = &toml.hinted_scheduler {
-            self.hinted_scheduler = hinted_scheduler.clone();
+        if let Some(optimistic_scheduler_toml) = &toml.optimistic_scheduler {
+            self.optimistic_scheduler
+                .toml_config_override(optimistic_scheduler_toml);
         }
+        /*
         if let Some(priority_bucket) = &toml.priority_bucket {
             self.priority_bucket = priority_bucket.clone();
             }
         if let Some(bootstrap_ascending) = &toml.bootstrap_ascending {
             self.bootstrap_ascending = bootstrap_ascending.into();
-        }
-        if let Some(bootstrap_server) = &toml.bootstrap_server {
-            self.bootstrap_server = bootstrap_server.clone();
             }*/
+        if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
+            self.bootstrap_server
+                .toml_config_override(bootstrap_server_toml);
+        }
         if let Some(secondary_work_peers) = &toml.secondary_work_peers {
             self.secondary_work_peers = secondary_work_peers.clone();
         }
@@ -521,9 +521,9 @@ impl NodeConfig {
         }
         if let Some(stat_config) = &toml.stat_config {
             self.stat_config = stat_config.clone();
-        }
-        if let Some(lmdb_config) = &toml.lmdb_config {
-            self.lmdb_config = lmdb_config.clone();
+            }*/
+        if let Some(lmdb_config_toml) = &toml.lmdb_config {
+            self.lmdb_config.toml_config_override(lmdb_config_toml);
         }
         if let Some(backlog_scan_batch_size) = toml.backlog_scan_batch_size {
             self.backlog_scan_batch_size = backlog_scan_batch_size;
@@ -531,13 +531,9 @@ impl NodeConfig {
         if let Some(backlog_scan_frequency) = toml.backlog_scan_frequency {
             self.backlog_scan_frequency = backlog_scan_frequency;
         }
-        if let Some(vote_cache) = &toml.vote_cache {
-            self.vote_cache = vote_cache.clone();
+        if let Some(vote_cache_toml) = &toml.vote_cache {
+            self.vote_cache.toml_config_override(vote_cache_toml);
         }
-        if let Some(rep_crawler_query_timeout) = &toml.rep_crawler_query_timeout {
-            self.rep_crawler_query_timeout =
-                Duration::from_millis(rep_crawler_query_timeout.0 as u64);
-                }*/
         if let Some(block_processor_toml) = &toml.block_processor {
             self.block_processor
                 .toml_config_override(block_processor_toml);
@@ -738,9 +734,9 @@ impl NodeConfig {
             self.priority_bucket.serialize_toml(opt)
         })?;
 
-        //toml.put_child("bootstrap_ascending", &mut |writer| {
-        //self.bootstrap_ascending.serialize_toml(writer)
-        //})?));
+        toml.put_child("bootstrap_ascending", &mut |writer| {
+            self.bootstrap_ascending.serialize_toml(writer)
+        })?;
 
         toml.put_child("bootstrap_server", &mut |writer| {
             self.bootstrap_server.serialize_toml(writer)
@@ -762,9 +758,9 @@ impl NodeConfig {
             self.active_elections.serialize_toml(writer)
         })?;
 
-        //toml.put_child("block_processor", &mut |writer| {
-        //self.block_processor.serialize_toml(writer)
-        //})?;
+        toml.put_child("block_processor", &mut |writer| {
+            self.block_processor.serialize_toml(writer)
+        })?;
 
         toml.put_child("vote_processor", &mut |writer| {
             self.vote_processor.serialize_toml(writer)
@@ -857,8 +853,8 @@ pub struct NodeConfigToml {
     //pub(crate) ipc_config: Option<IpcConfigToml>,
     pub(crate) diagnostics_config: Option<DiagnosticsConfigToml>,
     pub(crate) stat_config: Option<StatsConfigToml>,
-    //pub(crate) lmdb_config: Option<LmdbConfigToml>,
-    //pub(crate) vote_cache: Option<VoteCacheConfigToml>,
+    pub(crate) lmdb_config: Option<LmdbConfigToml>,
+    pub(crate) vote_cache: Option<VoteCacheConfigToml>,
     pub(crate) block_processor: Option<BlockProcessorConfigToml>,
     //pub(crate) active_elections: Option<ActiveElectionsConfigToml>,
     //pub(crate) vote_processor: Option<VoteProcessorConfigToml>,
@@ -931,8 +927,8 @@ impl From<NodeConfig> for NodeConfigToml {
             //ipc_config: Some(node_config.ipc_config),
             diagnostics_config: Some(node_config.diagnostics_config.into()),
             stat_config: Some(node_config.stat_config.into()),
-            //lmdb_config: Some(node_config.lmdb_config),
-            //vote_cache: Some(node_config.vote_cache),
+            lmdb_config: Some(node_config.lmdb_config.into()),
+            vote_cache: Some(node_config.vote_cache.into()),
             block_processor: Some(node_config.block_processor.into()),
             //active_elections: Some(node_config.active_elections),
             //vote_processor: Some(node_config.vote_processor),
