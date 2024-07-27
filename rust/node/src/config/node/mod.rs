@@ -37,6 +37,5 @@ pub use priority_bucket_config::*;
 pub use request_aggregator_config::*;
 pub use stats_config::*;
 pub use vote_cache_config::*;
-pub use vote_cache_config::*;
 pub use vote_processor_config::*;
 pub use websocket_config::*;

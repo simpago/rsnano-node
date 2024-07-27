@@ -60,24 +60,48 @@ impl DaemonConfigToml {
         let current_str = toml::to_string(self)?;
 
         let mut result = String::new();
-        let mut stream_defaults = defaults_str.lines();
-        let mut stream_current = current_str.lines();
+        let mut stream_defaults = defaults_str.lines().peekable();
+        let mut stream_current = current_str.lines().peekable();
 
-        while let (Some(line_defaults), Some(line_current)) =
-            (stream_defaults.next(), stream_current.next())
-        {
-            if line_defaults == line_current {
-                result.push_str(line_defaults);
-                result.push('\n');
-            } else {
-                if let Some(pos) = line_current.find('#') {
-                    result.push_str(&line_current[0..pos]);
-                    result.push_str(&line_current[pos + 1..]);
+        while stream_current.peek().is_some() || stream_defaults.peek().is_some() {
+            match (stream_defaults.peek(), stream_current.peek()) {
+                (Some(&line_defaults), Some(&line_current)) => {
+                    if line_defaults == line_current {
+                        result.push_str(line_defaults);
+                        result.push('\n');
+                        stream_defaults.next();
+                        stream_current.next();
+                    } else if line_current.starts_with('#') {
+                        result.push_str("# ");
+                        result.push_str(line_defaults);
+                        result.push('\n');
+
+                        result.push_str(line_current);
+                        result.push('\n');
+                        stream_defaults.next();
+                        stream_current.next();
+                    } else {
+                        result.push_str("# ");
+                        result.push_str(line_defaults);
+                        result.push('\n');
+                        result.push_str(line_current);
+                        result.push('\n');
+                        stream_defaults.next();
+                        stream_current.next();
+                    }
+                }
+                (Some(&line_defaults), None) => {
+                    result.push_str("# ");
+                    result.push_str(line_defaults);
                     result.push('\n');
-                } else {
+                    stream_defaults.next();
+                }
+                (None, Some(&line_current)) => {
                     result.push_str(line_current);
                     result.push('\n');
+                    stream_current.next();
                 }
+                _ => {}
             }
         }
 

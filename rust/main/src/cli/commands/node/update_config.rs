@@ -40,9 +40,12 @@ impl UpdateConfigArgs {
 
             if node_toml_config_path.exists() {
                 let toml_str = read_node_config_toml(&node_toml_config_path)?;
+
                 let current_toml_daemon_config: DaemonConfigToml = from_str(&toml_str)?;
+
                 let default_toml_daemon_config: DaemonConfigToml =
                     DaemonConfig::new(&network_params, get_cpu_count())?.into();
+
                 let merged_config =
                     current_toml_daemon_config.merge_defaults(&default_toml_daemon_config)?;
 
