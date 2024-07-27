@@ -4,7 +4,6 @@ mod network_constants;
 mod node;
 mod node_flags;
 mod rpc;
-mod toml;
 
 use crate::NetworkParams;
 pub use daemon_config::*;
@@ -14,7 +13,6 @@ pub use node_flags::*;
 pub use rpc::*;
 use rsnano_core::Networks;
 use std::path::{Path, PathBuf};
-pub use toml::*;
 
 pub fn get_node_toml_config_path(data_path: &Path) -> PathBuf {
     let mut node_toml = data_path.to_owned();

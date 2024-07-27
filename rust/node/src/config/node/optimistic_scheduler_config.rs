@@ -1,8 +1,7 @@
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct OptimisticSchedulerConfig {
     pub enabled: bool,
 
@@ -37,33 +36,19 @@ impl OptimisticSchedulerConfig {
     }
 }
 
-#[derive(Clone)]
-pub struct HintedSchedulerConfig {
+#[derive(Clone, Deserialize, Serialize)]
+pub struct OptimisticSchedulerConfigToml {
     pub enabled: bool,
-    pub check_interval: Duration,
-    pub block_cooldown: Duration,
-    pub hinting_theshold_percent: u32,
-    pub vacancy_threshold_percent: u32,
+    pub gap_threshold: u64,
+    pub max_size: usize,
 }
 
-impl HintedSchedulerConfig {
-    pub fn default_for_dev_network() -> Self {
+impl From<OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
+    fn from(config: OptimisticSchedulerConfig) -> Self {
         Self {
-            check_interval: Duration::from_millis(100),
-            block_cooldown: Duration::from_millis(100),
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for HintedSchedulerConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            check_interval: Duration::from_millis(1000),
-            block_cooldown: Duration::from_millis(5000),
-            hinting_theshold_percent: 10,
-            vacancy_threshold_percent: 20,
+            enabled: config.enabled,
+            gap_threshold: config.gap_threshold,
+            max_size: config.max_size,
         }
     }
 }

@@ -1,5 +1,8 @@
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+use crate::config::Miliseconds;
 
 #[derive(Clone)]
 pub struct MonitorConfig {
@@ -30,4 +33,10 @@ impl MonitorConfig {
             "Interval between status logs\ntype:seconds",
         )
     }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct MonitorConfigToml {
+    pub enabled: bool,
+    pub interval: Miliseconds,
 }

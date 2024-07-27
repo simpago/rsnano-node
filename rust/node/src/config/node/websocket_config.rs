@@ -1,6 +1,7 @@
 use crate::config::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 use std::net::Ipv6Addr;
 
 #[derive(Clone)]
@@ -36,6 +37,23 @@ impl WebsocketConfig {
             "WebSocket server listening port.\ntype:uint16",
         )?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct WebsocketConfigToml {
+    pub enabled: bool,
+    pub port: u16,
+    pub address: String,
+}
+
+impl From<WebsocketConfig> for WebsocketConfigToml {
+    fn from(websocket_config: WebsocketConfig) -> Self {
+        Self {
+            enabled: websocket_config.enabled,
+            port: websocket_config.port,
+            address: websocket_config.address,
+        }
     }
 }
 

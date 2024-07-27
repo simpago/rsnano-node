@@ -1,5 +1,6 @@
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 
 pub struct OpenclConfig {
     pub enable: bool,
@@ -28,6 +29,22 @@ impl Default for OpenclConfig {
             platform: 0,
             device: 0,
             threads: 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct OpenclConfigToml {
+    pub platform: u32,
+    pub device: u32,
+    pub threads: u32,
+}
+impl From<OpenclConfig> for OpenclConfigToml {
+    fn from(config: OpenclConfig) -> Self {
+        Self {
+            platform: config.platform,
+            device: config.device,
+            threads: config.threads,
         }
     }
 }

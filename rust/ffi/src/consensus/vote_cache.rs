@@ -1,6 +1,6 @@
 use crate::consensus::VoteHandle;
 use rsnano_core::{Amount, BlockHash, Vote, VoteCode};
-use rsnano_node::consensus::{VoteCache, VoteCacheConfig};
+use rsnano_node::{config::VoteCacheConfig, consensus::VoteCache};
 use std::{
     collections::HashMap,
     ops::Deref,

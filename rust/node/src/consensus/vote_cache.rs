@@ -1,61 +1,22 @@
 use super::TallyKey;
-use crate::stats::{DetailType, StatType, Stats};
+use crate::{
+    config::VoteCacheConfig,
+    stats::{DetailType, StatType, Stats},
+};
 #[cfg(test)]
 use mock_instant::Instant;
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent, TomlWriter},
+    utils::{ContainerInfo, ContainerInfoComponent},
     Account, Amount, BlockHash, Vote, VoteCode,
 };
-use serde::{Deserialize, Serialize};
 #[cfg(not(test))]
 use std::time::Instant;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
-    fmt::Debug,
     mem::size_of,
     sync::Arc,
-    time::Duration,
 };
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct VoteCacheConfig {
-    pub max_size: usize,
-    pub max_voters: usize,
-    pub age_cutoff: Duration,
-}
-
-impl VoteCacheConfig {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_size",
-            self.max_size,
-            "Maximum number of blocks to cache votes for. \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "max_voters",
-            self.max_voters,
-            "Maximum number of voters to cache per block. \ntype:uint64",
-        )?;
-
-        toml.put_u64(
-            "age_cutoff",
-            self.age_cutoff.as_secs(),
-            "Maximum age of votes to keep in cache. \ntype:seconds",
-        )
-    }
-}
-
-impl Default for VoteCacheConfig {
-    fn default() -> Self {
-        Self {
-            max_size: 1024 * 64,
-            max_voters: 64,
-            age_cutoff: Duration::from_secs(15 * 60),
-        }
-    }
-}
 
 ///	A container holding votes that do not match any active or recently finished elections.
 ///	It keeps track of votes in two internal structures: cache and queue
