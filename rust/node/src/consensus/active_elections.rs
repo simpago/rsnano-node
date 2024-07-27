@@ -43,7 +43,7 @@ pub type ElectionEndCallback = Box<
 
 pub type AccountBalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct ActiveElectionsConfig {
     // Maximum number of simultaneous active elections (AEC size)
     pub size: usize,

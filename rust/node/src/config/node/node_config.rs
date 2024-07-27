@@ -1,9 +1,9 @@
 use super::{
-    BlockProcessorConfig, BootstrapAscendingConfig, BootstrapServerConfig,
-    BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml, HintedSchedulerConfig,
-    LmdbConfigToml, MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml,
-    PriorityBucketConfigToml, StatsConfig, StatsConfigToml, VoteCacheConfig, VoteCacheConfigToml,
-    WebsocketConfig,
+    ActiveElectionsConfigToml, BlockProcessorConfig, BootstrapAscendingConfig,
+    BootstrapServerConfig, BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml,
+    HintedSchedulerConfig, LmdbConfigToml, MonitorConfig, MonitorConfigToml,
+    OptimisticSchedulerConfigToml, PriorityBucketConfigToml, StatsConfig, StatsConfigToml,
+    VoteCacheConfig, VoteCacheConfigToml, VoteProcessorConfigToml, WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
 use crate::config::{Miliseconds, OptimisticSchedulerConfig, TomlConfigOverride};
@@ -541,21 +541,25 @@ impl NodeConfig {
             self.block_processor
                 .toml_config_override(block_processor_toml);
         }
-        /*if let Some(active_elections) = &toml.active_elections {
-            self.active_elections = active_elections.clone();
+        if let Some(active_elections_toml) = &toml.active_elections {
+            self.active_elections
+                .toml_config_override(active_elections_toml);
         }
-        if let Some(vote_processor) = &toml.vote_processor {
-            self.vote_processor = vote_processor.clone();
+        if let Some(vote_processor_toml) = &toml.vote_processor {
+            self.vote_processor
+                .toml_config_override(vote_processor_toml);
         }
-        if let Some(request_aggregator) = &toml.request_aggregator {
-            self.request_aggregator = request_aggregator.clone();
+        /*if let Some(request_aggregator_toml) = &toml.request_aggregator {
+            self.request_aggregator
+                .toml_config_override(request_aggregator_toml);
         }
-        if let Some(message_processor) = &toml.message_processor {
-            self.message_processor = message_processor.clone();
+        if let Some(message_processor_toml) = &toml.message_processor {
+            self.message_processor
+                .toml_config_override(message_processor_toml);
+                }*/
+        if let Some(monitor_toml) = &toml.monitor {
+            self.monitor.toml_config_override(monitor_toml);
         }
-        if let Some(monitor) = &toml.monitor {
-            self.monitor = monitor.clone();
-            }*/
     }
 
     pub fn new_test_instance() -> Self {
@@ -847,8 +851,8 @@ pub struct NodeConfigToml {
     pub(crate) lmdb_config: Option<LmdbConfigToml>,
     pub(crate) vote_cache: Option<VoteCacheConfigToml>,
     pub(crate) block_processor: Option<BlockProcessorConfigToml>,
-    //pub(crate) active_elections: Option<ActiveElectionsConfigToml>,
-    //pub(crate) vote_processor: Option<VoteProcessorConfigToml>,
+    pub(crate) active_elections: Option<ActiveElectionsConfigToml>,
+    pub(crate) vote_processor: Option<VoteProcessorConfigToml>,
     //pub(crate) request_aggregator: Option<RequestAggregatorConfigToml>,
     //pub(crate) message_processor: Option<MessageProcessorConfigToml>,
     pub(crate) monitor: Option<MonitorConfigToml>,
@@ -921,8 +925,8 @@ impl From<NodeConfig> for NodeConfigToml {
             lmdb_config: Some(node_config.lmdb_config.into()),
             vote_cache: Some(node_config.vote_cache.into()),
             block_processor: Some(node_config.block_processor.into()),
-            //active_elections: Some(node_config.active_elections),
-            //vote_processor: Some(node_config.vote_processor),
+            active_elections: Some(node_config.active_elections.into()),
+            vote_processor: Some(node_config.vote_processor.into()),
             //request_aggregator: Some(node_config.request_aggregator),
             //message_processor: Some(node_config.message_processor),
             monitor: Some(node_config.monitor.into()),
