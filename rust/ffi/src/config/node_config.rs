@@ -197,7 +197,7 @@ pub unsafe extern "C" fn rsn_node_config_create(
     } else {
         None
     };
-    let cfg = NodeConfig::default(peering_port, &network_params, get_cpu_count());
+    let cfg = NodeConfig::new(peering_port, &network_params, get_cpu_count());
     let dto = &mut (*dto);
     fill_node_config_dto(dto, &cfg);
     0

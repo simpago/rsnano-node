@@ -1,7 +1,7 @@
 use crate::{config::TomlConfigOverride, consensus::ActiveElectionsConfig};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ActiveElectionsConfigToml {
     pub size: Option<usize>,
     pub hinted_limit_percentage: Option<usize>,
@@ -22,23 +22,27 @@ impl From<ActiveElectionsConfig> for ActiveElectionsConfigToml {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, ActiveElectionsConfigToml> for ActiveElectionsConfig {
-    fn toml_config_override(&mut self, toml: &'de ActiveElectionsConfigToml) {
+impl From<&ActiveElectionsConfigToml> for ActiveElectionsConfig {
+    fn from(toml: &ActiveElectionsConfigToml) -> Self {
+        let mut config = ActiveElectionsConfig::default();
+
         if let Some(size) = toml.size {
-            self.size = size;
-        }
+            config.size = size
+        };
         if let Some(hinted_limit_percentage) = toml.hinted_limit_percentage {
-            self.hinted_limit_percentage = hinted_limit_percentage;
-        }
+            config.hinted_limit_percentage = hinted_limit_percentage
+        };
         if let Some(optimistic_limit_percentage) = toml.optimistic_limit_percentage {
-            self.optimistic_limit_percentage = optimistic_limit_percentage;
-        }
+            config.optimistic_limit_percentage = optimistic_limit_percentage
+        };
         if let Some(confirmation_history_size) = toml.confirmation_history_size {
-            self.confirmation_history_size = confirmation_history_size;
-        }
+            config.confirmation_history_size = confirmation_history_size
+        };
         if let Some(confirmation_cache) = toml.confirmation_cache {
-            self.confirmation_cache = confirmation_cache;
-        }
+            config.confirmation_cache = confirmation_cache
+        };
+
+        config
     }
 }
 
@@ -49,8 +53,10 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_active_elections_config_to_toml() {
-        let config = ActiveElectionsConfig::default();
+    fn config_to_toml() {
+        let mut config = ActiveElectionsConfig::default();
+
+        config.confirmation_cache = 0;
 
         let toml_config: ActiveElectionsConfigToml = config.clone().into();
 
@@ -67,16 +73,11 @@ mod tests {
             toml_config.confirmation_history_size,
             Some(config.confirmation_history_size)
         );
-        assert_eq!(
-            toml_config.confirmation_cache,
-            Some(config.confirmation_cache)
-        );
+        assert_eq!(toml_config.confirmation_cache, Some(0));
     }
 
     #[test]
-    fn test_toml_config_override() {
-        let mut config = ActiveElectionsConfig::default();
-
+    fn toml_to_config() {
         let toml_write = r#"
                 size = 30
                 hinted_limit_percentage = 70
@@ -94,7 +95,7 @@ mod tests {
         let toml_config: ActiveElectionsConfigToml =
             toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
-        config.toml_config_override(&toml_config);
+        let config: ActiveElectionsConfig = toml_config.into();
 
         assert_eq!(config.size, 30);
         assert_eq!(config.hinted_limit_percentage, 70);
@@ -104,9 +105,7 @@ mod tests {
     }
 
     #[test]
-    fn test_partial_toml_config_override() {
-        let mut config = ActiveElectionsConfig::default();
-
+    fn toml_with_comments_to_config() {
         let toml_write = r#"
                 size = 40
                 optimistic_limit_percentage = 90
@@ -122,7 +121,7 @@ mod tests {
         let toml_config: ActiveElectionsConfigToml =
             toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
-        config.toml_config_override(&toml_config);
+        let config: ActiveElectionsConfig = toml_config.into();
 
         assert_eq!(config.size, 40);
         assert_eq!(
@@ -130,6 +129,37 @@ mod tests {
             config.hinted_limit_percentage
         );
         assert_eq!(config.optimistic_limit_percentage, 90);
+        assert_eq!(
+            config.confirmation_history_size,
+            config.confirmation_history_size
+        );
+        assert_eq!(config.confirmation_cache, config.confirmation_cache);
+    }
+
+    #[test]
+    fn toml_empty_to_config() {
+        let toml_write = r#""#;
+
+        let path: PathBuf = "/tmp/config-node.toml".into();
+
+        NullableFilesystem::new().write(&path, toml_write).unwrap();
+
+        let toml_read = NullableFilesystem::new().read_to_string(&path).unwrap();
+
+        let toml_config: ActiveElectionsConfigToml =
+            toml::from_str(&toml_read).expect("Failed to deserialize TOML");
+
+        let config: ActiveElectionsConfig = toml_config.into();
+
+        assert_eq!(config.size, config.size);
+        assert_eq!(
+            config.hinted_limit_percentage,
+            config.hinted_limit_percentage
+        );
+        assert_eq!(
+            config.optimistic_limit_percentage,
+            config.optimistic_limit_percentage
+        );
         assert_eq!(
             config.confirmation_history_size,
             config.confirmation_history_size

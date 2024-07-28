@@ -1,7 +1,7 @@
 use crate::cli::{get_path, init_tracing};
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
-use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
+use rsnano_core::work::WorkPoolImpl;
 use rsnano_node::{
     config::{
         get_node_toml_config_path, DaemonConfigToml, NetworkConstants, NodeConfig, NodeFlags,
@@ -132,17 +132,13 @@ impl RunDaemonArgs {
 
         let node_toml_config_path = get_node_toml_config_path(&path);
 
-        let mut node_config = NodeConfig::default(
-            Some(network_params.network.default_node_port),
-            &network_params,
-            get_cpu_count(),
-        );
+        let mut node_config = NodeConfig::default();
 
         if node_toml_config_path.exists() {
             let toml_str = read_node_config_toml(&node_toml_config_path)?;
             let toml_daemon_config: DaemonConfigToml = from_str(&toml_str)?;
             if let Some(toml_node_config) = toml_daemon_config.node {
-                node_config.config_toml_override(&toml_node_config);
+                node_config = toml_node_config.into();
             }
         }
 
