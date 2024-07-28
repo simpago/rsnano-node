@@ -11,6 +11,7 @@ use tracing_subscriber::EnvFilter;
 mod commands;
 
 #[derive(Parser)]
+#[command(name = "rsnano_node")]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,

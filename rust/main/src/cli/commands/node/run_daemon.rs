@@ -1,3 +1,4 @@
+use super::read_node_config_toml;
 use crate::cli::{get_path, init_tracing};
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
@@ -19,8 +20,6 @@ use std::{
 use toml::from_str;
 use tracing_subscriber::EnvFilter;
 
-use super::read_node_config_toml;
-
 #[derive(Parser)]
 #[command(group = ArgGroup::new("input")
     .args(&["data_path", "network"]))]
@@ -31,12 +30,12 @@ pub(crate) struct RunDaemonArgs {
     /// Uses the supplied network (live, test, beta or dev)
     #[arg(long, group = "input")]
     network: Option<String>,
-    /// Pass node configuration values
+    /// Passes node configuration values
     /// This takes precedence over any values in the configuration file
     /// This option can be repeated multiple times
     #[arg(long, verbatim_doc_comment)]
     config_overrides: Option<Vec<String>>,
-    /// Pass RPC configuration values
+    /// Passes RPC configuration values
     /// This takes precedence over any values in the configuration file
     /// This option can be repeated multiple times.
     #[arg(long, verbatim_doc_comment)]
@@ -44,20 +43,20 @@ pub(crate) struct RunDaemonArgs {
     /// Disables activate_successors in active_elections
     #[arg(long)]
     disable_activate_successors: bool,
-    /// Turn off automatic wallet backup process
+    /// Turns off automatic wallet backup process
     #[arg(long)]
     disable_backup: bool,
-    /// Turn off use of lazy bootstrap
+    /// Turns off use of lazy bootstrap
     #[arg(long)]
     disable_lazy_bootstrap: bool,
-    /// Turn off use of legacy bootstrap
+    /// Turns off use of legacy bootstrap
     #[arg(long)]
     disable_legacy_bootstrap: bool,
-    /// Turn off use of wallet-based bootstrap
+    /// Turns off use of wallet-based bootstrap
     #[arg(long)]
     disable_wallet_bootstrap: bool,
-    /// Turn off listener on the bootstrap network so incoming TCP (bootstrap) connections are rejected
-    /// Note: this does not impact TCP traffic for the live network.
+    /// Turns off listener on the bootstrap network so incoming TCP (bootstrap) connections are rejected
+    /// This does not impact TCP traffic for the live network
     #[arg(long, verbatim_doc_comment)]
     disable_bootstrap_listener: bool,
     /// Disables the legacy bulk pull server for bootstrap operations
@@ -66,52 +65,54 @@ pub(crate) struct RunDaemonArgs {
     /// Disables the legacy bulk push client for bootstrap operations
     #[arg(long)]
     disable_bootstrap_bulk_push_client: bool,
-    /// Turn off the ability for ongoing bootstraps to occur
+    /// Turns off the ability for ongoing bootstraps to occur
     #[arg(long)]
     disable_ongoing_bootstrap: bool,
-    /// Disable ascending bootstrap
+    /// Disables ascending bootstrap
     #[arg(long)]
     disable_ascending_bootstrap: bool,
-    /// Turn off the request loop
+    /// Turns off the request loop
     #[arg(long)]
     disable_request_loop: bool,
-    /// Turn off the rep crawler process
+    /// Turns off the rep crawler process
     #[arg(long)]
     disable_rep_crawler: bool,
-    /// Turn off use of TCP live network (TCP for bootstrap will remain available)
+    /// Turns off use of TCP live network (TCP for bootstrap will remain available)
     #[arg(long)]
     disable_tcp_realtime: bool,
-    /// Do not provide any telemetry data to nodes requesting it. Responses are still made to requests, but they will have an empty payload.
-    #[arg(long)]
+    /// Does not provide any telemetry data to nodes requesting it
+    /// Responses are still made to requests, but they will have an empty payload
+    #[arg(long, verbatim_doc_comment)]
     disable_providing_telemetry_metrics: bool,
     /// Disables ongoing telemetry requests to peers
     #[arg(long)]
     disable_ongoing_telemetry_requests: bool,
-    /// Disable deletion of unchecked blocks after processing.
+    /// Disables deletion of unchecked blocks after processing
     #[arg(long)]
     disable_block_processor_unchecked_deletion: bool,
     /// Disables block republishing by disabling the local_block_broadcaster component
     #[arg(long)]
     disable_block_processor_republishing: bool,
-    /// Allow multiple connections to the same peer in bootstrap attempts
+    /// Allows multiple connections to the same peer in bootstrap attempts
     #[arg(long)]
     allow_bootstrap_peers_duplicates: bool,
-    /// Enable experimental ledger pruning
+    /// Enables experimental ledger pruning
     #[arg(long)]
     enable_pruning: bool,
-    /// Increase bootstrap processor limits to allow more blocks before hitting full state and verify/write more per database call. Also disable deletion of processed unchecked blocks.
-    #[arg(long)]
+    /// Increases bootstrap processor limits to allow more blocks before hitting full state and verify/write more per database call
+    /// Also disables deletion of processed unchecked blocks
+    #[arg(long, verbatim_doc_comment)]
     fast_bootstrap: bool,
-    /// Increase block processor transaction batch write size, default 0 (limited by config block_processor_batch_max_time), 256k for fast_bootstrap
-    #[arg(long)]
+    /// Increases block processor transaction batch write size
+    #[arg(long, verbatim_doc_comment)]
     block_processor_batch_size: Option<usize>,
-    /// Increase block processor allowed blocks queue size before dropping live network packets and holding bootstrap download, default 65536, 1 million for fast_bootstrap
-    #[arg(long)]
+    /// Increases block processor allowed blocks queue size before dropping live network packets and holding bootstrap download
+    #[arg(long, verbatim_doc_comment)]
     block_processor_full_size: Option<usize>,
-    /// Increase batch signature verification size in block processor, default 0 (limited by config signature_checker_threads), unlimited for fast_bootstrap
-    #[arg(long)]
+    /// Increases batch signature verification size in block processor
+    #[arg(long, verbatim_doc_comment)]
     block_processor_verification_size: Option<usize>,
-    /// Vote processor queue size before dropping votes, default 144k
+    /// Increases vote processor queue size before dropping votes
     #[arg(long)]
     vote_processor_capacity: Option<usize>,
 }
