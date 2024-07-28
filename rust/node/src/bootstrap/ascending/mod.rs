@@ -38,8 +38,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub use account_sets::AccountSetsConfig;
-
 enum VerifyResult {
     Ok,
     NothingNew,

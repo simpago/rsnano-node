@@ -1,6 +1,6 @@
 mod active_elections_config;
 mod block_processor_config;
-mod bootstrap_ascending_config;
+mod bootstrap_ascending;
 mod bootstrap_server_config;
 mod diagnostics_config;
 mod hinted_scheduler_config;
@@ -21,7 +21,7 @@ mod websocket_config;
 
 pub use active_elections_config::*;
 pub use block_processor_config::*;
-pub use bootstrap_ascending_config::*;
+pub use bootstrap_ascending::*;
 pub use bootstrap_server_config::*;
 pub use diagnostics_config::*;
 pub use hinted_scheduler_config::*;

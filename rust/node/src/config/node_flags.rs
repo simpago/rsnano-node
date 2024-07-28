@@ -1,6 +1,5 @@
-use rsnano_ledger::GenerateCacheFlags;
-
 use super::BlockProcessorConfig;
+use rsnano_ledger::GenerateCacheFlags;
 
 #[derive(Clone)]
 pub struct NodeFlags {

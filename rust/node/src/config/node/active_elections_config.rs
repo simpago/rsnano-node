@@ -1,5 +1,53 @@
-use crate::{config::TomlConfigOverride, consensus::ActiveElectionsConfig};
+use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug)]
+pub struct ActiveElectionsConfig {
+    // Maximum number of simultaneous active elections (AEC size)
+    pub size: usize,
+    // Limit of hinted elections as percentage of `active_elections_size`
+    pub hinted_limit_percentage: usize,
+    // Limit of optimistic elections as percentage of `active_elections_size`
+    pub optimistic_limit_percentage: usize,
+    // Maximum confirmation history size
+    pub confirmation_history_size: usize,
+    // Maximum cache size for recently_confirmed
+    pub confirmation_cache: usize,
+}
+
+impl ActiveElectionsConfig {
+    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
+        toml.put_usize ("size", self.size, "Number of active elections. Elections beyond this limit have limited survival time.\nWarning: modifying this value may result in a lower confirmation rate. \ntype:uint64,[250..]")?;
+
+        toml.put_usize(
+            "hinted_limit_percentage",
+            self.hinted_limit_percentage,
+            "Limit of hinted elections as percentage of `active_elections_size` \ntype:uint64",
+        )?;
+
+        toml.put_usize(
+            "optimistic_limit_percentage",
+            self.optimistic_limit_percentage,
+            "Limit of optimistic elections as percentage of `active_elections_size`. \ntype:uint64",
+        )?;
+
+        toml.put_usize ("confirmation_history_size", self.confirmation_history_size, "Maximum confirmation history size. If tracking the rate of block confirmations, the websocket feature is recommended instead. \ntype:uint64")?;
+
+        toml.put_usize ("confirmation_cache", self.confirmation_cache, "Maximum number of confirmed elections kept in cache to prevent restarting an election. \ntype:uint64")
+    }
+}
+
+impl Default for ActiveElectionsConfig {
+    fn default() -> Self {
+        Self {
+            size: 5000,
+            hinted_limit_percentage: 20,
+            optimistic_limit_percentage: 10,
+            confirmation_history_size: 2048,
+            confirmation_cache: 65536,
+        }
+    }
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ActiveElectionsConfigToml {
@@ -10,8 +58,8 @@ pub struct ActiveElectionsConfigToml {
     pub confirmation_cache: Option<usize>,
 }
 
-impl From<ActiveElectionsConfig> for ActiveElectionsConfigToml {
-    fn from(config: ActiveElectionsConfig) -> Self {
+impl From<&ActiveElectionsConfig> for ActiveElectionsConfigToml {
+    fn from(config: &ActiveElectionsConfig) -> Self {
         Self {
             size: Some(config.size),
             hinted_limit_percentage: Some(config.hinted_limit_percentage),

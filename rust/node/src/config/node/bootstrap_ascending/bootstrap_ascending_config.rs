@@ -1,7 +1,5 @@
-use crate::{
-    bootstrap::AccountSetsConfig,
-    config::{Miliseconds, TomlConfigOverride},
-};
+use super::{AccountSetsConfig, AccountSetsToml};
+use crate::config::Miliseconds;
 use rsnano_core::utils::TomlWriter;
 use rsnano_messages::BlocksAckPayload;
 use serde::{Deserialize, Serialize};
@@ -81,43 +79,46 @@ impl BootstrapAscendingConfig {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, BootstrapAscendingConfigToml> for BootstrapAscendingConfig {
-    fn toml_config_override(&mut self, toml: &'de BootstrapAscendingConfigToml) {
+impl From<&BootstrapAscendingConfigToml> for BootstrapAscendingConfig {
+    fn from(toml: &BootstrapAscendingConfigToml) -> Self {
+        let mut config = BootstrapAscendingConfig::default();
+
         if let Some(account_sets) = &toml.account_sets {
             if let Some(blocking_max) = account_sets.blocking_max {
-                self.account_sets.blocking_max = blocking_max;
+                config.account_sets.blocking_max = blocking_max;
             }
             if let Some(consideration_count) = account_sets.consideration_count {
-                self.account_sets.consideration_count = consideration_count;
+                config.account_sets.consideration_count = consideration_count;
             }
             if let Some(priorities_max) = account_sets.priorities_max {
-                self.account_sets.priorities_max = priorities_max;
+                config.account_sets.priorities_max = priorities_max;
             }
             if let Some(cooldown) = &account_sets.cooldown {
-                self.account_sets.cooldown = Duration::from_millis(cooldown.0 as u64);
+                config.account_sets.cooldown = Duration::from_millis(cooldown.0 as u64);
             }
         }
         if let Some(block_wait_count) = toml.block_wait_count {
-            self.block_wait_count = block_wait_count;
+            config.block_wait_count = block_wait_count;
         }
         if let Some(database_requests_limit) = toml.database_requests_limit {
-            self.database_requests_limit = database_requests_limit;
+            config.database_requests_limit = database_requests_limit;
         }
         if let Some(pull_count) = toml.pull_count {
-            self.pull_count = pull_count;
+            config.pull_count = pull_count;
         }
         if let Some(requests_limit) = toml.requests_limit {
-            self.requests_limit = requests_limit;
+            config.requests_limit = requests_limit;
         }
         if let Some(timeout) = &toml.timeout {
-            self.timeout = Duration::from_millis(timeout.0 as u64);
+            config.timeout = Duration::from_millis(timeout.0 as u64);
         }
         if let Some(throttle_wait) = &toml.throttle_wait {
-            self.throttle_wait = Duration::from_millis(throttle_wait.0 as u64);
+            config.throttle_wait = Duration::from_millis(throttle_wait.0 as u64);
         }
         if let Some(throttle_coefficient) = toml.throttle_coefficient {
-            self.throttle_coefficient = throttle_coefficient;
+            config.throttle_coefficient = throttle_coefficient;
         }
+        config
     }
 }
 
@@ -133,45 +134,5 @@ impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
             account_sets: Some(config.account_sets.into()),
             block_wait_count: Some(config.block_wait_count),
         }
-    }
-}
-
-#[derive(Deserialize, Serialize, Default)]
-pub struct AccountSetsToml {
-    pub consideration_count: Option<usize>,
-    pub priorities_max: Option<usize>,
-    pub blocking_max: Option<usize>,
-    pub cooldown: Option<Miliseconds>,
-}
-
-impl From<AccountSetsConfig> for AccountSetsToml {
-    fn from(value: AccountSetsConfig) -> Self {
-        Self {
-            consideration_count: Some(value.consideration_count),
-            priorities_max: Some(value.priorities_max),
-            blocking_max: Some(value.blocking_max),
-            cooldown: Some(Miliseconds(value.cooldown.as_millis())),
-        }
-    }
-}
-
-impl AccountSetsConfig {
-    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize ("consideration_count", self.consideration_count, "Limit the number of account candidates to consider and also the number of iterations.\ntype:uint64")?;
-        toml.put_usize(
-            "priorities_max",
-            self.priorities_max,
-            "Cutoff size limit for the priority list.\ntype:uint64",
-        )?;
-        toml.put_usize(
-            "blocking_max",
-            self.blocking_max,
-            "Cutoff size limit for the blocked accounts from the priority list.\ntype:uint64",
-        )?;
-        toml.put_u64(
-            "cooldown",
-            self.cooldown.as_millis() as u64,
-            "Waiting time for an account to become available.\ntype:milliseconds",
-        )
     }
 }

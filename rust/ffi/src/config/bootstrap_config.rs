@@ -1,8 +1,6 @@
-use rsnano_node::{
-    bootstrap::AccountSetsConfig,
-    config::{
-        AccountSetsToml, BootstrapAscendingConfig, BootstrapAscendingConfigToml, Miliseconds,
-    },
+use rsnano_node::config::{
+    AccountSetsConfig, AccountSetsToml, BootstrapAscendingConfig, BootstrapAscendingConfigToml,
+    Miliseconds,
 };
 use std::time::Duration;
 

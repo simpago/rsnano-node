@@ -1,10 +1,10 @@
 use super::{
-    ActiveElectionsConfigToml, BlockProcessorConfig, BootstrapAscendingConfig,
-    BootstrapServerConfig, BootstrapServerConfigToml, DiagnosticsConfig, DiagnosticsConfigToml,
-    HintedSchedulerConfig, IpcConfigToml, LmdbConfigToml, MessageProcessorConfigToml,
-    MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml, PriorityBucketConfigToml,
-    RequestAggregatorConfigToml, StatsConfig, StatsConfigToml, VoteCacheConfig,
-    VoteCacheConfigToml, VoteProcessorConfigToml, WebsocketConfig,
+    ActiveElectionsConfig, ActiveElectionsConfigToml, BlockProcessorConfig,
+    BootstrapAscendingConfig, BootstrapServerConfig, BootstrapServerConfigToml, DiagnosticsConfig,
+    DiagnosticsConfigToml, HintedSchedulerConfig, IpcConfigToml, LmdbConfigToml,
+    MessageProcessorConfigToml, MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml,
+    PriorityBucketConfigToml, RequestAggregatorConfigToml, StatsConfig, StatsConfigToml,
+    VoteCacheConfig, VoteCacheConfigToml, VoteProcessorConfigToml, WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
 use crate::config::{Miliseconds, NetworkConstants, OptimisticSchedulerConfig, TomlConfigOverride};
@@ -12,9 +12,7 @@ use crate::{
     block_processing::LocalBlockBroadcasterConfig,
     bootstrap::BootstrapInitiatorConfig,
     cementation::ConfirmingSetConfig,
-    consensus::{
-        ActiveElectionsConfig, PriorityBucketConfig, RequestAggregatorConfig, VoteProcessorConfig,
-    },
+    consensus::{PriorityBucketConfig, RequestAggregatorConfig, VoteProcessorConfig},
     transport::{MessageProcessorConfig, TcpConfig},
     IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
@@ -675,7 +673,7 @@ pub struct NodeConfigToml {
     pub(crate) secondary_work_peers: Option<Vec<Peer>>,
     pub(crate) max_pruning_age_s: Option<i64>,
     pub(crate) max_pruning_depth: Option<u64>,
-    pub(crate) toml_websocket_config: Option<WebsocketConfigToml>,
+    pub(crate) websocket_config: Option<WebsocketConfigToml>,
     pub(crate) ipc_config: Option<IpcConfigToml>,
     pub(crate) diagnostics_config: Option<DiagnosticsConfigToml>,
     pub(crate) stat_config: Option<StatsConfigToml>,
@@ -857,9 +855,7 @@ impl From<NodeConfigToml> for NodeConfig {
                 .toml_config_override(priority_bucket_toml);
         }
         if let Some(bootstrap_ascending_toml) = &toml.bootstrap_ascending {
-            config
-                .bootstrap_ascending
-                .toml_config_override(bootstrap_ascending_toml);
+            config.bootstrap_ascending = bootstrap_ascending_toml.into();
         }
         if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
             config
@@ -875,7 +871,7 @@ impl From<NodeConfigToml> for NodeConfig {
         if let Some(max_pruning_depth) = toml.max_pruning_depth {
             config.max_pruning_depth = max_pruning_depth;
         }
-        if let Some(websocket_config_toml) = &toml.toml_websocket_config {
+        if let Some(websocket_config_toml) = &toml.websocket_config {
             config
                 .websocket_config
                 .toml_config_override(websocket_config_toml);
@@ -904,9 +900,7 @@ impl From<NodeConfigToml> for NodeConfig {
             config.vote_cache.toml_config_override(vote_cache_toml);
         }
         if let Some(block_processor_toml) = &toml.block_processor {
-            config
-                .block_processor
-                .toml_config_override(block_processor_toml);
+            config.block_processor = block_processor_toml.into();
         }
         if let Some(active_elections_toml) = &toml.active_elections {
             config.active_elections = active_elections_toml.into();
@@ -928,6 +922,9 @@ impl From<NodeConfigToml> for NodeConfig {
         }
         if let Some(monitor_toml) = &toml.monitor {
             config.monitor.toml_config_override(monitor_toml);
+        }
+        if let Some(callback_address) = toml.callback_address {
+            config.callback_address = callback_address;
         }
 
         config
@@ -985,7 +982,7 @@ impl From<NodeConfig> for NodeConfigToml {
             vote_generator_delay_ms: Some(node_config.vote_generator_delay_ms),
             vote_generator_threshold: Some(node_config.vote_generator_threshold),
             vote_minimum: Some(node_config.vote_minimum),
-            work_peers: Some(node_config.work_peers),
+            work_peers: Some(node_config.work_peers.clone()),
             work_threads: Some(node_config.work_threads),
             optimistic_scheduler: Some(node_config.optimistic_scheduler.into()),
             priority_bucket: Some(node_config.priority_bucket.into()),
@@ -994,14 +991,14 @@ impl From<NodeConfig> for NodeConfigToml {
             secondary_work_peers: Some(node_config.secondary_work_peers),
             max_pruning_age_s: Some(node_config.max_pruning_age_s),
             max_pruning_depth: Some(node_config.max_pruning_depth),
-            toml_websocket_config: Some(node_config.websocket_config.into()),
+            websocket_config: Some(node_config.websocket_config.into()),
             ipc_config: Some(node_config.ipc_config.into()),
             diagnostics_config: Some(node_config.diagnostics_config.into()),
             stat_config: Some(node_config.stat_config.into()),
             lmdb_config: Some(node_config.lmdb_config.into()),
             vote_cache: Some(node_config.vote_cache.into()),
-            block_processor: Some(node_config.block_processor.into()),
-            active_elections: Some(node_config.active_elections.into()),
+            block_processor: Some((&node_config.block_processor).into()),
+            active_elections: Some((&node_config.active_elections).into()),
             vote_processor: Some(node_config.vote_processor.into()),
             request_aggregator: Some(node_config.request_aggregator.into()),
             message_processor: Some(node_config.message_processor.into()),

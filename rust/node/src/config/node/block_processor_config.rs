@@ -1,4 +1,3 @@
-use crate::config::TomlConfigOverride;
 use rsnano_core::{utils::TomlWriter, work::WorkThresholds};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -37,23 +36,27 @@ impl Default for BlockProcessorConfig {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, BlockProcessorConfigToml> for BlockProcessorConfig {
-    fn toml_config_override(&mut self, toml: &'de BlockProcessorConfigToml) {
+impl From<&BlockProcessorConfigToml> for BlockProcessorConfig {
+    fn from(toml: &BlockProcessorConfigToml) -> Self {
+        let mut config = BlockProcessorConfig::default();
+
         if let Some(max_peer_queue) = toml.max_peer_queue {
-            self.max_peer_queue = max_peer_queue;
+            config.max_peer_queue = max_peer_queue;
         }
         if let Some(max_system_queue) = toml.max_system_queue {
-            self.max_system_queue = max_system_queue;
+            config.max_system_queue = max_system_queue;
         }
         if let Some(priority_live) = toml.priority_live {
-            self.priority_live = priority_live;
+            config.priority_live = priority_live;
         }
         if let Some(priority_local) = toml.priority_local {
-            self.priority_local = priority_local;
+            config.priority_local = priority_local;
         }
         if let Some(priority_bootstrap) = toml.priority_bootstrap {
-            self.priority_bootstrap = priority_bootstrap;
+            config.priority_bootstrap = priority_bootstrap;
         }
+
+        config
     }
 }
 
@@ -80,8 +83,8 @@ pub struct BlockProcessorConfigToml {
     pub priority_local: Option<usize>,
 }
 
-impl From<BlockProcessorConfig> for BlockProcessorConfigToml {
-    fn from(config: BlockProcessorConfig) -> Self {
+impl From<&BlockProcessorConfig> for BlockProcessorConfigToml {
+    fn from(config: &BlockProcessorConfig) -> Self {
         Self {
             max_peer_queue: Some(config.max_peer_queue),
             max_system_queue: Some(config.max_system_queue),

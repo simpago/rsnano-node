@@ -6,7 +6,7 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     cementation::ConfirmingSet,
-    config::{NodeConfig, NodeFlags},
+    config::{ActiveElectionsConfig, NodeConfig, NodeFlags},
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
@@ -17,7 +17,7 @@ use crate::{
 };
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent, MemoryStream, TomlWriter},
+    utils::{ContainerInfo, ContainerInfoComponent, MemoryStream},
     Account, Amount, BlockEnum, BlockHash, BlockType, QualifiedRoot, Vote, VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
@@ -41,54 +41,6 @@ pub type ElectionEndCallback = Box<
 >;
 
 pub type AccountBalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
-
-#[derive(Clone, Debug)]
-pub struct ActiveElectionsConfig {
-    // Maximum number of simultaneous active elections (AEC size)
-    pub size: usize,
-    // Limit of hinted elections as percentage of `active_elections_size`
-    pub hinted_limit_percentage: usize,
-    // Limit of optimistic elections as percentage of `active_elections_size`
-    pub optimistic_limit_percentage: usize,
-    // Maximum confirmation history size
-    pub confirmation_history_size: usize,
-    // Maximum cache size for recently_confirmed
-    pub confirmation_cache: usize,
-}
-
-impl ActiveElectionsConfig {
-    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize ("size", self.size, "Number of active elections. Elections beyond this limit have limited survival time.\nWarning: modifying this value may result in a lower confirmation rate. \ntype:uint64,[250..]")?;
-
-        toml.put_usize(
-            "hinted_limit_percentage",
-            self.hinted_limit_percentage,
-            "Limit of hinted elections as percentage of `active_elections_size` \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "optimistic_limit_percentage",
-            self.optimistic_limit_percentage,
-            "Limit of optimistic elections as percentage of `active_elections_size`. \ntype:uint64",
-        )?;
-
-        toml.put_usize ("confirmation_history_size", self.confirmation_history_size, "Maximum confirmation history size. If tracking the rate of block confirmations, the websocket feature is recommended instead. \ntype:uint64")?;
-
-        toml.put_usize ("confirmation_cache", self.confirmation_cache, "Maximum number of confirmed elections kept in cache to prevent restarting an election. \ntype:uint64")
-    }
-}
-
-impl Default for ActiveElectionsConfig {
-    fn default() -> Self {
-        Self {
-            size: 5000,
-            hinted_limit_percentage: 20,
-            optimistic_limit_percentage: 10,
-            confirmation_history_size: 2048,
-            confirmation_cache: 65536,
-        }
-    }
-}
 
 pub struct ActiveElections {
     relative_time: Instant,
