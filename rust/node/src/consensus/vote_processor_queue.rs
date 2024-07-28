@@ -1,5 +1,6 @@
-use super::{RepTier, RepTiers, VoteProcessorConfig};
+use super::{RepTier, RepTiers};
 use crate::{
+    config::VoteProcessorConfig,
     stats::{DetailType, StatType, Stats},
     transport::{ChannelEnum, FairQueue, Origin},
 };

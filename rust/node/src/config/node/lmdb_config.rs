@@ -1,4 +1,3 @@
-use crate::config::TomlConfigOverride;
 use rsnano_store_lmdb::{LmdbConfig, SyncStrategy};
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +8,8 @@ pub struct LmdbConfigToml {
     pub map_size: Option<usize>,
 }
 
-impl From<LmdbConfig> for LmdbConfigToml {
-    fn from(config: LmdbConfig) -> Self {
+impl From<&LmdbConfig> for LmdbConfigToml {
+    fn from(config: &LmdbConfig) -> Self {
         Self {
             sync: Some(config.sync),
             max_databases: Some(config.max_databases),
@@ -19,16 +18,19 @@ impl From<LmdbConfig> for LmdbConfigToml {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, LmdbConfigToml> for LmdbConfig {
-    fn toml_config_override(&mut self, toml: &'de LmdbConfigToml) {
+impl From<&LmdbConfigToml> for LmdbConfig {
+    fn from(toml: &LmdbConfigToml) -> Self {
+        let mut config = LmdbConfig::default();
+
         if let Some(sync) = toml.sync {
-            self.sync = sync;
+            config.sync = sync;
         }
         if let Some(max_databases) = toml.max_databases {
-            self.max_databases = max_databases;
+            config.max_databases = max_databases;
         }
         if let Some(map_size) = toml.map_size {
-            self.map_size = map_size;
+            config.map_size = map_size;
         }
+        config
     }
 }

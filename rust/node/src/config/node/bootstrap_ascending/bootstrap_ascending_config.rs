@@ -122,8 +122,8 @@ impl From<&BootstrapAscendingConfigToml> for BootstrapAscendingConfig {
     }
 }
 
-impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
-    fn from(config: BootstrapAscendingConfig) -> Self {
+impl From<&BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
+    fn from(config: &BootstrapAscendingConfig) -> Self {
         Self {
             requests_limit: Some(config.requests_limit),
             database_requests_limit: Some(config.database_requests_limit),
@@ -131,7 +131,7 @@ impl From<BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
             timeout: Some(Miliseconds(config.timeout.as_millis())),
             throttle_coefficient: Some(config.throttle_coefficient),
             throttle_wait: Some(Miliseconds(config.throttle_wait.as_millis())),
-            account_sets: Some(config.account_sets.into()),
+            account_sets: Some((&config.account_sets).into()),
             block_wait_count: Some(config.block_wait_count),
         }
     }

@@ -1,4 +1,3 @@
-use crate::config::TomlConfigOverride;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
@@ -37,8 +36,8 @@ pub struct TxnTrackingConfigToml {
     pub ignore_writes_below_block_processor_max_time: Option<bool>,
 }
 
-impl From<TxnTrackingConfig> for TxnTrackingConfigToml {
-    fn from(config: TxnTrackingConfig) -> Self {
+impl From<&TxnTrackingConfig> for TxnTrackingConfigToml {
+    fn from(config: &TxnTrackingConfig) -> Self {
         Self {
             enable: Some(config.enable),
             min_read_txn_time_ms: Some(config.min_read_txn_time_ms),
@@ -84,32 +83,37 @@ pub struct DiagnosticsConfigToml {
     pub txn_tracking: TxnTrackingConfigToml,
 }
 
-impl From<DiagnosticsConfig> for DiagnosticsConfigToml {
-    fn from(config: DiagnosticsConfig) -> Self {
+impl From<&DiagnosticsConfig> for DiagnosticsConfigToml {
+    fn from(config: &DiagnosticsConfig) -> Self {
         Self {
-            txn_tracking: config.txn_tracking.into(),
+            txn_tracking: (&config.txn_tracking).into(),
         }
     }
 }
 
-impl<'de> TomlConfigOverride<'de, DiagnosticsConfigToml> for DiagnosticsConfig {
-    fn toml_config_override(&mut self, toml: &'de DiagnosticsConfigToml) {
+impl From<&DiagnosticsConfigToml> for DiagnosticsConfig {
+    fn from(toml: &DiagnosticsConfigToml) -> Self {
+        let mut config = DiagnosticsConfig::default();
+
         if let Some(enable) = toml.txn_tracking.enable {
-            self.txn_tracking.enable = enable;
+            config.txn_tracking.enable = enable;
         }
         if let Some(ignore_writes_below_block_processor_max_time) = toml
             .txn_tracking
             .ignore_writes_below_block_processor_max_time
         {
-            self.txn_tracking
+            config
+                .txn_tracking
                 .ignore_writes_below_block_processor_max_time =
                 ignore_writes_below_block_processor_max_time;
         }
         if let Some(min_read_txn_time_ms) = toml.txn_tracking.min_read_txn_time_ms {
-            self.txn_tracking.min_read_txn_time_ms = min_read_txn_time_ms;
+            config.txn_tracking.min_read_txn_time_ms = min_read_txn_time_ms;
         }
         if let Some(min_write_txn_time_ms) = toml.txn_tracking.min_write_txn_time_ms {
-            self.txn_tracking.min_write_txn_time_ms = min_write_txn_time_ms;
+            config.txn_tracking.min_write_txn_time_ms = min_write_txn_time_ms;
         }
+
+        config
     }
 }

@@ -1,4 +1,3 @@
-use crate::config::TomlConfigOverride;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -40,8 +39,8 @@ pub struct MonitorConfigToml {
     pub interval: Option<u64>,
 }
 
-impl From<MonitorConfig> for MonitorConfigToml {
-    fn from(config: MonitorConfig) -> Self {
+impl From<&MonitorConfig> for MonitorConfigToml {
+    fn from(config: &MonitorConfig) -> Self {
         Self {
             enabled: Some(config.enabled),
             interval: Some(config.interval.as_secs()),
@@ -49,13 +48,16 @@ impl From<MonitorConfig> for MonitorConfigToml {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, MonitorConfigToml> for MonitorConfig {
-    fn toml_config_override(&mut self, toml: &'de MonitorConfigToml) {
+impl From<&MonitorConfigToml> for MonitorConfig {
+    fn from(toml: &MonitorConfigToml) -> Self {
+        let mut config = MonitorConfig::default();
+
         if let Some(enabled) = toml.enabled {
-            self.enabled = enabled;
+            config.enabled = enabled;
         }
         if let Some(interval) = &toml.interval {
-            self.interval = Duration::from_secs(*interval);
+            config.interval = Duration::from_secs(*interval);
         }
+        config
     }
 }

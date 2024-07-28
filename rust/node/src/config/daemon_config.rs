@@ -114,7 +114,7 @@ impl From<DaemonConfig> for DaemonConfigToml {
         Self {
             node: Some(config.node.into()),
             rpc: Some(config.rpc.into()),
-            opencl: Some(config.opencl.into()),
+            opencl: Some((&config.opencl).into()),
         }
     }
 }

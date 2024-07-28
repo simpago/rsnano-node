@@ -1,4 +1,3 @@
-use crate::config::TomlConfigOverride;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
@@ -44,8 +43,8 @@ pub struct OptimisticSchedulerConfigToml {
     pub max_size: Option<usize>,
 }
 
-impl From<OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
-    fn from(config: OptimisticSchedulerConfig) -> Self {
+impl From<&OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
+    fn from(config: &OptimisticSchedulerConfig) -> Self {
         Self {
             enabled: Some(config.enabled),
             gap_threshold: Some(config.gap_threshold),
@@ -54,16 +53,19 @@ impl From<OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, OptimisticSchedulerConfigToml> for OptimisticSchedulerConfig {
-    fn toml_config_override(&mut self, toml: &'de OptimisticSchedulerConfigToml) {
+impl From<&OptimisticSchedulerConfigToml> for OptimisticSchedulerConfig {
+    fn from(toml: &OptimisticSchedulerConfigToml) -> Self {
+        let mut config = OptimisticSchedulerConfig::new();
+
         if let Some(enabled) = toml.enabled {
-            self.enabled = enabled;
+            config.enabled = enabled;
         }
         if let Some(gap_threshold) = toml.gap_threshold {
-            self.gap_threshold = gap_threshold;
+            config.gap_threshold = gap_threshold;
         }
         if let Some(max_size) = toml.max_size {
-            self.max_size = max_size;
+            config.max_size = max_size;
         }
+        config
     }
 }

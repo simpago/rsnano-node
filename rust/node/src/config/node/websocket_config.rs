@@ -1,4 +1,4 @@
-use crate::config::{NetworkConstants, TomlConfigOverride};
+use crate::config::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
@@ -40,17 +40,32 @@ impl WebsocketConfig {
     }
 }
 
-impl<'de> TomlConfigOverride<'de, WebsocketConfigToml> for WebsocketConfig {
-    fn toml_config_override(&mut self, toml: &'de WebsocketConfigToml) {
+impl Default for WebsocketConfig {
+    fn default() -> Self {
+        let network = NetworkConstants::empty();
+
+        Self {
+            enabled: false,
+            port: network.default_websocket_port,
+            address: Ipv6Addr::LOCALHOST.to_string(),
+        }
+    }
+}
+
+impl From<&WebsocketConfigToml> for WebsocketConfig {
+    fn from(toml: &WebsocketConfigToml) -> Self {
+        let mut config = WebsocketConfig::default();
+
         if let Some(enabled) = toml.enabled {
-            self.enabled = enabled;
+            config.enabled = enabled;
         }
         if let Some(port) = toml.port {
-            self.port = port;
+            config.port = port;
         }
         if let Some(address) = &toml.address {
-            self.address = address.clone();
+            config.address = address.clone();
         }
+        config
     }
 }
 

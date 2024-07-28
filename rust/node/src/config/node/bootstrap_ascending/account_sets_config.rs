@@ -32,8 +32,8 @@ pub struct AccountSetsToml {
     pub cooldown: Option<Miliseconds>,
 }
 
-impl From<AccountSetsConfig> for AccountSetsToml {
-    fn from(value: AccountSetsConfig) -> Self {
+impl From<&AccountSetsConfig> for AccountSetsToml {
+    fn from(value: &AccountSetsConfig) -> Self {
         Self {
             consideration_count: Some(value.consideration_count),
             priorities_max: Some(value.priorities_max),

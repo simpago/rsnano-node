@@ -3,57 +3,19 @@ use super::{
     VoteGenerators,
 };
 use crate::{
+    config::RequestAggregatorConfig,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
 };
-use rsnano_core::{
-    utils::{ContainerInfoComponent, TomlWriter},
-    BlockHash, NoValue, Root, Vote,
-};
+use rsnano_core::{utils::ContainerInfoComponent, BlockHash, NoValue, Root, Vote};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
-    cmp::{max, min},
     sync::{Arc, Condvar, Mutex, MutexGuard},
     thread::JoinHandle,
 };
 use tracing::trace;
-
-#[derive(Debug, Clone)]
-pub struct RequestAggregatorConfig {
-    pub threads: usize,
-    pub max_queue: usize,
-    pub batch_size: usize,
-}
-
-impl RequestAggregatorConfig {
-    pub fn new(parallelism: usize) -> Self {
-        Self {
-            threads: max(1, min(parallelism / 2, 4)),
-            max_queue: 128,
-            batch_size: 16,
-        }
-    }
-
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_queue",
-            self.max_queue,
-            "Maximum number of queued requests per peer. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "threads",
-            self.threads,
-            "Number of threads for request processing. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "batch_size",
-            self.batch_size,
-            "Number of requests to process in a single batch. \ntype:uint64",
-        )
-    }
-}
 
 /**
  * Pools together confirmation requests, separately for each endpoint.

@@ -1,20 +1,18 @@
 use super::{
     ActiveElectionsConfig, ActiveElectionsConfigToml, BlockProcessorConfig,
     BootstrapAscendingConfig, BootstrapServerConfig, BootstrapServerConfigToml, DiagnosticsConfig,
-    DiagnosticsConfigToml, HintedSchedulerConfig, IpcConfigToml, LmdbConfigToml,
-    MessageProcessorConfigToml, MonitorConfig, MonitorConfigToml, OptimisticSchedulerConfigToml,
-    PriorityBucketConfigToml, RequestAggregatorConfigToml, StatsConfig, StatsConfigToml,
-    VoteCacheConfig, VoteCacheConfigToml, VoteProcessorConfigToml, WebsocketConfig,
+    DiagnosticsConfigToml, HintedSchedulerConfig, IpcConfig, IpcConfigToml, LmdbConfigToml,
+    MessageProcessorConfig, MessageProcessorConfigToml, MonitorConfig, MonitorConfigToml,
+    OptimisticSchedulerConfigToml, PriorityBucketConfig, PriorityBucketConfigToml,
+    RequestAggregatorConfig, RequestAggregatorConfigToml, StatsConfig, StatsConfigToml,
+    VoteCacheConfig, VoteCacheConfigToml, VoteProcessorConfig, VoteProcessorConfigToml,
+    WebsocketConfig,
 };
 use super::{BlockProcessorConfigToml, BootstrapAscendingConfigToml, WebsocketConfigToml};
-use crate::config::{Miliseconds, NetworkConstants, OptimisticSchedulerConfig, TomlConfigOverride};
+use crate::config::{Miliseconds, NetworkConstants, OptimisticSchedulerConfig};
 use crate::{
-    block_processing::LocalBlockBroadcasterConfig,
-    bootstrap::BootstrapInitiatorConfig,
-    cementation::ConfirmingSetConfig,
-    consensus::{PriorityBucketConfig, RequestAggregatorConfig, VoteProcessorConfig},
-    transport::{MessageProcessorConfig, TcpConfig},
-    IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
+    block_processing::LocalBlockBroadcasterConfig, bootstrap::BootstrapInitiatorConfig,
+    cementation::ConfirmingSetConfig, transport::TcpConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -845,22 +843,16 @@ impl From<NodeConfigToml> for NodeConfig {
             config.work_threads = work_threads;
         }
         if let Some(optimistic_scheduler_toml) = &toml.optimistic_scheduler {
-            config
-                .optimistic_scheduler
-                .toml_config_override(optimistic_scheduler_toml);
+            config.optimistic_scheduler = optimistic_scheduler_toml.into();
         }
         if let Some(priority_bucket_toml) = &toml.priority_bucket {
-            config
-                .priority_bucket
-                .toml_config_override(priority_bucket_toml);
+            config.priority_bucket = priority_bucket_toml.into();
         }
         if let Some(bootstrap_ascending_toml) = &toml.bootstrap_ascending {
             config.bootstrap_ascending = bootstrap_ascending_toml.into();
         }
         if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
-            config
-                .bootstrap_server
-                .toml_config_override(bootstrap_server_toml);
+            config.bootstrap_server = bootstrap_server_toml.into();
         }
         if let Some(secondary_work_peers) = &toml.secondary_work_peers {
             config.secondary_work_peers = secondary_work_peers.clone();
@@ -872,23 +864,19 @@ impl From<NodeConfigToml> for NodeConfig {
             config.max_pruning_depth = max_pruning_depth;
         }
         if let Some(websocket_config_toml) = &toml.websocket_config {
-            config
-                .websocket_config
-                .toml_config_override(websocket_config_toml);
+            config.websocket_config = websocket_config_toml.into();
         }
         if let Some(ipc_config_toml) = &toml.ipc_config {
-            config.ipc_config.toml_config_override(ipc_config_toml);
+            config.ipc_config = ipc_config_toml.into();
         }
         if let Some(diagnostics_config_toml) = &toml.diagnostics_config {
-            config
-                .diagnostics_config
-                .toml_config_override(diagnostics_config_toml);
+            config.diagnostics_config = diagnostics_config_toml.into();
         }
         if let Some(stat_config_toml) = &toml.stat_config {
-            config.stat_config.toml_config_override(stat_config_toml);
+            config.stat_config = stat_config_toml.into();
         }
         if let Some(lmdb_config_toml) = &toml.lmdb_config {
-            config.lmdb_config.toml_config_override(lmdb_config_toml);
+            config.lmdb_config = lmdb_config_toml.into();
         }
         if let Some(backlog_scan_batch_size) = toml.backlog_scan_batch_size {
             config.backlog_scan_batch_size = backlog_scan_batch_size;
@@ -897,7 +885,7 @@ impl From<NodeConfigToml> for NodeConfig {
             config.backlog_scan_frequency = backlog_scan_frequency;
         }
         if let Some(vote_cache_toml) = &toml.vote_cache {
-            config.vote_cache.toml_config_override(vote_cache_toml);
+            config.vote_cache = vote_cache_toml.into();
         }
         if let Some(block_processor_toml) = &toml.block_processor {
             config.block_processor = block_processor_toml.into();
@@ -906,22 +894,16 @@ impl From<NodeConfigToml> for NodeConfig {
             config.active_elections = active_elections_toml.into();
         }
         if let Some(vote_processor_toml) = &toml.vote_processor {
-            config
-                .vote_processor
-                .toml_config_override(vote_processor_toml);
+            config.vote_processor = vote_processor_toml.into();
         }
         if let Some(request_aggregator_toml) = &toml.request_aggregator {
-            config
-                .request_aggregator
-                .toml_config_override(request_aggregator_toml);
+            config.request_aggregator = request_aggregator_toml.into();
         }
         if let Some(message_processor_toml) = &toml.message_processor {
-            config
-                .message_processor
-                .toml_config_override(message_processor_toml);
+            config.message_processor = message_processor_toml.into();
         }
         if let Some(monitor_toml) = &toml.monitor {
-            config.monitor.toml_config_override(monitor_toml);
+            config.monitor = monitor_toml.into();
         }
         if let Some(callback_address) = toml.callback_address {
             config.callback_address = callback_address;
@@ -982,27 +964,27 @@ impl From<NodeConfig> for NodeConfigToml {
             vote_generator_delay_ms: Some(node_config.vote_generator_delay_ms),
             vote_generator_threshold: Some(node_config.vote_generator_threshold),
             vote_minimum: Some(node_config.vote_minimum),
-            work_peers: Some(node_config.work_peers.clone()),
+            work_peers: Some(node_config.work_peers),
             work_threads: Some(node_config.work_threads),
-            optimistic_scheduler: Some(node_config.optimistic_scheduler.into()),
-            priority_bucket: Some(node_config.priority_bucket.into()),
-            bootstrap_ascending: Some(node_config.bootstrap_ascending.into()),
-            bootstrap_server: Some(node_config.bootstrap_server.into()),
+            optimistic_scheduler: Some((&node_config.optimistic_scheduler).into()),
+            priority_bucket: Some((&node_config.priority_bucket).into()),
+            bootstrap_ascending: Some((&node_config.bootstrap_ascending).into()),
+            bootstrap_server: Some((&node_config.bootstrap_server).into()),
             secondary_work_peers: Some(node_config.secondary_work_peers),
             max_pruning_age_s: Some(node_config.max_pruning_age_s),
             max_pruning_depth: Some(node_config.max_pruning_depth),
             websocket_config: Some(node_config.websocket_config.into()),
             ipc_config: Some(node_config.ipc_config.into()),
-            diagnostics_config: Some(node_config.diagnostics_config.into()),
+            diagnostics_config: Some((&node_config.diagnostics_config).into()),
             stat_config: Some(node_config.stat_config.into()),
-            lmdb_config: Some(node_config.lmdb_config.into()),
-            vote_cache: Some(node_config.vote_cache.into()),
+            lmdb_config: Some((&node_config.lmdb_config).into()),
+            vote_cache: Some((&node_config.vote_cache).into()),
             block_processor: Some((&node_config.block_processor).into()),
             active_elections: Some((&node_config.active_elections).into()),
-            vote_processor: Some(node_config.vote_processor.into()),
-            request_aggregator: Some(node_config.request_aggregator.into()),
-            message_processor: Some(node_config.message_processor.into()),
-            monitor: Some(node_config.monitor.into()),
+            vote_processor: Some((&node_config.vote_processor).into()),
+            request_aggregator: Some((&node_config.request_aggregator).into()),
+            message_processor: Some((&node_config.message_processor).into()),
+            monitor: Some((&node_config.monitor).into()),
             callback_address: Some(node_config.callback_address),
             callback_port: Some(node_config.callback_port),
             callback_target: Some(node_config.callback_target),

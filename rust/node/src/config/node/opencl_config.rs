@@ -39,8 +39,8 @@ pub struct OpenclConfigToml {
     pub device: Option<u32>,
     pub threads: Option<u32>,
 }
-impl From<OpenclConfig> for OpenclConfigToml {
-    fn from(config: OpenclConfig) -> Self {
+impl From<&OpenclConfig> for OpenclConfigToml {
+    fn from(config: &OpenclConfig) -> Self {
         Self {
             platform: Some(config.platform),
             device: Some(config.device),

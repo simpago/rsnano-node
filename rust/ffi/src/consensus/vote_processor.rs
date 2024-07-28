@@ -1,7 +1,7 @@
 use super::VoteHandle;
 use crate::transport::ChannelHandle;
 use num::FromPrimitive;
-use rsnano_node::consensus::{VoteProcessor, VoteProcessorConfig};
+use rsnano_node::{config::VoteProcessorConfig, consensus::VoteProcessor};
 use std::{ffi::c_void, ops::Deref, sync::Arc};
 
 pub struct VoteProcessorHandle(pub Arc<VoteProcessor>);

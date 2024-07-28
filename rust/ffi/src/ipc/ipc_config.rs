@@ -1,7 +1,7 @@
 use crate::NetworkConstantsDto;
-use rsnano_node::{
-    config::NetworkConstants, IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers,
-    IpcConfigTcpSocket, IpcConfigTransport,
+use rsnano_node::config::{
+    IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers, IpcConfigTcpSocket, IpcConfigTransport,
+    NetworkConstants,
 };
 use std::{convert::TryFrom, os::unix::prelude::OsStrExt};
 

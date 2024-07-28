@@ -1,2 +1,1 @@
-mod ipc_config;
-pub use ipc_config::*;
+// todo:  ipc implementation

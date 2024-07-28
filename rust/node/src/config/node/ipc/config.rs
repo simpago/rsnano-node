@@ -1,3 +1,7 @@
+use super::toml::{
+    IpcConfigDomainSocketToml, IpcConfigFlatbuffersToml, IpcConfigTcpSocketToml, IpcConfigToml,
+    IpcConfigTransportToml,
+};
 use crate::config::NetworkConstants;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
@@ -87,6 +91,17 @@ pub struct IpcConfigTcpSocket {
     pub port: u16,
 }
 
+impl Default for IpcConfigTcpSocket {
+    fn default() -> Self {
+        let network_constants = NetworkConstants::empty();
+
+        Self {
+            transport: IpcConfigTransport::new(),
+            port: network_constants.default_ipc_port,
+        }
+    }
+}
+
 impl IpcConfigTcpSocket {
     pub fn new(network_constants: &NetworkConstants) -> Self {
         Self {
@@ -101,6 +116,18 @@ pub struct IpcConfig {
     pub transport_domain: IpcConfigDomainSocket,
     pub transport_tcp: IpcConfigTcpSocket,
     pub flatbuffers: IpcConfigFlatbuffers,
+}
+
+impl Default for IpcConfig {
+    fn default() -> Self {
+        let network_constants = &NetworkConstants::empty();
+
+        Self {
+            transport_domain: IpcConfigDomainSocket::new(),
+            transport_tcp: IpcConfigTcpSocket::new(network_constants),
+            flatbuffers: IpcConfigFlatbuffers::new(),
+        }
+    }
 }
 
 impl IpcConfig {
@@ -160,5 +187,78 @@ impl IpcConfig {
         })?;
 
         Ok(())
+    }
+}
+
+impl From<&IpcConfigToml> for IpcConfig {
+    fn from(toml: &IpcConfigToml) -> Self {
+        let mut config = IpcConfig::default();
+
+        if let Some(transport_domain) = &toml.transport_domain {
+            config.transport_domain = transport_domain.into();
+        }
+        if let Some(transport_tcp) = &toml.transport_tcp {
+            config.transport_tcp = transport_tcp.into();
+        }
+        if let Some(flatbuffers) = &toml.flatbuffers {
+            config.flatbuffers = flatbuffers.into();
+        }
+        config
+    }
+}
+
+impl From<&IpcConfigDomainSocketToml> for IpcConfigDomainSocket {
+    fn from(toml: &IpcConfigDomainSocketToml) -> Self {
+        let mut config = IpcConfigDomainSocket::new();
+
+        if let Some(transport) = &toml.transport {
+            config.transport = transport.into();
+        }
+        if let Some(path) = &toml.path {
+            config.path = path.clone();
+        }
+        config
+    }
+}
+
+impl From<&IpcConfigTcpSocketToml> for IpcConfigTcpSocket {
+    fn from(toml: &IpcConfigTcpSocketToml) -> Self {
+        let mut config = IpcConfigTcpSocket::default();
+
+        if let Some(transport) = &toml.transport {
+            config.transport = transport.into();
+        }
+        if let Some(port) = toml.port {
+            config.port = port;
+        }
+        config
+    }
+}
+
+impl From<&IpcConfigFlatbuffersToml> for IpcConfigFlatbuffers {
+    fn from(toml: &IpcConfigFlatbuffersToml) -> Self {
+        let mut config = IpcConfigFlatbuffers::new();
+
+        if let Some(skip_unexpected_fields_in_json) = toml.skip_unexpected_fields_in_json {
+            config.skip_unexpected_fields_in_json = skip_unexpected_fields_in_json;
+        }
+        if let Some(verify_buffers) = toml.verify_buffers {
+            config.verify_buffers = verify_buffers;
+        }
+        config
+    }
+}
+
+impl From<&IpcConfigTransportToml> for IpcConfigTransport {
+    fn from(toml: &IpcConfigTransportToml) -> Self {
+        let mut config = IpcConfigTransport::new();
+
+        if let Some(enabled) = toml.enabled {
+            config.enabled = enabled;
+        }
+        if let Some(io_timeout) = toml.io_timeout {
+            config.io_timeout = io_timeout;
+        }
+        config
     }
 }

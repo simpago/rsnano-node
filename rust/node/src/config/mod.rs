@@ -43,10 +43,6 @@ pub struct GlobalConfig {
     pub network_params: NetworkParams,
 }
 
-pub trait TomlConfigOverride<'de, T: Deserialize<'de> + Serialize> {
-    fn toml_config_override(&mut self, toml: &'de T);
-}
-
 #[derive(Clone, Default)]
 pub struct Miliseconds(pub u128);
 

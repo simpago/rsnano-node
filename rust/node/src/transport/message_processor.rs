@@ -1,9 +1,8 @@
 use super::{ChannelEnum, InboundMessageQueue, Origin, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
-use rsnano_core::{utils::TomlWriter, NoValue};
+use rsnano_core::NoValue;
 use rsnano_messages::DeserializedMessage;
 use std::{
-    cmp::{max, min},
     collections::VecDeque,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -13,37 +12,6 @@ use std::{
     time::Instant,
 };
 use tracing::debug;
-
-#[derive(Clone)]
-pub struct MessageProcessorConfig {
-    pub threads: usize,
-    pub max_queue: usize,
-}
-
-impl MessageProcessorConfig {
-    pub fn new(parallelism: usize) -> Self {
-        Self {
-            threads: min(2, max(parallelism / 4, 1)),
-            max_queue: 64,
-        }
-    }
-}
-
-impl MessageProcessorConfig {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "threads",
-            self.threads,
-            "Number of threads to use for message processing. \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "max_queue",
-            self.max_queue,
-            "Maximum number of messages per peer to queue for processing. \ntype:uint64",
-        )
-    }
-}
 
 /// Process inbound messages from other nodes
 pub struct MessageProcessor {
