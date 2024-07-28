@@ -26,7 +26,9 @@ use rsnano_core::{
     Account, Amount, Networks, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
+use std::str::FromStr;
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
 
 #[repr(u8)]
@@ -120,10 +122,53 @@ pub struct NodeConfig {
     pub monitor: MonitorConfig,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone)]
 pub struct Peer {
     pub address: String,
     pub port: u16,
+}
+
+impl fmt::Display for Peer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.address, self.port)
+    }
+}
+
+impl FromStr for Peer {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Invalid format".into());
+        }
+
+        let address = parts[0].to_string();
+        let port = parts[1]
+            .parse::<u16>()
+            .map_err(|_| "Invalid port".to_string())?;
+
+        Ok(Peer { address, port })
+    }
+}
+
+impl Serialize for Peer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Peer {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse::<Peer>().map_err(serde::de::Error::custom)
+    }
 }
 
 impl Peer {
@@ -857,6 +902,9 @@ pub struct NodeConfigToml {
     pub(crate) request_aggregator: Option<RequestAggregatorConfigToml>,
     pub(crate) message_processor: Option<MessageProcessorConfigToml>,
     pub(crate) monitor: Option<MonitorConfigToml>,
+    pub(crate) callback_address: Option<String>,
+    pub(crate) callback_port: Option<u16>,
+    pub(crate) callback_target: Option<String>,
 }
 
 impl From<NodeConfig> for NodeConfigToml {
@@ -931,6 +979,9 @@ impl From<NodeConfig> for NodeConfigToml {
             request_aggregator: Some(node_config.request_aggregator.into()),
             message_processor: Some(node_config.message_processor.into()),
             monitor: Some(node_config.monitor.into()),
+            callback_address: Some(node_config.callback_address),
+            callback_port: Some(node_config.callback_port),
+            callback_target: Some(node_config.callback_target),
         }
     }
 }

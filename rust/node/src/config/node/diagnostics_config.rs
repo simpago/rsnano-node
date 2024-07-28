@@ -1,8 +1,7 @@
+use crate::config::TomlConfigOverride;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
-
-use crate::config::TomlConfigOverride;
 
 #[derive(Clone)]
 pub struct TxnTrackingConfig {

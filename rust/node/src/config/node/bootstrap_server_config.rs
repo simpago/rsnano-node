@@ -1,7 +1,6 @@
+use crate::config::TomlConfigOverride;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
-
-use crate::config::TomlConfigOverride;
 
 #[derive(Clone, Debug)]
 pub struct BootstrapServerConfig {

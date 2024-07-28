@@ -1,8 +1,7 @@
+use crate::config::TomlConfigOverride;
 use rsnano_core::{utils::TomlWriter, work::WorkThresholds};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-
-use crate::config::TomlConfigOverride;
 
 #[derive(Clone)]
 pub struct BlockProcessorConfig {

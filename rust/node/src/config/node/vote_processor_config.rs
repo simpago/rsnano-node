@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{config::TomlConfigOverride, consensus::VoteProcessorConfig};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct VoteProcessorConfigToml {

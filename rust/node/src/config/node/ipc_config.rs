@@ -1,10 +1,9 @@
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-
 use crate::{
     config::TomlConfigOverride, IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers,
     IpcConfigTcpSocket, IpcConfigTransport,
 };
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Deserialize, Serialize)]
 pub struct IpcConfigToml {
@@ -22,9 +21,9 @@ pub struct IpcConfigDomainSocketToml {
 #[derive(Deserialize, Serialize)]
 pub struct IpcConfigTransportToml {
     pub enabled: Option<bool>,
-    pub allow_unsafe: Option<bool>,
+    //pub allow_unsafe: Option<bool>,
     pub io_timeout: Option<usize>,
-    pub io_threads: Option<i64>,
+    //pub io_threads: Option<i64>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -45,18 +44,18 @@ impl From<IpcConfig> for IpcConfigToml {
             transport_domain: Some(IpcConfigDomainSocketToml {
                 transport: Some(IpcConfigTransportToml {
                     enabled: Some(config.transport_domain.transport.enabled),
-                    allow_unsafe: Some(config.transport_domain.transport.allow_unsafe),
+                    //allow_unsafe: Some(config.transport_domain.transport.allow_unsafe),
                     io_timeout: Some(config.transport_domain.transport.io_timeout),
-                    io_threads: Some(config.transport_domain.transport.io_threads),
+                    //io_threads: Some(config.transport_domain.transport.io_threads),
                 }),
                 path: Some(config.transport_domain.path),
             }),
             transport_tcp: Some(IpcConfigTcpSocketToml {
                 transport: Some(IpcConfigTransportToml {
                     enabled: Some(config.transport_tcp.transport.enabled),
-                    allow_unsafe: Some(config.transport_tcp.transport.allow_unsafe),
+                    //allow_unsafe: Some(config.transport_tcp.transport.allow_unsafe),
                     io_timeout: Some(config.transport_tcp.transport.io_timeout),
-                    io_threads: Some(config.transport_tcp.transport.io_threads),
+                    //io_threads: Some(config.transport_tcp.transport.io_threads),
                 }),
                 port: Some(config.transport_tcp.port),
             }),
@@ -122,14 +121,14 @@ impl<'de> TomlConfigOverride<'de, IpcConfigTransportToml> for IpcConfigTransport
         if let Some(enabled) = toml.enabled {
             self.enabled = enabled;
         }
-        if let Some(allow_unsafe) = toml.allow_unsafe {
-            self.allow_unsafe = allow_unsafe;
-        }
+        //if let Some(allow_unsafe) = toml.allow_unsafe {
+        //self.allow_unsafe = allow_unsafe;
+        //}
         if let Some(io_timeout) = toml.io_timeout {
             self.io_timeout = io_timeout;
         }
-        if let Some(io_threads) = toml.io_threads {
-            self.io_threads = io_threads;
-        }
+        //if let Some(io_threads) = toml.io_threads {
+        //self.io_threads = io_threads;
+        //}
     }
 }

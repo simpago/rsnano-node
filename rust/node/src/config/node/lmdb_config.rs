@@ -1,7 +1,6 @@
+use crate::config::TomlConfigOverride;
 use rsnano_store_lmdb::{LmdbConfig, SyncStrategy};
 use serde::{Deserialize, Serialize};
-
-use crate::config::TomlConfigOverride;
 
 #[derive(Deserialize, Serialize)]
 pub struct LmdbConfigToml {

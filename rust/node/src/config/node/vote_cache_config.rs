@@ -1,8 +1,7 @@
+use crate::config::{Miliseconds, TomlConfigOverride};
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-
-use crate::config::{Miliseconds, TomlConfigOverride};
 
 #[derive(Clone)]
 pub struct VoteCacheConfig {

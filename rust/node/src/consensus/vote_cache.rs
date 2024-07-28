@@ -511,6 +511,8 @@ impl OrderedVoters {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::stats::Direction;
     use mock_instant::MockClock;
