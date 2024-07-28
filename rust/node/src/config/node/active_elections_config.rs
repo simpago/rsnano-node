@@ -45,6 +45,8 @@ impl<'de> TomlConfigOverride<'de, ActiveElectionsConfigToml> for ActiveElections
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nullable_fs::NullableFilesystem;
+    use std::path::PathBuf;
 
     #[test]
     fn test_active_elections_config_to_toml() {
@@ -75,7 +77,7 @@ mod tests {
     fn test_toml_config_override() {
         let mut config = ActiveElectionsConfig::default();
 
-        let toml_str = r#"
+        let toml_write = r#"
                 size = 30
                 hinted_limit_percentage = 70
                 optimistic_limit_percentage = 85
@@ -83,8 +85,14 @@ mod tests {
                 confirmation_cache = 3000
             "#;
 
+        let path: PathBuf = "/tmp/config-node.toml".into();
+
+        NullableFilesystem::new().write(&path, toml_write).unwrap();
+
+        let toml_read = NullableFilesystem::new().read_to_string(&path).unwrap();
+
         let toml_config: ActiveElectionsConfigToml =
-            toml::from_str(toml_str).expect("Failed to deserialize TOML");
+            toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
         config.toml_config_override(&toml_config);
 
@@ -99,14 +107,20 @@ mod tests {
     fn test_partial_toml_config_override() {
         let mut config = ActiveElectionsConfig::default();
 
-        let toml_str = r#"
+        let toml_write = r#"
                 size = 40
                 optimistic_limit_percentage = 90
                 # confirmation_cache = 4000
             "#;
 
+        let path: PathBuf = "/tmp/config-node.toml".into();
+
+        NullableFilesystem::new().write(&path, toml_write).unwrap();
+
+        let toml_read = NullableFilesystem::new().read_to_string(&path).unwrap();
+
         let toml_config: ActiveElectionsConfigToml =
-            toml::from_str(toml_str).expect("Failed to deserialize TOML");
+            toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
         config.toml_config_override(&toml_config);
 
