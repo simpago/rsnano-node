@@ -36,12 +36,12 @@ impl From<&WebsocketConfigToml> for WebsocketConfig {
     }
 }
 
-impl From<WebsocketConfig> for WebsocketConfigToml {
-    fn from(websocket_config: WebsocketConfig) -> Self {
+impl From<&WebsocketConfig> for WebsocketConfigToml {
+    fn from(websocket_config: &WebsocketConfig) -> Self {
         Self {
             enabled: Some(websocket_config.enabled),
             port: Some(websocket_config.port),
-            address: Some(websocket_config.address),
+            address: Some(websocket_config.address.clone()),
         }
     }
 }

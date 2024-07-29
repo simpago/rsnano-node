@@ -1,6 +1,54 @@
 use crate::utils::TxnTrackingConfig;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone)]
+pub struct DiagnosticsConfig {
+    pub txn_tracking: TxnTrackingConfig,
+}
+
+impl From<&DiagnosticsConfig> for DiagnosticsConfigToml {
+    fn from(config: &DiagnosticsConfig) -> Self {
+        Self {
+            txn_tracking: (&config.txn_tracking).into(),
+        }
+    }
+}
+
+impl From<&DiagnosticsConfigToml> for DiagnosticsConfig {
+    fn from(config: &DiagnosticsConfigToml) -> Self {
+        Self {
+            txn_tracking: (&config.txn_tracking).into(),
+        }
+    }
+}
+
+impl Default for DiagnosticsConfig {
+    fn default() -> Self {
+        Self {
+            txn_tracking: TxnTrackingConfig::new(),
+        }
+    }
+}
+
+impl DiagnosticsConfig {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DiagnosticsConfigToml {
+    pub txn_tracking: TxnTrackingConfigToml,
+}
+
+impl Default for DiagnosticsConfigToml {
+    fn default() -> Self {
+        Self {
+            txn_tracking: TxnTrackingConfigToml::default(),
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct TxnTrackingConfigToml {
     pub enable: Option<bool>,

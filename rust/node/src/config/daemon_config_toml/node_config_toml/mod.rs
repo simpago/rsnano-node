@@ -94,7 +94,7 @@ pub struct NodeConfigToml {
     pub max_pruning_depth: Option<u64>,
     pub websocket_config: Option<WebsocketConfigToml>,
     pub ipc_config: Option<IpcConfigToml>,
-    pub txn_tracking_config: Option<TxnTrackingConfigToml>,
+    pub diagnostics_config: Option<DiagnosticsConfigToml>,
     pub stat_config: Option<StatsConfigToml>,
     pub lmdb_config: Option<LmdbConfigToml>,
     pub vote_cache: Option<VoteCacheConfigToml>,
@@ -279,8 +279,8 @@ impl From<NodeConfigToml> for NodeConfig {
         if let Some(ipc_config_toml) = &toml.ipc_config {
             config.ipc_config = ipc_config_toml.into();
         }
-        if let Some(txn_tracking_config_toml) = &toml.txn_tracking_config {
-            config.txn_tracking_config = txn_tracking_config_toml.into();
+        if let Some(diagnostics_config_toml) = &toml.diagnostics_config {
+            config.diagnostics_config = diagnostics_config_toml.into();
         }
         if let Some(stat_config_toml) = &toml.stat_config {
             config.stat_config = stat_config_toml.into();
@@ -386,8 +386,8 @@ impl Default for NodeConfigToml {
             max_pruning_age_s: Some(node_config.max_pruning_age_s),
             max_pruning_depth: Some(node_config.max_pruning_depth),
             websocket_config: Some(WebsocketConfigToml::default()),
-            ipc_config: Some(node_config.ipc_config.into()),
-            txn_tracking_config: Some(TxnTrackingConfigToml::default()),
+            ipc_config: Some((&node_config.ipc_config).into()),
+            diagnostics_config: Some(DiagnosticsConfigToml::default()),
             stat_config: Some(StatsConfigToml::default()),
             lmdb_config: Some(LmdbConfigToml::default()),
             vote_cache: Some(VoteCacheConfigToml::default()),

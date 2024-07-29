@@ -98,7 +98,7 @@ pub struct NodeConfigDto {
     pub callback_target_len: usize,
     pub websocket_config: WebsocketConfigDto,
     pub ipc_config: IpcConfigDto,
-    pub txn_tracking_config: TxnTrackingConfigDto,
+    pub diagnostics_config: TxnTrackingConfigDto,
     pub stat_config: StatConfigDto,
     pub lmdb_config: LmdbConfigDto,
     pub backlog_scan_batch_size: u32,
@@ -314,7 +314,10 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.callback_target_len = bytes.len();
     fill_websocket_config_dto(&mut dto.websocket_config, &cfg.websocket_config);
     fill_ipc_config_dto(&mut dto.ipc_config, &cfg.ipc_config);
-    fill_txn_tracking_config_dto(&mut dto.txn_tracking_config, &cfg.txn_tracking_config);
+    fill_txn_tracking_config_dto(
+        &mut dto.diagnostics_config,
+        &cfg.diagnostics_config.txn_tracking,
+    );
     fill_stat_config_dto(&mut dto.stat_config, &cfg.stat_config);
     fill_lmdb_config_dto(&mut dto.lmdb_config, &cfg.lmdb_config);
     dto.backlog_scan_frequency = cfg.backlog_scan_frequency;
@@ -339,7 +342,7 @@ pub extern "C" fn rsn_node_config_serialize_toml(dto: &NodeConfigDto, toml: *mut
         Ok(c) => c,
         Err(_) => return -1,
     };
-    let config_toml: NodeConfigToml = cfg.into();
+    let config_toml: NodeConfigToml = (&cfg).into();
     match toml::to_string(&config_toml) {
         Ok(toml_string) => {
             let mut ffi_toml = FfiToml::new(toml);
@@ -458,7 +461,7 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             callback_port: value.callback_port,
             websocket_config: (&value.websocket_config).into(),
             ipc_config: (&value.ipc_config).try_into()?,
-            txn_tracking_config: (&value.txn_tracking_config).into(),
+            diagnostics_config: (&value.diagnostics_config).into(),
             stat_config: (&value.stat_config).into(),
             lmdb_config: (&value.lmdb_config).into(),
             backlog_scan_batch_size: value.backlog_scan_batch_size,

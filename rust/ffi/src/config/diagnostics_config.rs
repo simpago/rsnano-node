@@ -1,4 +1,4 @@
-use rsnano_node::utils::TxnTrackingConfig;
+use rsnano_node::{config::DiagnosticsConfig, utils::TxnTrackingConfig};
 
 #[repr(C)]
 pub struct TxnTrackingConfigDto {
@@ -23,14 +23,16 @@ pub fn fill_txn_tracking_config_dto(dto: &mut TxnTrackingConfigDto, cfg: &TxnTra
         cfg.ignore_writes_below_block_processor_max_time;
 }
 
-impl From<&TxnTrackingConfigDto> for TxnTrackingConfig {
+impl From<&TxnTrackingConfigDto> for DiagnosticsConfig {
     fn from(dto: &TxnTrackingConfigDto) -> Self {
         Self {
-            enable: dto.enable,
-            min_read_txn_time_ms: dto.min_read_txn_time_ms,
-            min_write_txn_time_ms: dto.min_write_txn_time_ms,
-            ignore_writes_below_block_processor_max_time: dto
-                .ignore_writes_below_block_processor_max_time,
+            txn_tracking: TxnTrackingConfig {
+                enable: dto.enable,
+                min_read_txn_time_ms: dto.min_read_txn_time_ms,
+                min_write_txn_time_ms: dto.min_write_txn_time_ms,
+                ignore_writes_below_block_processor_max_time: dto
+                    .ignore_writes_below_block_processor_max_time,
+            },
         }
     }
 }

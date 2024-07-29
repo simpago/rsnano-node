@@ -1,0 +1,10 @@
+[package]
+name = "required_libs"
+edition = "2018"
+version = "0.1.0"
+
+[lib]
+crate-type=["staticlib"]
+path = "lib.rs"
+
+[workspace]

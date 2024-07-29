@@ -2,6 +2,7 @@ mod node_config_toml;
 mod node_rpc_config_toml;
 mod opencl_config_toml;
 
+use super::NodeConfig;
 use crate::NetworkParams;
 use anyhow::Result;
 pub use node_config_toml::*;
@@ -9,11 +10,62 @@ pub use node_rpc_config_toml::*;
 pub use opencl_config_toml::*;
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
+pub struct DaemonConfig {
+    pub rpc_enable: bool,
+    pub rpc: NodeRpcConfig,
+    pub node: NodeConfig,
+    pub opencl: OpenclConfig,
+    pub opencl_enable: bool,
+}
+
+impl DaemonConfig {
+    pub fn new(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
+        Ok(Self {
+            rpc_enable: false,
+            node: NodeConfig::new(None, network_params, parallelism),
+            opencl: OpenclConfig::new(),
+            opencl_enable: false,
+            rpc: NodeRpcConfig::new()?,
+        })
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct DaemonConfigToml {
     pub node: Option<NodeConfigToml>,
     pub rpc: Option<NodeRpcConfigToml>,
     pub opencl: Option<OpenclConfigToml>,
+}
+
+impl From<DaemonConfig> for DaemonConfigToml {
+    fn from(config: DaemonConfig) -> Self {
+        Self {
+            node: Some((&config.node).into()),
+            rpc: Some((&config).into()),
+            opencl: Some((&config).into()),
+        }
+    }
+}
+
+impl From<&DaemonConfig> for NodeRpcConfigToml {
+    fn from(config: &DaemonConfig) -> Self {
+        Self {
+            enable: Some(config.rpc_enable),
+            enable_sign_hash: Some(config.rpc.enable_sign_hash),
+            child_process: Some((&config.rpc.child_process).into()),
+        }
+    }
+}
+
+impl From<&DaemonConfig> for OpenclConfigToml {
+    fn from(config: &DaemonConfig) -> Self {
+        Self {
+            enable: Some(config.opencl_enable),
+            platform: Some(config.opencl.platform),
+            device: Some(config.opencl.device),
+            threads: Some(config.opencl.threads),
+        }
+    }
 }
 
 impl DaemonConfigToml {

@@ -7,7 +7,7 @@ use super::{
     TransactionType,
 };
 use crate::{FfiPropertyTree, LmdbConfigDto, StringDto, TxnTrackingConfigDto};
-use rsnano_node::utils::{LongRunningTransactionLogger, TxnTrackingConfig};
+use rsnano_node::{config::DiagnosticsConfig, utils::LongRunningTransactionLogger};
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbStore, NullTransactionTracker, TransactionTracker,
 };
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn rsn_lmdb_store_create_v2(
     };
     let path_str = CStr::from_ptr(path).to_str().unwrap();
     let path = Path::new(path_str);
-    let txn_config: TxnTrackingConfig = (&*txn_config).into();
+    let txn_config = DiagnosticsConfig::from(&*txn_config).txn_tracking;
     let block_processor_batch_max_time = Duration::from_millis(block_processor_batch_max_time_ms);
 
     let txn_tracker: Arc<dyn TransactionTracker> = if txn_config.enable {

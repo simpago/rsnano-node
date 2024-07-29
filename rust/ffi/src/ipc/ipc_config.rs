@@ -1,9 +1,12 @@
-use crate::NetworkConstantsDto;
+use crate::{fill_network_constants_dto, NetworkConstantsDto};
 use rsnano_node::{
-    config::NetworkConstants, IpcConfig, IpcConfigFlatbuffers, IpcConfigTcpSocket,
-    IpcConfigTransport,
+    config::NetworkConstants, IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers,
+    IpcConfigTcpSocket, IpcConfigTransport,
 };
-use std::{convert::TryFrom, os::unix::prelude::OsStrExt};
+use std::{
+    convert::{TryFrom, TryInto},
+    os::unix::prelude::OsStrExt,
+};
 
 #[repr(C)]
 pub struct IpcConfigTransportDto {
@@ -19,6 +22,7 @@ pub struct IpcConfigDto {
     pub domain_path: [u8; 512],
     pub domain_path_len: usize,
     pub tcp_transport: IpcConfigTransportDto,
+    pub tcp_network_constants: NetworkConstantsDto,
     pub tcp_port: u16,
     pub flatbuffers_skip_unexpected_fields_in_json: bool,
     pub flatbuffers_verify_buffers: bool,
@@ -49,6 +53,10 @@ pub fn fill_ipc_config_dto(dto: &mut IpcConfigDto, config: &IpcConfig) {
     dto.domain_path[..bytes.len()].copy_from_slice(bytes);
     dto.domain_path_len = bytes.len();
     fill_config_transport_dto(&mut dto.tcp_transport, &config.transport_tcp.transport);
+    fill_network_constants_dto(
+        &mut dto.tcp_network_constants,
+        &config.transport_tcp.network_constants,
+    );
     dto.tcp_port = config.transport_tcp.port;
     dto.flatbuffers_skip_unexpected_fields_in_json =
         config.flatbuffers.skip_unexpected_fields_in_json;
@@ -67,7 +75,7 @@ impl TryFrom<&IpcConfigDto> for IpcConfig {
 
     fn try_from(dto: &IpcConfigDto) -> Result<Self, Self::Error> {
         let result = Self {
-            transport_domain: rsnano_node::IpcConfigDomainSocket {
+            transport_domain: IpcConfigDomainSocket {
                 transport: (&dto.domain_transport).into(),
                 path: String::from_utf8_lossy(&dto.domain_path[..dto.domain_path_len])
                     .to_string()
@@ -75,6 +83,7 @@ impl TryFrom<&IpcConfigDto> for IpcConfig {
             },
             transport_tcp: IpcConfigTcpSocket {
                 transport: (&dto.tcp_transport).into(),
+                network_constants: (&dto.tcp_network_constants).try_into()?,
                 port: dto.tcp_port,
             },
             flatbuffers: IpcConfigFlatbuffers {

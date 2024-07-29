@@ -5,7 +5,7 @@ use super::{
 use crate::{secure::NetworkParamsDto, utils::FfiToml};
 use rsnano_core::utils::get_cpu_count;
 use rsnano_node::{
-    config::{DaemonConfigToml, NodeConfig},
+    config::{DaemonConfig, DaemonConfigToml},
     NetworkParams,
 };
 use std::{
@@ -15,8 +15,10 @@ use std::{
 
 #[repr(C)]
 pub struct DaemonConfigDto {
+    pub rpc_enable: bool,
     pub node: NodeConfigDto,
     pub opencl: OpenclConfigDto,
+    pub opencl_enable: bool,
     pub rpc: NodeRpcConfigDto,
 }
 
@@ -29,16 +31,16 @@ pub unsafe extern "C" fn rsn_daemon_config_create(
         Ok(n) => n,
         Err(_) => return -1,
     };
-    let cfg = match DaemonConfigToml::new(&network_params, get_cpu_count()) {
+    let cfg = match DaemonConfig::new(&network_params, get_cpu_count()) {
         Ok(d) => d,
         Err(_) => return -1,
     };
     let dto = &mut (*dto);
-    //dto.rpc.rpc_enable = cfg.rpc.enable;
-    fill_node_config_dto(&mut dto.node, &cfg.node.unwrap().into());
-    fill_opencl_config_dto(&mut dto.opencl, &cfg.opencl.unwrap());
-    fill_node_rpc_config_dto(&mut dto.rpc, &cfg.rpc.unwrap());
-    //dto.opencl.opencl_enable = cfg.opencl.enable;
+    dto.rpc_enable = cfg.rpc_enable;
+    fill_node_config_dto(&mut dto.node, &cfg.node);
+    fill_opencl_config_dto(&mut dto.opencl, &cfg.opencl);
+    fill_node_rpc_config_dto(&mut dto.rpc, &cfg.rpc);
+    dto.opencl_enable = cfg.opencl_enable;
     0
 }
 
@@ -47,11 +49,12 @@ pub extern "C" fn rsn_daemon_config_serialize_toml(
     dto: &DaemonConfigDto,
     toml: *mut c_void,
 ) -> i32 {
-    let cfg = match DaemonConfigToml::try_from(dto) {
+    let cfg = match DaemonConfig::try_from(dto) {
         Ok(d) => d,
         Err(_) => return -1,
     };
-    match toml::to_string(&cfg) {
+    let toml_config: DaemonConfigToml = cfg.into();
+    match toml::to_string(&toml_config) {
         Ok(toml_string) => {
             let mut ffi_toml = FfiToml::new(toml);
             ffi_toml.set_toml_string(toml_string);
@@ -61,15 +64,16 @@ pub extern "C" fn rsn_daemon_config_serialize_toml(
     }
 }
 
-impl TryFrom<&DaemonConfigDto> for DaemonConfigToml {
+impl TryFrom<&DaemonConfigDto> for DaemonConfig {
     type Error = anyhow::Error;
 
     fn try_from(dto: &DaemonConfigDto) -> Result<Self, Self::Error> {
-        let node_config: NodeConfig = (&dto.node).try_into()?;
         let result = Self {
-            node: Some(node_config.into()),
-            opencl: Some((&dto.opencl).into()),
-            rpc: Some((&dto.rpc).into()),
+            rpc_enable: dto.rpc_enable,
+            node: (&dto.node).try_into()?,
+            opencl: (&dto.opencl).into(),
+            opencl_enable: dto.opencl_enable,
+            rpc: (&dto.rpc).into(),
         };
         Ok(result)
     }

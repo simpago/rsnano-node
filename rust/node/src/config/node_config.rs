@@ -7,7 +7,6 @@ use crate::consensus::{
 use crate::monitor::MonitorConfig;
 use crate::stats::StatsConfig;
 use crate::transport::MessageProcessorConfig;
-use crate::utils::TxnTrackingConfig;
 use crate::websocket::WebsocketConfig;
 use crate::IpcConfig;
 use crate::{
@@ -26,7 +25,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use std::{cmp::max, net::Ipv6Addr};
 
-use super::{Miliseconds, NodeConfigToml};
+use super::{DiagnosticsConfig, Miliseconds, NodeConfigToml};
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize, Serialize)]
@@ -98,7 +97,7 @@ pub struct NodeConfig {
     pub callback_target: String,
     pub websocket_config: WebsocketConfig,
     pub ipc_config: IpcConfig,
-    pub txn_tracking_config: TxnTrackingConfig,
+    pub diagnostics_config: DiagnosticsConfig,
     pub stat_config: StatsConfig,
     pub lmdb_config: LmdbConfig,
     /// Number of accounts per second to process when doing backlog population scan
@@ -363,7 +362,7 @@ impl NodeConfig {
             callback_target: String::new(),
             websocket_config: WebsocketConfig::new(&network_params.network),
             ipc_config: IpcConfig::new(&network_params.network),
-            txn_tracking_config: TxnTrackingConfig::new(),
+            diagnostics_config: DiagnosticsConfig::new(),
             stat_config: StatsConfig::new(),
             lmdb_config: LmdbConfig::new(),
             backlog_scan_batch_size: 10 * 1000,
@@ -410,8 +409,8 @@ impl NodeConfig {
     }
 }
 
-impl From<NodeConfig> for NodeConfigToml {
-    fn from(node_config: NodeConfig) -> Self {
+impl From<&NodeConfig> for NodeConfigToml {
+    fn from(node_config: &NodeConfig) -> Self {
         Self {
             allow_local_peers: Some(node_config.allow_local_peers),
             background_threads: Some(node_config.background_threads),
@@ -461,19 +460,19 @@ impl From<NodeConfig> for NodeConfigToml {
             vote_generator_delay_ms: Some(node_config.vote_generator_delay_ms),
             vote_generator_threshold: Some(node_config.vote_generator_threshold),
             vote_minimum: Some(node_config.vote_minimum),
-            work_peers: Some(node_config.work_peers),
+            work_peers: Some(node_config.work_peers.clone()),
             work_threads: Some(node_config.work_threads),
             optimistic_scheduler: Some((&node_config.optimistic_scheduler).into()),
             priority_bucket: Some((&node_config.priority_bucket).into()),
             bootstrap_ascending: Some((&node_config.bootstrap_ascending).into()),
             bootstrap_server: Some((&node_config.bootstrap_server).into()),
-            secondary_work_peers: Some(node_config.secondary_work_peers),
+            secondary_work_peers: Some(node_config.secondary_work_peers.clone()),
             max_pruning_age_s: Some(node_config.max_pruning_age_s),
             max_pruning_depth: Some(node_config.max_pruning_depth),
-            websocket_config: Some(node_config.websocket_config.into()),
-            ipc_config: Some(node_config.ipc_config.into()),
-            txn_tracking_config: Some((&node_config.txn_tracking_config).into()),
-            stat_config: Some(node_config.stat_config.into()),
+            websocket_config: Some((&node_config.websocket_config).into()),
+            ipc_config: Some((&node_config.ipc_config).into()),
+            diagnostics_config: Some((&node_config.diagnostics_config).into()),
+            stat_config: Some((&node_config.stat_config).into()),
             lmdb_config: Some((&node_config.lmdb_config).into()),
             vote_cache: Some((&node_config.vote_cache).into()),
             block_processor: Some((&node_config.block_processor).into()),
@@ -482,9 +481,9 @@ impl From<NodeConfig> for NodeConfigToml {
             request_aggregator: Some((&node_config.request_aggregator).into()),
             message_processor: Some((&node_config.message_processor).into()),
             monitor: Some((&node_config.monitor).into()),
-            callback_address: Some(node_config.callback_address),
+            callback_address: Some(node_config.callback_address.clone()),
             callback_port: Some(node_config.callback_port),
-            callback_target: Some(node_config.callback_target),
+            callback_target: Some(node_config.callback_target.clone()),
         }
     }
 }

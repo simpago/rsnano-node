@@ -35,8 +35,8 @@ pub struct IpcConfigTcpSocketToml {
     pub port: Option<u16>,
 }
 
-impl From<IpcConfig> for IpcConfigToml {
-    fn from(config: IpcConfig) -> Self {
+impl From<&IpcConfig> for IpcConfigToml {
+    fn from(config: &IpcConfig) -> Self {
         Self {
             transport_domain: Some(IpcConfigDomainSocketToml {
                 transport: Some(IpcConfigTransportToml {
@@ -45,7 +45,7 @@ impl From<IpcConfig> for IpcConfigToml {
                     io_timeout: Some(config.transport_domain.transport.io_timeout),
                     //io_threads: Some(config.transport_domain.transport.io_threads),
                 }),
-                path: Some(config.transport_domain.path),
+                path: Some(config.transport_domain.path.clone()),
             }),
             transport_tcp: Some(IpcConfigTcpSocketToml {
                 transport: Some(IpcConfigTransportToml {
