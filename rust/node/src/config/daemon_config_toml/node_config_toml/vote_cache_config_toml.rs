@@ -1,5 +1,4 @@
 use crate::{config::Miliseconds, consensus::VoteCacheConfig};
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -8,28 +7,6 @@ pub struct VoteCacheConfigToml {
     pub max_size: Option<usize>,
     pub max_voters: Option<usize>,
     pub age_cutoff: Option<Miliseconds>,
-}
-
-impl VoteCacheConfigToml {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_size",
-            self.max_size,
-            "Maximum number of blocks to cache votes for. \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "max_voters",
-            self.max_voters,
-            "Maximum number of voters to cache per block. \ntype:uint64",
-        )?;
-
-        toml.put_u64(
-            "age_cutoff",
-            self.age_cutoff.as_secs(),
-            "Maximum age of votes to keep in cache. \ntype:seconds",
-        )
-    }
 }
 
 impl Default for VoteCacheConfigToml {

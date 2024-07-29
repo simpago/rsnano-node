@@ -1,7 +1,7 @@
 use crate::NetworkConstantsDto;
-use rsnano_node::config::{
-    IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers, IpcConfigTcpSocket, IpcConfigTransport,
-    NetworkConstants,
+use rsnano_node::{
+    config::NetworkConstants, IpcConfig, IpcConfigFlatbuffers, IpcConfigTcpSocket,
+    IpcConfigTransport,
 };
 use std::{convert::TryFrom, os::unix::prelude::OsStrExt};
 
@@ -67,7 +67,7 @@ impl TryFrom<&IpcConfigDto> for IpcConfig {
 
     fn try_from(dto: &IpcConfigDto) -> Result<Self, Self::Error> {
         let result = Self {
-            transport_domain: IpcConfigDomainSocket {
+            transport_domain: rsnano_node::IpcConfigDomainSocket {
                 transport: (&dto.domain_transport).into(),
                 path: String::from_utf8_lossy(&dto.domain_path[..dto.domain_path_len])
                     .to_string()

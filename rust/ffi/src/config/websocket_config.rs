@@ -1,6 +1,5 @@
-use rsnano_node::config::{NetworkConstants, WebsocketConfig};
-
 use super::NetworkConstantsDto;
+use rsnano_node::{config::NetworkConstants, websocket::WebsocketConfig};
 use std::convert::TryFrom;
 
 #[repr(C)]

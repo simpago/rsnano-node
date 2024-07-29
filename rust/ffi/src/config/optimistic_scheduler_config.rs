@@ -1,5 +1,6 @@
-use rsnano_node::config::{HintedSchedulerConfig, OptimisticSchedulerConfig};
 use std::time::Duration;
+
+use rsnano_node::consensus::{HintedSchedulerConfig, OptimisticSchedulerConfig};
 
 #[repr(C)]
 pub struct OptimisticSchedulerConfigDto {

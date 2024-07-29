@@ -1,27 +1,10 @@
 use crate::transport::MessageProcessorConfig;
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct MessageProcessorConfigToml {
     pub threads: Option<usize>,
     pub max_queue: Option<usize>,
-}
-
-impl MessageProcessorConfigToml {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "threads",
-            self.threads,
-            "Number of threads to use for message processing. \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "max_queue",
-            self.max_queue,
-            "Maximum number of messages per peer to queue for processing. \ntype:uint64",
-        )
-    }
 }
 
 impl Default for MessageProcessorConfigToml {

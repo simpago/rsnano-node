@@ -23,7 +23,7 @@ pub use opencl_config::*;
 pub use optimistic_scheduler_config::*;
 pub use rpc_config::*;
 use rsnano_core::work::WorkThresholds;
-use rsnano_node::config::{BlockProcessorConfig, BlockProcessorToml};
+use rsnano_node::{block_processing::BlockProcessorConfig, config::BlockProcessorConfigToml};
 pub use websocket_config::*;
 
 #[repr(C)]
@@ -63,7 +63,7 @@ impl From<&BlockProcessorConfigDto> for BlockProcessorConfig {
     }
 }
 
-impl From<&BlockProcessorConfigDto> for BlockProcessorToml {
+impl From<&BlockProcessorConfigDto> for BlockProcessorConfigToml {
     fn from(value: &BlockProcessorConfigDto) -> Self {
         Self {
             max_peer_queue: Some(value.max_peer_queue),
@@ -75,8 +75,8 @@ impl From<&BlockProcessorConfigDto> for BlockProcessorToml {
     }
 }
 
-impl From<&BlockProcessorToml> for BlockProcessorConfigDto {
-    fn from(value: &BlockProcessorToml) -> Self {
+impl From<&BlockProcessorConfigToml> for BlockProcessorConfigDto {
+    fn from(value: &BlockProcessorConfigToml) -> Self {
         Self {
             max_peer_queue: value.max_peer_queue.unwrap(),
             max_system_queue: value.max_system_queue.unwrap(),

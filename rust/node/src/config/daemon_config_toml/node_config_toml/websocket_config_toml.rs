@@ -1,35 +1,13 @@
+use crate::websocket::WebsocketConfig;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
-
-use crate::websocket::WebsocketConfig;
 
 #[derive(Deserialize, Serialize)]
 pub struct WebsocketConfigToml {
     pub enabled: Option<bool>,
     pub port: Option<u16>,
     pub address: Option<String>,
-}
-
-impl WebsocketConfigToml {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
-        toml.put_bool(
-            "enable",
-            self.enabled,
-            "Enable or disable WebSocket server.\ntype:bool",
-        )?;
-        toml.put_str(
-            "address",
-            &self.address,
-            "WebSocket server bind address.\ntype:string,ip",
-        )?;
-        toml.put_u16(
-            "port",
-            self.port,
-            "WebSocket server listening port.\ntype:uint16",
-        )?;
-        Ok(())
-    }
 }
 
 impl Default for WebsocketConfigToml {

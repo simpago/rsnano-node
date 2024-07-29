@@ -164,7 +164,7 @@ impl Node {
         let store = make_store(
             &application_path,
             true,
-            &config.txn_tracking,
+            &config.txn_tracking_config,
             Duration::from_millis(config.block_processor_batch_max_time_ms as u64),
             config.lmdb_config.clone(),
             config.backup_before_upgrade,

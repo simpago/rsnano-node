@@ -1,8 +1,7 @@
 use num::FromPrimitive;
 use rsnano_ledger::BlockStatus;
-use rsnano_node::{
-    config::StatsConfig,
-    stats::{DetailType, StatFileWriter, Stats, StatsJsonWriter, StatsLogSink},
+use rsnano_node::stats::{
+    DetailType, StatFileWriter, Stats, StatsConfig, StatsJsonWriter, StatsLogSink,
 };
 use std::{
     ffi::{c_void, CStr},

@@ -1,8 +1,5 @@
-use super::{ActiveElections, Bucket, BucketExt};
-use crate::{
-    config::PriorityBucketConfig,
-    stats::{DetailType, StatType, Stats},
-};
+use super::{ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
+use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
     Account, AccountInfo, Amount, BlockEnum, ConfirmationHeightInfo,

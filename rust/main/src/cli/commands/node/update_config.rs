@@ -1,11 +1,7 @@
 use crate::cli::{commands::node::read_node_config_toml, get_path};
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_core::utils::get_cpu_count;
-use rsnano_node::{
-    config::{get_node_toml_config_path, DaemonConfig, DaemonConfigToml, NetworkConstants},
-    NetworkParams,
-};
+use rsnano_node::config::{get_node_toml_config_path, DaemonConfigToml};
 use toml::from_str;
 
 #[derive(Parser)]
@@ -33,8 +29,6 @@ impl UpdateConfigArgs {
     pub(crate) fn update_config(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network);
 
-        let network_params = NetworkParams::new(NetworkConstants::active_network());
-
         if self.node {
             let node_toml_config_path = get_node_toml_config_path(&path);
 
@@ -44,7 +38,7 @@ impl UpdateConfigArgs {
                 let current_toml_daemon_config: DaemonConfigToml = from_str(&toml_str)?;
 
                 let default_toml_daemon_config: DaemonConfigToml =
-                    DaemonConfig::new(&network_params, get_cpu_count())?.into();
+                    DaemonConfigToml::default()?.into();
 
                 let merged_config =
                     current_toml_daemon_config.merge_defaults(&default_toml_daemon_config)?;

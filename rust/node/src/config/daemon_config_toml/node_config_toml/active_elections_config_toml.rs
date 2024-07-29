@@ -1,5 +1,4 @@
 use crate::consensus::ActiveElectionsConfig;
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -9,28 +8,6 @@ pub struct ActiveElectionsConfigToml {
     pub optimistic_limit_percentage: Option<usize>,
     pub confirmation_history_size: Option<usize>,
     pub confirmation_cache: Option<usize>,
-}
-
-impl ActiveElectionsConfigToml {
-    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize ("size", self.size, "Number of active elections. Elections beyond this limit have limited survival time.\nWarning: modifying this value may result in a lower confirmation rate. \ntype:uint64,[250..]")?;
-
-        toml.put_usize(
-            "hinted_limit_percentage",
-            self.hinted_limit_percentage,
-            "Limit of hinted elections as percentage of `active_elections_size` \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "optimistic_limit_percentage",
-            self.optimistic_limit_percentage,
-            "Limit of optimistic elections as percentage of `active_elections_size`. \ntype:uint64",
-        )?;
-
-        toml.put_usize ("confirmation_history_size", self.confirmation_history_size, "Maximum confirmation history size. If tracking the rate of block confirmations, the websocket feature is recommended instead. \ntype:uint64")?;
-
-        toml.put_usize ("confirmation_cache", self.confirmation_cache, "Maximum number of confirmed elections kept in cache to prevent restarting an election. \ntype:uint64")
-    }
 }
 
 impl Default for ActiveElectionsConfigToml {

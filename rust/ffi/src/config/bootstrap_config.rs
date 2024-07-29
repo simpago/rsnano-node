@@ -1,6 +1,6 @@
-use rsnano_node::config::{
-    AccountSetsConfig, AccountSetsToml, BootstrapAscendingConfig, BootstrapAscendingConfigToml,
-    Miliseconds,
+use rsnano_node::{
+    bootstrap::{AccountSetsConfig, BootstrapAscendingConfig},
+    config::{AccountSetsConfigToml, BootstrapAscendingConfigToml, Miliseconds},
 };
 use std::time::Duration;
 
@@ -81,7 +81,7 @@ impl From<&AccountSetsConfig> for AccountSetsConfigDto {
     }
 }
 
-impl From<&AccountSetsConfigDto> for AccountSetsToml {
+impl From<&AccountSetsConfigDto> for AccountSetsConfigToml {
     fn from(value: &AccountSetsConfigDto) -> Self {
         Self {
             consideration_count: Some(value.consideration_count),

@@ -1,4 +1,4 @@
-use rsnano_node::config::OpenclConfig;
+use rsnano_node::config::OpenclConfigToml;
 
 #[repr(C)]
 pub struct OpenclConfigDto {
@@ -8,20 +8,20 @@ pub struct OpenclConfigDto {
     pub threads: u32,
 }
 
-pub fn fill_opencl_config_dto(dto: &mut OpenclConfigDto, config: &OpenclConfig) {
-    dto.opencl_enable = config.enable;
-    dto.platform = config.platform;
-    dto.device = config.device;
-    dto.threads = config.threads;
+pub fn fill_opencl_config_dto(dto: &mut OpenclConfigDto, config: &OpenclConfigToml) {
+    dto.opencl_enable = config.enable.unwrap();
+    dto.platform = config.platform.unwrap();
+    dto.device = config.device.unwrap();
+    dto.threads = config.threads.unwrap();
 }
 
-impl From<&OpenclConfigDto> for OpenclConfig {
+impl From<&OpenclConfigDto> for OpenclConfigToml {
     fn from(dto: &OpenclConfigDto) -> Self {
         Self {
-            enable: dto.opencl_enable,
-            platform: dto.platform,
-            device: dto.device,
-            threads: dto.threads,
+            enable: Some(dto.opencl_enable),
+            platform: Some(dto.platform),
+            device: Some(dto.device),
+            threads: Some(dto.threads),
         }
     }
 }

@@ -1,7 +1,5 @@
-use rsnano_core::utils::TomlWriter;
-use serde::{Deserialize, Serialize};
-
 use crate::consensus::VoteProcessorConfig;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct VoteProcessorConfigToml {
@@ -11,39 +9,6 @@ pub struct VoteProcessorConfigToml {
     pub threads: Option<usize>,
     pub batch_size: Option<usize>,
     pub max_triggered: Option<usize>,
-}
-
-impl VoteProcessorConfigToml {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_pr_queue",
-            self.max_pr_queue,
-            "Maximum number of votes to queue from principal representatives. \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-            "max_non_pr_queue",
-            self.max_non_pr_queue,
-            "Maximum number of votes to queue from non-principal representatives. \ntype:uint64",
-        )?;
-
-        toml.put_usize(
-                "pr_priority",
-                self.pr_priority,
-                "Priority for votes from principal representatives. Higher priority gets processed more frequently. Non-principal representatives have a baseline priority of 1. \ntype:uint64",
-            )?;
-
-        toml.put_usize(
-            "threads",
-            self.threads,
-            "Number of threads to use for processing votes. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "batch_size",
-            self.batch_size,
-            "Maximum number of votes to process in a single batch. \ntype:uint64",
-        )
-    }
 }
 
 impl Default for VoteProcessorConfigToml {

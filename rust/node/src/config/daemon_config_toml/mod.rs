@@ -2,55 +2,35 @@ mod node_config_toml;
 mod node_rpc_config_toml;
 mod opencl_config_toml;
 
-use super::NodeConfig;
 use crate::NetworkParams;
 use anyhow::Result;
 pub use node_config_toml::*;
 pub use node_rpc_config_toml::*;
 pub use opencl_config_toml::*;
-use rsnano_core::utils::TomlWriter;
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Deserialize, Serialize)]
 pub struct DaemonConfigToml {
     pub node: Option<NodeConfigToml>,
-    pub(crate) rpc: Option<NodeRpcConfigToml>,
-    pub(crate) opencl: Option<OpenclConfigToml>,
+    pub rpc: Option<NodeRpcConfigToml>,
+    pub opencl: Option<OpenclConfigToml>,
 }
 
 impl DaemonConfigToml {
     pub fn new(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
         Ok(Self {
-            node: Some(NodeConfig::new(None, network_params, parallelism)),
+            node: Some(NodeConfigToml::default()),
             opencl: Some(OpenclConfigToml::default()),
-            rpc: Some(NodeRpcConfigToml::default()?),
+            rpc: Some(NodeRpcConfigToml::new()?),
         })
     }
 
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
-        toml.put_child("rpc", &mut |rpc| {
-            self.rpc.serialize_toml(rpc)?;
-            rpc.put_bool(
-                "enable",
-                self.rpc.enable,
-                "Enable or disable RPC\ntype:bool",
-            )?;
-            Ok(())
-        })?;
-
-        toml.put_child("node", &mut |node| self.node.serialize_toml(node))?;
-
-        toml.put_child("opencl", &mut |opencl| {
-                self.opencl.serialize_toml(opencl)?;
-                opencl.put_bool(
-                    "enable",
-                    self.opencl.enable,
-                    "Enable or disable OpenCL work generation\nIf enabled, consider freeing up CPU resources by setting [work_threads] to zero\ntype:bool",
-                )?;
-                Ok(())
-            })?;
-
-        Ok(())
+    pub fn default() -> Result<Self> {
+        Ok(Self {
+            node: Some(NodeConfigToml::default()),
+            opencl: Some(OpenclConfigToml::default()),
+            rpc: Some(NodeRpcConfigToml::new()?),
+        })
     }
 
     pub fn merge_defaults(&self, default_config: &DaemonConfigToml) -> Result<String> {
@@ -133,14 +113,14 @@ impl<'de> Deserialize<'de> for Miliseconds {
 #[cfg(test)]
 mod tests {
     use crate::{
-        config::{DaemonConfig, DaemonConfigToml, NetworkConstants},
+        config::{DaemonConfigToml, NetworkConstants},
         NetworkParams,
     };
 
     #[test]
     fn test_toml_serialization() {
         let network_params = NetworkParams::new(NetworkConstants::active_network());
-        let config: DaemonConfigToml = DaemonConfig::new(&network_params, 0).unwrap().into();
+        let config: DaemonConfigToml = DaemonConfigToml::new(&network_params, 0).unwrap().into();
         let toml_str = toml::to_string(&config).unwrap();
 
         let deserialized_config: DaemonConfigToml = toml::from_str(&toml_str).unwrap();

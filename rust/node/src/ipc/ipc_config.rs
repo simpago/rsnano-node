@@ -81,7 +81,7 @@ impl IpcConfigDomainSocket {
 #[derive(Clone)]
 pub struct IpcConfigTcpSocket {
     pub transport: IpcConfigTransport,
-    pub network_constants: NetworkConstants,
+    //pub network_constants: NetworkConstants,
     /** Listening port */
     pub port: u16,
 }
@@ -90,7 +90,7 @@ impl IpcConfigTcpSocket {
     pub fn new(network_constants: &NetworkConstants) -> Self {
         Self {
             transport: IpcConfigTransport::new(),
-            network_constants: network_constants.clone(),
+            //network_constants: network_constants.clone(),
             port: network_constants.default_ipc_port,
         }
     }
@@ -123,8 +123,8 @@ impl IpcConfig {
 impl Default for IpcConfig {
     fn default() -> Self {
         Self {
-            transport_domain: IpcConfigTcpSocket::default(),
-            transport_tcp: IpcConfigTransport::default(),
+            transport_domain: IpcConfigDomainSocket::default(),
+            transport_tcp: IpcConfigTcpSocket::default(),
             flatbuffers: IpcConfigFlatbuffers::default(),
         }
     }

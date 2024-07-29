@@ -9,9 +9,8 @@ use super::{
 use crate::{core::BlockHandle, utils::ContextWrapper, VoidPointerCallback};
 use num_traits::FromPrimitive;
 use rsnano_core::{Account, Amount, BlockEnum, BlockHash, QualifiedRoot, VoteSource};
-use rsnano_node::{
-    config::ActiveElectionsConfig,
-    consensus::{ActiveElections, ActiveElectionsExt, Election, VoteApplierExt},
+use rsnano_node::consensus::{
+    ActiveElections, ActiveElectionsConfig, ActiveElectionsExt, Election, VoteApplierExt,
 };
 use std::{ffi::c_void, ops::Deref, sync::Arc};
 

@@ -1,6 +1,6 @@
 use crate::transport::ChannelHandle;
 use rsnano_core::{BlockHash, Root};
-use rsnano_node::{config::RequestAggregatorConfig, consensus::RequestAggregator};
+use rsnano_node::consensus::{RequestAggregator, RequestAggregatorConfig};
 use std::{ops::Deref, sync::Arc};
 
 pub struct RequestAggregatorHandle(pub Arc<RequestAggregator>);

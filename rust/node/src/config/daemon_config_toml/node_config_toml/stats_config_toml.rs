@@ -1,6 +1,4 @@
 use crate::{config::Miliseconds, stats::StatsConfig};
-use anyhow::Result;
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -13,27 +11,6 @@ pub struct StatsConfigToml {
     pub log_headers: Option<bool>,
     pub log_counters_filename: Option<String>,
     pub log_samples_filename: Option<String>,
-}
-
-impl StatsConfigToml {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
-        toml.put_usize(
-            "max_samples",
-            self.max_samples,
-            "Maximum number ofmany samples to keep in the ring buffer.\ntype:uint64",
-        )?;
-
-        toml.put_child("log", &mut |log|{
-            log.put_bool("headers", self.log_headers, "If true, write headers on each counter or samples writeout.\nThe header contains log type and the current wall time.\ntype:bool")?;
-            log.put_usize("interval_counters", self.log_counters_interval.as_millis() as usize, "How often to log counters. 0 disables logging.\ntype:milliseconds")?;
-            log.put_usize("interval_samples", self.log_samples_interval.as_millis() as usize, "How often to log samples. 0 disables logging.\ntype:milliseconds")?;
-            log.put_usize("rotation_count", self.log_rotation_count, "Maximum number of log outputs before rotating the file.\ntype:uint64")?;
-            log.put_str("filename_counters", &self.log_counters_filename, "Log file name for counters.\ntype:string")?;
-            log.put_str("filename_samples", &self.log_samples_filename, "Log file name for samples.\ntype:string")?;
-            Ok(())
-        })?;
-        Ok(())
-    }
 }
 
 impl Default for StatsConfigToml {

@@ -1,9 +1,6 @@
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_node::{
-    config::{DaemonConfig, DaemonConfigToml, NetworkConstants},
-    NetworkParams,
-};
+use rsnano_node::config::DaemonConfigToml;
 use std::io::BufRead;
 
 #[derive(Parser)]
@@ -24,12 +21,8 @@ pub(crate) struct GenerateConfigArgs {
 
 impl GenerateConfigArgs {
     pub(crate) fn generate_config(&self) -> Result<()> {
-        let network = NetworkConstants::active_network();
-
         let (toml_str, config_type) = if self.node {
-            let network_params = NetworkParams::new(network);
-            let daemon_config_toml: DaemonConfigToml =
-                DaemonConfig::new(&network_params, 0)?.into();
+            let daemon_config_toml: DaemonConfigToml = DaemonConfigToml::default()?.into();
             (toml::to_string(&daemon_config_toml).unwrap(), "node")
         } else {
             // todo: rpc config

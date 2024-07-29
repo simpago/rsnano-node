@@ -1,29 +1,11 @@
-use rsnano_core::utils::TomlWriter;
-use serde::{Deserialize, Serialize};
-
 use crate::consensus::OptimisticSchedulerConfig;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct OptimisticSchedulerConfigToml {
     pub enabled: Option<bool>,
     pub gap_threshold: Option<u64>,
     pub max_size: Option<usize>,
-}
-
-impl OptimisticSchedulerConfigToml {
-    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_bool(
-            "enable",
-            self.enabled,
-            "Enable or disable optimistic elections\ntype:bool",
-        )?;
-        toml.put_u64 ("gap_threshold", self.gap_threshold, "Minimum difference between confirmation frontier and account frontier to become a candidate for optimistic confirmation\ntype:uint64")?;
-        toml.put_usize(
-            "max_size",
-            self.max_size,
-            "Maximum number of candidates stored in memory\ntype:uint64",
-        )
-    }
 }
 
 impl Default for OptimisticSchedulerConfigToml {

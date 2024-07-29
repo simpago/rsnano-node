@@ -29,6 +29,7 @@ pub mod websocket;
 pub mod work;
 
 pub use ipc::*;
+pub use monitor::MonitorConfig;
 pub use representatives::OnlineWeightSampler;
 pub use secure::*;
 pub use telemetry::*;

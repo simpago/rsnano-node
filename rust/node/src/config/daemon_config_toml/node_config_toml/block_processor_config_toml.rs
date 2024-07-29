@@ -1,5 +1,4 @@
 use crate::block_processing::BlockProcessorConfig;
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -9,20 +8,6 @@ pub struct BlockProcessorConfigToml {
     pub priority_live: Option<usize>,
     pub priority_bootstrap: Option<usize>,
     pub priority_local: Option<usize>,
-}
-
-impl BlockProcessorConfigToml {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_peer_queue",
-            self.max_peer_queue,
-            "Maximum number of blocks to queue from network peers. \ntype:uint64",
-        )?;
-        toml.put_usize("max_system_queue", self.max_system_queue, "Maximum number of blocks to queue from system components (local RPC, bootstrap). \ntype:uint64")?;
-        toml.put_usize("priority_live", self.priority_live, "Priority for live network blocks. Higher priority gets processed more frequently. \ntype:uint64")?;
-        toml.put_usize("priority_bootstrap", self.priority_bootstrap, "Priority for bootstrap blocks. Higher priority gets processed more frequently. \ntype:uint64")?;
-        toml.put_usize("priority_local", self.priority_local, "Priority for local RPC blocks. Higher priority gets processed more frequently. \ntype:uint64")
-    }
 }
 
 impl Default for BlockProcessorConfigToml {
