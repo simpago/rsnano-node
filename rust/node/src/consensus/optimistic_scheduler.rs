@@ -1,7 +1,7 @@
 use super::{ActiveElections, ActiveElectionsExt, ElectionBehavior};
 use crate::{
     cementation::ConfirmingSet,
-    config::{NetworkConstants, OptimisticSchedulerConfig},
+    config::NetworkConstants,
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{
@@ -20,6 +20,27 @@ use std::{
     thread::JoinHandle,
     time::Instant,
 };
+
+#[derive(Clone)]
+pub struct OptimisticSchedulerConfig {
+    pub enabled: bool,
+
+    /// Minimum difference between confirmation frontier and account frontier to become a candidate for optimistic confirmation
+    pub gap_threshold: u64,
+
+    /// Maximum number of candidates stored in memory
+    pub max_size: usize,
+}
+
+impl OptimisticSchedulerConfig {
+    pub fn new() -> Self {
+        Self {
+            enabled: true,
+            gap_threshold: 32,
+            max_size: 1024 * 64,
+        }
+    }
+}
 
 pub struct OptimisticScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,

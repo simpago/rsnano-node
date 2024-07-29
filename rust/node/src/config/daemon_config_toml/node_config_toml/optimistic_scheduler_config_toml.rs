@@ -1,26 +1,16 @@
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub struct OptimisticSchedulerConfig {
-    pub enabled: bool,
+use crate::consensus::OptimisticSchedulerConfig;
 
-    /// Minimum difference between confirmation frontier and account frontier to become a candidate for optimistic confirmation
-    pub gap_threshold: u64,
-
-    /// Maximum number of candidates stored in memory
-    pub max_size: usize,
+#[derive(Deserialize, Serialize)]
+pub struct OptimisticSchedulerConfigToml {
+    pub enabled: Option<bool>,
+    pub gap_threshold: Option<u64>,
+    pub max_size: Option<usize>,
 }
 
-impl OptimisticSchedulerConfig {
-    pub fn new() -> Self {
-        Self {
-            enabled: true,
-            gap_threshold: 32,
-            max_size: 1024 * 64,
-        }
-    }
-
+impl OptimisticSchedulerConfigToml {
     pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_bool(
             "enable",
@@ -36,15 +26,9 @@ impl OptimisticSchedulerConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct OptimisticSchedulerConfigToml {
-    pub enabled: Option<bool>,
-    pub gap_threshold: Option<u64>,
-    pub max_size: Option<usize>,
-}
-
-impl From<&OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
-    fn from(config: &OptimisticSchedulerConfig) -> Self {
+impl Default for OptimisticSchedulerConfigToml {
+    fn default() -> Self {
+        let config = OptimisticSchedulerConfig::new();
         Self {
             enabled: Some(config.enabled),
             gap_threshold: Some(config.gap_threshold),

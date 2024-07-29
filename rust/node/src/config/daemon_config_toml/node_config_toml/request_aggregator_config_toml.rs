@@ -1,36 +1,15 @@
-use std::cmp::{max, min};
-
-use rsnano_core::utils::{get_cpu_count, TomlWriter};
+use crate::consensus::RequestAggregatorConfig;
+use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
-pub struct RequestAggregatorConfig {
-    pub threads: usize,
-    pub max_queue: usize,
-    pub batch_size: usize,
+#[derive(Deserialize, Serialize)]
+pub struct RequestAggregatorConfigToml {
+    pub threads: Option<usize>,
+    pub max_queue: Option<usize>,
+    pub batch_size: Option<usize>,
 }
 
-impl Default for RequestAggregatorConfig {
-    fn default() -> Self {
-        let parallelism = get_cpu_count();
-
-        Self {
-            threads: max(1, min(parallelism / 2, 4)),
-            max_queue: 128,
-            batch_size: 16,
-        }
-    }
-}
-
-impl RequestAggregatorConfig {
-    pub fn new(parallelism: usize) -> Self {
-        Self {
-            threads: max(1, min(parallelism / 2, 4)),
-            max_queue: 128,
-            batch_size: 16,
-        }
-    }
-
+impl RequestAggregatorConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "max_queue",
@@ -50,15 +29,9 @@ impl RequestAggregatorConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct RequestAggregatorConfigToml {
-    pub threads: Option<usize>,
-    pub max_queue: Option<usize>,
-    pub batch_size: Option<usize>,
-}
-
-impl From<&RequestAggregatorConfig> for RequestAggregatorConfigToml {
-    fn from(config: &RequestAggregatorConfig) -> Self {
+impl Default for RequestAggregatorConfigToml {
+    fn default() -> Self {
+        let config = RequestAggregatorConfig::default();
         Self {
             threads: Some(config.threads),
             max_queue: Some(config.max_queue),

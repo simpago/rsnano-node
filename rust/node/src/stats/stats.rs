@@ -1,6 +1,5 @@
 use super::{DetailType, Direction, Sample, StatType, StatsJsonWriter};
-use super::{StatFileWriter, StatsLogSink};
-use crate::config::StatsConfig;
+use super::{StatFileWriter, StatsConfig, StatsLogSink};
 use anyhow::Result;
 use bounded_vec_deque::BoundedVecDeque;
 use once_cell::sync::Lazy;

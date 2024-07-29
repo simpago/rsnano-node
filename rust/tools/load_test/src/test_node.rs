@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use rsnano_node::{
     config::{
         get_node_toml_config_path, get_rpc_toml_config_path, DaemonConfig, NetworkConstants,
-        RpcConfig,
+        RpcConfigToml,
     },
     unique_path,
     utils::TomlConfig,
@@ -194,7 +194,7 @@ fn write_node_config(index: usize, data_path: &Path, network_params: &NetworkPar
 }
 
 fn write_rpc_config(index: usize, data_path: &Path, network_params: &NetworkParams) -> Result<()> {
-    let mut rpc_config = RpcConfig::new(&network_params.network, get_cpu_count());
+    let mut rpc_config = RpcConfigToml::new(&network_params.network, get_cpu_count());
     rpc_config.port = RPC_PORT_START + index as u16;
     rpc_config.enable_control = true;
     rpc_config.rpc_process.ipc_port = IPC_PORT_START + index as u16;

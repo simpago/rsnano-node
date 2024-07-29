@@ -2,6 +2,7 @@ mod ledger_stats;
 mod parse_message_error;
 mod socket_stats;
 mod stats;
+mod stats_config;
 mod stats_enums;
 mod stats_log_sink;
 
@@ -11,6 +12,7 @@ use rsnano_ledger::BlockStatus;
 use rsnano_messages::Message;
 pub use socket_stats::SocketStats;
 pub use stats::*;
+pub use stats_config::StatsConfig;
 pub use stats_enums::*;
 pub use stats_log_sink::{StatFileWriter, StatsJsonWriter, StatsLogSink};
 

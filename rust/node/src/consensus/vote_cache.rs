@@ -1,8 +1,5 @@
 use super::TallyKey;
-use crate::{
-    config::VoteCacheConfig,
-    stats::{DetailType, StatType, Stats},
-};
+use crate::stats::{DetailType, StatType, Stats};
 #[cfg(test)]
 use mock_instant::Instant;
 use rsnano_core::{
@@ -16,7 +13,25 @@ use std::{
     collections::{BTreeMap, HashMap},
     mem::size_of,
     sync::Arc,
+    time::Duration,
 };
+
+#[derive(Clone)]
+pub struct VoteCacheConfig {
+    pub max_size: usize,
+    pub max_voters: usize,
+    pub age_cutoff: Duration,
+}
+
+impl Default for VoteCacheConfig {
+    fn default() -> Self {
+        Self {
+            max_size: 1024 * 64,
+            max_voters: 64,
+            age_cutoff: Duration::from_secs(15 * 60),
+        }
+    }
+}
 
 ///	A container holding votes that do not match any active or recently finished elections.
 ///	It keeps track of votes in two internal structures: cache and queue

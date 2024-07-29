@@ -1,22 +1,29 @@
-use super::{NodeConfig, NodeRpcConfig, OpenclConfig};
-use super::{NodeConfigToml, NodeRpcConfigToml, OpenclConfigToml};
+mod node_config_toml;
+mod opencl_config_toml;
+mod rpc_config_toml;
+
+use super::NodeConfig;
 use crate::NetworkParams;
 use anyhow::Result;
+pub use node_config_toml::*;
+pub use opencl_config_toml::*;
+pub use rpc_config_toml::*;
 use rsnano_core::utils::TomlWriter;
-use serde::{Deserialize, Serialize};
+use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-pub struct DaemonConfig {
-    pub rpc: NodeRpcConfig,
-    pub node: NodeConfig,
-    pub opencl: OpenclConfig,
+#[derive(Deserialize, Serialize)]
+pub struct DaemonConfigToml {
+    pub node: Option<NodeConfigToml>,
+    pub(crate) rpc: Option<RpcConfigToml>,
+    pub(crate) opencl: Option<OpenclConfigToml>,
 }
 
-impl DaemonConfig {
+impl DaemonConfigToml {
     pub fn new(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
         Ok(Self {
             node: NodeConfig::new(None, network_params, parallelism),
             opencl: OpenclConfig::new(),
-            rpc: NodeRpcConfig::default()?,
+            rpc: RpcConfigToml::default()?,
         })
     }
 
@@ -34,27 +41,18 @@ impl DaemonConfig {
         toml.put_child("node", &mut |node| self.node.serialize_toml(node))?;
 
         toml.put_child("opencl", &mut |opencl| {
-            self.opencl.serialize_toml(opencl)?;
-            opencl.put_bool(
-                "enable",
-                self.opencl.enable,
-                "Enable or disable OpenCL work generation\nIf enabled, consider freeing up CPU resources by setting [work_threads] to zero\ntype:bool",
-            )?;
-            Ok(())
-        })?;
+                self.opencl.serialize_toml(opencl)?;
+                opencl.put_bool(
+                    "enable",
+                    self.opencl.enable,
+                    "Enable or disable OpenCL work generation\nIf enabled, consider freeing up CPU resources by setting [work_threads] to zero\ntype:bool",
+                )?;
+                Ok(())
+            })?;
 
         Ok(())
     }
-}
 
-#[derive(Deserialize, Serialize)]
-pub struct DaemonConfigToml {
-    pub node: Option<NodeConfigToml>,
-    pub(crate) rpc: Option<NodeRpcConfigToml>,
-    pub(crate) opencl: Option<OpenclConfigToml>,
-}
-
-impl DaemonConfigToml {
     pub fn merge_defaults(&self, default_config: &DaemonConfigToml) -> Result<String> {
         let defaults_str = toml::to_string(default_config)?;
         let current_str = toml::to_string(self)?;
@@ -109,13 +107,26 @@ impl DaemonConfigToml {
     }
 }
 
-impl From<DaemonConfig> for DaemonConfigToml {
-    fn from(config: DaemonConfig) -> Self {
-        Self {
-            node: Some(config.node.into()),
-            rpc: Some(config.rpc.into()),
-            opencl: Some((&config.opencl).into()),
-        }
+#[derive(Clone, Default)]
+pub struct Miliseconds(pub u128);
+
+impl Serialize for Miliseconds {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Miliseconds {
+    fn deserialize<D>(deserializer: D) -> Result<Miliseconds, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let miliseconds = s.parse::<u128>().map_err(Error::custom)?;
+        Ok(Miliseconds(miliseconds))
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-    config::BootstrapServerConfig,
+    config::BootstrapServerConfigToml,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
 };
@@ -18,6 +18,23 @@ use std::{
     },
     thread::JoinHandle,
 };
+
+#[derive(Clone, Debug)]
+pub struct BootstrapServerConfig {
+    pub max_queue: usize,
+    pub threads: usize,
+    pub batch_size: usize,
+}
+
+impl Default for BootstrapServerConfig {
+    fn default() -> Self {
+        Self {
+            max_queue: 16,
+            threads: 1,
+            batch_size: 64,
+        }
+    }
+}
 
 /**
  * Processes bootstrap requests (`asc_pull_req` messages) and replies with bootstrap responses (`asc_pull_ack`)

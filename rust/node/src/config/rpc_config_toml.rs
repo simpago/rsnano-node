@@ -22,7 +22,7 @@ fn get_default_rpc_filepath_from(node_exe_path: &Path) -> PathBuf {
     result
 }
 
-pub struct RpcConfig {
+pub struct RpcConfigToml {
     pub address: String,
     pub port: u16,
     pub enable_control: bool,
@@ -32,7 +32,7 @@ pub struct RpcConfig {
     pub rpc_process: RpcProcessConfig,
 }
 
-impl RpcConfig {
+impl RpcConfigToml {
     pub fn new(network_constants: &NetworkConstants, parallelism: usize) -> Self {
         Self::new2(
             network_constants,

@@ -1,4 +1,4 @@
-use super::BootstrapAscendingConfig;
+use crate::bootstrap::BootstrapAscendingConfig;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use rsnano_core::{utils::get_env_or_default, work::WorkThresholds, Networks};
@@ -233,6 +233,32 @@ impl NetworkConstants {
         }
     }
 }
+
+impl Default for NetworkConstants {
+    fn default() -> Self {
+        let active_network = NetworkConstants::active_network();
+        match active_network {
+            Networks::Invalid => Self::empty(),
+            Networks::NanoBetaNetwork => Self::new(
+                WorkThresholds::publish_beta().clone(),
+                Networks::NanoBetaNetwork,
+            ),
+            Networks::NanoDevNetwork => Self::new(
+                WorkThresholds::publish_dev().clone(),
+                Networks::NanoDevNetwork,
+            ),
+            Networks::NanoLiveNetwork => Self::new(
+                WorkThresholds::publish_full().clone(),
+                Networks::NanoLiveNetwork,
+            ),
+            Networks::NanoTestNetwork => Self::new(
+                WorkThresholds::publish_test().clone(),
+                Networks::NanoTestNetwork,
+            ),
+        }
+    }
+}
+
 pub fn test_node_port() -> u16 {
     get_env_or_default("NANO_TEST_NODE_PORT", 17075)
 }

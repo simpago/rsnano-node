@@ -9,7 +9,7 @@ pub struct OpenclConfig {
     pub threads: u32,
 }
 
-impl OpenclConfig {
+impl OpenclConfigToml {
     pub fn new() -> Self {
         Default::default()
     }

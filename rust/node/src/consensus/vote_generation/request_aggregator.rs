@@ -3,19 +3,46 @@ use super::{
     VoteGenerators,
 };
 use crate::{
-    config::RequestAggregatorConfig,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
 };
-use rsnano_core::{utils::ContainerInfoComponent, BlockHash, NoValue, Root, Vote};
+use rsnano_core::{
+    utils::{get_cpu_count, ContainerInfoComponent},
+    BlockHash, NoValue, Root, Vote,
+};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
+    cmp::{max, min},
     sync::{Arc, Condvar, Mutex, MutexGuard},
     thread::JoinHandle,
 };
 use tracing::trace;
+
+#[derive(Debug, Clone)]
+pub struct RequestAggregatorConfig {
+    pub threads: usize,
+    pub max_queue: usize,
+    pub batch_size: usize,
+}
+
+impl RequestAggregatorConfig {
+    pub fn new(parallelism: usize) -> Self {
+        Self {
+            threads: max(1, min(parallelism / 2, 4)),
+            max_queue: 128,
+            batch_size: 16,
+        }
+    }
+}
+
+impl Default for RequestAggregatorConfig {
+    fn default() -> Self {
+        let parallelism = get_cpu_count();
+        Self::new(parallelism)
+    }
+}
 
 /**
  * Pools together confirmation requests, separately for each endpoint.

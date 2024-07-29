@@ -35,7 +35,7 @@ pub use recently_confirmed_cache::*;
 pub use rep_tiers::*;
 pub use vote_applier::*;
 pub use vote_broadcaster::*;
-pub use vote_cache::{CacheEntry, TopEntry, VoteCache, VoterEntry};
+pub use vote_cache::{CacheEntry, TopEntry, VoteCache, VoteCacheConfig, VoterEntry};
 pub(crate) use vote_cache_processor::*;
 pub use vote_generation::*;
 pub use vote_processor::*;

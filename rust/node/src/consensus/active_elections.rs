@@ -6,7 +6,7 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     cementation::ConfirmingSet,
-    config::{ActiveElectionsConfig, NodeConfig, NodeFlags},
+    config::{ActiveElectionsConfigToml, NodeConfig, NodeFlags},
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
@@ -41,6 +41,32 @@ pub type ElectionEndCallback = Box<
 >;
 
 pub type AccountBalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
+
+#[derive(Clone, Debug)]
+pub struct ActiveElectionsConfig {
+    // Maximum number of simultaneous active elections (AEC size)
+    pub size: usize,
+    // Limit of hinted elections as percentage of `active_elections_size`
+    pub hinted_limit_percentage: usize,
+    // Limit of optimistic elections as percentage of `active_elections_size`
+    pub optimistic_limit_percentage: usize,
+    // Maximum confirmation history size
+    pub confirmation_history_size: usize,
+    // Maximum cache size for recently_confirmed
+    pub confirmation_cache: usize,
+}
+
+impl Default for ActiveElectionsConfig {
+    fn default() -> Self {
+        Self {
+            size: 5000,
+            hinted_limit_percentage: 20,
+            optimistic_limit_percentage: 10,
+            confirmation_history_size: 2048,
+            confirmation_cache: 65536,
+        }
+    }
+}
 
 pub struct ActiveElections {
     relative_time: Instant,

@@ -1,18 +1,15 @@
 mod converters;
-mod daemon_config;
+mod daemon_config_toml;
 mod network_constants;
-mod node;
 mod node_flags;
-mod rpc;
+mod rpc_config_toml;
 
-use crate::NetworkParams;
-pub use daemon_config::*;
+use crate::{node::NodeConfig, NetworkParams};
+pub use daemon_config_toml::*;
 pub use network_constants::*;
-pub use node::*;
 pub use node_flags::*;
-pub use rpc::*;
+pub use rpc_config_toml::*;
 use rsnano_core::Networks;
-use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 
 pub fn get_node_toml_config_path(data_path: &Path) -> PathBuf {
@@ -41,27 +38,4 @@ pub struct GlobalConfig {
     pub node_config: NodeConfig,
     pub flags: NodeFlags,
     pub network_params: NetworkParams,
-}
-
-#[derive(Clone, Default)]
-pub struct Miliseconds(pub u128);
-
-impl Serialize for Miliseconds {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.0.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for Miliseconds {
-    fn deserialize<D>(deserializer: D) -> Result<Miliseconds, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let miliseconds = s.parse::<u128>().map_err(Error::custom)?;
-        Ok(Miliseconds(miliseconds))
-    }
 }

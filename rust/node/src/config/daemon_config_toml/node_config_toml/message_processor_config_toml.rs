@@ -1,33 +1,14 @@
-use std::cmp::{max, min};
-
-use rsnano_core::utils::{get_cpu_count, TomlWriter};
+use crate::transport::MessageProcessorConfig;
+use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub struct MessageProcessorConfig {
-    pub threads: usize,
-    pub max_queue: usize,
+#[derive(Deserialize, Serialize)]
+pub struct MessageProcessorConfigToml {
+    pub threads: Option<usize>,
+    pub max_queue: Option<usize>,
 }
 
-impl Default for MessageProcessorConfig {
-    fn default() -> Self {
-        let parallelism = get_cpu_count();
-
-        Self {
-            threads: min(2, max(parallelism / 4, 1)),
-            max_queue: 64,
-        }
-    }
-}
-
-impl MessageProcessorConfig {
-    pub fn new(parallelism: usize) -> Self {
-        Self {
-            threads: min(2, max(parallelism / 4, 1)),
-            max_queue: 64,
-        }
-    }
-
+impl MessageProcessorConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "threads",
@@ -43,14 +24,9 @@ impl MessageProcessorConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct MessageProcessorConfigToml {
-    pub threads: Option<usize>,
-    pub max_queue: Option<usize>,
-}
-
-impl From<&MessageProcessorConfig> for MessageProcessorConfigToml {
-    fn from(config: &MessageProcessorConfig) -> Self {
+impl Default for MessageProcessorConfigToml {
+    fn default() -> Self {
+        let config = MessageProcessorConfig::default();
         Self {
             threads: Some(config.threads),
             max_queue: Some(config.max_queue),

@@ -1,5 +1,3 @@
-use anyhow::Result;
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Deserialize, Serialize)]
@@ -44,23 +42,5 @@ impl Default for LmdbConfig {
 impl LmdbConfig {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
-        let sync_str = match self.sync {
-            SyncStrategy::Always => "always",
-            SyncStrategy::NosyncSafe => "nosync_safe",
-            SyncStrategy::NosyncUnsafe => "nosync_unsafe",
-            SyncStrategy::NosyncUnsafeLargeMemory => "nosync_unsafe_large_memory",
-        };
-
-        toml.put_str("sync", sync_str, "Sync strategy for flushing commits to the ledger database. This does not affect the wallet database.\ntype:string,{always, nosync_safe, nosync_unsafe, nosync_unsafe_large_memory}")?;
-        toml.put_u32("max_databases", self.max_databases, "Maximum open lmdb databases. Increase default if more than 100 wallets is required.\nNote: external management is recommended when a large amounts of wallets are required (see https://docs.nano.org/integration-guides/key-management/).\ntype:uin32")?;
-        toml.put_usize(
-            "map_size",
-            self.map_size,
-            "Maximum ledger database map size in bytes.\ntype:uint64",
-        )?;
-        Ok(())
     }
 }

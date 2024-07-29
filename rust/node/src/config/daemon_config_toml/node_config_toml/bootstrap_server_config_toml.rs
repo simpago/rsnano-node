@@ -1,24 +1,15 @@
+use crate::bootstrap::BootstrapServerConfig;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug)]
-pub struct BootstrapServerConfig {
-    pub max_queue: usize,
-    pub threads: usize,
-    pub batch_size: usize,
+#[derive(Deserialize, Serialize)]
+pub struct BootstrapServerConfigToml {
+    pub max_queue: Option<usize>,
+    pub threads: Option<usize>,
+    pub batch_size: Option<usize>,
 }
 
-impl Default for BootstrapServerConfig {
-    fn default() -> Self {
-        Self {
-            max_queue: 16,
-            threads: 1,
-            batch_size: 64,
-        }
-    }
-}
-
-impl BootstrapServerConfig {
+impl BootstrapServerConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "max_queue",
@@ -38,15 +29,9 @@ impl BootstrapServerConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct BootstrapServerConfigToml {
-    pub max_queue: Option<usize>,
-    pub threads: Option<usize>,
-    pub batch_size: Option<usize>,
-}
-
-impl From<&BootstrapServerConfig> for BootstrapServerConfigToml {
-    fn from(config: &BootstrapServerConfig) -> Self {
+impl Default for BootstrapServerConfigToml {
+    fn default() -> Self {
+        let config = BootstrapServerConfig::default();
         Self {
             max_queue: Some(config.max_queue),
             threads: Some(config.threads),

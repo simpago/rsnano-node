@@ -1,23 +1,15 @@
+use crate::monitor::MonitorConfig;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-#[derive(Clone)]
-pub struct MonitorConfig {
-    pub enabled: bool,
-    pub interval: Duration,
+#[derive(Deserialize, Serialize)]
+pub struct MonitorConfigToml {
+    pub enabled: Option<bool>,
+    pub interval: Option<u64>,
 }
 
-impl Default for MonitorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            interval: Duration::from_secs(60),
-        }
-    }
-}
-
-impl MonitorConfig {
+impl MonitorConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_bool(
             "enable",
@@ -33,14 +25,9 @@ impl MonitorConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct MonitorConfigToml {
-    pub enabled: Option<bool>,
-    pub interval: Option<u64>,
-}
-
-impl From<&MonitorConfig> for MonitorConfigToml {
-    fn from(config: &MonitorConfig) -> Self {
+impl Default for MonitorConfigToml {
+    fn default() -> Self {
+        let config = MonitorConfig::default();
         Self {
             enabled: Some(config.enabled),
             interval: Some(config.interval.as_secs()),

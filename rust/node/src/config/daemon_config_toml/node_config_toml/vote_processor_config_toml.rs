@@ -1,45 +1,19 @@
-use std::cmp::{max, min};
-
-use rsnano_core::utils::{get_cpu_count, TomlWriter};
+use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub struct VoteProcessorConfig {
-    pub max_pr_queue: usize,
-    pub max_non_pr_queue: usize,
-    pub pr_priority: usize,
-    pub threads: usize,
-    pub batch_size: usize,
-    pub max_triggered: usize,
+use crate::consensus::VoteProcessorConfig;
+
+#[derive(Deserialize, Serialize)]
+pub struct VoteProcessorConfigToml {
+    pub max_pr_queue: Option<usize>,
+    pub max_non_pr_queue: Option<usize>,
+    pub pr_priority: Option<usize>,
+    pub threads: Option<usize>,
+    pub batch_size: Option<usize>,
+    pub max_triggered: Option<usize>,
 }
 
-impl Default for VoteProcessorConfig {
-    fn default() -> Self {
-        let parallelism = get_cpu_count();
-
-        Self {
-            max_pr_queue: 256,
-            max_non_pr_queue: 32,
-            pr_priority: 3,
-            threads: max(1, min(4, parallelism / 2)),
-            batch_size: 1024,
-            max_triggered: 16384,
-        }
-    }
-}
-
-impl VoteProcessorConfig {
-    pub fn new(parallelism: usize) -> Self {
-        Self {
-            max_pr_queue: 256,
-            max_non_pr_queue: 32,
-            pr_priority: 3,
-            threads: max(1, min(4, parallelism / 2)),
-            batch_size: 1024,
-            max_triggered: 16384,
-        }
-    }
-
+impl VoteProcessorConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "max_pr_queue",
@@ -72,18 +46,9 @@ impl VoteProcessorConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct VoteProcessorConfigToml {
-    pub max_pr_queue: Option<usize>,
-    pub max_non_pr_queue: Option<usize>,
-    pub pr_priority: Option<usize>,
-    pub threads: Option<usize>,
-    pub batch_size: Option<usize>,
-    pub max_triggered: Option<usize>,
-}
-
-impl From<&VoteProcessorConfig> for VoteProcessorConfigToml {
-    fn from(config: &VoteProcessorConfig) -> Self {
+impl Default for VoteProcessorConfigToml {
+    fn default() -> Self {
+        let config = VoteProcessorConfig::default();
         Self {
             max_pr_queue: Some(config.max_non_pr_queue),
             max_non_pr_queue: Some(config.max_non_pr_queue),

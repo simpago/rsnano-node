@@ -1,29 +1,15 @@
+use crate::consensus::PriorityBucketConfig;
 use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub struct PriorityBucketConfig {
-    /// Maximum number of blocks to sort by priority per bucket.
-    pub max_blocks: usize,
-
-    /// Number of guaranteed slots per bucket available for election activation.
-    pub reserved_elections: usize,
-
-    /// Maximum number of slots per bucket available for election activation if the active election count is below the configured limit. (node.active_elections.size)
-    pub max_elections: usize,
+#[derive(Deserialize, Serialize)]
+pub struct PriorityBucketConfigToml {
+    pub max_blocks: Option<usize>,
+    pub reserved_elections: Option<usize>,
+    pub max_elections: Option<usize>,
 }
 
-impl Default for PriorityBucketConfig {
-    fn default() -> Self {
-        Self {
-            max_blocks: 1024 * 8,
-            reserved_elections: 100,
-            max_elections: 150,
-        }
-    }
-}
-
-impl PriorityBucketConfig {
+impl PriorityBucketConfigToml {
     pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
         toml.put_usize(
             "max_blocks",
@@ -35,15 +21,9 @@ impl PriorityBucketConfig {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct PriorityBucketConfigToml {
-    pub max_blocks: Option<usize>,
-    pub reserved_elections: Option<usize>,
-    pub max_elections: Option<usize>,
-}
-
-impl From<&PriorityBucketConfig> for PriorityBucketConfigToml {
-    fn from(config: &PriorityBucketConfig) -> Self {
+impl Default for PriorityBucketConfigToml {
+    fn default() -> Self {
+        let config = PriorityBucketConfig::default();
         Self {
             max_blocks: Some(config.max_blocks),
             reserved_elections: Some(config.max_elections),

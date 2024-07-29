@@ -1,8 +1,9 @@
 use super::{ChannelEnum, InboundMessageQueue, Origin, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
-use rsnano_core::NoValue;
+use rsnano_core::{utils::get_cpu_count, NoValue};
 use rsnano_messages::DeserializedMessage;
 use std::{
+    cmp::{max, min},
     collections::VecDeque,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -12,6 +13,32 @@ use std::{
     time::Instant,
 };
 use tracing::debug;
+
+#[derive(Clone)]
+pub struct MessageProcessorConfig {
+    pub threads: usize,
+    pub max_queue: usize,
+}
+
+impl Default for MessageProcessorConfig {
+    fn default() -> Self {
+        let parallelism = get_cpu_count();
+
+        Self {
+            threads: min(2, max(parallelism / 4, 1)),
+            max_queue: 64,
+        }
+    }
+}
+
+impl MessageProcessorConfig {
+    pub fn new(parallelism: usize) -> Self {
+        Self {
+            threads: min(2, max(parallelism / 4, 1)),
+            max_queue: 64,
+        }
+    }
+}
 
 /// Process inbound messages from other nodes
 pub struct MessageProcessor {

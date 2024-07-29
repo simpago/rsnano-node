@@ -1,6 +1,7 @@
 mod async_runtime;
 mod blake2b;
 mod json;
+mod long_running_transaction_logger;
 mod processing_queue;
 mod thread_pool;
 mod timer;
@@ -20,13 +21,11 @@ pub use hardened_constants::HardenedConstants;
 
 pub use blake2b::*;
 pub use json::*;
+pub use long_running_transaction_logger::{LongRunningTransactionLogger, TxnTrackingConfig};
 pub use processing_queue::*;
 pub use thread_pool::*;
 pub use timer_thread::*;
 pub use toml::*;
-
-mod long_running_transaction_logger;
-pub use long_running_transaction_logger::LongRunningTransactionLogger;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ErrorCode {
