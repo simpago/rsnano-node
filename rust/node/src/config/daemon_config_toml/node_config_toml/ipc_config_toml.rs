@@ -5,13 +5,13 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Deserialize, Serialize)]
-pub struct TomlIpcConfig {
+pub struct IpcConfigToml {
     pub transport_domain: Option<TomlIpcConfigDomainSocket>,
-    pub transport_tcp: Option<TomlIpcConfigTcpSocket>,
+    pub transport_tcp: Option<IpcConfigTcpSocketToml>,
     pub flatbuffers: Option<TomlIpcConfigFlatbuffers>,
 }
 
-impl TomlIpcConfig {
+impl IpcConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
         toml.put_child("tcp", &mut |tcp| {
             tcp.put_bool(
@@ -84,24 +84,24 @@ pub struct TomlIpcConfigFlatbuffers {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct TomlIpcConfigTcpSocket {
+pub struct IpcConfigTcpSocketToml {
     pub transport: Option<TomlIpcConfigTransport>,
     pub port: Option<u16>,
 }
 
-impl Default for TomlIpcConfig {
+impl Default for IpcConfigToml {
     fn default() -> Self {
         let config = IpcConfig::default();
         Self {
-            transport_domain: config.transport_domain,
-            transport_tcp: config.transport_tcp,
-            flatbuffers: config.flatbuffers,
+            transport_domain: Some(config.transport_domain),
+            transport_tcp: Some(config.transport_tcp),
+            flatbuffers: Some(config.flatbuffers),
         }
     }
 }
 
-impl From<&TomlIpcConfig> for IpcConfig {
-    fn from(toml: &TomlIpcConfig) -> Self {
+impl From<&IpcConfigToml> for IpcConfig {
+    fn from(toml: &IpcConfigToml) -> Self {
         let mut config = IpcConfig::default();
 
         if let Some(transport_domain) = &toml.transport_domain {

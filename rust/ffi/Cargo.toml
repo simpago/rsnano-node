@@ -22,9 +22,10 @@ num-traits = "0"
 num-derive = "0"
 rand = "0"
 bounded-vec-deque = "0.1.1"
-tokio = {version = "1", features=["rt-multi-thread"]}
+tokio = { version = "1", features = ["rt-multi-thread"] }
 tracing = "0.1"
-tracing-subscriber = {version="0.3.18", features=["env-filter", "json"]}
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+toml = "0.8.15"
 
 [build-dependencies]
 cbindgen = "0.24.3"

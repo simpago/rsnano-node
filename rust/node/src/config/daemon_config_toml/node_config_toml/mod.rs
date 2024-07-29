@@ -6,7 +6,6 @@ mod ipc_config_toml;
 mod lmdb_config_toml;
 mod message_processor_config_toml;
 mod monitor_config_toml;
-mod node_config_toml;
 mod optimistic_scheduler_config_toml;
 mod priority_bucket_config_toml;
 mod request_aggregator_config_toml;
@@ -34,8 +33,7 @@ pub use vote_cache_config_toml::*;
 pub use vote_processor_config_toml::*;
 pub use websocket_config_toml::*;
 
-use crate::config::{Miliseconds, NodeConfig};
-use crate::node::{FrontiersConfirmationMode, Peer};
+use crate::config::{FrontiersConfirmationMode, Miliseconds, NodeConfig, Peer};
 use anyhow::Result;
 use rsnano_core::{Account, Amount};
 use serde::{Deserialize, Serialize};
@@ -97,10 +95,10 @@ pub struct NodeConfigToml {
     pub(crate) max_pruning_age_s: Option<i64>,
     pub(crate) max_pruning_depth: Option<u64>,
     pub(crate) websocket_config: Option<WebsocketConfigToml>,
-    pub(crate) ipc_config: Option<TomlIpcConfig>,
-    pub(crate) diagnostics_config: Option<DiagnosticsConfigToml>,
+    pub(crate) ipc_config: Option<IpcConfigToml>,
+    pub(crate) txn_tracking_config: Option<TxnTrackingConfigToml>,
     pub(crate) stat_config: Option<StatsConfigToml>,
-    pub(crate) lmdb_config: Option<TomlLmdbConfig>,
+    pub(crate) lmdb_config: Option<LmdbConfigToml>,
     pub(crate) vote_cache: Option<VoteCacheConfigToml>,
     pub(crate) block_processor: Option<BlockProcessorConfigToml>,
     pub(crate) active_elections: Option<ActiveElectionsConfigToml>,
@@ -610,7 +608,7 @@ impl Default for NodeConfigToml {
             max_pruning_depth: Some(node_config.max_pruning_depth),
             websocket_config: Some(node_config.websocket_config.into()),
             ipc_config: Some(node_config.ipc_config.into()),
-            diagnostics_config: Some((&node_config.diagnostics_config).into()),
+            txn_tracking_config: Some((&node_config.txn).into()),
             stat_config: Some(node_config.stat_config.into()),
             lmdb_config: Some((&node_config.lmdb_config).into()),
             vote_cache: Some((&node_config.vote_cache).into()),

@@ -1,32 +1,37 @@
-use super::get_default_rpc_filepath;
+use crate::config::get_default_rpc_filepath;
 use anyhow::Result;
 use rsnano_core::utils::TomlWriter;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Deserialize, Serialize)]
 pub struct RpcChildProcessConfigToml {
-    pub enable: bool,
-    pub rpc_path: PathBuf,
+    pub enable: Option<bool>,
+    pub rpc_path: Option<PathBuf>,
 }
 
 impl RpcChildProcessConfigToml {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            enable: false,
-            rpc_path: get_default_rpc_filepath()?,
+            enable: Some(false),
+            rpc_path: Some(get_default_rpc_filepath()?),
         })
     }
 }
 
-pub struct RpcConfigToml {
-    pub enable_sign_hash: bool,
-    pub child_process: RpcChildProcessConfigToml,
+#[derive(Deserialize, Serialize)]
+pub struct NodeRpcConfigToml {
+    pub enable: Option<bool>,
+    pub enable_sign_hash: Option<bool>,
+    pub child_process: Option<RpcChildProcessConfigToml>,
 }
 
-impl RpcConfigToml {
+impl NodeRpcConfigToml {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            enable_sign_hash: false,
-            child_process: RpcChildProcessConfigToml::new()?,
+            enable: Some(false),
+            enable_sign_hash: Some(false),
+            child_process: Some(RpcChildProcessConfigToml::new()?),
         })
     }
 

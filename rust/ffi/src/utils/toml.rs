@@ -1,6 +1,9 @@
 use anyhow::Result;
 use rsnano_core::utils::{TomlArrayWriter, TomlWriter};
-use std::ffi::c_void;
+use std::{
+    ffi::{c_void, CString},
+    ptr,
+};
 
 type TomlPutU64Callback =
     unsafe extern "C" fn(*mut c_void, *const u8, usize, u64, *const u8, usize) -> i32;
@@ -100,6 +103,13 @@ pub struct FfiToml {
 impl FfiToml {
     pub fn new(handle: *mut c_void) -> Self {
         Self { handle }
+    }
+
+    pub fn set_toml_string(&mut self, toml_string: String) {
+        unsafe {
+            let c_string = CString::new(toml_string).expect("CString::new failed");
+            ptr::write(self.handle as *mut *const i8, c_string.into_raw());
+        }
     }
 }
 

@@ -1,12 +1,14 @@
 mod converters;
 mod daemon_config_toml;
 mod network_constants;
+mod node_config;
 mod node_flags;
 mod rpc_config_toml;
 
-use crate::{node::NodeConfig, NetworkParams};
+use crate::NetworkParams;
 pub use daemon_config_toml::*;
 pub use network_constants::*;
+pub use node_config::*;
 pub use node_flags::*;
 pub use rpc_config_toml::*;
 use rsnano_core::Networks;

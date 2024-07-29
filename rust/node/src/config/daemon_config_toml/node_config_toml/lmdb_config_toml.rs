@@ -4,13 +4,13 @@ use rsnano_store_lmdb::{LmdbConfig, SyncStrategy};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
-pub struct TomlLmdbConfig {
+pub struct LmdbConfigToml {
     pub sync: Option<SyncStrategy>,
     pub max_databases: Option<u32>,
     pub map_size: Option<usize>,
 }
 
-impl TomlLmdbConfig {
+impl LmdbConfigToml {
     pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
         let sync_str = match self.sync {
             SyncStrategy::Always => "always",
@@ -30,7 +30,7 @@ impl TomlLmdbConfig {
     }
 }
 
-impl Default for TomlLmdbConfig {
+impl Default for LmdbConfigToml {
     fn default() -> Self {
         let config = LmdbConfig::default();
         Self {
@@ -41,7 +41,7 @@ impl Default for TomlLmdbConfig {
     }
 }
 
-impl From<&TomlLmdbConfig> for LmdbConfig {
+impl From<&LmdbConfigToml> for LmdbConfig {
     fn from(toml: &TomlLmdbConfig) -> Self {
         let mut config = LmdbConfig::default();
 

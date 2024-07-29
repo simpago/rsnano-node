@@ -1,7 +1,9 @@
-use super::{
-    BlockProcessorConfig, BootstrapAscendingConfig, FrontiersConfirmationMode, GlobalConfig,
+use super::{AccountSetsToml, GlobalConfig};
+use crate::{
+    block_processing::{BacklogPopulationConfig, BlockProcessorConfig},
+    bootstrap::{BootstrapAscendingConfig, BootstrapInitiatorConfig},
+    node::FrontiersConfirmationMode,
 };
-use crate::{block_processing::BacklogPopulationConfig, bootstrap::BootstrapInitiatorConfig};
 use std::time::Duration;
 
 impl From<&GlobalConfig> for BlockProcessorConfig {
@@ -33,9 +35,31 @@ impl From<&GlobalConfig> for BootstrapAscendingConfig {
             timeout: config.timeout,
             throttle_coefficient: config.throttle_coefficient,
             throttle_wait: config.throttle_wait,
-            account_sets: config.account_sets.clone(),
+            account_sets: (&config.account_sets).into(),
             block_wait_count: config.block_wait_count,
             min_protocol_version: value.network_params.network.bootstrap_protocol_version_min,
+        }
+    }
+}
+
+impl From<&AccountSetsToml> for AccountSetsConfig {
+    fn from(value: &AccountSetsToml) -> Self {
+        Self {
+            consideration_count: value.consideration_count,
+            priorities_max: value.priorities_max,
+            blocking_max: value.blocking_max,
+            cooldown: value.cooldown,
+        }
+    }
+}
+
+impl From<&AccountSetsConfig> for AccountSetsToml {
+    fn from(value: &AccountSetsConfig) -> Self {
+        Self {
+            consideration_count: value.consideration_count,
+            priorities_max: value.priorities_max,
+            blocking_max: value.blocking_max,
+            cooldown: value.cooldown,
         }
     }
 }

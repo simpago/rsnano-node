@@ -1,29 +1,29 @@
 mod node_config_toml;
+mod node_rpc_config_toml;
 mod opencl_config_toml;
-mod rpc_config_toml;
 
 use super::NodeConfig;
 use crate::NetworkParams;
 use anyhow::Result;
 pub use node_config_toml::*;
+pub use node_rpc_config_toml::*;
 pub use opencl_config_toml::*;
-pub use rpc_config_toml::*;
 use rsnano_core::utils::TomlWriter;
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Deserialize, Serialize)]
 pub struct DaemonConfigToml {
     pub node: Option<NodeConfigToml>,
-    pub(crate) rpc: Option<RpcConfigToml>,
+    pub(crate) rpc: Option<NodeRpcConfigToml>,
     pub(crate) opencl: Option<OpenclConfigToml>,
 }
 
 impl DaemonConfigToml {
     pub fn new(network_params: &NetworkParams, parallelism: usize) -> Result<Self> {
         Ok(Self {
-            node: NodeConfig::new(None, network_params, parallelism),
-            opencl: OpenclConfig::new(),
-            rpc: RpcConfigToml::default()?,
+            node: Some(NodeConfig::new(None, network_params, parallelism)),
+            opencl: Some(OpenclConfigToml::default()),
+            rpc: Some(NodeRpcConfigToml::default()?),
         })
     }
 

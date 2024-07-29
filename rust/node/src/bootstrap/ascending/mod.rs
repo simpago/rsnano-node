@@ -7,7 +7,6 @@ mod peer_scoring;
 mod throttle;
 
 use self::{
-    account_sets::*,
     iterator::BufferedIterator,
     ordered_tags::{AsyncTag, OrderedTags},
     peer_scoring::PeerScoring,
@@ -16,10 +15,10 @@ use self::{
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::ascending::ordered_tags::QueryType,
-    config::BootstrapAscendingConfigToml,
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::{BandwidthLimiter, BufferDropPolicy, ChannelEnum, Network, TrafficType},
 };
+pub use account_sets::*;
 use num::integer::sqrt;
 use rand::{thread_rng, RngCore};
 use rsnano_core::{

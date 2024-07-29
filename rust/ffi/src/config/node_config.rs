@@ -97,7 +97,7 @@ pub struct NodeConfigDto {
     pub callback_target_len: usize,
     pub websocket_config: WebsocketConfigDto,
     pub ipc_config: IpcConfigDto,
-    pub diagnostics_config: TxnTrackingConfigDto,
+    pub txn_tracking_config: TxnTrackingConfigDto,
     pub stat_config: StatConfigDto,
     pub lmdb_config: LmdbConfigDto,
     pub backlog_scan_batch_size: u32,
@@ -341,9 +341,12 @@ pub extern "C" fn rsn_node_config_serialize_toml(dto: &NodeConfigDto, toml: *mut
         Ok(c) => c,
         Err(_) => return -1,
     };
-    let mut toml = FfiToml::new(toml);
-    match cfg.serialize_toml(&mut toml) {
-        Ok(_) => 0,
+    match toml::to_string(&cfg) {
+        Ok(toml_string) => {
+            let mut ffi_toml = FfiToml::new(toml);
+            ffi_toml.set_toml_string(toml_string);
+            0
+        }
         Err(_) => -1,
     }
 }
@@ -456,7 +459,7 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             callback_port: value.callback_port,
             websocket_config: (&value.websocket_config).into(),
             ipc_config: (&value.ipc_config).try_into()?,
-            diagnostics_config: (&value.diagnostics_config).into(),
+            txn_tracking_config: (&value.txn_tracking).into(),
             stat_config: (&value.stat_config).into(),
             lmdb_config: (&value.lmdb_config).into(),
             backlog_scan_batch_size: value.backlog_scan_batch_size,

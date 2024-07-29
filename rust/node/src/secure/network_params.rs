@@ -51,3 +51,10 @@ impl NetworkParams {
         }
     }
 }
+
+impl Default for NetworkParams {
+    fn default() -> Self {
+        let network = NetworkConstants::active_network();
+        Self::new(network)
+    }
+}
