@@ -26,6 +26,8 @@ use std::str::FromStr;
 use std::time::Duration;
 use std::{cmp::max, net::Ipv6Addr};
 
+use super::{Miliseconds, NodeConfigToml};
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, FromPrimitive, Deserialize, Serialize)]
 pub enum FrontiersConfirmationMode {
@@ -405,5 +407,84 @@ impl NodeConfig {
     pub fn random_representative(&self) -> Account {
         let i = thread_rng().gen_range(0..self.preconfigured_representatives.len());
         return self.preconfigured_representatives[i];
+    }
+}
+
+impl From<NodeConfig> for NodeConfigToml {
+    fn from(node_config: NodeConfig) -> Self {
+        Self {
+            allow_local_peers: Some(node_config.allow_local_peers),
+            background_threads: Some(node_config.background_threads),
+            backlog_scan_batch_size: Some(node_config.backlog_scan_batch_size),
+            backlog_scan_frequency: Some(node_config.backlog_scan_frequency),
+            backup_before_upgrade: Some(node_config.backup_before_upgrade),
+            bandwidth_limit: Some(node_config.bandwidth_limit),
+            bandwidth_limit_burst_ratio: Some(node_config.bandwidth_limit_burst_ratio),
+            block_processor_batch_max_time_ms: Some(node_config.block_processor_batch_max_time_ms),
+            bootstrap_bandwidth_burst_ratio: Some(node_config.bootstrap_bandwidth_burst_ratio),
+            bootstrap_bandwidth_limit: Some(node_config.bootstrap_bandwidth_limit),
+            bootstrap_connections: Some(node_config.bootstrap_connections),
+            bootstrap_connections_max: Some(node_config.bootstrap_connections_max),
+            bootstrap_fraction_numerator: Some(node_config.bootstrap_fraction_numerator),
+            bootstrap_frontier_request_count: Some(node_config.bootstrap_frontier_request_count),
+            bootstrap_initiator_threads: Some(node_config.bootstrap_initiator_threads),
+            bootstrap_serving_threads: Some(node_config.bootstrap_serving_threads),
+            confirming_set_batch_time: Some(Miliseconds(
+                node_config.confirming_set_batch_time.as_millis(),
+            )),
+            enable_voting: Some(node_config.enable_voting),
+            external_address: Some(node_config.external_address.clone()),
+            external_port: Some(node_config.external_port),
+            frontiers_confirmation: Some(node_config.frontiers_confirmation),
+            io_threads: Some(node_config.io_threads),
+            max_queued_requests: Some(node_config.max_queued_requests),
+            max_unchecked_blocks: Some(node_config.max_unchecked_blocks),
+            max_work_generate_multiplier: Some(node_config.max_work_generate_multiplier),
+            network_threads: Some(node_config.network_threads),
+            online_weight_minimum: Some(node_config.online_weight_minimum),
+            password_fanout: Some(node_config.password_fanout),
+            peering_port: node_config.peering_port,
+            pow_sleep_interval_ns: Some(node_config.pow_sleep_interval_ns),
+            preconfigured_peers: Some(node_config.preconfigured_peers.clone()),
+            preconfigured_representatives: Some(node_config.preconfigured_representatives.clone()),
+            receive_minimum: Some(node_config.receive_minimum),
+            rep_crawler_weight_minimum: Some(node_config.rep_crawler_weight_minimum),
+            representative_vote_weight_minimum: Some(
+                node_config.representative_vote_weight_minimum,
+            ),
+            request_aggregator_threads: Some(node_config.request_aggregator_threads),
+            signature_checker_threads: Some(node_config.signature_checker_threads),
+            tcp_incoming_connections_max: Some(node_config.tcp_incoming_connections_max),
+            tcp_io_timeout_s: Some(node_config.tcp_io_timeout_s),
+            unchecked_cutoff_time_s: Some(node_config.unchecked_cutoff_time_s),
+            use_memory_pools: Some(node_config.use_memory_pools),
+            vote_generator_delay_ms: Some(node_config.vote_generator_delay_ms),
+            vote_generator_threshold: Some(node_config.vote_generator_threshold),
+            vote_minimum: Some(node_config.vote_minimum),
+            work_peers: Some(node_config.work_peers),
+            work_threads: Some(node_config.work_threads),
+            optimistic_scheduler: Some((&node_config.optimistic_scheduler).into()),
+            priority_bucket: Some((&node_config.priority_bucket).into()),
+            bootstrap_ascending: Some((&node_config.bootstrap_ascending).into()),
+            bootstrap_server: Some((&node_config.bootstrap_server).into()),
+            secondary_work_peers: Some(node_config.secondary_work_peers),
+            max_pruning_age_s: Some(node_config.max_pruning_age_s),
+            max_pruning_depth: Some(node_config.max_pruning_depth),
+            websocket_config: Some(node_config.websocket_config.into()),
+            ipc_config: Some(node_config.ipc_config.into()),
+            txn_tracking_config: Some((&node_config.txn_tracking_config).into()),
+            stat_config: Some(node_config.stat_config.into()),
+            lmdb_config: Some((&node_config.lmdb_config).into()),
+            vote_cache: Some((&node_config.vote_cache).into()),
+            block_processor: Some((&node_config.block_processor).into()),
+            active_elections: Some((&node_config.active_elections).into()),
+            vote_processor: Some((&node_config.vote_processor).into()),
+            request_aggregator: Some((&node_config.request_aggregator).into()),
+            message_processor: Some((&node_config.message_processor).into()),
+            monitor: Some((&node_config.monitor).into()),
+            callback_address: Some(node_config.callback_address),
+            callback_port: Some(node_config.callback_port),
+            callback_target: Some(node_config.callback_target),
+        }
     }
 }

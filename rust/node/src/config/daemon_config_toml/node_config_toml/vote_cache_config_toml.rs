@@ -36,3 +36,13 @@ impl From<&VoteCacheConfigToml> for VoteCacheConfig {
         config
     }
 }
+
+impl From<&VoteCacheConfig> for VoteCacheConfigToml {
+    fn from(config: &VoteCacheConfig) -> Self {
+        Self {
+            max_size: Some(config.max_size),
+            max_voters: Some(config.max_voters),
+            age_cutoff: Some(Miliseconds(config.age_cutoff.as_millis())),
+        }
+    }
+}

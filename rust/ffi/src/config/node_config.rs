@@ -10,16 +10,17 @@ use crate::{
         ActiveElectionsConfigDto, RequestAggregatorConfigDto, VoteCacheConfigDto,
         VoteProcessorConfigDto,
     },
-    fill_ipc_config_dto, fill_stat_config_dto, BlockProcessorConfigDto, HintedSchedulerConfigDto,
-    IpcConfigDto, NetworkParamsDto, OptimisticSchedulerConfigDto, StatConfigDto,
-    WebsocketConfigDto,
+    fill_ipc_config_dto, fill_stat_config_dto,
+    utils::FfiToml,
+    BlockProcessorConfigDto, HintedSchedulerConfigDto, IpcConfigDto, NetworkParamsDto,
+    OptimisticSchedulerConfigDto, StatConfigDto, WebsocketConfigDto,
 };
 use num::FromPrimitive;
 use rsnano_core::{utils::get_cpu_count, Account, Amount};
 use rsnano_node::{
     block_processing::LocalBlockBroadcasterConfig,
     cementation::ConfirmingSetConfig,
-    config::{NodeConfig, Peer},
+    config::{NodeConfig, NodeConfigToml, Peer},
     consensus::PriorityBucketConfig,
     transport::{MessageProcessorConfig, TcpConfig},
     MonitorConfig, NetworkParams,
@@ -338,15 +339,15 @@ pub extern "C" fn rsn_node_config_serialize_toml(dto: &NodeConfigDto, toml: *mut
         Ok(c) => c,
         Err(_) => return -1,
     };
-    /*match toml::to_string(&cfg) {
-    Ok(toml_string) => {
-        let mut ffi_toml = FfiToml::new(toml);
-        ffi_toml.set_toml_string(toml_string);
-        0
+    let config_toml: NodeConfigToml = cfg.into();
+    match toml::to_string(&config_toml) {
+        Ok(toml_string) => {
+            let mut ffi_toml = FfiToml::new(toml);
+            ffi_toml.set_toml_string(toml_string);
+            0
+        }
+        Err(_) => -1,
     }
-    Err(_) => -1,
-    }*/
-    0
 }
 
 impl From<&PeerDto> for Peer {

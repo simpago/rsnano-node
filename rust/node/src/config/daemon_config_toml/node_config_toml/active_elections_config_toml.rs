@@ -47,6 +47,18 @@ impl From<&ActiveElectionsConfigToml> for ActiveElectionsConfig {
     }
 }
 
+impl From<&ActiveElectionsConfig> for ActiveElectionsConfigToml {
+    fn from(config: &ActiveElectionsConfig) -> Self {
+        Self {
+            size: Some(config.size),
+            hinted_limit_percentage: Some(config.hinted_limit_percentage),
+            optimistic_limit_percentage: Some(config.optimistic_limit_percentage),
+            confirmation_history_size: Some(config.confirmation_history_size),
+            confirmation_cache: Some(config.confirmation_cache),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,7 +71,7 @@ mod tests {
 
         config.confirmation_cache = 0;
 
-        let toml_config: ActiveElectionsConfigToml = config.clone().into();
+        let toml_config: ActiveElectionsConfigToml = (&config).into();
 
         assert_eq!(toml_config.size, Some(config.size));
         assert_eq!(
@@ -96,7 +108,7 @@ mod tests {
         let toml_config: ActiveElectionsConfigToml =
             toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
-        let config: ActiveElectionsConfig = toml_config.into();
+        let config: ActiveElectionsConfig = (&toml_config).into();
 
         assert_eq!(config.size, 30);
         assert_eq!(config.hinted_limit_percentage, 70);
@@ -122,7 +134,7 @@ mod tests {
         let toml_config: ActiveElectionsConfigToml =
             toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
-        let config: ActiveElectionsConfig = toml_config.into();
+        let config: ActiveElectionsConfig = (&toml_config).into();
 
         assert_eq!(config.size, 40);
         assert_eq!(
@@ -150,7 +162,7 @@ mod tests {
         let toml_config: ActiveElectionsConfigToml =
             toml::from_str(&toml_read).expect("Failed to deserialize TOML");
 
-        let config: ActiveElectionsConfig = toml_config.into();
+        let config: ActiveElectionsConfig = (&toml_config).into();
 
         assert_eq!(config.size, config.size);
         assert_eq!(

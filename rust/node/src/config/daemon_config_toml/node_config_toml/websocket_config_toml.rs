@@ -1,6 +1,4 @@
 use crate::websocket::WebsocketConfig;
-use anyhow::Result;
-use rsnano_core::utils::TomlWriter;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -35,5 +33,15 @@ impl From<&WebsocketConfigToml> for WebsocketConfig {
             config.address = address.clone();
         }
         config
+    }
+}
+
+impl From<WebsocketConfig> for WebsocketConfigToml {
+    fn from(websocket_config: WebsocketConfig) -> Self {
+        Self {
+            enabled: Some(websocket_config.enabled),
+            port: Some(websocket_config.port),
+            address: Some(websocket_config.address),
+        }
     }
 }

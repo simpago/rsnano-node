@@ -30,3 +30,12 @@ impl From<&MessageProcessorConfigToml> for MessageProcessorConfig {
         config
     }
 }
+
+impl From<&MessageProcessorConfig> for MessageProcessorConfigToml {
+    fn from(config: &MessageProcessorConfig) -> Self {
+        Self {
+            threads: Some(config.threads),
+            max_queue: Some(config.max_queue),
+        }
+    }
+}

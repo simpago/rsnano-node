@@ -35,3 +35,13 @@ impl From<&LmdbConfigToml> for LmdbConfig {
         config
     }
 }
+
+impl From<&LmdbConfig> for LmdbConfigToml {
+    fn from(config: &LmdbConfig) -> Self {
+        Self {
+            sync: Some(config.sync),
+            max_databases: Some(config.max_databases),
+            map_size: Some(config.map_size),
+        }
+    }
+}

@@ -35,3 +35,13 @@ impl From<&RequestAggregatorConfigToml> for RequestAggregatorConfig {
         config
     }
 }
+
+impl From<&RequestAggregatorConfig> for RequestAggregatorConfigToml {
+    fn from(config: &RequestAggregatorConfig) -> Self {
+        Self {
+            threads: Some(config.threads),
+            max_queue: Some(config.max_queue),
+            batch_size: Some(config.batch_size),
+        }
+    }
+}

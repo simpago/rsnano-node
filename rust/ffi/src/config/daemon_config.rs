@@ -47,16 +47,18 @@ pub extern "C" fn rsn_daemon_config_serialize_toml(
     dto: &DaemonConfigDto,
     toml: *mut c_void,
 ) -> i32 {
-    let mut toml = FfiToml::new(toml);
     let cfg = match DaemonConfigToml::try_from(dto) {
         Ok(d) => d,
         Err(_) => return -1,
     };
-    0
-    /*match cfg.serialize_toml(&mut toml) {
-    Ok(_) => 0,
-    Err(_) => -1,
-    }*/
+    match toml::to_string(&cfg) {
+        Ok(toml_string) => {
+            let mut ffi_toml = FfiToml::new(toml);
+            ffi_toml.set_toml_string(toml_string);
+            0
+        }
+        Err(_) => -1,
+    }
 }
 
 impl TryFrom<&DaemonConfigDto> for DaemonConfigToml {
@@ -65,7 +67,7 @@ impl TryFrom<&DaemonConfigDto> for DaemonConfigToml {
     fn try_from(dto: &DaemonConfigDto) -> Result<Self, Self::Error> {
         let node_config: NodeConfig = (&dto.node).try_into()?;
         let result = Self {
-            node: Some((&node_config).into()),
+            node: Some(node_config.into()),
             opencl: Some((&dto.opencl).into()),
             rpc: Some((&dto.rpc).into()),
         };

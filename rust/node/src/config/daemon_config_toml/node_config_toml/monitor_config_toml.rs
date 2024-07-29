@@ -31,3 +31,12 @@ impl From<&MonitorConfigToml> for MonitorConfig {
         config
     }
 }
+
+impl From<&MonitorConfig> for MonitorConfigToml {
+    fn from(config: &MonitorConfig) -> Self {
+        Self {
+            enabled: Some(config.enabled),
+            interval: Some(config.interval.as_secs()),
+        }
+    }
+}

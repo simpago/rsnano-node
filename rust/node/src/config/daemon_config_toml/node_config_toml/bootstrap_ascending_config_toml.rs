@@ -33,6 +33,21 @@ impl Default for BootstrapAscendingConfigToml {
     }
 }
 
+impl From<&BootstrapAscendingConfig> for BootstrapAscendingConfigToml {
+    fn from(config: &BootstrapAscendingConfig) -> Self {
+        Self {
+            requests_limit: Some(config.requests_limit),
+            database_requests_limit: Some(config.database_requests_limit),
+            pull_count: Some(config.pull_count),
+            timeout: Some(Miliseconds(config.timeout.as_millis())),
+            throttle_coefficient: Some(config.throttle_coefficient),
+            throttle_wait: Some(Miliseconds(config.throttle_wait.as_millis())),
+            account_sets: Some((&config.account_sets).into()),
+            block_wait_count: Some(config.block_wait_count),
+        }
+    }
+}
+
 impl From<&BootstrapAscendingConfigToml> for BootstrapAscendingConfig {
     fn from(toml: &BootstrapAscendingConfigToml) -> Self {
         let mut config = BootstrapAscendingConfig::default();

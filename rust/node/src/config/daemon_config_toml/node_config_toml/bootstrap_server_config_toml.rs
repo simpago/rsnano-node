@@ -35,3 +35,13 @@ impl From<&BootstrapServerConfigToml> for BootstrapServerConfig {
         config
     }
 }
+
+impl From<&BootstrapServerConfig> for BootstrapServerConfigToml {
+    fn from(config: &BootstrapServerConfig) -> Self {
+        Self {
+            max_queue: Some(config.max_queue),
+            threads: Some(config.threads),
+            batch_size: Some(config.batch_size),
+        }
+    }
+}

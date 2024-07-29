@@ -35,3 +35,13 @@ impl From<&OptimisticSchedulerConfigToml> for OptimisticSchedulerConfig {
         config
     }
 }
+
+impl From<&OptimisticSchedulerConfig> for OptimisticSchedulerConfigToml {
+    fn from(config: &OptimisticSchedulerConfig) -> Self {
+        Self {
+            enabled: Some(config.enabled),
+            gap_threshold: Some(config.gap_threshold),
+            max_size: Some(config.max_size),
+        }
+    }
+}

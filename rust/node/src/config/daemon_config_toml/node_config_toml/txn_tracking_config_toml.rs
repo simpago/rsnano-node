@@ -46,3 +46,16 @@ impl From<&TxnTrackingConfigToml> for TxnTrackingConfig {
         config
     }
 }
+
+impl From<&TxnTrackingConfig> for TxnTrackingConfigToml {
+    fn from(config: &TxnTrackingConfig) -> Self {
+        Self {
+            enable: Some(config.enable),
+            min_read_txn_time_ms: Some(config.min_read_txn_time_ms),
+            min_write_txn_time_ms: Some(config.min_write_txn_time_ms),
+            ignore_writes_below_block_processor_max_time: Some(
+                config.ignore_writes_below_block_processor_max_time,
+            ),
+        }
+    }
+}

@@ -1,5 +1,4 @@
 use crate::{
-    config::BootstrapServerConfigToml,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
 };

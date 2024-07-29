@@ -35,3 +35,13 @@ impl From<&PriorityBucketConfigToml> for PriorityBucketConfig {
         config
     }
 }
+
+impl From<&PriorityBucketConfig> for PriorityBucketConfigToml {
+    fn from(config: &PriorityBucketConfig) -> Self {
+        Self {
+            max_blocks: Some(config.max_blocks),
+            reserved_elections: Some(config.max_elections),
+            max_elections: Some(config.reserved_elections),
+        }
+    }
+}

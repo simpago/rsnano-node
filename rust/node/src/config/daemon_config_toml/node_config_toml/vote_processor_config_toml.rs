@@ -50,3 +50,16 @@ impl From<&VoteProcessorConfigToml> for VoteProcessorConfig {
         config
     }
 }
+
+impl From<&VoteProcessorConfig> for VoteProcessorConfigToml {
+    fn from(config: &VoteProcessorConfig) -> Self {
+        Self {
+            max_pr_queue: Some(config.max_non_pr_queue),
+            max_non_pr_queue: Some(config.max_non_pr_queue),
+            pr_priority: Some(config.pr_priority),
+            threads: Some(config.threads),
+            batch_size: Some(config.batch_size),
+            max_triggered: Some(config.max_triggered),
+        }
+    }
+}

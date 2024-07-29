@@ -56,3 +56,17 @@ impl From<&StatsConfigToml> for StatsConfig {
         config
     }
 }
+
+impl From<StatsConfig> for StatsConfigToml {
+    fn from(config: StatsConfig) -> Self {
+        Self {
+            max_samples: Some(config.max_samples),
+            log_samples_interval: Some(Miliseconds(config.log_samples_interval.as_millis())),
+            log_counters_interval: Some(Miliseconds(config.log_counters_interval.as_millis())),
+            log_rotation_count: Some(config.log_rotation_count),
+            log_headers: Some(config.log_headers),
+            log_counters_filename: Some(config.log_counters_filename),
+            log_samples_filename: Some(config.log_samples_filename),
+        }
+    }
+}

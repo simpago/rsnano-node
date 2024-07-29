@@ -6,7 +6,7 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     cementation::ConfirmingSet,
-    config::{ActiveElectionsConfigToml, NodeConfig, NodeFlags},
+    config::{NodeConfig, NodeFlags},
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
