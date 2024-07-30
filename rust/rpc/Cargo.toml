@@ -1,0 +1,8 @@
+[package]
+name = "rsnano_rpc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rsnano_node = { path = "../node" }
+anyhow = "1.0.40"

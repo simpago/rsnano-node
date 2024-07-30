@@ -2,8 +2,11 @@ use super::{
     fill_node_config_dto, fill_node_rpc_config_dto, fill_opencl_config_dto, NodeConfigDto,
     NodeRpcConfigDto, OpenclConfigDto,
 };
-use crate::{secure::NetworkParamsDto, utils::FfiToml};
-use rsnano_core::utils::get_cpu_count;
+use crate::{
+    secure::NetworkParamsDto,
+    utils::{FfiToml, FfiTomlArrayWriter},
+};
+use rsnano_core::utils::{get_cpu_count, TomlArrayWriter, TomlWriter};
 use rsnano_node::{
     config::{DaemonConfig, DaemonConfigToml},
     NetworkParams,
@@ -12,6 +15,7 @@ use std::{
     convert::{TryFrom, TryInto},
     ffi::c_void,
 };
+use tracing::debug;
 
 #[repr(C)]
 pub struct DaemonConfigDto {
@@ -49,6 +53,7 @@ pub extern "C" fn rsn_daemon_config_serialize_toml(
     dto: &DaemonConfigDto,
     toml: *mut c_void,
 ) -> i32 {
+    let mut ffi_toml = FfiTomlArrayWriter::new(toml);
     let cfg = match DaemonConfig::try_from(dto) {
         Ok(d) => d,
         Err(_) => return -1,
@@ -56,8 +61,7 @@ pub extern "C" fn rsn_daemon_config_serialize_toml(
     let toml_config: DaemonConfigToml = cfg.into();
     match toml::to_string(&toml_config) {
         Ok(toml_string) => {
-            let mut ffi_toml = FfiToml::new(toml);
-            ffi_toml.set_toml_string(toml_string);
+            //ffi_toml.push_back_str(&toml_string).unwrap();
             0
         }
         Err(_) => -1,

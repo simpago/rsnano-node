@@ -346,7 +346,7 @@ pub extern "C" fn rsn_node_config_serialize_toml(dto: &NodeConfigDto, toml: *mut
     match toml::to_string(&config_toml) {
         Ok(toml_string) => {
             let mut ffi_toml = FfiToml::new(toml);
-            ffi_toml.set_toml_string(toml_string);
+            ffi_toml.write_toml_string(&toml_string).unwrap();
             0
         }
         Err(_) => -1,

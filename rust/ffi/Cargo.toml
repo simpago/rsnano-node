@@ -16,6 +16,7 @@ rsnano_messages = { path = "../messages" }
 rsnano_store_lmdb = { path = "../store_lmdb" }
 rsnano_ledger = { path = "../ledger" }
 rsnano_node = { path = "../node" }
+rsnano_rpc = { path = "../rpc" }
 anyhow = "1"
 num = "0"
 num-traits = "0"

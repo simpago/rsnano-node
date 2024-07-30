@@ -1683,6 +1683,7 @@ dependencies = [
  "rsnano_ledger",
  "rsnano_messages",
  "rsnano_node",
+ "rsnano_rpc",
  "rsnano_store_lmdb",
  "tokio",
  "toml 0.8.16",
@@ -1788,6 +1789,14 @@ dependencies = [
  "toml 0.8.16",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "rsnano_rpc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rsnano_node",
 ]
 
 [[package]]

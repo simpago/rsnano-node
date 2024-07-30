@@ -12,7 +12,7 @@ use std::{
 };
 pub use stream::FfiStream;
 mod toml;
-pub use toml::FfiToml;
+pub use toml::{FfiToml, FfiTomlArrayWriter};
 mod atomics;
 mod container_info;
 mod latch;

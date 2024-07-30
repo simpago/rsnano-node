@@ -1,9 +1,11 @@
 use anyhow::Result;
 use rsnano_core::utils::{TomlArrayWriter, TomlWriter};
 use std::{
-    ffi::{c_void, CString},
+    ffi::{c_char, c_void, CString},
     ptr,
+    str::FromStr,
 };
+use toml::Value;
 
 type TomlPutU64Callback =
     unsafe extern "C" fn(*mut c_void, *const u8, usize, u64, *const u8, usize) -> i32;
@@ -105,10 +107,53 @@ impl FfiToml {
         Self { handle }
     }
 
-    pub fn set_toml_string(&mut self, toml_string: String) {
+    /*pub fn write_toml_string(&mut self, toml_string: &str) -> Result<()> {
+    let toml_value = Value::from_str(toml_string)?;
+
+    self.write_toml_value("", &toml_value)
+    }*/
+
+    pub fn write_toml_string(&mut self, toml_string: &str) -> Result<()> {
         unsafe {
-            let c_string = CString::new(toml_string).expect("CString::new failed");
-            ptr::write(self.handle as *mut *const i8, c_string.into_raw());
+            let c_str = std::ffi::CString::new(toml_string).unwrap();
+            std::ptr::copy_nonoverlapping(
+                c_str.as_ptr() as *const c_char,
+                self.handle as *mut c_char,
+                c_str.as_bytes().len() + 1,
+            );
+        }
+        Ok(())
+    }
+
+    fn write_toml_value(&mut self, key_prefix: &str, value: &Value) -> Result<()> {
+        match value {
+            Value::String(s) => self.put_str(key_prefix, s, ""),
+            Value::Integer(i) => self.put_i64(key_prefix, *i, ""),
+            Value::Float(f) => self.put_f64(key_prefix, *f, ""),
+            Value::Boolean(b) => self.put_bool(key_prefix, *b, ""),
+            Value::Array(arr) => self.create_array(key_prefix, "", &mut |array_writer| {
+                for val in arr {
+                    if let Value::String(s) = val {
+                        array_writer.push_back_str(s)?;
+                    } else {
+                        // You can extend this to handle other types of array elements
+                        return Err(anyhow::anyhow!("Unsupported array element type"));
+                    }
+                }
+                Ok(())
+            }),
+            Value::Table(tbl) => {
+                for (k, v) in tbl {
+                    let full_key = if key_prefix.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{}.{}", key_prefix, k)
+                    };
+                    self.write_toml_value(&full_key, v)?;
+                }
+                Ok(())
+            }
+            _ => Err(anyhow::anyhow!("Unsupported TOML value type")),
         }
     }
 }
