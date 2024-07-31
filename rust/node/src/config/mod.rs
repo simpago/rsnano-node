@@ -17,7 +17,7 @@ pub use node_config::*;
 pub use node_flags::*;
 pub use node_rpc_config::*;
 pub use opencl_config::*;
-use rsnano_core::Networks;
+pub use rsnano_core::Networks;
 use std::path::{Path, PathBuf};
 pub use toml::*;
 

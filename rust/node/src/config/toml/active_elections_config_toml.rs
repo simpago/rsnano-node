@@ -1,7 +1,7 @@
 use crate::consensus::ActiveElectionsConfig;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct ActiveElectionsConfigToml {
     pub size: Option<usize>,
     pub hinted_limit_percentage: Option<usize>,
@@ -91,6 +91,12 @@ mod tests {
 
     #[test]
     fn toml_to_config() {
+        let path: PathBuf = "/tmp/".into();
+
+        let fs = NullableFilesystem::new_null();
+
+        fs.create_dir_all(&path).unwrap();
+
         let toml_write = r#"
                 size = 30
                 hinted_limit_percentage = 70
@@ -99,9 +105,12 @@ mod tests {
                 confirmation_cache = 3000
             "#;
 
-        let path: PathBuf = "/tmp/config-node.toml".into();
+        let file_path: PathBuf = path.join("config-node.toml");
 
-        NullableFilesystem::new().write(&path, toml_write).unwrap();
+        fs.write(&file_path, toml_write).unwrap();
+
+        let path: PathBuf = "/tmp/config-node.toml".into();
+        std::fs::write(&path, toml_write).unwrap();
 
         let toml_read = NullableFilesystem::new().read_to_string(&path).unwrap();
 
@@ -119,15 +128,24 @@ mod tests {
 
     #[test]
     fn toml_with_comments_to_config() {
+        let path: PathBuf = "/tmp/".into();
+
+        let fs = NullableFilesystem::new_null();
+
+        fs.create_dir_all(&path).unwrap();
+
         let toml_write = r#"
                 size = 40
                 optimistic_limit_percentage = 90
                 # confirmation_cache = 4000
             "#;
 
-        let path: PathBuf = "/tmp/config-node.toml".into();
+        let file_path: PathBuf = path.join("config-node.toml");
 
-        NullableFilesystem::new().write(&path, toml_write).unwrap();
+        fs.write(&file_path, toml_write).unwrap();
+
+        let path: PathBuf = "/tmp/config-node.toml".into();
+        std::fs::write(&path, toml_write).unwrap();
 
         let toml_read = NullableFilesystem::new().read_to_string(&path).unwrap();
 
@@ -151,11 +169,20 @@ mod tests {
 
     #[test]
     fn toml_empty_to_config() {
+        let path: PathBuf = "/tmp/".into();
+
+        let fs = NullableFilesystem::new_null();
+
+        fs.create_dir_all(&path).unwrap();
+
+        let file_path: PathBuf = path.join("config-node.toml");
+
         let toml_write = r#""#;
 
-        let path: PathBuf = "/tmp/config-node.toml".into();
+        fs.write(&file_path, toml_write).unwrap();
 
-        NullableFilesystem::new().write(&path, toml_write).unwrap();
+        let path: PathBuf = "/tmp/config-node.toml".into();
+        std::fs::write(&path, toml_write).unwrap();
 
         let toml_read = NullableFilesystem::new().read_to_string(&path).unwrap();
 

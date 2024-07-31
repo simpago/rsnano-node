@@ -322,6 +322,7 @@ mod tests {
             assert!(fs.read_to_string("/foo/bar").is_err());
             assert!(fs.create_dir_all("/foo/bar").is_ok());
             assert!(fs.write("/foo/bar", "abc").is_ok());
+            assert!(fs.read_to_string("/foo/bar").is_ok());
         }
 
         #[test]
