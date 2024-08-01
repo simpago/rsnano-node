@@ -6,6 +6,7 @@ mod node_config;
 mod node_flags;
 mod node_rpc_config;
 mod opencl_config;
+mod rpc_config;
 mod toml;
 
 use crate::NetworkParams;
@@ -16,6 +17,7 @@ pub use node_config::*;
 pub use node_flags::*;
 pub use node_rpc_config::*;
 pub use opencl_config::*;
+pub use rpc_config::*;
 pub use rsnano_core::Networks;
 use std::path::{Path, PathBuf};
 pub use toml::*;

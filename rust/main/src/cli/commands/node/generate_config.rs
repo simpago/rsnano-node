@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_node::config::DaemonToml;
-use rsnano_rpc::RpcToml;
+use rsnano_node::config::{DaemonToml, RpcToml};
 use std::io::BufRead;
 
 #[derive(Parser)]

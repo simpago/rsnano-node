@@ -14,7 +14,6 @@ rsnano_messages = { path = "../messages" }
 rsnano_store_lmdb = { path = "../store_lmdb" }
 rsnano_node = { path = "../node" }
 rsnano_ledger = { path = "../ledger" }
-rsnano_rpc = { path = "../rpc" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 ctrlc = "3.4.4"
