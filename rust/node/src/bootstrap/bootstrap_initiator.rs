@@ -102,6 +102,7 @@ pub struct BootstrapInitiator {
     flags: NodeFlags,
     network: Arc<Network>,
     workers: Arc<dyn ThreadPool>,
+    runtime: Arc<AsyncRuntime>,
 }
 
 impl BootstrapInitiator {
@@ -109,7 +110,7 @@ impl BootstrapInitiator {
         config: BootstrapInitiatorConfig,
         flags: NodeFlags,
         network: Arc<Network>,
-        async_rt: Arc<AsyncRuntime>,
+        runtime: Arc<AsyncRuntime>,
         workers: Arc<dyn ThreadPool>,
         network_params: NetworkParams,
         stats: Arc<Stats>,
@@ -138,11 +139,12 @@ impl BootstrapInitiator {
             flags: flags.clone(),
             network: Arc::clone(&network),
             workers: Arc::clone(&workers),
+            runtime: runtime.clone(),
             connections: Arc::new(BootstrapConnections::new(
                 attempts,
                 config,
                 network,
-                async_rt,
+                runtime,
                 workers,
                 stats,
                 outbound_limiter,
@@ -172,6 +174,7 @@ impl BootstrapInitiator {
             flags: NodeFlags::default(),
             network: Arc::new(Network::new_null()),
             workers: Arc::new(ThreadPoolImpl::new_test_instance()),
+            runtime: Arc::new(AsyncRuntime::default()),
         }
     }
 
@@ -345,13 +348,14 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.websocket.as_ref().cloned(),
                     Arc::downgrade(&self.block_processor),
                     self_w,
-                    Arc::clone(&self.ledger),
+                    self.ledger.clone(),
                     self.workers.clone(),
                     id_a,
                     incremental_id as u64,
-                    Arc::clone(&self.connections),
+                    self.connections.clone(),
                     (&self.config).into(),
-                    Arc::clone(&self.stats),
+                    self.stats.clone(),
+                    self.runtime.clone(),
                     frontiers_age_a,
                     start_account_a,
                 )
@@ -388,6 +392,7 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.connections.clone(),
                     (&self.config).into(),
                     self.stats.clone(),
+                    self.runtime.clone(),
                     u32::MAX,
                     Account::zero(),
                 )
@@ -479,15 +484,16 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
             let wallet_attempt = Arc::new(
                 BootstrapAttemptWallet::new(
                     self.websocket.clone(),
-                    Arc::clone(&self.block_processor),
+                    self.block_processor.clone(),
                     Arc::clone(self),
-                    Arc::clone(&self.ledger),
+                    self.ledger.clone(),
                     id,
                     incremental_id as u64,
-                    Arc::clone(&self.connections),
-                    Arc::clone(&self.workers),
+                    self.connections.clone(),
+                    self.workers.clone(),
                     self.config.receive_minimum,
-                    Arc::clone(&self.stats),
+                    self.stats.clone(),
+                    self.runtime.clone(),
                 )
                 .unwrap(),
             );

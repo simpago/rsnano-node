@@ -12,7 +12,6 @@
 #include <nano/node/node_observers.hpp>
 #include <nano/node/rsnano_callbacks.hpp>
 #include <nano/node/transport/tcp.hpp>
-#include <nano/node/transport/tcp_server.hpp>
 #include <nano/node/websocket.hpp>
 #include <nano/store/lmdb/transaction_impl.hpp>
 
@@ -382,31 +381,6 @@ void toml_put_child (void * handle_a, const uint8_t * key_a, uintptr_t key_len_a
 	std::string key (reinterpret_cast<const char *> (key_a), key_len_a);
 	parent->put_child (key, *child);
 }
-
-class async_write_callback_wrapper
-{
-public:
-	async_write_callback_wrapper (rsnano::AsyncWriteCallbackHandle * callback_a) :
-		callback_m{ callback_a }
-	{
-	}
-
-	async_write_callback_wrapper (async_write_callback_wrapper const &) = delete;
-
-	~async_write_callback_wrapper ()
-	{
-		rsnano::rsn_async_write_callback_destroy (callback_m);
-	}
-
-	void execute (const boost::system::error_code & ec, std::size_t size)
-	{
-		auto ec_dto{ rsnano::error_code_to_dto (ec) };
-		rsnano::rsn_async_write_callback_execute (callback_m, &ec_dto, size);
-	}
-
-private:
-	rsnano::AsyncWriteCallbackHandle * callback_m;
-};
 
 void wait_latch (void * latch_ptr)
 {

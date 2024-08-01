@@ -28,6 +28,7 @@
 #include <boost/property_tree/json_parser.hpp>
 
 #include <algorithm>
+#include <future>
 #include <map>
 #include <thread>
 #include <tuple>

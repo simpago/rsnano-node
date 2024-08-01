@@ -3,7 +3,10 @@ use super::{
     BootstrapInitiator, BootstrapMode, BulkPullAccountClient, BulkPullAccountClientExt,
 };
 use crate::{
-    block_processing::BlockProcessor, stats::Stats, utils::ThreadPool, websocket::WebsocketListener,
+    block_processing::BlockProcessor,
+    stats::Stats,
+    utils::{AsyncRuntime, ThreadPool},
+    websocket::WebsocketListener,
 };
 use rsnano_core::{utils::PropertyTree, Account, Amount, BlockEnum};
 use rsnano_ledger::Ledger;
@@ -23,6 +26,7 @@ pub struct BootstrapAttemptWallet {
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
     bootstrap_initiator: Weak<BootstrapInitiator>,
+    runtime: Arc<AsyncRuntime>,
 }
 
 impl BootstrapAttemptWallet {
@@ -37,6 +41,7 @@ impl BootstrapAttemptWallet {
         workers: Arc<dyn ThreadPool>,
         receive_minimum: Amount,
         stats: Arc<Stats>,
+        runtime: Arc<AsyncRuntime>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -57,6 +62,7 @@ impl BootstrapAttemptWallet {
             stats,
             ledger,
             bootstrap_initiator: Arc::downgrade(&bootstrap_initiator),
+            runtime,
         })
     }
 
@@ -131,6 +137,7 @@ impl BootstrapAttemptWalletExt for Arc<BootstrapAttemptWallet> {
                         Arc::clone(&self_l.connections),
                         Arc::clone(&self_l.ledger),
                         bootstrap_initiator,
+                        self_l.runtime.clone(),
                     ));
                     client.request();
                 }

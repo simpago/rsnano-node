@@ -1,7 +1,12 @@
+use super::{
+    AsyncBufferReader, BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelId,
+    ChannelMode, OutboundBandwidthLimiter, TrafficType, WriteCallback,
+};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     utils::{AsyncRuntime, ErrorCode},
 };
+use async_trait::async_trait;
 use rsnano_core::Account;
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
 use std::{
@@ -10,12 +15,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, Weak,
     },
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-use super::{
-    BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelId, ChannelMode,
-    OutboundBandwidthLimiter, TrafficType, WriteCallback,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 pub struct FakeChannelData {
@@ -67,12 +67,12 @@ impl ChannelFake {
 
     pub fn send_buffer(
         &self,
-        buffer_a: &Arc<Vec<u8>>,
+        buffer: &Arc<Vec<u8>>,
         callback_a: Option<WriteCallback>,
         _policy_a: BufferDropPolicy,
         _traffic_type: TrafficType,
     ) {
-        let size = buffer_a.len();
+        let size = buffer.len();
         if let Some(cb) = callback_a {
             if let Some(async_rt) = self.async_rt.upgrade() {
                 async_rt.post(Box::new(move || {
@@ -191,5 +191,14 @@ impl Channel for ChannelFake {
 
     fn local_addr(&self) -> SocketAddrV6 {
         self.endpoint
+    }
+
+    fn set_timeout(&self, _timeout: Duration) {}
+}
+
+#[async_trait]
+impl AsyncBufferReader for ChannelFake {
+    async fn read(&self, _buffer: &mut [u8], _count: usize) -> anyhow::Result<()> {
+        Err(anyhow!("AsyncBufferReader not implemented for ChannelFake"))
     }
 }

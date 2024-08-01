@@ -1,27 +1,20 @@
 use super::{bootstrap_limits, BootstrapConnections};
-use crate::{
-    transport::{
-        BufferDropPolicy, Channel, ChannelEnum, ChannelTcp, ChannelTcpExt, Socket,
-        SocketExtensions, TrafficType, WriteCallback,
-    },
-    utils::{AsyncRuntime, ErrorCode},
+use crate::transport::{
+    BufferDropPolicy, Channel, ChannelEnum, ChannelTcp, ChannelTcpExt, TrafficType, WriteCallback,
 };
 use rsnano_messages::Message;
 use std::{
-    net::{Ipv6Addr, SocketAddr, SocketAddrV6},
+    net::SocketAddrV6,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex, Weak,
     },
     time::{Duration, Instant},
 };
-use tokio::task::spawn_blocking;
 
 pub struct BootstrapClient {
-    async_rt: Arc<AsyncRuntime>,
     observer: Weak<BootstrapConnections>,
     channel: Arc<ChannelEnum>,
-    socket: Arc<Socket>,
     receive_buffer: Arc<Mutex<Vec<u8>>>,
     block_count: AtomicU64,
     block_rate: AtomicU64,
@@ -30,22 +23,17 @@ pub struct BootstrapClient {
     start_time: Mutex<Instant>,
 }
 
+const BUFFER_SIZE: usize = 256;
+
 impl BootstrapClient {
-    pub fn new(
-        async_rt: Arc<AsyncRuntime>,
-        observer: &Arc<BootstrapConnections>,
-        channel: Arc<ChannelEnum>,
-        socket: Arc<Socket>,
-    ) -> Self {
+    pub fn new(observer: &Arc<BootstrapConnections>, channel: Arc<ChannelEnum>) -> Self {
         if let ChannelEnum::Tcp(tcp) = channel.as_ref() {
             tcp.update_remote_endpoint();
         }
         Self {
-            async_rt,
             observer: Arc::downgrade(observer),
             channel,
-            socket,
-            receive_buffer: Arc::new(Mutex::new(vec![0; 256])),
+            receive_buffer: Arc::new(Mutex::new(vec![0; BUFFER_SIZE])),
             block_count: AtomicU64::new(0),
             block_rate: AtomicU64::new(0f64.to_bits()),
             pending_stop: AtomicBool::new(false),
@@ -80,29 +68,6 @@ impl BootstrapClient {
 
     pub fn get_channel(&self) -> &Arc<ChannelEnum> {
         &self.channel
-    }
-
-    pub fn get_socket(&self) -> &Arc<Socket> {
-        &self.socket
-    }
-
-    //TODO delete and use async read() directly
-    pub fn read_async(&self, size: usize, callback: Box<dyn FnOnce(ErrorCode, usize) + Send>) {
-        let socket = Arc::clone(&self.socket);
-        let buffer = Arc::clone(&self.receive_buffer);
-        self.async_rt.tokio.spawn(async move {
-            let result = socket.read_raw(buffer, size).await;
-            spawn_blocking(Box::new(move || match result {
-                Ok(()) => callback(ErrorCode::new(), size),
-                Err(_) => callback(ErrorCode::fault(), 0),
-            }));
-        });
-    }
-
-    pub async fn read(&self, size: usize) -> anyhow::Result<()> {
-        self.socket
-            .read_raw(Arc::clone(&self.receive_buffer), size)
-            .await
     }
 
     pub fn receive_buffer(&self) -> Vec<u8> {
@@ -169,28 +134,20 @@ impl BootstrapClient {
         }
     }
 
-    pub fn close_socket(&self) {
-        self.socket.close();
+    pub fn close(&self) {
+        self.channel.close();
     }
 
     pub fn set_timeout(&self, timeout: Duration) {
-        self.socket.set_timeout(timeout);
+        self.channel.set_timeout(timeout);
     }
 
-    pub fn remote_endpoint(&self) -> SocketAddr {
-        SocketAddr::V6(
-            self.socket
-                .get_remote()
-                .unwrap_or_else(|| SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)),
-        )
+    pub fn remote_addr(&self) -> SocketAddrV6 {
+        self.channel.remote_addr()
     }
 
     pub fn channel_string(&self) -> String {
         self.tcp_channel().to_string()
-    }
-
-    pub fn tcp_endpoint(&self) -> SocketAddrV6 {
-        self.tcp_channel().remote_addr()
     }
 }
 

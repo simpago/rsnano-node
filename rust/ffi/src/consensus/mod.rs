@@ -1,5 +1,4 @@
 mod active_elections;
-mod confirmation_solicitor;
 mod election;
 mod election_status;
 mod hinted_scheduler;

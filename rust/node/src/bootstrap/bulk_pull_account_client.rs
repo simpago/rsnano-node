@@ -2,6 +2,7 @@ use crate::{
     bootstrap::BootstrapAttemptTrait,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{BufferDropPolicy, TrafficType},
+    utils::AsyncRuntime,
 };
 
 use super::{
@@ -30,6 +31,7 @@ pub struct BulkPullAccountClient {
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,
     bootstrap_initiator: Arc<BootstrapInitiator>,
+    runtime: Arc<AsyncRuntime>,
 }
 
 impl BulkPullAccountClient {
@@ -42,6 +44,7 @@ impl BulkPullAccountClient {
         connections: Arc<BootstrapConnections>,
         ledger: Arc<Ledger>,
         bootstrap_initiator: Arc<BootstrapInitiator>,
+        runtime: Arc<AsyncRuntime>,
     ) -> Self {
         attempt.notify();
         Self {
@@ -54,6 +57,7 @@ impl BulkPullAccountClient {
             connections,
             ledger,
             bootstrap_initiator,
+            runtime,
         }
     }
 }
@@ -115,57 +119,56 @@ impl BulkPullAccountClientExt for Arc<BulkPullAccountClient> {
 
     fn receive_pending(&self) {
         let this_l = Arc::clone(self);
-        let size_l = BlockHash::serialized_size() + Amount::serialized_size();
-        self.connection.read_async(
-            size_l,
-            Box::new(move |ec, size| {
-                // An issue with asio is that sometimes, instead of reporting a bad file descriptor during disconnect,
-                // we simply get a size of 0.
-                if size == size_l {
-                    if ec.is_ok() {
-                        let buf = this_l.connection.receive_buffer();
-                        let mut reader = BufferReader::new(&buf);
-                        let pending = BlockHash::deserialize(&mut reader).unwrap();
-                        let balance = Amount::deserialize(&mut reader).unwrap();
-                        if this_l.pull_blocks.load(Ordering::SeqCst) == 0 || !pending.is_zero() {
-                            if this_l.pull_blocks.load(Ordering::SeqCst) == 0
-                                || balance >= this_l.receive_minimum
-                            {
-                                this_l.pull_blocks.fetch_add(1, Ordering::SeqCst);
+        self.runtime.tokio.spawn(async move {
+            let mut buffer = [0; 256];
+            if let Err(e) = this_l
+                .connection
+                .get_channel()
+                .read(
+                    &mut buffer,
+                    BlockHash::serialized_size() + Amount::serialized_size(),
+                )
+                .await
+            {
+                debug!("Error while receiving bulk pull account frontier: {:?}", e);
+                this_l.attempt.requeue_pending(this_l.account);
+            }
+
+            let mut reader = BufferReader::new(&buffer);
+            let pending = BlockHash::deserialize(&mut reader).unwrap();
+            let balance = Amount::deserialize(&mut reader).unwrap();
+            if this_l.pull_blocks.load(Ordering::SeqCst) == 0 || !pending.is_zero() {
+                if this_l.pull_blocks.load(Ordering::SeqCst) == 0
+                    || balance >= this_l.receive_minimum
+                {
+                    let runtime = this_l.runtime.clone();
+                    runtime.tokio.spawn_blocking(move || {
+                        this_l.pull_blocks.fetch_add(1, Ordering::SeqCst);
+                        {
+                            if !pending.is_zero() {
+                                if !this_l
+                                    .ledger
+                                    .any()
+                                    .block_exists_or_pruned(&this_l.ledger.read_txn(), &pending)
                                 {
-                                    if !pending.is_zero() {
-                                        if !this_l.ledger.any().block_exists_or_pruned(
-                                            &this_l.ledger.read_txn(),
-                                            &pending,
-                                        ) {
-                                            this_l.bootstrap_initiator.bootstrap_lazy(
-                                                pending.into(),
-                                                false,
-                                                "".to_string(),
-                                            );
-                                        }
-                                    }
+                                    this_l.bootstrap_initiator.bootstrap_lazy(
+                                        pending.into(),
+                                        false,
+                                        "".to_string(),
+                                    );
                                 }
-                                this_l.receive_pending();
-                            } else {
-                                this_l.attempt.requeue_pending(this_l.account);
                             }
-                        } else {
-                            this_l.connections.pool_connection(
-                                Arc::clone(&this_l.connection),
-                                false,
-                                false,
-                            );
                         }
-                    } else {
-                        debug!("Error while receiving bulk pull account frontier: {:?}", ec);
-                        this_l.attempt.requeue_pending(this_l.account);
-                    }
+                        this_l.receive_pending();
+                    });
                 } else {
-                    debug!("Invalid size: Expected {}, got: {}", size_l, size);
                     this_l.attempt.requeue_pending(this_l.account);
                 }
-            }),
-        );
+            } else {
+                this_l
+                    .connections
+                    .pool_connection(Arc::clone(&this_l.connection), false, false);
+            }
+        });
     }
 }

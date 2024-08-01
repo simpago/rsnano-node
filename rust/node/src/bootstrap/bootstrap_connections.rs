@@ -5,12 +5,12 @@ use super::{
 };
 use crate::{
     block_processing::BlockProcessor,
-    stats::{DetailType, Direction, StatType, Stats},
+    stats::{DetailType, Direction, SocketStats, StatType, Stats},
     transport::{
         ChannelDirection, ChannelEnum, ChannelTcp, Network, OutboundBandwidthLimiter,
-        SocketBuilder, SocketExtensions,
+        SocketBuilder, SocketExtensions, SocketObserver, TcpStreamFactory,
     },
-    utils::{into_ipv6_socket_address, AsyncRuntime, ThreadPool, ThreadPoolImpl},
+    utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
 use ordered_float::OrderedFloat;
 use rsnano_core::{utils::PropertyTree, Account, BlockHash};
@@ -40,7 +40,7 @@ pub struct BootstrapConnections {
     stopped: AtomicBool,
     network: Arc<Network>,
     workers: Arc<dyn ThreadPool>,
-    async_rt: Arc<AsyncRuntime>,
+    runtime: Arc<AsyncRuntime>,
     stats: Arc<Stats>,
     block_processor: Arc<BlockProcessor>,
     outbound_limiter: Arc<OutboundBandwidthLimiter>,
@@ -75,7 +75,7 @@ impl BootstrapConnections {
             stopped: AtomicBool::new(false),
             network,
             workers,
-            async_rt,
+            runtime: async_rt,
             stats,
             outbound_limiter,
             block_processor,
@@ -96,7 +96,7 @@ impl BootstrapConnections {
             stopped: AtomicBool::new(false),
             network: Arc::new(Network::new_null()),
             workers: Arc::new(ThreadPoolImpl::new_null()),
-            async_rt: Arc::new(AsyncRuntime::default()),
+            runtime: Arc::new(AsyncRuntime::default()),
             stats: Arc::new(Stats::default()),
             block_processor: Arc::new(BlockProcessor::new_null()),
             outbound_limiter: Arc::new(OutboundBandwidthLimiter::default()),
@@ -198,7 +198,7 @@ impl BootstrapConnections {
         let mut lock = self.mutex.lock().unwrap();
         for i in &lock.clients {
             if let Some(client) = i.upgrade() {
-                client.close_socket();
+                client.close();
             }
         }
         lock.clients.clear();
@@ -228,7 +228,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
         let mut guard = self.mutex.lock().unwrap();
         if !self.stopped.load(Ordering::SeqCst)
             && !client_a.pending_stop()
-            && !self.network.is_excluded(&client_a.tcp_endpoint())
+            && !self.network.is_excluded(&client_a.remote_addr())
         {
             client_a.set_timeout(self.config.idle_timeout);
             // Push into idle deque
@@ -241,7 +241,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 guard.clients.push_back(Arc::downgrade(&client_a));
             }
         } else {
-            client_a.close_socket();
+            client_a.close();
         }
         drop(guard);
         self.condition.notify_all();
@@ -386,7 +386,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             if self.stopped.load(Ordering::SeqCst) {
                 break;
             }
-            if client.tcp_endpoint() == endpoint {
+            if client.remote_addr() == endpoint {
                 result = Some(Arc::clone(client));
                 guard.idle.remove(i);
                 break;
@@ -408,7 +408,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             for c in &guard.clients {
                 if let Some(client) = c.upgrade() {
                     new_clients.push_back(Arc::downgrade(&client));
-                    endpoints.insert(into_ipv6_socket_address(client.remote_endpoint()));
+                    endpoints.insert(client.remote_addr());
                     let elapsed = client.elapsed();
                     let blocks_per_sec = client.sample_block_rate();
                     rate_sum += blocks_per_sec;
@@ -522,55 +522,65 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
 
     fn connect_client(&self, endpoint: SocketAddrV6, push_front: bool) {
         self.connections_count.fetch_add(1, Ordering::SeqCst);
-        let socket = SocketBuilder::new(
-            ChannelDirection::Outbound,
-            Arc::clone(&self.workers),
-            Arc::downgrade(&self.async_rt),
-        )
-        .default_timeout(self.config.tcp_io_timeout)
-        .silent_connection_tolerance_time(self.config.silent_connection_tolerance_time)
-        .idle_timeout(self.config.idle_timeout)
-        .finish();
-
         let self_l = Arc::clone(self);
-        let socket_l = Arc::clone(&socket);
-        socket.async_connect(
-            endpoint,
-            Box::new(move |ec| {
-                if ec.is_ok() {
-                    debug!("Connection established to: {}", endpoint);
 
-                    let channel_id = self_l.network.get_next_channel_id();
-
-                    let protocol = self_l.config.protocol;
-                    let tcp_channel = Arc::new(ChannelEnum::Tcp(Arc::new(ChannelTcp::new(
-                        Arc::clone(&socket_l),
-                        SystemTime::now(),
-                        Arc::clone(&self_l.stats),
-                        Arc::clone(&self_l.outbound_limiter),
-                        &self_l.async_rt,
-                        channel_id,
-                        protocol,
-                    ))));
-
-                    let client = Arc::new(BootstrapClient::new(
-                        Arc::clone(&self_l.async_rt),
-                        &self_l,
-                        tcp_channel,
-                        socket_l,
-                    ));
-
-                    self_l.connections_count.fetch_add(1, Ordering::SeqCst);
-                    self_l.pool_connection(client, true, push_front);
-                } else {
+        self.runtime.tokio.spawn(async move {
+            let tcp_stream_factory = Arc::new(TcpStreamFactory::new());
+            // TODO timeout on connect
+            let stream = match tokio::time::timeout(
+                self_l.config.tcp_io_timeout,
+                tcp_stream_factory.connect(endpoint),
+            )
+            .await
+            {
+                Ok(Ok(stream)) => stream,
+                Ok(Err(e)) => {
                     debug!(
                         "Error initiating bootstrap connection to: {} ({:?})",
-                        endpoint, ec
+                        endpoint, e
                     );
+                    self_l.connections_count.fetch_sub(1, Ordering::SeqCst);
+                    return;
                 }
-                self_l.connections_count.fetch_sub(1, Ordering::SeqCst);
-            }),
-        );
+                Err(_) => {
+                    debug!("Timeout connecting to: {}", endpoint);
+                    self_l.connections_count.fetch_sub(1, Ordering::SeqCst);
+                    return;
+                }
+            };
+
+            let socket = SocketBuilder::new(
+                ChannelDirection::Outbound,
+                self_l.workers.clone(),
+                Arc::downgrade(&self_l.runtime),
+            )
+            .default_timeout(self_l.config.tcp_io_timeout)
+            .silent_connection_tolerance_time(self_l.config.silent_connection_tolerance_time)
+            .idle_timeout(self_l.config.idle_timeout)
+            .use_existing_socket(stream, endpoint)
+            .observer(Arc::new(SocketStats::new(self_l.stats.clone())))
+            .finish();
+            socket.start();
+            socket.set_default_timeout();
+
+            debug!("Connection established to: {}", endpoint);
+
+            let channel_id = self_l.network.get_next_channel_id();
+
+            let protocol = self_l.config.protocol;
+            let channel = Arc::new(ChannelEnum::Tcp(Arc::new(ChannelTcp::new(
+                socket,
+                SystemTime::now(),
+                Arc::clone(&self_l.stats),
+                Arc::clone(&self_l.outbound_limiter),
+                &self_l.runtime,
+                channel_id,
+                protocol,
+            ))));
+
+            let client = Arc::new(BootstrapClient::new(&self_l, channel));
+            self_l.pool_connection(client, true, push_front);
+        });
     }
 
     fn request_pull<'a>(
@@ -632,7 +642,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                                 connection_l,
                                 attempt_l,
                                 Arc::clone(&self_l.workers),
-                                Arc::clone(&self_l.async_rt),
+                                Arc::clone(&self_l.runtime),
                                 self_l,
                                 initiator,
                                 pull,

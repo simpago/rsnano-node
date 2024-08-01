@@ -1,41 +1,9 @@
 #include "nano/lib/rsnano.hpp"
-#include "nano/node/common.hpp"
 #include "nano/node/messages.hpp"
 
 #include <nano/lib/rsnanoutils.hpp>
 
 #include <chrono>
-
-boost::system::error_code rsnano::dto_to_error_code (rsnano::ErrorCodeDto const & dto)
-{
-	boost::system::error_category const * cat;
-	if (dto.category == 0)
-	{
-		cat = &boost::system::generic_category ();
-	}
-	else
-	{
-		cat = &boost::system::system_category ();
-	}
-
-	return boost::system::error_code (dto.val, *cat);
-}
-
-rsnano::ErrorCodeDto rsnano::error_code_to_dto (boost::system::error_code const & ec)
-{
-	rsnano::ErrorCodeDto dto;
-	dto.val = ec.value ();
-	if (ec.category () == boost::system::generic_category ())
-	{
-		dto.category = 0;
-	}
-	else
-	{
-		dto.category = 1;
-	}
-
-	return dto;
-}
 
 rsnano::EndpointDto to_endpoint_dto (boost::asio::ip::address const & addr, unsigned short port)
 {

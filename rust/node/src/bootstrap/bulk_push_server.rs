@@ -7,7 +7,7 @@ use super::BootstrapInitiator;
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ResponseServerExt, ResponseServerImpl, SocketExtensions},
+    transport::{ResponseServerExt, ResponseServerImpl},
     utils::{AsyncRuntime, ErrorCode, ThreadPool},
 };
 use num_traits::FromPrimitive;
@@ -22,6 +22,8 @@ use tracing::debug;
 pub struct BulkPushServer {
     server_impl: Arc<Mutex<BulkPushServerImpl>>,
 }
+
+const BUFFER_SIZE: usize = 256;
 
 impl BulkPushServer {
     pub fn new(
@@ -38,7 +40,7 @@ impl BulkPushServer {
             connection,
             thread_pool: Arc::downgrade(&thread_pool),
             block_processor: Arc::downgrade(&block_processor),
-            receive_buffer: Arc::new(Mutex::new(vec![0; 256])),
+            receive_buffer: Arc::new(Mutex::new(vec![0; BUFFER_SIZE])),
             bootstrap_initiator: Arc::downgrade(&bootstrap_initiator),
             stats,
             work_thresholds,
@@ -104,7 +106,9 @@ impl BulkPushServerImpl {
             let buffer = Arc::clone(&self.receive_buffer);
             let server_impl2 = Arc::clone(&server_impl);
             self.async_rt.tokio.spawn(async move {
-                let result = socket.read_raw(buffer, 1).await;
+                let mut buf = [0; BUFFER_SIZE];
+                let result = socket.read_raw(&mut buf, 1).await;
+                buffer.lock().unwrap().copy_from_slice(&buf);
                 spawn_blocking(Box::new(move || {
                     let guard = server_impl.lock().unwrap();
                     match result {
@@ -143,10 +147,14 @@ impl BulkPushServerImpl {
         }
 
         self.async_rt.tokio.spawn(async move {
+            let mut buf = [0; BUFFER_SIZE];
             match block_type {
                 Some(BlockType::LegacySend) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Send, Direction::In);
-                    let result = socket.read_raw(buffer, SendBlock::serialized_size()).await;
+                    let result = socket
+                        .read_raw(&mut buf, SendBlock::serialized_size())
+                        .await;
+                    buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
                     match result {
@@ -172,8 +180,9 @@ impl BulkPushServerImpl {
                 Some(BlockType::LegacyReceive) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Receive, Direction::In);
                     let result = socket
-                        .read_raw(buffer, ReceiveBlock::serialized_size())
+                        .read_raw(&mut buf, ReceiveBlock::serialized_size())
                         .await;
+                    buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
                     match result {
@@ -197,7 +206,10 @@ impl BulkPushServerImpl {
                 }
                 Some(BlockType::LegacyOpen) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Open, Direction::In);
-                    let result = socket.read_raw(buffer, OpenBlock::serialized_size()).await;
+                    let result = socket
+                        .read_raw(&mut buf, OpenBlock::serialized_size())
+                        .await;
+                    buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
                     match result {
@@ -222,8 +234,9 @@ impl BulkPushServerImpl {
                 Some(BlockType::LegacyChange) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Change, Direction::In);
                     let result = socket
-                        .read_raw(buffer, ChangeBlock::serialized_size())
+                        .read_raw(&mut buf, ChangeBlock::serialized_size())
                         .await;
+                    buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
                     match result {
@@ -247,7 +260,10 @@ impl BulkPushServerImpl {
                 }
                 Some(BlockType::State) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::StateBlock, Direction::In);
-                    let result = socket.read_raw(buffer, StateBlock::serialized_size()).await;
+                    let result = socket
+                        .read_raw(&mut buf, StateBlock::serialized_size())
+                        .await;
+                    buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
                     match result {

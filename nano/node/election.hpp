@@ -13,7 +13,6 @@
 namespace nano
 {
 class channel;
-class confirmation_solicitor;
 class inactive_cache_information;
 class node;
 
@@ -166,7 +165,6 @@ public: // Information
 	nano::election_behavior behavior () const;
 
 private: // Constants
-	friend class confirmation_solicitor;
 	friend class election_helper;
 
 public: // Only used in tests

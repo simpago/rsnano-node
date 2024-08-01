@@ -92,72 +92,6 @@ impl NullSocketObserver {
 
 impl SocketObserver for NullSocketObserver {}
 
-pub struct CompositeSocketObserver {
-    children: Vec<Arc<dyn SocketObserver>>,
-}
-
-impl CompositeSocketObserver {
-    pub fn new(children: Vec<Arc<dyn SocketObserver>>) -> Self {
-        Self { children }
-    }
-}
-
-impl SocketObserver for CompositeSocketObserver {
-    fn socket_connected(&self, socket: Arc<Socket>) {
-        for child in &self.children {
-            child.socket_connected(Arc::clone(&socket));
-        }
-    }
-
-    fn disconnect_due_to_timeout(&self, endpoint: SocketAddrV6) {
-        for child in &self.children {
-            child.disconnect_due_to_timeout(endpoint);
-        }
-    }
-
-    fn connect_error(&self) {
-        for child in &self.children {
-            child.connect_error();
-        }
-    }
-
-    fn read_error(&self) {
-        for child in &self.children {
-            child.read_error();
-        }
-    }
-
-    fn read_successful(&self, len: usize) {
-        for child in &self.children {
-            child.read_successful(len);
-        }
-    }
-
-    fn write_error(&self) {
-        for child in &self.children {
-            child.write_error();
-        }
-    }
-
-    fn write_successful(&self, len: usize) {
-        for child in &self.children {
-            child.write_successful(len);
-        }
-    }
-
-    fn silent_connection_dropped(&self) {
-        for child in &self.children {
-            child.silent_connection_dropped();
-        }
-    }
-
-    fn inactive_connection_dropped(&self, direction: ChannelDirection) {
-        for child in &self.children {
-            child.inactive_connection_dropped(direction);
-        }
-    }
-}
-
 pub struct Socket {
     pub socket_id: usize,
     /// The other end of the connection
@@ -237,7 +171,7 @@ impl Socket {
             .store(timeout.as_secs(), Ordering::SeqCst);
     }
 
-    fn set_default_timeout(&self) {
+    pub fn set_default_timeout(&self) {
         self.set_default_timeout_value(self.default_timeout.load(Ordering::SeqCst));
     }
 
@@ -322,6 +256,59 @@ impl Socket {
         *self.stream.lock().unwrap() = Some(Arc::new(stream));
     }
 
+    pub async fn read_raw(&self, buffer: &mut [u8], size: usize) -> anyhow::Result<()> {
+        if size > buffer.len() {
+            return Err(anyhow!("buffer is too small for read count"));
+        }
+
+        if self.is_closed() {
+            return Err(anyhow!("Tried to read from a closed TcpStream"));
+        }
+
+        self.set_default_timeout();
+        let stream = {
+            let guard = self.stream.lock().unwrap();
+            let Some(stream) = guard.deref() else {
+                return Err(anyhow!("no tcp stream open"));
+            };
+            Arc::clone(stream)
+        };
+
+        let mut read = 0;
+        loop {
+            match stream.readable().await {
+                Ok(_) => {
+                    match stream.try_read(&mut buffer[read..size]) {
+                        Ok(0) => {
+                            self.observer.read_error();
+                            return Err(anyhow!("remote side closed the channel"));
+                        }
+                        Ok(n) => {
+                            read += n;
+                            if read >= size {
+                                self.observer.read_successful(size);
+                                self.set_last_completion();
+                                self.set_last_receive_time();
+                                return Ok(());
+                            }
+                        }
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            continue;
+                        }
+                        Err(e) => {
+                            self.observer.read_error();
+                            return Err(e.into());
+                        }
+                    };
+                }
+                Err(e) => {
+                    self.observer.read_error();
+                    return Err(e.into());
+                }
+            }
+        }
+    }
+
     pub(crate) async fn write_raw(&self, data: &[u8]) -> anyhow::Result<()> {
         let stream = {
             let guard = self.stream.lock().unwrap();
@@ -363,8 +350,6 @@ impl Drop for Socket {
 #[async_trait]
 pub trait SocketExtensions {
     fn start(&self);
-    fn async_connect(&self, endpoint: SocketAddrV6, callback: Box<dyn FnOnce(ErrorCode) + Send>);
-    async fn read_raw(&self, buffer: Arc<Mutex<Vec<u8>>>, size: usize) -> anyhow::Result<()>;
     fn async_write(
         &self,
         buffer: &Arc<Vec<u8>>,
@@ -384,134 +369,6 @@ pub trait SocketExtensions {
 impl SocketExtensions for Arc<Socket> {
     fn start(&self) {
         self.ongoing_checkup();
-    }
-
-    fn async_connect(&self, endpoint: SocketAddrV6, callback: Box<dyn FnOnce(ErrorCode) + Send>) {
-        let self_clone = self.clone();
-        debug_assert!(self.direction == ChannelDirection::Outbound);
-
-        self.start();
-        self.set_default_timeout();
-
-        let callback: Box<dyn FnOnce(ErrorCode) + Send> = Box::new(move |ec| {
-            if !ec.is_err() {
-                self_clone.set_last_completion()
-            }
-            {
-                let mut lk = self_clone.remote.lock().unwrap();
-                *lk = Some(endpoint);
-            }
-
-            if ec.is_err() {
-                self_clone.observer.connect_error();
-                self_clone.close();
-            }
-            self_clone
-                .observer
-                .socket_connected(Arc::clone(&self_clone));
-            callback(ec);
-        });
-
-        let callback = Arc::new(Mutex::new(Some(callback)));
-        let callback_clone = Arc::clone(&callback);
-        *self.current_action.lock().unwrap() = Some(Box::new(move || {
-            let f = { callback_clone.lock().unwrap().take() };
-            if let Some(f) = f {
-                f(ErrorCode::fault());
-            }
-        }));
-
-        let stream_clone = Arc::clone(&self.stream);
-        self.is_connecting.store(true, Ordering::SeqCst);
-        let Some(runtime) = self.runtime.upgrade() else {
-            return;
-        };
-        let runtime_w = Weak::clone(&self.runtime);
-        let tcp_stream_factory = Arc::clone(&self.tcp_stream_factory);
-        runtime.tokio.spawn(async move {
-            let Ok(stream) = tcp_stream_factory.connect(endpoint).await else {
-                let f = { callback.lock().unwrap().take() };
-                if let Some(cb) = f {
-                    let Some(runtime) = runtime_w.upgrade() else {
-                        return;
-                    };
-                    runtime.tokio.spawn_blocking(move || {
-                        cb(ErrorCode::fault());
-                    });
-                }
-                return;
-            };
-            {
-                let mut guard = stream_clone.lock().unwrap();
-                debug_assert!(guard.is_none());
-                *guard = Some(Arc::new(stream));
-            }
-            let Some(runtime) = runtime_w.upgrade() else {
-                return;
-            };
-            runtime.tokio.spawn_blocking(move || {
-                let f = { callback.lock().unwrap().take() };
-                if let Some(cb) = f {
-                    cb(ErrorCode::new())
-                }
-            });
-        });
-    }
-
-    async fn read_raw(&self, buffer: Arc<Mutex<Vec<u8>>>, size: usize) -> anyhow::Result<()> {
-        let buffer_len = { buffer.lock().unwrap().len() };
-        if size > buffer_len {
-            return Err(anyhow!("buffer is too small for read count"));
-        }
-
-        if self.is_closed() {
-            return Err(anyhow!("Tried to read from a closed TcpStream"));
-        }
-
-        self.set_default_timeout();
-        let stream = {
-            let guard = self.stream.lock().unwrap();
-            let Some(stream) = guard.deref() else {
-                return Err(anyhow!("no tcp stream open"));
-            };
-            Arc::clone(stream)
-        };
-
-        let mut read = 0;
-        loop {
-            match stream.readable().await {
-                Ok(_) => {
-                    let mut buf = buffer.lock().unwrap();
-                    match stream.try_read(&mut buf.as_mut_slice()[read..size]) {
-                        Ok(0) => {
-                            self.observer.read_error();
-                            return Err(anyhow!("remote side closed the channel"));
-                        }
-                        Ok(n) => {
-                            drop(buf);
-                            read += n;
-                            if read >= size {
-                                self.observer.read_successful(size);
-                                self.set_last_completion();
-                                self.set_last_receive_time();
-                                return Ok(());
-                            }
-                        }
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            continue;
-                        }
-                        Err(e) => {
-                            self.observer.read_error();
-                            return Err(e.into());
-                        }
-                    };
-                }
-                Err(e) => {
-                    self.observer.read_error();
-                    return Err(e.into());
-                }
-            }
-        }
     }
 
     fn async_write(
@@ -723,13 +580,8 @@ impl SocketExtensions for Arc<Socket> {
 
 #[async_trait]
 impl AsyncBufferReader for Arc<Socket> {
-    async fn read(&self, buffer: Arc<Mutex<Vec<u8>>>, count: usize) -> anyhow::Result<()> {
-        // Increase timeout to receive TCP header (idle server socket)
-        let prev_timeout = self.default_timeout_value();
-        self.set_default_timeout_value(self.idle_timeout.as_secs());
-        let result = self.read_raw(buffer, count).await;
-        self.set_default_timeout_value(prev_timeout);
-        result
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
+        self.read_raw(buffer, count).await
     }
 }
 

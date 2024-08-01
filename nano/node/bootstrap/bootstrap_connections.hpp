@@ -4,7 +4,6 @@
 
 #include <nano/node/bootstrap/bootstrap_bulk_pull.hpp>
 #include <nano/node/common.hpp>
-#include <nano/node/transport/socket.hpp>
 
 namespace nano
 {

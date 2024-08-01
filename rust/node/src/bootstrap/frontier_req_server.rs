@@ -85,21 +85,6 @@ impl FrontierReqServerImpl {
         self.request.only_confirmed
     }
 
-    pub fn send_finished(&self, server: Arc<Mutex<FrontierReqServerImpl>>) {
-        let mut send_buffer = Vec::with_capacity(64);
-        send_buffer.extend_from_slice(Account::zero().as_bytes());
-        send_buffer.extend_from_slice(BlockHash::zero().as_bytes());
-        debug!("Frontier sending finished");
-
-        self.connection.socket.async_write(
-            &Arc::new(send_buffer),
-            Some(Box::new(move |ec, size| {
-                server.lock().unwrap().no_block_sent(ec, size);
-            })),
-            TrafficType::Generic,
-        )
-    }
-
     pub fn send_next(&mut self, server: Arc<Mutex<FrontierReqServerImpl>>) {
         if !self.current.is_zero() && self.count < self.request.count as usize {
             trace!(
@@ -125,6 +110,21 @@ impl FrontierReqServerImpl {
         } else {
             self.send_finished(server);
         }
+    }
+
+    pub fn send_finished(&self, server: Arc<Mutex<FrontierReqServerImpl>>) {
+        let mut send_buffer = Vec::with_capacity(64);
+        send_buffer.extend_from_slice(Account::zero().as_bytes());
+        send_buffer.extend_from_slice(BlockHash::zero().as_bytes());
+        debug!("Frontier sending finished");
+
+        self.connection.socket.async_write(
+            &Arc::new(send_buffer),
+            Some(Box::new(move |ec, size| {
+                server.lock().unwrap().no_block_sent(ec, size);
+            })),
+            TrafficType::Generic,
+        )
     }
 
     pub fn next(&mut self) {

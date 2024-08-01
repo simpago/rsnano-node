@@ -29,10 +29,11 @@ mod token_bucket;
 mod tokio_socket_facade;
 mod write_queue;
 
+use async_trait::async_trait;
 pub use bandwidth_limiter::{
     BandwidthLimitType, BandwidthLimiter, OutboundBandwidthLimiter, OutboundBandwidthLimiterConfig,
 };
-pub use block_deserializer::BlockDeserializer;
+pub use block_deserializer::read_block;
 pub use channel_fake::ChannelFake;
 pub use channel_inproc::{ChannelInProc, InboundCallback, VecBufferReader};
 pub use channel_tcp::*;
@@ -59,7 +60,7 @@ use std::{
     net::SocketAddrV6,
     ops::Deref,
     sync::Arc,
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 pub use syn_cookies::SynCookies;
 pub use tcp_listener::*;
@@ -105,7 +106,7 @@ pub enum TransportType {
     Fake = 3,
 }
 
-pub trait Channel {
+pub trait Channel: AsyncBufferReader {
     fn channel_id(&self) -> ChannelId;
     fn get_last_bootstrap_attempt(&self) -> SystemTime; //todo switch back to Instant
     fn set_last_bootstrap_attempt(&self, time: SystemTime); //todo switch back to Instant
@@ -124,6 +125,7 @@ pub trait Channel {
     fn direction(&self) -> ChannelDirection;
     fn mode(&self) -> ChannelMode;
     fn set_mode(&self, mode: ChannelMode);
+    fn set_timeout(&self, timeout: Duration);
 
     fn send(
         &self,
@@ -198,5 +200,12 @@ impl Deref for ChannelEnum {
             ChannelEnum::InProc(inproc) => inproc,
             ChannelEnum::Fake(fake) => fake,
         }
+    }
+}
+
+#[async_trait]
+impl AsyncBufferReader for ChannelEnum {
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
+        self.deref().read(buffer, count).await
     }
 }

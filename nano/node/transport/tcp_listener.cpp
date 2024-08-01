@@ -4,7 +4,6 @@
 #include <nano/node/node.hpp>
 #include <nano/node/transport/tcp.hpp>
 #include <nano/node/transport/tcp_listener.hpp>
-#include <nano/node/transport/tcp_server.hpp>
 
 nano::transport::tcp_config::tcp_config (rsnano::TcpConfigDto const & dto) :
 	max_inbound_connections{ dto.max_inbound_connections },
@@ -38,11 +37,6 @@ nano::transport::tcp_listener::tcp_listener (rsnano::TcpListenerHandle * handle)
 nano::transport::tcp_listener::~tcp_listener ()
 {
 	rsnano::rsn_tcp_listener_destroy (handle);
-}
-
-std::size_t nano::transport::tcp_listener::get_realtime_count ()
-{
-	return rsnano::rsn_tcp_listener_realtime_count (handle);
 }
 
 boost::asio::ip::tcp::endpoint nano::transport::tcp_listener::endpoint ()

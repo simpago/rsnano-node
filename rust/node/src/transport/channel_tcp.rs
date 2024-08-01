@@ -1,21 +1,22 @@
 use super::{
-    write_queue::WriteCallback, BufferDropPolicy, Channel, ChannelDirection, ChannelId,
-    ChannelMode, OutboundBandwidthLimiter, Socket, SocketExtensions, TrafficType,
+    write_queue::WriteCallback, AsyncBufferReader, BufferDropPolicy, Channel, ChannelDirection,
+    ChannelId, ChannelMode, OutboundBandwidthLimiter, Socket, SocketExtensions, TrafficType,
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     utils::{AsyncRuntime, ErrorCode},
 };
+use async_trait::async_trait;
 use rsnano_core::Account;
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
 use std::{
     fmt::Display,
-    net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6},
+    net::{Ipv6Addr, SocketAddrV6},
     sync::{
         atomic::{AtomicU8, Ordering},
-        Arc, Mutex, MutexGuard, Weak,
+        Arc, Mutex, Weak,
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tracing::trace;
 
@@ -33,8 +34,8 @@ pub struct ChannelTcp {
     channel_mutex: Mutex<TcpChannelData>,
     pub socket: Arc<Socket>,
     network_version: AtomicU8,
-    pub limiter: Arc<OutboundBandwidthLimiter>,
-    pub async_rt: Weak<AsyncRuntime>,
+    limiter: Arc<OutboundBandwidthLimiter>,
+    async_rt: Weak<AsyncRuntime>,
     message_serializer: Mutex<MessageSerializer>, // TODO remove mutex
     stats: Arc<Stats>,
 }
@@ -72,46 +73,22 @@ impl ChannelTcp {
         }
     }
 
-    pub fn socket(&self) -> Option<Arc<Socket>> {
-        Some(Arc::clone(&self.socket))
-    }
-
-    pub fn lock(&self) -> MutexGuard<TcpChannelData> {
-        self.channel_mutex.lock().unwrap()
-    }
-
-    pub fn set_network_version(&self, version: u8) {
-        self.network_version.store(version, Ordering::Relaxed)
-    }
-
-    pub fn local_endpoint(&self) -> SocketAddr {
-        self.socket()
-            .map(|s| SocketAddr::V6(s.local_endpoint_v6()))
-            .unwrap_or(SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0))
-    }
-
-    pub fn update_remote_endpoint(&self) {
+    pub(crate) fn update_remote_endpoint(&self) {
         let mut lock = self.channel_mutex.lock().unwrap();
         debug_assert!(lock.remote_endpoint == SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)); // Not initialized endpoint value
                                                                                                   // Calculate TCP socket endpoint
-        if let Some(socket) = self.socket() {
-            if let Some(ep) = socket.get_remote() {
-                lock.remote_endpoint = ep;
-            }
+        if let Some(ep) = self.socket.get_remote() {
+            lock.remote_endpoint = ep;
         }
     }
 
-    pub fn set_peering_endpoint(&self, address: SocketAddrV6) {
+    pub(crate) fn set_peering_endpoint(&self, address: SocketAddrV6) {
         let mut lock = self.channel_mutex.lock().unwrap();
         lock.peering_endpoint = Some(address);
     }
 
-    pub fn max(&self, traffic_type: TrafficType) -> bool {
+    pub(crate) fn max(&self, traffic_type: TrafficType) -> bool {
         self.socket.max(traffic_type)
-    }
-
-    pub fn socket_id(&self) -> usize {
-        self.socket.socket_id
     }
 }
 
@@ -139,53 +116,41 @@ impl ChannelTcpExt for Arc<ChannelTcp> {
         policy: BufferDropPolicy,
         traffic_type: TrafficType,
     ) {
-        if let Some(socket_l) = self.socket() {
-            if !socket_l.max(traffic_type)
-                || (policy == BufferDropPolicy::NoSocketDrop && !socket_l.full(traffic_type))
-            {
-                let stats = Arc::clone(&self.stats);
-                let this_w = Arc::downgrade(self);
-                socket_l.async_write(
-                    buffer,
-                    Some(Box::new(move |ec, size| {
-                        if ec.is_ok() {
-                            if let Some(channel) = this_w.upgrade() {
-                                channel.set_last_packet_sent(SystemTime::now());
-                            }
+        if !self.socket.max(traffic_type)
+            || (policy == BufferDropPolicy::NoSocketDrop && !self.socket.full(traffic_type))
+        {
+            let stats = Arc::clone(&self.stats);
+            let this_w = Arc::downgrade(self);
+            self.socket.async_write(
+                buffer,
+                Some(Box::new(move |ec, size| {
+                    if ec.is_ok() {
+                        if let Some(channel) = this_w.upgrade() {
+                            channel.set_last_packet_sent(SystemTime::now());
                         }
-                        if ec == ErrorCode::host_unreachable() {
-                            stats.inc_dir(
-                                StatType::Error,
-                                DetailType::UnreachableHost,
-                                Direction::Out,
-                            );
-                        }
-                        if let Some(callback) = callback {
-                            callback(ec, size);
-                        }
-                    })),
-                    traffic_type,
-                );
+                    }
+                    if ec == ErrorCode::host_unreachable() {
+                        stats.inc_dir(StatType::Error, DetailType::UnreachableHost, Direction::Out);
+                    }
+                    if let Some(callback) = callback {
+                        callback(ec, size);
+                    }
+                })),
+                traffic_type,
+            );
+        } else {
+            if policy == BufferDropPolicy::NoSocketDrop {
+                self.stats.inc_dir(
+                    StatType::Tcp,
+                    DetailType::TcpWriteNoSocketDrop,
+                    Direction::Out,
+                )
             } else {
-                if policy == BufferDropPolicy::NoSocketDrop {
-                    self.stats.inc_dir(
-                        StatType::Tcp,
-                        DetailType::TcpWriteNoSocketDrop,
-                        Direction::Out,
-                    )
-                } else {
-                    self.stats
-                        .inc_dir(StatType::Tcp, DetailType::TcpWriteDrop, Direction::Out);
-                }
-                if let Some(callback_a) = callback {
-                    callback_a(ErrorCode::no_buffer_space(), 0);
-                }
+                self.stats
+                    .inc_dir(StatType::Tcp, DetailType::TcpWriteDrop, Direction::Out);
             }
-        } else if let Some(callback_a) = callback {
-            if let Some(async_rt) = self.async_rt.upgrade() {
-                async_rt.post(Box::new(|| {
-                    callback_a(ErrorCode::not_supported(), 0);
-                }));
+            if let Some(callback_a) = callback {
+                callback_a(ErrorCode::no_buffer_space(), 0);
             }
         }
     }
@@ -229,7 +194,7 @@ impl Channel for Arc<ChannelTcp> {
     }
 
     fn is_alive(&self) -> bool {
-        self.socket().map(|s| s.is_alive()).unwrap_or(false)
+        self.socket.is_alive()
     }
 
     fn get_type(&self) -> super::TransportType {
@@ -302,6 +267,10 @@ impl Channel for Arc<ChannelTcp> {
     fn local_addr(&self) -> SocketAddrV6 {
         self.socket.local_endpoint_v6()
     }
+
+    fn set_timeout(&self, timeout: Duration) {
+        self.socket.set_timeout(timeout);
+    }
 }
 
 impl Drop for ChannelTcp {
@@ -318,5 +287,12 @@ impl PartialEq for ChannelTcp {
         }
 
         true
+    }
+}
+
+#[async_trait]
+impl AsyncBufferReader for Arc<ChannelTcp> {
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
+        self.socket.read(buffer, count).await
     }
 }

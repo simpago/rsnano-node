@@ -1,6 +1,4 @@
-#include <nano/node/transport/socket.hpp>
 #include <nano/node/transport/tcp.hpp>
-#include <nano/node/transport/tcp_server.hpp>
 #include <nano/test_common/network.hpp>
 #include <nano/test_common/system.hpp>
 #include <nano/test_common/testutil.hpp>

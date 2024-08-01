@@ -58,8 +58,6 @@ impl Default for TcpConfig {
     }
 }
 
-pub trait ResponseServer {}
-
 pub struct ResponseServerImpl {
     channel: Mutex<Option<Arc<ChannelEnum>>>,
     pub socket: Arc<Socket>,
@@ -76,7 +74,6 @@ pub struct ResponseServerImpl {
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
     message_visitor_factory: Arc<BootstrapMessageVisitorFactory>,
-    message_deserializer: Arc<MessageDeserializer<Arc<Socket>>>,
     allow_bootstrap: bool,
     notify_stop: Notify,
     last_keepalive: Mutex<Option<Keepalive>>,
@@ -84,6 +81,7 @@ pub struct ResponseServerImpl {
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
+    publish_filter: Arc<NetworkFilter>,
 }
 
 static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
@@ -102,7 +100,6 @@ impl ResponseServerImpl {
         node_id: KeyPair,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        let socket_clone = Arc::clone(&socket);
         debug!(
             socket_id = socket.socket_id,
             "Cloning socket in TcpServer constructor"
@@ -131,16 +128,11 @@ impl ResponseServerImpl {
             stats,
             disable_bootstrap_bulk_pull_server: false,
             message_visitor_factory,
-            message_deserializer: Arc::new(MessageDeserializer::new(
-                network_constants.protocol_info(),
-                network_constants.work.clone(),
-                publish_filter,
-                socket_clone,
-            )),
             allow_bootstrap,
             notify_stop: Notify::new(),
             last_keepalive: Mutex::new(None),
             initiate_handshake_listener: OutputListenerMt::new(),
+            publish_filter,
         }
     }
 
@@ -158,7 +150,6 @@ impl ResponseServerImpl {
             stats: Arc::new(Stats::default()),
             disable_bootstrap_bulk_pull_server: true,
             message_visitor_factory: Arc::new(BootstrapMessageVisitorFactory::new_null()),
-            message_deserializer: Arc::new(MessageDeserializer::new_null()),
             allow_bootstrap: false,
             notify_stop: Notify::new(),
             last_keepalive: Mutex::new(None),
@@ -166,6 +157,7 @@ impl ResponseServerImpl {
             inbound_queue: Arc::new(InboundMessageQueue::default()),
             handshake_process: HandshakeProcess::new_null(),
             initiate_handshake_listener: OutputListenerMt::new(),
+            publish_filter: Arc::new(NetworkFilter::default()),
         }
     }
 
@@ -354,13 +346,20 @@ impl ResponseServerExt for Arc<ResponseServerImpl> {
             debug!("Starting server: {}", guard.port());
         }
 
+        let mut message_deserializer = MessageDeserializer::new(
+            self.network_params.network.protocol_info(),
+            self.network_params.network.work.clone(),
+            self.publish_filter.clone(),
+            self.socket.clone(),
+        );
+
         loop {
             if self.is_stopped() {
                 break;
             }
 
             let result = tokio::select! {
-                i = self.message_deserializer.read() => i,
+                i = message_deserializer.read() => i,
                 _ = self.notify_stop.notified() => Err(ParseMessageError::Stopped)
             };
 

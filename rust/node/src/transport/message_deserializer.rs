@@ -1,32 +1,20 @@
-use super::{NetworkFilter, Socket};
+use super::NetworkFilter;
 use async_trait::async_trait;
 use rsnano_core::{utils::BufferReader, work::WorkThresholds};
 use rsnano_messages::*;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[async_trait]
 pub trait AsyncBufferReader {
-    async fn read(&self, buffer: Arc<Mutex<Vec<u8>>>, count: usize) -> anyhow::Result<()>;
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()>;
 }
 
 pub struct MessageDeserializer<T: AsyncBufferReader + Send> {
     network_filter: Arc<NetworkFilter>,
     work_thresholds: WorkThresholds,
     protocol_info: ProtocolInfo,
-    read_buffer: Arc<Mutex<Vec<u8>>>,
+    read_buffer: Vec<u8>,
     buffer_reader: T,
-}
-
-impl MessageDeserializer<Arc<Socket>> {
-    pub fn new_null() -> Self {
-        Self {
-            network_filter: Arc::new(NetworkFilter::default()),
-            work_thresholds: WorkThresholds::new(0, 0, 0),
-            protocol_info: ProtocolInfo::default(),
-            read_buffer: Arc::new(Mutex::new(Vec::new())),
-            buffer_reader: Socket::new_null(),
-        }
-    }
 }
 
 impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
@@ -38,29 +26,25 @@ impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
     ) -> Self {
         Self {
             protocol_info,
-            read_buffer: Arc::new(Mutex::new(vec![0; Message::MAX_MESSAGE_SIZE])),
+            read_buffer: vec![0; Message::MAX_MESSAGE_SIZE],
             buffer_reader,
             work_thresholds,
             network_filter,
         }
     }
 
-    pub async fn read(&self) -> Result<DeserializedMessage, ParseMessageError> {
+    pub async fn read(&mut self) -> Result<DeserializedMessage, ParseMessageError> {
         self.buffer_reader
-            .read(
-                Arc::clone(&self.read_buffer),
-                MessageHeader::SERIALIZED_SIZE,
-            )
+            .read(&mut self.read_buffer, MessageHeader::SERIALIZED_SIZE)
             .await
             .map_err(|e| ParseMessageError::Other(e.to_string()))?;
 
         self.received_header().await
     }
 
-    async fn received_header(&self) -> Result<DeserializedMessage, ParseMessageError> {
+    async fn received_header(&mut self) -> Result<DeserializedMessage, ParseMessageError> {
         let header = {
-            let buffer = self.read_buffer.lock().unwrap();
-            let header_bytes = &buffer[..MessageHeader::SERIALIZED_SIZE];
+            let header_bytes = &self.read_buffer[..MessageHeader::SERIALIZED_SIZE];
             let mut stream = BufferReader::new(header_bytes);
             MessageHeader::deserialize(&mut stream).map_err(|_| ParseMessageError::InvalidHeader)?
         };
@@ -72,7 +56,7 @@ impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
             self.parse_message(header, 0)
         } else {
             self.buffer_reader
-                .read(Arc::clone(&self.read_buffer), payload_size)
+                .read(&mut self.read_buffer, payload_size)
                 .await
                 .map_err(|e| ParseMessageError::Other(e.to_string()))?;
             self.parse_message(header, payload_size)
@@ -84,8 +68,7 @@ impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
         header: MessageHeader,
         payload_size: usize,
     ) -> Result<DeserializedMessage, ParseMessageError> {
-        let buffer = self.read_buffer.lock().unwrap();
-        let payload_bytes = &buffer[..payload_size];
+        let payload_bytes = &self.read_buffer[..payload_size];
         let digest = self.filter_duplicate_publish_messages(header.message_type, payload_bytes)?;
         let message = Message::deserialize(payload_bytes, &header, digest)
             .ok_or(ParseMessageError::InvalidMessage(header.message_type))?;
@@ -144,7 +127,7 @@ mod tests {
         let buffer = serializer.serialize(&message).to_vec();
         let reader = VecBufferReader::new(buffer);
 
-        let deserializer = MessageDeserializer::new(
+        let mut deserializer = MessageDeserializer::new(
             protocol,
             WorkThresholds::publish_full().clone(),
             Arc::new(NetworkFilter::default()),
@@ -166,7 +149,7 @@ mod tests {
         buffer.extend_from_slice(serializer.serialize(&message));
         let reader = VecBufferReader::new(buffer);
 
-        let deserializer = MessageDeserializer::new(
+        let mut deserializer = MessageDeserializer::new(
             protocol,
             WorkThresholds::new(0, 0, 0),
             Arc::new(NetworkFilter::default()),
