@@ -11,6 +11,6 @@ pub use bandwidth_limiter::OutboundBandwidthLimiterHandle;
 pub use channel::ChannelHandle;
 pub use network_filter::NetworkFilterHandle;
 pub use network_threads::NetworkThreadsHandle;
-pub use socket::{EndpointDto, SocketHandle};
+pub use socket::EndpointDto;
 pub use syn_cookies::SynCookiesHandle;
 pub use tcp_channels::TcpChannelsHandle;

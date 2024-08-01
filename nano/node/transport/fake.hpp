@@ -27,11 +27,6 @@ namespace transport
 				return rsnano::rsn_channel_fake_network_version (handle);
 			}
 
-			nano::tcp_endpoint get_local_endpoint () const override
-			{
-				return nano::tcp_endpoint{};
-			}
-
 			nano::endpoint get_remote_endpoint () const override;
 
 			nano::tcp_endpoint get_tcp_remote_endpoint () const override

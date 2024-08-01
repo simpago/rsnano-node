@@ -15,8 +15,6 @@ add_library(
   bootstrap/bootstrap_config.cpp
   bootstrap/bootstrap_connections.hpp
   bootstrap/bootstrap_connections.cpp
-  bootstrap/bootstrap_frontier.hpp
-  bootstrap/bootstrap_frontier.cpp
   bootstrap/bootstrap.hpp
   bootstrap/bootstrap.cpp
   bootstrap/bootstrap_server.hpp
@@ -27,8 +25,6 @@ add_library(
   common.cpp
   confirming_set.hpp
   confirming_set.cpp
-  confirmation_solicitor.hpp
-  confirmation_solicitor.cpp
   daemonconfig.hpp
   daemonconfig.cpp
   distributed_work_factory.hpp
@@ -101,14 +97,10 @@ add_library(
   transport/fake.cpp
   transport/inproc.hpp
   transport/inproc.cpp
-  transport/socket.hpp
-  transport/socket.cpp
   transport/tcp.hpp
   transport/tcp.cpp
   transport/tcp_listener.hpp
   transport/tcp_listener.cpp
-  transport/tcp_server.hpp
-  transport/tcp_server.cpp
   transport/transport.hpp
   transport/transport.cpp
   unchecked_map.cpp

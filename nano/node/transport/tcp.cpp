@@ -2,8 +2,6 @@
 #include "nano/lib/rsnanoutils.hpp"
 #include "nano/node/messages.hpp"
 #include "nano/node/transport/channel.hpp"
-#include "nano/node/transport/socket.hpp"
-#include "nano/node/transport/tcp_listener.hpp"
 #include "nano/secure/network_filter.hpp"
 
 #include <nano/crypto_lib/random_pool_shuffle.hpp>
@@ -31,26 +29,6 @@
 
 namespace
 {
-rsnano::ChannelHandle * create_tcp_channel_handle (
-rsnano::async_runtime & async_rt_a,
-nano::outbound_bandwidth_limiter & limiter_a,
-nano::network_constants const & network_a,
-std::shared_ptr<nano::transport::socket> const & socket_a,
-nano::stats const & stats_a,
-nano::transport::tcp_channels const & tcp_channels_a,
-size_t channel_id)
-{
-	auto network_dto{ network_a.to_dto () };
-	return rsnano::rsn_channel_tcp_create (
-	socket_a->handle,
-	stats_a.handle,
-	tcp_channels_a.handle,
-	limiter_a.handle,
-	async_rt_a.handle,
-	channel_id,
-	&network_dto);
-}
-
 std::vector<std::shared_ptr<nano::transport::channel>> into_channel_vector (rsnano::ChannelListHandle * list_handle)
 {
 	auto len = rsnano::rsn_channel_list_len (list_handle);
@@ -66,25 +44,6 @@ std::vector<std::shared_ptr<nano::transport::channel>> into_channel_vector (rsna
 }
 }
 
-nano::transport::channel_tcp::channel_tcp (
-rsnano::async_runtime & async_rt_a,
-nano::outbound_bandwidth_limiter & limiter_a,
-nano::network_constants const & network_a,
-std::shared_ptr<nano::transport::socket> const & socket_a,
-nano::stats const & stats_a,
-nano::transport::tcp_channels const & tcp_channels_a,
-size_t channel_id) :
-	channel (create_tcp_channel_handle (
-	async_rt_a,
-	limiter_a,
-	network_a,
-	socket_a,
-	stats_a,
-	tcp_channels_a,
-	channel_id))
-{
-}
-
 uint8_t nano::transport::channel_tcp::get_network_version () const
 {
 	return rsnano::rsn_channel_tcp_network_version (handle);
@@ -95,18 +54,6 @@ nano::tcp_endpoint nano::transport::channel_tcp::get_tcp_remote_endpoint () cons
 	rsnano::EndpointDto ep_dto{};
 	rsnano::rsn_channel_tcp_remote_endpoint (handle, &ep_dto);
 	return rsnano::dto_to_endpoint (ep_dto);
-}
-
-nano::tcp_endpoint nano::transport::channel_tcp::get_local_endpoint () const
-{
-	rsnano::EndpointDto ep_dto{};
-	rsnano::rsn_channel_tcp_local_endpoint (handle, &ep_dto);
-	return rsnano::dto_to_endpoint (ep_dto);
-}
-
-size_t nano::transport::channel_tcp::socket_id () const
-{
-	return rsnano::rsn_channel_tcp_socket_id (handle);
 }
 
 std::string nano::transport::channel_tcp::to_string () const
@@ -228,42 +175,6 @@ void nano::transport::tcp_channels::purge (std::chrono::system_clock::time_point
 {
 	uint64_t cutoff_ns = std::chrono::duration_cast<std::chrono::nanoseconds> (cutoff_a.time_since_epoch ()).count ();
 	rsnano::rsn_tcp_channels_purge (handle, cutoff_ns);
-}
-
-namespace
-{
-void message_received_callback (void * context, const rsnano::ErrorCodeDto * ec_dto, rsnano::MessageHandle * msg_handle)
-{
-	auto callback = static_cast<std::function<void (boost::system::error_code, std::unique_ptr<nano::message>)> *> (context);
-	auto ec = rsnano::dto_to_error_code (*ec_dto);
-	std::unique_ptr<nano::message> message;
-	if (msg_handle != nullptr)
-	{
-		message = rsnano::message_handle_to_message (rsnano::rsn_message_clone (msg_handle));
-	}
-	(*callback) (ec, std::move (message));
-}
-
-void delete_callback_context (void * context)
-{
-	auto callback = static_cast<std::function<void (boost::system::error_code, std::unique_ptr<nano::message>)> *> (context);
-	delete callback;
-}
-}
-namespace
-{
-void delete_new_channel_callback (void * context)
-{
-	auto callback = static_cast<std::function<void (std::shared_ptr<nano::transport::channel>)> *> (context);
-	delete callback;
-}
-
-void call_new_channel_callback (void * context, rsnano::ChannelHandle * channel_handle)
-{
-	auto callback = static_cast<std::function<void (std::shared_ptr<nano::transport::channel>)> *> (context);
-	auto channel = std::make_shared<nano::transport::channel_tcp> (channel_handle);
-	(*callback) (channel);
-}
 }
 
 std::shared_ptr<nano::transport::channel> nano::transport::channel_handle_to_channel (rsnano::ChannelHandle * handle)

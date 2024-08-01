@@ -24,7 +24,6 @@
 #include <nano/node/repcrawler.hpp>
 #include <nano/node/request_aggregator.hpp>
 #include <nano/node/telemetry.hpp>
-#include <nano/node/transport/tcp_server.hpp>
 #include <nano/node/unchecked_map.hpp>
 #include <nano/node/vote_cache.hpp>
 #include <nano/node/vote_processor.hpp>

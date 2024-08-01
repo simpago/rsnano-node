@@ -5,7 +5,6 @@
 #include <nano/node/bandwidth_limiter.hpp>
 #include <nano/node/common.hpp>
 #include <nano/node/messages.hpp>
-#include <nano/node/transport/socket.hpp>
 
 #include <boost/asio/ip/network_v6.hpp>
 
@@ -40,7 +39,6 @@ public:
 	virtual std::string to_string () const = 0;
 	virtual nano::endpoint get_remote_endpoint () const = 0;
 	virtual nano::tcp_endpoint get_tcp_remote_endpoint () const = 0;
-	virtual nano::tcp_endpoint get_local_endpoint () const = 0;
 	virtual nano::tcp_endpoint get_peering_endpoint () const;
 	virtual nano::transport::transport_type get_type () const = 0;
 

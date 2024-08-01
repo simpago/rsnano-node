@@ -4,16 +4,8 @@
 
 #include <nano/node/common.hpp>
 
-namespace rsnano
-{
-class TcpListenerHandle;
-}
-
 namespace nano::transport
 {
-class socket;
-class tcp_server;
-
 class tcp_config
 {
 public:
@@ -51,7 +43,6 @@ public:
 	tcp_listener (tcp_listener const &) = delete;
 	~tcp_listener ();
 
-	std::size_t get_realtime_count ();
 	nano::tcp_endpoint endpoint ();
 
 	rsnano::TcpListenerHandle * handle;

@@ -5,7 +5,6 @@
 #include <nano/lib/blocks.hpp>
 #include <nano/lib/threading.hpp>
 #include <nano/node/active_elections.hpp>
-#include <nano/node/confirmation_solicitor.hpp>
 #include <nano/node/confirming_set.hpp>
 #include <nano/node/election.hpp>
 #include <nano/node/node.hpp>

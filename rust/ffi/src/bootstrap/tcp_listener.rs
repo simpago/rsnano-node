@@ -20,11 +20,6 @@ pub unsafe extern "C" fn rsn_tcp_listener_destroy(handle: *mut TcpListenerHandle
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_tcp_listener_realtime_count(handle: &TcpListenerHandle) -> usize {
-    handle.0.realtime_count()
-}
-
-#[no_mangle]
 pub extern "C" fn rsn_tcp_listener_endpoint(handle: &TcpListenerHandle, result: &mut EndpointDto) {
     *result = handle.0.local_address().into()
 }

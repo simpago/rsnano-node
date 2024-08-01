@@ -2,7 +2,7 @@ use super::{BootstrapAttemptLegacy, BootstrapClient, BootstrapConnections};
 use crate::{
     bootstrap::{bootstrap_limits, BootstrapAttemptTrait, BootstrapConnectionsExt, PullInfo},
     transport::{BufferDropPolicy, TrafficType},
-    utils::{ErrorCode, ThreadPool},
+    utils::{AsyncRuntime, ThreadPool},
 };
 use primitive_types::U256;
 use rsnano_core::{
@@ -25,6 +25,7 @@ pub struct FrontierReqClient {
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,
     workers: Arc<dyn ThreadPool>,
+    runtime: Arc<AsyncRuntime>,
     attempt: Option<Weak<BootstrapAttemptLegacy>>,
     condition: Condvar,
     retry_limit: u32,
@@ -86,6 +87,7 @@ impl FrontierReqClient {
         retry_limit: u32,
         connections: Arc<BootstrapConnections>,
         workers: Arc<dyn ThreadPool>,
+        runtime: Arc<AsyncRuntime>,
     ) -> Self {
         Self {
             connection,
@@ -95,6 +97,7 @@ impl FrontierReqClient {
             retry_limit,
             connections,
             condition: Condvar::new(),
+            runtime,
             data: Mutex::new(FrontierReqClientData {
                 current: Account::zero(),
                 frontier: BlockHash::zero(),
@@ -153,7 +156,7 @@ impl FrontierReqClient {
 pub trait FrontierReqClientExt {
     fn run(&self, start_account: &Account, frontiers_age: u32, count: u32);
     fn receive_frontier(&self);
-    fn received_frontier(&self, ec: ErrorCode, size_a: usize);
+    fn received_frontier(&self, account: Account, latest: BlockHash);
 }
 
 impl FrontierReqClientExt for Arc<FrontierReqClient> {
@@ -197,133 +200,125 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
 
     fn receive_frontier(&self) {
         let this_l = Arc::clone(self);
-        self.connection.read_async(
-            SIZE_FRONTIER,
-            Box::new(move |ec, size| {
-                // An issue with asio is that sometimes, instead of reporting a bad file descriptor during disconnect,
-                // we simply get a size of 0.
-                if size == SIZE_FRONTIER {
+        self.runtime.tokio.spawn(async move {
+            let mut buffer = [0; SIZE_FRONTIER];
+            match this_l
+                .connection
+                .get_channel()
+                .read(&mut buffer, SIZE_FRONTIER)
+                .await
+            {
+                Ok(()) => {
+                    let mut stream = BufferReader::new(&buffer);
+                    let account = Account::deserialize(&mut stream).unwrap();
+                    let latest = BlockHash::deserialize(&mut stream).unwrap();
+
                     let workers = this_l.workers.clone();
                     workers.push_task(Box::new(move || {
-                        this_l.received_frontier(ec, size);
+                        this_l.received_frontier(account, latest);
                     }));
-                } else {
-                    debug!("Invalid size: expected {}, got {}", SIZE_FRONTIER, size);
+                }
+                Err(e) => {
+                    debug!("Could not receive frontiers: {:?}", e);
                     {
                         let mut guard = this_l.data.lock().unwrap();
                         guard.result = Some(true); // Failed
                         this_l.condition.notify_all();
                     }
                 }
-            }),
-        );
+            }
+        });
     }
 
-    fn received_frontier(&self, ec: ErrorCode, size_a: usize) {
+    fn received_frontier(&self, account: Account, latest: BlockHash) {
         let Some(attempt) = self.attempt.as_ref().unwrap().upgrade() else {
             return;
         };
 
-        if ec.is_ok() {
-            debug_assert_eq!(size_a, SIZE_FRONTIER);
-            let buf = self.connection.receive_buffer();
-            let mut guard = self.data.lock().unwrap();
-            let mut stream = BufferReader::new(&buf);
-            let account = Account::deserialize(&mut stream).unwrap();
-            let latest = BlockHash::deserialize(&mut stream).unwrap();
-            if guard.count == 0 {
-                guard.start_time = Instant::now();
+        let mut guard = self.data.lock().unwrap();
+        if guard.count == 0 {
+            guard.start_time = Instant::now();
+        }
+        guard.count += 1;
+        let time_span = guard.start_time.elapsed();
+
+        let elapsed_sec = time_span
+            .as_secs_f64()
+            .max(bootstrap_limits::BOOTSTRAP_MINIMUM_ELAPSED_SECONDS_BLOCKRATE);
+
+        let blocks_per_sec = guard.count as f64 / elapsed_sec;
+        let age_factor = if guard.frontiers_age == u32::MAX {
+            1.0_f64
+        } else {
+            1.5_f64
+        }; // Allow slower frontiers receive for requests with age
+
+        if elapsed_sec > bootstrap_limits::BOOTSTRAP_CONNECTION_WARMUP_TIME_SEC
+            && blocks_per_sec * age_factor
+                < bootstrap_limits::BOOTSTRAP_MINIMUM_FRONTIER_BLOCKS_PER_SEC
+        {
+            debug!(
+                "Aborting frontier req because it was too slow: {} frontiers per second, last {}",
+                blocks_per_sec,
+                account.encode_account()
+            );
+
+            guard.result = Some(true);
+            drop(guard);
+            self.condition.notify_all();
+            return;
+        }
+
+        if attempt.should_log() {
+            debug!(
+                "Received {} frontiers from {}",
+                guard.count,
+                self.connection.channel_string()
+            );
+        }
+
+        if !account.is_zero() && guard.count <= guard.count_limit {
+            guard.last_account = account;
+            while !guard.current.is_zero() && guard.current < account {
+                // We know about an account they don't.
+                let frontier = guard.frontier;
+                self.unsynced(&mut guard, frontier, BlockHash::zero());
+                guard.next(&self.ledger);
             }
-            guard.count += 1;
-            let time_span = guard.start_time.elapsed();
-
-            let elapsed_sec = time_span
-                .as_secs_f64()
-                .max(bootstrap_limits::BOOTSTRAP_MINIMUM_ELAPSED_SECONDS_BLOCKRATE);
-
-            let blocks_per_sec = guard.count as f64 / elapsed_sec;
-            let age_factor = if guard.frontiers_age == u32::MAX {
-                1.0_f64
-            } else {
-                1.5_f64
-            }; // Allow slower frontiers receive for requests with age
-
-            if elapsed_sec > bootstrap_limits::BOOTSTRAP_CONNECTION_WARMUP_TIME_SEC
-                && blocks_per_sec * age_factor
-                    < bootstrap_limits::BOOTSTRAP_MINIMUM_FRONTIER_BLOCKS_PER_SEC
-            {
-                debug!("Aborting frontier req because it was too slow: {} frontiers per second, last {}", blocks_per_sec, account.encode_account());
-
-                guard.result = Some(true);
-                drop(guard);
-                self.condition.notify_all();
-                return;
-            }
-
-            if attempt.should_log() {
-                debug!(
-                    "Received {} frontiers from {}",
-                    guard.count,
-                    self.connection.channel_string()
-                );
-            }
-
-            if !account.is_zero() && guard.count <= guard.count_limit {
-                guard.last_account = account;
-                while !guard.current.is_zero() && guard.current < account {
-                    // We know about an account they don't.
-                    let frontier = guard.frontier;
-                    self.unsynced(&mut guard, frontier, BlockHash::zero());
-                    guard.next(&self.ledger);
-                }
-                if !guard.current.is_zero() {
-                    if account == guard.current {
-                        if latest == guard.frontier {
-                            // In sync
-                        } else {
-                            if self
-                                .ledger
-                                .any()
-                                .block_exists_or_pruned(&self.ledger.read_txn(), &latest)
-                            {
-                                // We know about a block they don't.
-                                let frontier = guard.frontier;
-                                self.unsynced(&mut guard, frontier, latest);
-                            } else {
-                                let pull = PullInfo {
-                                    account_or_head: account.into(),
-                                    head: latest,
-                                    head_original: latest,
-                                    end: guard.frontier,
-                                    count: 0,
-                                    attempts: 0,
-                                    processed: 0,
-                                    retry_limit: self.retry_limit,
-                                    bootstrap_id: attempt.incremental_id(),
-                                };
-                                attempt.add_frontier(pull);
-                                // Either we're behind or there's a fork we differ on
-                                // Either way, bulk pushing will probably not be effective
-                                guard.bulk_push_cost += 5;
-                            }
-                        }
-                        guard.next(&self.ledger);
+            if !guard.current.is_zero() {
+                if account == guard.current {
+                    if latest == guard.frontier {
+                        // In sync
                     } else {
-                        debug_assert!(account < guard.current);
-                        let pull = PullInfo {
-                            account_or_head: account.into(),
-                            head: latest,
-                            head_original: latest,
-                            end: BlockHash::zero(),
-                            count: 0,
-                            attempts: 0,
-                            processed: 0,
-                            retry_limit: self.retry_limit,
-                            bootstrap_id: attempt.incremental_id(),
-                        };
-                        attempt.add_frontier(pull);
+                        if self
+                            .ledger
+                            .any()
+                            .block_exists_or_pruned(&self.ledger.read_txn(), &latest)
+                        {
+                            // We know about a block they don't.
+                            let frontier = guard.frontier;
+                            self.unsynced(&mut guard, frontier, latest);
+                        } else {
+                            let pull = PullInfo {
+                                account_or_head: account.into(),
+                                head: latest,
+                                head_original: latest,
+                                end: guard.frontier,
+                                count: 0,
+                                attempts: 0,
+                                processed: 0,
+                                retry_limit: self.retry_limit,
+                                bootstrap_id: attempt.incremental_id(),
+                            };
+                            attempt.add_frontier(pull);
+                            // Either we're behind or there's a fork we differ on
+                            // Either way, bulk pushing will probably not be effective
+                            guard.bulk_push_cost += 5;
+                        }
                     }
+                    guard.next(&self.ledger);
                 } else {
+                    debug_assert!(account < guard.current);
                     let pull = PullInfo {
                         account_or_head: account.into(),
                         head: latest,
@@ -335,32 +330,43 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
                         retry_limit: self.retry_limit,
                         bootstrap_id: attempt.incremental_id(),
                     };
-
                     attempt.add_frontier(pull);
                 }
-                self.receive_frontier();
             } else {
-                if guard.count <= guard.count_limit {
-                    while !guard.current.is_zero() && guard.bulk_push_available() {
-                        // We know about an account they don't.
-                        let frontier = guard.frontier;
-                        self.unsynced(&mut guard, frontier, BlockHash::zero());
-                        guard.next(&self.ledger);
-                    }
-                    // Prevent new frontier_req requests
-                    attempt.set_start_account(Account::MAX);
-                    debug!("Bulk push cost: {}", guard.bulk_push_cost);
-                } else {
-                    // Set last processed account as new start target
-                    attempt.set_start_account(guard.last_account);
-                }
-                self.connections
-                    .pool_connection(Arc::clone(&self.connection), false, false);
-                guard.result = Some(false);
-                self.condition.notify_all();
+                let pull = PullInfo {
+                    account_or_head: account.into(),
+                    head: latest,
+                    head_original: latest,
+                    end: BlockHash::zero(),
+                    count: 0,
+                    attempts: 0,
+                    processed: 0,
+                    retry_limit: self.retry_limit,
+                    bootstrap_id: attempt.incremental_id(),
+                };
+
+                attempt.add_frontier(pull);
             }
+            self.receive_frontier();
         } else {
-            debug!("Error while receiving frontier: {:?}", ec);
+            if guard.count <= guard.count_limit {
+                while !guard.current.is_zero() && guard.bulk_push_available() {
+                    // We know about an account they don't.
+                    let frontier = guard.frontier;
+                    self.unsynced(&mut guard, frontier, BlockHash::zero());
+                    guard.next(&self.ledger);
+                }
+                // Prevent new frontier_req requests
+                attempt.set_start_account(Account::MAX);
+                debug!("Bulk push cost: {}", guard.bulk_push_cost);
+            } else {
+                // Set last processed account as new start target
+                attempt.set_start_account(guard.last_account);
+            }
+            self.connections
+                .pool_connection(Arc::clone(&self.connection), false, false);
+            guard.result = Some(false);
+            self.condition.notify_all();
         }
     }
 }

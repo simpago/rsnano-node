@@ -4,7 +4,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex, Weak,
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
@@ -167,12 +167,12 @@ impl ChannelInProc {
         callback_msg: Box<dyn FnOnce(ErrorCode, Option<DeserializedMessage>) + Send>,
     ) {
         if let Some(rt) = self.async_rt.upgrade() {
-            let message_deserializer = Arc::new(MessageDeserializer::new(
+            let mut message_deserializer = MessageDeserializer::new(
                 self.network_constants.protocol_info(),
                 self.network_constants.work.clone(),
                 Arc::clone(&self.network_filter),
                 VecBufferReader::new(buffer.to_vec()),
-            ));
+            );
 
             rt.tokio.spawn(async move {
                 let result = message_deserializer.read().await;
@@ -207,14 +207,13 @@ impl VecBufferReader {
 
 #[async_trait]
 impl AsyncBufferReader for VecBufferReader {
-    async fn read(&self, buffer: Arc<Mutex<Vec<u8>>>, count: usize) -> anyhow::Result<()> {
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         let pos = self.position.load(Ordering::SeqCst);
         if count > self.buffer.len() - pos {
             bail!("no more data to read");
         }
-        let mut guard = buffer.lock().unwrap();
-        guard[..count].copy_from_slice(&self.buffer[pos..pos + count]);
-        self.position.fetch_add(count, Ordering::SeqCst);
+        buffer[..count].copy_from_slice(&self.buffer[pos..pos + count]);
+        self.position.store(pos + count, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -328,6 +327,17 @@ impl Channel for ChannelInProc {
     fn local_addr(&self) -> SocketAddrV6 {
         self.local_endpoint
     }
+
+    fn set_timeout(&self, _timeout: Duration) {}
+}
+
+#[async_trait]
+impl AsyncBufferReader for ChannelInProc {
+    async fn read(&self, _buffer: &mut [u8], _count: usize) -> anyhow::Result<()> {
+        Err(anyhow!(
+            "AsyncBufferReader not implemented for ChannelInProc "
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -336,43 +346,36 @@ mod tests {
 
     #[tokio::test]
     async fn empty_vec() {
-        let reader = VecBufferReader::new(Vec::new());
-        let buffer = Arc::new(Mutex::new(vec![0u8; 3]));
-        let result = reader.read(buffer, 1).await;
+        let mut reader = VecBufferReader::new(Vec::new());
+        let mut buffer = vec![0u8; 3];
+        let result = reader.read(&mut buffer, 1).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn read_one_byte() {
-        let reader = VecBufferReader::new(vec![42]);
-        let buffer = Arc::new(Mutex::new(vec![0u8; 1]));
-        let result = reader.read(Arc::clone(&buffer), 1).await;
+        let mut reader = VecBufferReader::new(vec![42]);
+        let mut buffer = vec![0u8; 1];
+        let result = reader.read(&mut buffer, 1).await;
         assert!(result.is_ok());
-        let guard = buffer.lock().unwrap();
-        assert_eq!(guard[0], 42);
+        assert_eq!(buffer[0], 42);
     }
 
     #[tokio::test]
     async fn multiple_reads() {
-        let reader = VecBufferReader::new(vec![1, 2, 3, 4, 5]);
-        let buffer = Arc::new(Mutex::new(vec![0u8; 2]));
-        reader.read(Arc::clone(&buffer), 1).await.unwrap();
-        {
-            let guard = buffer.lock().unwrap();
-            assert_eq!(guard[0], 1);
-        }
-        reader.read(Arc::clone(&buffer), 2).await.unwrap();
-        {
-            let guard = buffer.lock().unwrap();
-            assert_eq!(guard[0], 2);
-            assert_eq!(guard[1], 3);
-        }
-        reader.read(Arc::clone(&buffer), 2).await.unwrap();
-        {
-            let guard = buffer.lock().unwrap();
-            assert_eq!(guard[0], 4);
-            assert_eq!(guard[1], 5);
-        }
-        assert!(reader.read(Arc::clone(&buffer), 1).await.is_err());
+        let mut reader = VecBufferReader::new(vec![1, 2, 3, 4, 5]);
+        let mut buffer = vec![0u8; 2];
+        reader.read(&mut buffer, 1).await.unwrap();
+        assert_eq!(buffer[0], 1);
+
+        reader.read(&mut buffer, 2).await.unwrap();
+        assert_eq!(buffer[0], 2);
+        assert_eq!(buffer[1], 3);
+
+        reader.read(&mut buffer, 2).await.unwrap();
+        assert_eq!(buffer[0], 4);
+        assert_eq!(buffer[1], 5);
+
+        assert!(reader.read(&mut buffer, 1).await.is_err());
     }
 }

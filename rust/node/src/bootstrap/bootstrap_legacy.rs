@@ -7,7 +7,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::BootstrapConnectionsExt,
     stats::{DetailType, Direction, StatType, Stats},
-    utils::ThreadPool,
+    utils::{AsyncRuntime, ThreadPool},
     websocket::WebsocketListener,
 };
 use rand::{thread_rng, Rng};
@@ -41,6 +41,7 @@ pub struct BootstrapAttemptLegacy {
     account_count: AtomicU32,
     block_processor: Weak<BlockProcessor>,
     workers: Arc<dyn ThreadPool>,
+    runtime: Arc<AsyncRuntime>,
 }
 
 impl BootstrapAttemptLegacy {
@@ -55,6 +56,7 @@ impl BootstrapAttemptLegacy {
         connections: Arc<BootstrapConnections>,
         config: LegacyBootstrapConfig,
         stats: Arc<Stats>,
+        runtime: Arc<AsyncRuntime>,
         frontiers_age: u32,
         start_account: Account,
     ) -> anyhow::Result<Self> {
@@ -81,6 +83,7 @@ impl BootstrapAttemptLegacy {
             config,
             ledger,
             stats,
+            runtime,
             account_count: AtomicU32::new(0),
             block_processor,
             workers,
@@ -207,7 +210,7 @@ impl BootstrapAttemptLegacyExt for Arc<BootstrapAttemptLegacy> {
         lock_a = self.mutex.lock().unwrap();
         if let Some(connection_l) = connection_l {
             if !self.attempt.stopped() {
-                lock_a.endpoint_frontier_request = connection_l.tcp_endpoint();
+                lock_a.endpoint_frontier_request = connection_l.remote_addr();
                 {
                     let mut client = FrontierReqClient::new(
                         connection_l.clone(),
@@ -215,6 +218,7 @@ impl BootstrapAttemptLegacyExt for Arc<BootstrapAttemptLegacy> {
                         self.config.frontier_retry_limit,
                         self.connections.clone(),
                         self.workers.clone(),
+                        self.runtime.clone(),
                     );
                     client.set_attempt(Arc::clone(self));
                     let client = Arc::new(client);

@@ -41,15 +41,6 @@ TEST (node, null_account)
 	ASSERT_NE (default_account, nullptr);
 }
 
-TEST (node, DISABLED_memory_leak)
-{
-	{
-		nano::test::system system (2);
-	}
-	auto alive = rsnano::rsn_sockets_alive ();
-	ASSERT_EQ (0, alive);
-}
-
 TEST (node, stop)
 {
 	nano::test::system system (1);

@@ -11,7 +11,6 @@ add_executable(
   bootstrap_ascending.cpp
   bootstrap_server.cpp
   cli.cpp
-  confirmation_solicitor.cpp
   confirming_set.cpp
   conflicts.cpp
   difficulty.cpp

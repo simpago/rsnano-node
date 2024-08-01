@@ -3,7 +3,6 @@
 #include "nano/lib/rsnanoutils.hpp"
 
 #include <nano/node/active_elections.hpp>
-#include <nano/node/confirmation_solicitor.hpp>
 #include <nano/node/election.hpp>
 #include <nano/node/local_vote_history.hpp>
 #include <nano/node/network.hpp>

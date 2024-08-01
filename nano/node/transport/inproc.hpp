@@ -2,6 +2,7 @@
 
 #include "nano/lib/config.hpp"
 #include "nano/lib/rsnano.hpp"
+#include "nano/lib/rsnanoutils.hpp"
 
 #include <nano/node/transport/channel.hpp>
 #include <nano/node/transport/transport.hpp>
@@ -43,11 +44,6 @@ namespace transport
 			uint8_t get_network_version () const override;
 
 			std::string to_string () const override;
-
-			nano::tcp_endpoint get_local_endpoint () const override
-			{
-				return nano::tcp_endpoint{};
-			}
 
 			nano::endpoint get_remote_endpoint () const override;
 			nano::tcp_endpoint get_tcp_remote_endpoint () const override;

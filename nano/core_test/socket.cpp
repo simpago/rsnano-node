@@ -3,7 +3,6 @@
 #include <nano/lib/thread_runner.hpp>
 #include <nano/lib/threading.hpp>
 #include <nano/node/inactive_node.hpp>
-#include <nano/node/transport/socket.hpp>
 #include <nano/node/transport/tcp_listener.hpp>
 #include <nano/test_common/system.hpp>
 #include <nano/test_common/testutil.hpp>
@@ -25,14 +24,6 @@ TEST (socket, max_connections)
 TEST (socket, max_connections_per_ip)
 {
 	// TODO implement again!
-}
-
-TEST (socket, limited_subnet_address)
-{
-	auto address = boost::asio::ip::make_address ("a41d:b7b2:8298:cf45:672e:bd1a:e7fb:f713");
-	auto network = nano::transport::socket_functions::get_ipv6_subnet_address (address.to_v6 (), 32); // network prefix = 32.
-	ASSERT_EQ ("a41d:b7b2:8298:cf45:672e:bd1a:e7fb:f713/32", network.to_string ());
-	ASSERT_EQ ("a41d:b7b2::/32", network.canonical ().to_string ());
 }
 
 TEST (socket, max_connections_per_subnetwork)
