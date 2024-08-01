@@ -3,7 +3,7 @@ use crate::{
     config::NodeConfig,
     stats::{DetailType, Direction, SocketStats, StatType, Stats},
     transport::TcpStream,
-    utils::{into_ipv6_socket_address, AsyncRuntime, ThreadPool},
+    utils::{AsyncRuntime, ThreadPool},
     NetworkParams,
 };
 use async_trait::async_trait;
@@ -147,12 +147,6 @@ impl TcpListenerExt for Arc<TcpListener> {
                 };
 
                 let raw_stream = TcpStream::new(stream);
-
-                let Ok(remote_endpoint) = raw_stream.peer_addr() else {
-                    continue;
-                };
-
-                let remote_endpoint = into_ipv6_socket_address(remote_endpoint);
                 let socket_stats = Arc::new(SocketStats::new(Arc::clone(&self.stats)));
                 let socket = SocketBuilder::new(
                     ChannelDirection::Inbound,
@@ -169,8 +163,7 @@ impl TcpListenerExt for Arc<TcpListener> {
                 ))
                 .idle_timeout(self.network_params.network.idle_timeout)
                 .observer(socket_stats)
-                .use_existing_socket(raw_stream, remote_endpoint)
-                .finish();
+                .finish(raw_stream);
 
                 let response_server = self
                     .response_server_factory

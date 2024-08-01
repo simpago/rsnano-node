@@ -8,7 +8,7 @@ use crate::{
     stats::{DetailType, Direction, SocketStats, StatType, Stats},
     transport::{
         ChannelDirection, ChannelEnum, ChannelTcp, Network, OutboundBandwidthLimiter,
-        SocketBuilder, SocketExtensions, SocketObserver, TcpStreamFactory,
+        SocketBuilder, SocketExtensions, TcpStreamFactory,
     },
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
@@ -526,7 +526,6 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
 
         self.runtime.tokio.spawn(async move {
             let tcp_stream_factory = Arc::new(TcpStreamFactory::new());
-            // TODO timeout on connect
             let stream = match tokio::time::timeout(
                 self_l.config.tcp_io_timeout,
                 tcp_stream_factory.connect(endpoint),
@@ -557,9 +556,8 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             .default_timeout(self_l.config.tcp_io_timeout)
             .silent_connection_tolerance_time(self_l.config.silent_connection_tolerance_time)
             .idle_timeout(self_l.config.idle_timeout)
-            .use_existing_socket(stream, endpoint)
             .observer(Arc::new(SocketStats::new(self_l.stats.clone())))
-            .finish();
+            .finish(stream);
             socket.start();
             socket.set_default_timeout();
 

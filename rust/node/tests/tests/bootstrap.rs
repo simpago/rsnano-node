@@ -10,6 +10,7 @@ use rsnano_node::{
     bootstrap::{BootstrapAttemptTrait, BootstrapInitiatorExt, BootstrapStrategy},
     config::{FrontiersConfirmationMode, NodeFlags},
     node::NodeExt,
+    transport::TcpStream,
     wallets::WalletsExt,
 };
 use rsnano_node::{
@@ -1178,11 +1179,9 @@ mod frontier_req {
 }
 
 mod bulk_pull_account {
+    use super::*;
     use rsnano_messages::{BulkPullAccount, BulkPullAccountFlags};
     use rsnano_node::bootstrap::BulkPullAccountServer;
-    use tracing::Instrument;
-
-    use super::*;
 
     #[test]
     fn basic() {
@@ -1198,7 +1197,7 @@ mod bulk_pull_account {
         node.wallets
             .insert_adhoc2(&wallet_id, &key1.private_key(), true)
             .unwrap();
-        let send1 = node
+        let _send1 = node
             .wallets
             .send_action2(
                 &wallet_id,
@@ -1222,7 +1221,7 @@ mod bulk_pull_account {
                 None,
             )
             .unwrap();
-        let send3 = node
+        let _send3 = node
             .wallets
             .send_action2(
                 &wallet_id,
@@ -1301,7 +1300,7 @@ fn create_response_server(node: &Node) -> Arc<ResponseServerImpl> {
         Arc::downgrade(&node.async_rt),
     )
     .observer(socket_stats)
-    .finish();
+    .finish(TcpStream::new_null());
 
     let visitor_factory = Arc::new(BootstrapMessageVisitorFactory::new(
         node.async_rt.clone(),

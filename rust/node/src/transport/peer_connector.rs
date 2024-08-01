@@ -78,9 +78,7 @@ impl PeerConnector {
         let raw_listener = tokio::net::TcpSocket::new_v6()?;
         let raw_stream = raw_listener.connect(endpoint.into()).await?;
         let raw_stream = TcpStream::new(raw_stream);
-        let remote_endpoint = raw_stream.peer_addr()?;
 
-        let remote_endpoint = into_ipv6_socket_address(remote_endpoint);
         let socket_stats = Arc::new(SocketStats::new(Arc::clone(&self.stats)));
         let socket = SocketBuilder::new(
             ChannelDirection::Outbound,
@@ -97,8 +95,7 @@ impl PeerConnector {
         ))
         .idle_timeout(self.network_params.network.idle_timeout)
         .observer(socket_stats)
-        .use_existing_socket(raw_stream, remote_endpoint)
-        .finish();
+        .finish(raw_stream);
 
         let response_server = self
             .response_server_factory

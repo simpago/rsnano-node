@@ -1,4 +1,4 @@
-use super::{Socket, TcpStream, TcpStreamFactory};
+use super::{TcpStream, TcpStreamFactory};
 use crate::utils::{AsyncRuntime, ErrorCode};
 use std::{
     any::Any,
@@ -64,71 +64,6 @@ impl TokioSocketFacade {
                 .unwrap_or(SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 0)),
             TokioSocketState::Connecting => SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 0),
         }
-    }
-
-    pub fn async_accept(
-        &self,
-        client_socket: &Arc<Socket>,
-        callback: Box<dyn FnOnce(SocketAddr, ErrorCode) + Send>,
-    ) {
-        let callback = Arc::new(Mutex::new(Some(callback)));
-
-        let listener = {
-            let guard = self.state.lock().unwrap();
-            match guard.deref() {
-                TokioSocketState::Server(listener) => Arc::clone(listener),
-                _ => {
-                    if let Some(cb) = callback.lock().unwrap().take() {
-                        cb(
-                            SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
-                            ErrorCode::fault(),
-                        );
-                    }
-                    return;
-                }
-            }
-        };
-
-        let Some(runtime) = self.runtime.upgrade() else {
-            return;
-        };
-        let runtime_w = Weak::clone(&self.runtime);
-        let client_socket = Arc::clone(client_socket);
-        let notify = Arc::clone(&self.close_notify);
-        runtime.tokio.spawn(async move {
-            let res = tokio::select! {
-                i = listener.accept() => i,
-                _ = notify.notified() => Err(std::io::Error::new(std::io::ErrorKind::Other, "accept cancelled"))
-            };
-            match res {
-                Ok((stream, remote)) => {
-                    // wrap the tokio stream in our stream:
-                    let stream = TcpStream::new(stream);
-                    client_socket.set_stream(stream);
-                    let Some(runtime) = runtime_w.upgrade() else {
-                        return;
-                    };
-                    runtime.tokio.spawn_blocking(move || {
-                        if let Some(cb) = callback.lock().unwrap().take() {
-                            cb(remote, ErrorCode::new());
-                        }
-                    });
-                }
-                Err(_) => {
-                    let Some(runtime) = runtime_w.upgrade() else {
-                        return;
-                    };
-                    runtime.tokio.spawn_blocking(move || {
-                        if let Some(cb) = callback.lock().unwrap().take() {
-                            cb(
-                                SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
-                                ErrorCode::fault(),
-                            )
-                        }
-                    });
-                }
-            }
-        });
     }
 
     pub fn remote_endpoint(&self) -> Result<SocketAddr, ErrorCode> {

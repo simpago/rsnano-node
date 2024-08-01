@@ -1,7 +1,7 @@
 use super::{
     message_deserializer::AsyncBufferReader,
     write_queue::{WriteCallback, WriteQueue},
-    TcpStream, TcpStreamFactory, TrafficType,
+    TcpStream, TrafficType,
 };
 use crate::{
     stats,
@@ -9,10 +9,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use num_traits::FromPrimitive;
-use rsnano_core::utils::seconds_since_epoch;
+use rsnano_core::utils::{seconds_since_epoch, NULL_ENDPOINT};
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
-    ops::Deref,
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicU8, AtomicUsize, Ordering},
         Arc, Mutex, Weak,
@@ -95,7 +94,7 @@ impl SocketObserver for NullSocketObserver {}
 pub struct Socket {
     pub socket_id: usize,
     /// The other end of the connection
-    remote: Mutex<Option<SocketAddrV6>>,
+    remote: SocketAddrV6,
 
     /// the timestamp (in seconds since epoch) of the last time there was successful activity on the socket
     /// activity is any successful connect, send or receive event
@@ -135,16 +134,15 @@ pub struct Socket {
 
     send_queue: WriteQueue,
     runtime: Weak<AsyncRuntime>,
-    tcp_stream_factory: Arc<TcpStreamFactory>,
     current_action: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
-    stream: Arc<Mutex<Option<Arc<TcpStream>>>>,
-    is_connecting: AtomicBool,
+    stream: Arc<TcpStream>,
 }
 
 impl Socket {
     pub fn new_null() -> Arc<Socket> {
         let thread_pool = Arc::new(ThreadPoolImpl::new_null());
-        SocketBuilder::new(ChannelDirection::Outbound, thread_pool, Weak::new()).finish()
+        SocketBuilder::new(ChannelDirection::Outbound, thread_pool, Weak::new())
+            .finish(TcpStream::new_null())
     }
 
     pub fn is_closed(&self) -> bool {
@@ -179,21 +177,10 @@ impl Socket {
         self.timeout_seconds.store(seconds, Ordering::SeqCst);
     }
 
-    pub async fn shutdown(&self) -> tokio::io::Result<()> {
-        let stream = self.stream.lock().unwrap().take();
-        if let Some(mut stream) = stream {
-            Arc::get_mut(&mut stream).unwrap().shutdown().await
-        } else {
-            Ok(())
-        }
-    }
-
     pub fn close_internal(&self) {
         if !self.closed.swap(true, Ordering::SeqCst) {
             self.send_queue.clear();
             self.set_default_timeout_value(0);
-            self.is_connecting.store(false, Ordering::SeqCst);
-            drop(self.stream.lock().unwrap().take());
 
             if let Some(cb) = self.current_action.lock().unwrap().take() {
                 cb();
@@ -214,14 +201,10 @@ impl Socket {
     }
 
     pub fn local_endpoint_v6(&self) -> SocketAddrV6 {
-        let guard = self.stream.lock().unwrap();
-        match guard.deref() {
-            Some(stream) => stream
-                .local_addr()
-                .map(|addr| into_ipv6_socket_address(addr))
-                .unwrap_or(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)),
-            None => SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0),
-        }
+        self.stream
+            .local_addr()
+            .map(|addr| into_ipv6_socket_address(addr))
+            .unwrap_or(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0))
     }
 
     pub fn is_realtime_connection(&self) -> bool {
@@ -247,13 +230,7 @@ impl Socket {
     }
 
     pub fn is_alive(&self) -> bool {
-        let guard = self.stream.lock().unwrap();
-        let is_socket_open = guard.is_some();
-        !self.is_closed() && (is_socket_open || self.is_connecting.load(Ordering::SeqCst))
-    }
-
-    pub fn set_stream(&self, stream: TcpStream) {
-        *self.stream.lock().unwrap() = Some(Arc::new(stream));
+        !self.is_closed()
     }
 
     pub async fn read_raw(&self, buffer: &mut [u8], size: usize) -> anyhow::Result<()> {
@@ -266,19 +243,12 @@ impl Socket {
         }
 
         self.set_default_timeout();
-        let stream = {
-            let guard = self.stream.lock().unwrap();
-            let Some(stream) = guard.deref() else {
-                return Err(anyhow!("no tcp stream open"));
-            };
-            Arc::clone(stream)
-        };
 
         let mut read = 0;
         loop {
-            match stream.readable().await {
+            match self.stream.readable().await {
                 Ok(_) => {
-                    match stream.try_read(&mut buffer[read..size]) {
+                    match self.stream.try_read(&mut buffer[read..size]) {
                         Ok(0) => {
                             self.observer.read_error();
                             return Err(anyhow!("remote side closed the channel"));
@@ -310,17 +280,10 @@ impl Socket {
     }
 
     pub(crate) async fn write_raw(&self, data: &[u8]) -> anyhow::Result<()> {
-        let stream = {
-            let guard = self.stream.lock().unwrap();
-            let Some(stream) = guard.deref() else {
-                return Err(anyhow!("no tcp stream open"));
-            };
-            Arc::clone(stream)
-        };
         let mut written = 0;
         loop {
-            stream.writable().await?;
-            match stream.try_write(&data[written..]) {
+            self.stream.writable().await?;
+            match self.stream.try_write(&data[written..]) {
                 Ok(n) => {
                     written += n;
                     if written >= data.len() {
@@ -450,18 +413,12 @@ impl SocketExtensions for Arc<Socket> {
             }));
         }
 
-        let stream = {
-            let guard = self.stream.lock().unwrap();
-            let Some(stream) = guard.deref() else {
-                return;
-            };
-            Arc::clone(stream)
-        };
         let Some(runtime) = self.runtime.upgrade() else {
             return;
         };
         let runtime_w = Weak::clone(&self.runtime);
         let buffer = Arc::clone(&next.buffer);
+        let stream = self.stream.clone();
         runtime.tokio.spawn(async move {
             let mut written = 0;
             loop {
@@ -570,7 +527,7 @@ impl SocketExtensions for Arc<Socket> {
     }
 
     fn get_remote(&self) -> Option<SocketAddrV6> {
-        *self.remote.lock().unwrap()
+        Some(self.remote)
     }
 
     fn has_timed_out(&self) -> bool {
@@ -594,9 +551,6 @@ pub struct SocketBuilder {
     observer: Option<Arc<dyn SocketObserver>>,
     max_write_queue_len: usize,
     async_runtime: Weak<AsyncRuntime>,
-    tcp_stream_factory: Arc<TcpStreamFactory>,
-    stream: Arc<Mutex<Option<Arc<TcpStream>>>>,
-    remote: Option<SocketAddrV6>,
 }
 
 static NEXT_SOCKET_ID: AtomicUsize = AtomicUsize::new(0);
@@ -621,9 +575,6 @@ impl SocketBuilder {
             observer: None,
             max_write_queue_len: Socket::MAX_QUEUE_SIZE,
             async_runtime,
-            tcp_stream_factory: Arc::new(TcpStreamFactory::new()),
-            stream: Arc::new(Mutex::new(None)),
-            remote: None,
         }
     }
 
@@ -652,16 +603,15 @@ impl SocketBuilder {
         self
     }
 
-    pub fn use_existing_socket(mut self, stream: TcpStream, remote: SocketAddrV6) -> Self {
-        self.stream = Arc::new(Mutex::new(Some(Arc::new(stream))));
-        self.remote = Some(remote);
-        self
-    }
-
-    pub fn finish(self) -> Arc<Socket> {
+    pub fn finish(self, stream: TcpStream) -> Arc<Socket> {
         let socket_id = NEXT_SOCKET_ID.fetch_add(1, Ordering::Relaxed);
         let alive = LIVE_SOCKETS.fetch_add(1, Ordering::Relaxed) + 1;
         debug!(socket_id, alive, "Creating socket");
+
+        let remote = stream
+            .peer_addr()
+            .map(into_ipv6_socket_address)
+            .unwrap_or(NULL_ENDPOINT);
 
         let observer = self
             .observer
@@ -669,7 +619,7 @@ impl SocketBuilder {
         Arc::new({
             Socket {
                 socket_id,
-                remote: Mutex::new(self.remote),
+                remote,
                 last_completion_time_or_init: AtomicU64::new(seconds_since_epoch()),
                 last_receive_time_or_init: AtomicU64::new(seconds_since_epoch()),
                 default_timeout: AtomicU64::new(self.default_timeout.as_secs()),
@@ -687,10 +637,8 @@ impl SocketBuilder {
                 write_in_progress: AtomicBool::new(false),
                 send_queue: WriteQueue::new(self.max_write_queue_len),
                 runtime: self.async_runtime,
-                tcp_stream_factory: self.tcp_stream_factory,
                 current_action: Mutex::new(None),
-                stream: self.stream,
-                is_connecting: AtomicBool::new(false),
+                stream: Arc::new(stream),
             }
         })
     }

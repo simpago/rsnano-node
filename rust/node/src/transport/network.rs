@@ -187,19 +187,6 @@ impl Network {
                 "Rejected connection from: {} ({:?})",
                 remote_endpoint, direction
             );
-            // Rejection reason should be logged earlier
-
-            if let Err(e) = socket.shutdown().await {
-                self.stats.inc_dir(
-                    StatType::TcpListener,
-                    DetailType::CloseError,
-                    direction.into(),
-                );
-                debug!(
-                    "Error while closing socket after refusing connection: {:?} ({:?})",
-                    e, direction
-                )
-            }
             if direction == ChannelDirection::Inbound {
                 self.stats.inc_dir(
                     StatType::TcpListener,

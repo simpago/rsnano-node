@@ -5,6 +5,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use rsnano_core::utils::TEST_ENDPOINT_1;
 use tokio::io::{AsyncWriteExt, ErrorKind};
 
 pub struct TcpStream {
@@ -153,7 +154,7 @@ impl InternalTcpStream for TcpStreamStub {
     }
 
     fn peer_addr(&self) -> std::io::Result<SocketAddr> {
-        todo!()
+        Ok(SocketAddr::V6(TEST_ENDPOINT_1))
     }
 
     async fn writable(&self) -> tokio::io::Result<()> {
