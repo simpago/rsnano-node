@@ -47,10 +47,9 @@ impl VoteBroadcaster {
     fn flood_vote_pr(&self, vote: Vote) {
         let message = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
         for rep in self.online_reps.lock().unwrap().peered_reps() {
-            self.network.send(
+            self.network.try_send(
                 rep.channel_id,
                 &message,
-                None,
                 BufferDropPolicy::NoLimiterDrop,
                 TrafficType::Generic,
             )

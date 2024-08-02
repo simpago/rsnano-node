@@ -106,6 +106,7 @@ pub enum TransportType {
     Fake = 3,
 }
 
+#[async_trait]
 pub trait Channel: AsyncBufferReader {
     fn channel_id(&self) -> ChannelId;
     fn get_last_bootstrap_attempt(&self) -> SystemTime; //todo switch back to Instant
@@ -127,7 +128,15 @@ pub trait Channel: AsyncBufferReader {
     fn set_mode(&self, mode: ChannelMode);
     fn set_timeout(&self, timeout: Duration);
 
-    fn send(
+    fn try_send(&self, message: &Message, drop_policy: BufferDropPolicy, traffic_type: TrafficType);
+
+    async fn send_buffer(
+        &self,
+        buffer: &Arc<Vec<u8>>,
+        traffic_type: TrafficType,
+    ) -> anyhow::Result<()>;
+
+    fn send_obsolete(
         &self,
         message: &Message,
         callback: Option<WriteCallback>,

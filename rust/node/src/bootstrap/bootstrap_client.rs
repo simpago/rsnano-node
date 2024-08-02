@@ -93,10 +93,10 @@ impl BootstrapClient {
         traffic_type: TrafficType,
     ) {
         self.tcp_channel()
-            .send_buffer(buffer, callback, policy, traffic_type);
+            .send_buffer_obsolete(buffer, callback, policy, traffic_type);
     }
 
-    pub fn send(
+    pub fn send_obsolete(
         &self,
         message: &Message,
         callback: Option<WriteCallback>,
@@ -104,7 +104,7 @@ impl BootstrapClient {
         traffic_type: TrafficType,
     ) {
         self.tcp_channel()
-            .send(message, callback, drop_policy, traffic_type);
+            .send_obsolete(message, callback, drop_policy, traffic_type);
     }
 
     pub fn inc_block_count(&self) -> u64 {

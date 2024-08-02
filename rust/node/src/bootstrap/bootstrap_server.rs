@@ -408,21 +408,7 @@ impl BootstrapServerImpl {
         }
 
         let msg = Message::AscPullAck(response);
-        let stats = Arc::clone(&self.stats);
-        channel.send(
-            &msg,
-            Some(Box::new(move |ec, _len| {
-                if ec.is_err() {
-                    stats.inc_dir(
-                        StatType::BootstrapServer,
-                        DetailType::WriteError,
-                        Direction::Out,
-                    );
-                }
-            })),
-            BufferDropPolicy::Limiter,
-            TrafficType::Bootstrap,
-        );
+        channel.try_send(&msg, BufferDropPolicy::Limiter, TrafficType::Bootstrap);
     }
 }
 

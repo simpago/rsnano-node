@@ -329,12 +329,7 @@ impl SharedState {
                     let channel = &request.1;
                     let confirm =
                         Message::ConfirmAck(ConfirmAck::new_with_own_vote((*vote).clone()));
-                    channel.send(
-                        &confirm,
-                        None,
-                        BufferDropPolicy::Limiter,
-                        TrafficType::Generic,
-                    );
+                    channel.try_send(&confirm, BufferDropPolicy::Limiter, TrafficType::Generic);
                     self.stats.inc_dir(
                         StatType::Requests,
                         DetailType::RequestsGeneratedVotes,

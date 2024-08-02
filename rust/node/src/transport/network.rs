@@ -227,7 +227,6 @@ impl Network {
             .channels
             .insert(channel, Some(response_server.clone()));
 
-        socket.start();
         let response_server_l = response_server.clone();
         self.async_rt
             .tokio
@@ -372,37 +371,29 @@ impl Network {
             .unwrap_or(true)
     }
 
-    pub fn send(
+    pub fn try_send(
         &self,
         channel_id: ChannelId,
         message: &Message,
-        callback: Option<WriteCallback>,
         drop_policy: BufferDropPolicy,
         traffic_type: TrafficType,
     ) {
         if let Some(channel) = self.state.lock().unwrap().channels.get_by_id(channel_id) {
-            channel
-                .channel
-                .send(message, callback, drop_policy, traffic_type);
+            channel.channel.try_send(message, drop_policy, traffic_type);
         }
     }
 
     pub fn flood_message2(&self, message: &Message, drop_policy: BufferDropPolicy, scale: f32) {
         let channels = self.random_fanout(scale);
         for channel in channels {
-            channel.send(message, None, drop_policy, TrafficType::Generic)
+            channel.try_send(message, drop_policy, TrafficType::Generic)
         }
     }
 
     pub fn flood_message(&self, message: &Message, scale: f32) {
         let channels = self.random_fanout(scale);
         for channel in channels {
-            channel.send(
-                message,
-                None,
-                BufferDropPolicy::Limiter,
-                TrafficType::Generic,
-            )
+            channel.try_send(message, BufferDropPolicy::Limiter, TrafficType::Generic)
         }
     }
 
@@ -685,12 +676,7 @@ impl NetworkExt for Arc<Network> {
             let ChannelEnum::Tcp(tcp) = channel.as_ref() else {
                 continue;
             };
-            tcp.send(
-                &message,
-                None,
-                BufferDropPolicy::Limiter,
-                TrafficType::Generic,
-            );
+            tcp.try_send(&message, BufferDropPolicy::Limiter, TrafficType::Generic);
         }
     }
 }

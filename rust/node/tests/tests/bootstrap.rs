@@ -1294,13 +1294,9 @@ mod bulk_pull_account {
 
 fn create_response_server(node: &Node) -> Arc<ResponseServerImpl> {
     let socket_stats = Arc::new(SocketStats::new(node.stats.clone()));
-    let socket = SocketBuilder::new(
-        ChannelDirection::Inbound,
-        node.workers.clone(),
-        Arc::downgrade(&node.async_rt),
-    )
-    .observer(socket_stats)
-    .finish(TcpStream::new_null());
+    let socket = SocketBuilder::new(ChannelDirection::Inbound, node.async_rt.clone())
+        .observer(socket_stats)
+        .finish(TcpStream::new_null());
 
     let visitor_factory = Arc::new(BootstrapMessageVisitorFactory::new(
         node.async_rt.clone(),

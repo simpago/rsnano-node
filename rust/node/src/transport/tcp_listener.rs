@@ -3,7 +3,7 @@ use crate::{
     config::NodeConfig,
     stats::{DetailType, Direction, SocketStats, StatType, Stats},
     transport::TcpStream,
-    utils::{AsyncRuntime, ThreadPool},
+    utils::AsyncRuntime,
     NetworkParams,
 };
 use async_trait::async_trait;
@@ -25,7 +25,6 @@ pub struct TcpListener {
     network: Arc<Network>,
     stats: Arc<Stats>,
     runtime: Arc<AsyncRuntime>,
-    workers: Arc<dyn ThreadPool>,
     network_params: NetworkParams,
     data: Mutex<TcpListenerData>,
     condition: Condvar,
@@ -52,7 +51,6 @@ impl TcpListener {
         network_params: NetworkParams,
         runtime: Arc<AsyncRuntime>,
         stats: Arc<Stats>,
-        workers: Arc<dyn ThreadPool>,
         response_server_factory: Arc<ResponseServerFactory>,
     ) -> Self {
         Self {
@@ -66,7 +64,6 @@ impl TcpListener {
             network_params,
             runtime: Arc::clone(&runtime),
             stats,
-            workers,
             condition: Condvar::new(),
             cancel_token: CancellationToken::new(),
             response_server_factory,
@@ -148,22 +145,18 @@ impl TcpListenerExt for Arc<TcpListener> {
 
                 let raw_stream = TcpStream::new(stream);
                 let socket_stats = Arc::new(SocketStats::new(Arc::clone(&self.stats)));
-                let socket = SocketBuilder::new(
-                    ChannelDirection::Inbound,
-                    Arc::clone(&self.workers),
-                    Arc::downgrade(&self.runtime),
-                )
-                .default_timeout(Duration::from_secs(
-                    self.node_config.tcp_io_timeout_s as u64,
-                ))
-                .silent_connection_tolerance_time(Duration::from_secs(
-                    self.network_params
-                        .network
-                        .silent_connection_tolerance_time_s as u64,
-                ))
-                .idle_timeout(self.network_params.network.idle_timeout)
-                .observer(socket_stats)
-                .finish(raw_stream);
+                let socket = SocketBuilder::new(ChannelDirection::Inbound, self.runtime.clone())
+                    .default_timeout(Duration::from_secs(
+                        self.node_config.tcp_io_timeout_s as u64,
+                    ))
+                    .silent_connection_tolerance_time(Duration::from_secs(
+                        self.network_params
+                            .network
+                            .silent_connection_tolerance_time_s as u64,
+                    ))
+                    .idle_timeout(self.network_params.network.idle_timeout)
+                    .observer(socket_stats)
+                    .finish(raw_stream);
 
                 let response_server = self
                     .response_server_factory

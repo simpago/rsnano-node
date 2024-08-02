@@ -1,6 +1,6 @@
 use crate::{
     transport::{ResponseServerExt, ResponseServerImpl, SocketExtensions, TrafficType},
-    utils::{AsyncRuntime, ErrorCode, ThreadPool},
+    utils::{AsyncRuntime, ThreadPool},
 };
 use rsnano_core::{utils::MemoryStream, Account, BlockEnum, BlockHash, BlockType};
 use rsnano_ledger::Ledger;
@@ -262,22 +262,24 @@ impl BulkPullServerImpl {
         let send_buffer = Arc::new(vec![BlockType::NotABlock as u8]);
         debug!("Bulk sending finished");
 
-        self.connection.socket.async_write(
-            &send_buffer,
-            Some(Box::new(move |ec, _| {
-                let guard = server_impl.lock().unwrap();
-                if ec.is_ok() {
+        let conn = self.connection.clone();
+        self.runtime.tokio.spawn(async move {
+            match conn
+                .socket
+                .write(&send_buffer, TrafficType::Bootstrap)
+                .await
+            {
+                Ok(()) => {
+                    let guard = server_impl.lock().unwrap();
                     let connection = guard.connection.clone();
                     guard
                         .runtime
                         .tokio
                         .spawn(async move { connection.run().await });
-                } else {
-                    debug!("Unable to send not-a-block");
                 }
-            })),
-            TrafficType::Generic,
-        )
+                Err(e) => debug!("Unable to send not-a-block ({:?})", e),
+            }
+        });
     }
 
     pub fn send_next(&mut self, server_impl: Arc<Mutex<Self>>) {
@@ -287,33 +289,32 @@ impl BulkPullServerImpl {
 
             block.serialize(&mut stream);
             let send_buffer = Arc::new(stream.to_vec());
-            self.connection.socket.async_write(
-                &send_buffer,
-                Some(Box::new(move |ec, size| {
+            let conn = self.connection.clone();
+            self.runtime.tokio.spawn(async move {
+                if conn
+                    .socket
+                    .write(&send_buffer, TrafficType::Bootstrap)
+                    .await
+                    .is_ok()
+                {
                     let server_impl_clone = server_impl.clone();
-                    server_impl
-                        .lock()
-                        .unwrap()
-                        .sent_action(ec, size, server_impl_clone);
-                })),
-                TrafficType::Generic,
-            );
+                    server_impl.lock().unwrap().sent_action(server_impl_clone);
+                } else {
+                    debug!("Unable to bulk send block");
+                }
+            });
         } else {
             self.send_finished(server_impl);
         }
     }
 
-    fn sent_action(&mut self, ec: ErrorCode, _size: usize, server_impl: Arc<Mutex<Self>>) {
+    fn sent_action(&mut self, server_impl: Arc<Mutex<Self>>) {
         let Some(thread_pool) = self.thread_pool.upgrade() else {
             return;
         };
-        if ec.is_ok() {
-            thread_pool.push_task(Box::new(move || {
-                let impl_clone = server_impl.clone();
-                server_impl.lock().unwrap().send_next(impl_clone);
-            }));
-        } else {
-            debug!("Unable to bulk send block: {:?}", ec);
-        }
+        thread_pool.push_task(Box::new(move || {
+            let impl_clone = server_impl.clone();
+            server_impl.lock().unwrap().send_next(impl_clone);
+        }));
     }
 }

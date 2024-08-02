@@ -3,7 +3,7 @@ use crate::{
     config::NodeConfig,
     stats::{DetailType, Direction, SocketStats, StatType, Stats},
     transport::TcpStream,
-    utils::{into_ipv6_socket_address, AsyncRuntime, ThreadPool, ThreadPoolImpl},
+    utils::AsyncRuntime,
     NetworkParams,
 };
 use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
@@ -18,7 +18,6 @@ pub struct PeerConnector {
     network: Arc<Network>,
     stats: Arc<Stats>,
     runtime: Arc<AsyncRuntime>,
-    workers: Arc<dyn ThreadPool>,
     network_params: NetworkParams,
     cancel_token: CancellationToken,
     response_server_factory: Arc<ResponseServerFactory>,
@@ -32,7 +31,6 @@ impl PeerConnector {
         network: Arc<Network>,
         stats: Arc<Stats>,
         runtime: Arc<AsyncRuntime>,
-        workers: Arc<dyn ThreadPool>,
         network_params: NetworkParams,
         response_server_factory: Arc<ResponseServerFactory>,
     ) -> Self {
@@ -42,7 +40,6 @@ impl PeerConnector {
             network,
             stats,
             runtime,
-            workers,
             network_params,
             cancel_token: CancellationToken::new(),
             response_server_factory,
@@ -58,7 +55,6 @@ impl PeerConnector {
             network: Arc::new(Network::new_null()),
             stats: Arc::new(Default::default()),
             runtime: Arc::new(Default::default()),
-            workers: Arc::new(ThreadPoolImpl::new_test_instance()),
             network_params: NetworkParams::new(rsnano_core::Networks::NanoDevNetwork),
             cancel_token: CancellationToken::new(),
             response_server_factory: Arc::new(ResponseServerFactory::new_null()),
@@ -80,22 +76,18 @@ impl PeerConnector {
         let raw_stream = TcpStream::new(raw_stream);
 
         let socket_stats = Arc::new(SocketStats::new(Arc::clone(&self.stats)));
-        let socket = SocketBuilder::new(
-            ChannelDirection::Outbound,
-            Arc::clone(&self.workers),
-            Arc::downgrade(&self.runtime),
-        )
-        .default_timeout(Duration::from_secs(
-            self.node_config.tcp_io_timeout_s as u64,
-        ))
-        .silent_connection_tolerance_time(Duration::from_secs(
-            self.network_params
-                .network
-                .silent_connection_tolerance_time_s as u64,
-        ))
-        .idle_timeout(self.network_params.network.idle_timeout)
-        .observer(socket_stats)
-        .finish(raw_stream);
+        let socket = SocketBuilder::new(ChannelDirection::Outbound, self.runtime.clone())
+            .default_timeout(Duration::from_secs(
+                self.node_config.tcp_io_timeout_s as u64,
+            ))
+            .silent_connection_tolerance_time(Duration::from_secs(
+                self.network_params
+                    .network
+                    .silent_connection_tolerance_time_s as u64,
+            ))
+            .idle_timeout(self.network_params.network.idle_timeout)
+            .observer(socket_stats)
+            .finish(raw_stream);
 
         let response_server = self
             .response_server_factory

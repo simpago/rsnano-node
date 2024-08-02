@@ -76,7 +76,7 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
 
         let message = Message::BulkPush;
         let this_l = Arc::clone(self);
-        self.connection.send(
+        self.connection.send_obsolete(
             &message,
             Some(Box::new(move |ec, _size| {
                 if ec.is_ok() {

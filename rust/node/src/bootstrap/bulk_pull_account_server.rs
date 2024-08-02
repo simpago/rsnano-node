@@ -1,6 +1,6 @@
 use crate::{
     transport::{ResponseServerExt, ResponseServerImpl, SocketExtensions, TrafficType},
-    utils::{AsyncRuntime, ErrorCode, ThreadPool},
+    utils::{AsyncRuntime, ThreadPool},
 };
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey};
 use rsnano_ledger::Ledger;
@@ -87,15 +87,26 @@ impl BulkPullAccountServerImpl {
                 send_buffer.extend_from_slice(&account_frontier_balance.to_be_bytes());
             }
 
+            let connection_l = self.connection.clone();
+            let workers = self.thread_pool.clone();
             // Send the buffer to the requestor
-            self.connection.socket.async_write(
-                &Arc::new(send_buffer),
-                Some(Box::new(move |ec, size| {
-                    let server2 = Arc::clone(&server);
-                    server.lock().unwrap().sent_action(ec, size, server2);
-                })),
-                TrafficType::Generic,
-            );
+            self.runtime.tokio.spawn(async move {
+                if connection_l
+                    .socket
+                    .write(&send_buffer, TrafficType::Bootstrap)
+                    .await
+                    .is_ok()
+                {
+                    if let Some(workers) = workers.upgrade() {
+                        workers.push_task(Box::new(move || {
+                            let server2 = Arc::clone(&server);
+                            server.lock().unwrap().send_next_block(server2);
+                        }));
+                    }
+                } else {
+                    debug!("Unable to bulk send block");
+                }
+            });
         }
     }
 
@@ -124,21 +135,37 @@ impl BulkPullAccountServerImpl {
                 }
             }
 
-            self.connection.socket.async_write(
-                &Arc::new(send_buffer),
-                Some(Box::new(move |ec, len| {
-                    let server2 = Arc::clone(&server);
-                    server.lock().unwrap().sent_action(ec, len, server2);
-                })),
-                TrafficType::Generic,
-            );
+            let connection = self.connection.clone();
+            let workers = self.thread_pool.clone();
+            self.runtime.tokio.spawn(async move {
+                if connection
+                    .socket
+                    .write(&send_buffer, TrafficType::Bootstrap)
+                    .await
+                    .is_ok()
+                {
+                    if let Some(workers) = workers.upgrade() {
+                        workers.push_task(Box::new(move || {
+                            let server2 = Arc::clone(&server);
+                            server.lock().unwrap().send_next_block(server2);
+                        }));
+                    }
+                } else {
+                    debug!("Unable to bulk send block");
+                }
+            });
         } else {
             /*
              * Otherwise, finalize the connection
              */
             debug!("Done sending blocks");
 
-            self.send_finished(server);
+            let conn = self.connection.clone();
+            let pending_address_only = self.pending_address_only;
+            let pending_include_address = self.pending_include_address;
+            self.runtime.tokio.spawn(async move {
+                send_finished(&conn, pending_address_only, pending_include_address).await;
+            });
         }
     }
 
@@ -197,77 +224,43 @@ impl BulkPullAccountServerImpl {
 
         None
     }
+}
 
-    pub fn sent_action(
-        &self,
-        ec: ErrorCode,
-        _size: usize,
-        server: Arc<Mutex<BulkPullAccountServerImpl>>,
-    ) {
-        let Some(thread_pool) = self.thread_pool.upgrade() else {
-            return;
-        };
-        if ec.is_ok() {
-            thread_pool.push_task(Box::new(move || {
-                let server2 = Arc::clone(&server);
-                server.lock().unwrap().send_next_block(server2);
-            }));
-        } else {
-            debug!("Unable to bulk send block: {:?}", ec);
+async fn send_finished(
+    connection: &Arc<ResponseServerImpl>,
+    pending_address_only: bool,
+    pending_include_address: bool,
+) {
+    /*
+     * The "bulk_pull_account" final sequence is a final block of all
+     * zeros.  If we are sending only account public keys (with the
+     * "pending_address_only" flag) then it will be 256-bits of zeros,
+     * otherwise it will be either 384-bits of zeros (if the
+     * "pending_include_address" flag is not set) or 640-bits of zeros
+     * (if that flag is set).
+     */
+    let mut send_buffer = Vec::new();
+    {
+        send_buffer.extend_from_slice(Account::zero().as_bytes());
+
+        if !pending_address_only {
+            send_buffer.extend_from_slice(&Amount::zero().to_be_bytes());
+            if pending_include_address {
+                send_buffer.extend_from_slice(Account::zero().as_bytes());
+            }
         }
     }
 
-    pub fn send_finished(&self, server: Arc<Mutex<BulkPullAccountServerImpl>>) {
-        /*
-         * The "bulk_pull_account" final sequence is a final block of all
-         * zeros.  If we are sending only account public keys (with the
-         * "pending_address_only" flag) then it will be 256-bits of zeros,
-         * otherwise it will be either 384-bits of zeros (if the
-         * "pending_include_address" flag is not set) or 640-bits of zeros
-         * (if that flag is set).
-         */
-        let mut send_buffer = Vec::new();
-        {
-            send_buffer.extend_from_slice(Account::zero().as_bytes());
-
-            if !self.pending_address_only {
-                send_buffer.extend_from_slice(&Amount::zero().to_be_bytes());
-                if self.pending_include_address {
-                    send_buffer.extend_from_slice(Account::zero().as_bytes());
-                }
-            }
-        }
-
-        debug!("Bulk sending for an account finished");
-
-        self.connection.socket.async_write(
-            &Arc::new(send_buffer),
-            Some(Box::new(move |ec, len| {
-                server.lock().unwrap().complete(ec, len);
-            })),
-            TrafficType::Generic,
-        );
-    }
-
-    pub fn complete(&self, ec: ErrorCode, size: usize) {
-        if ec.is_ok() {
-            if self.pending_address_only {
-                debug_assert!(size == 32);
-            } else {
-                if self.pending_include_address {
-                    debug_assert!(size == 80);
-                } else {
-                    debug_assert!(size == 48);
-                }
-            }
-
-            let connection = self.connection.clone();
-            self.runtime
-                .tokio
-                .spawn(async move { connection.run().await });
-        } else {
-            debug!("Unable to pending-as-zero");
-        }
+    if connection
+        .socket
+        .write(&send_buffer, TrafficType::Bootstrap)
+        .await
+        .is_ok()
+    {
+        let conn = connection.clone();
+        tokio::spawn(async move { conn.run().await });
+    } else {
+        debug!("Could not finish bulk pull");
     }
 }
 

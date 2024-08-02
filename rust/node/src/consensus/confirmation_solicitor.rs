@@ -84,10 +84,9 @@ impl<'a> ConfirmationSolicitor<'a> {
                 true
             };
             if should_broadcast {
-                self.network.send(
+                self.network.try_send(
                     i.channel_id,
                     &winner,
-                    None,
                     BufferDropPolicy::Limiter,
                     TrafficType::Generic,
                 )
@@ -160,10 +159,9 @@ impl<'a> ConfirmationSolicitor<'a> {
                     roots_hashes.push(root_hash.clone());
                     if roots_hashes.len() == ConfirmReq::HASHES_MAX {
                         let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
-                        self.network.send(
+                        self.network.try_send(
                             *channel_id,
                             &req,
-                            None,
                             BufferDropPolicy::Limiter,
                             TrafficType::Generic,
                         );
@@ -173,10 +171,9 @@ impl<'a> ConfirmationSolicitor<'a> {
             }
             if !roots_hashes.is_empty() {
                 let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
-                self.network.send(
+                self.network.try_send(
                     *channel_id,
                     &req,
-                    None,
                     BufferDropPolicy::Limiter,
                     TrafficType::Generic,
                 );

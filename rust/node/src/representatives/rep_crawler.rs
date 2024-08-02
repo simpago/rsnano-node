@@ -176,17 +176,7 @@ impl RepCrawler {
 
             let req = Message::ConfirmReq(ConfirmReq::new(vec![hash_root]));
 
-            let stats = Arc::clone(&self.stats);
-            channel.send(
-                &req,
-                Some(Box::new(move |ec, _len| {
-                    if ec.is_err() {
-                        stats.inc_dir(StatType::RepCrawler, DetailType::WriteError, Direction::Out);
-                    }
-                })),
-                BufferDropPolicy::NoSocketDrop,
-                TrafficType::Generic,
-            )
+            channel.try_send(&req, BufferDropPolicy::NoSocketDrop, TrafficType::Generic)
         }
     }
 
@@ -398,9 +388,8 @@ impl RepCrawler {
                         match network.find_channel_by_peering_addr(&endpoint) {
                             Some(channel) => {
                                 let keepalive = network.create_keepalive_message();
-                                channel.send(
+                                channel.try_send(
                                     &keepalive,
-                                    None,
                                     BufferDropPolicy::Limiter,
                                     TrafficType::Generic,
                                 )

@@ -92,7 +92,7 @@ impl BulkPullAccountClientExt for Arc<BulkPullAccountClient> {
         }
 
         let self_l = Arc::clone(self);
-        self.connection.send(
+        self.connection.send_obsolete(
             &req,
             Some(Box::new(move |ec, _size| {
                 if ec.is_ok() {

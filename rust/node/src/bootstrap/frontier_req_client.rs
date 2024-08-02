@@ -179,7 +179,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
             guard.next(&self.ledger); // Load accounts from disk
         }
         let this_l = Arc::clone(self);
-        self.connection.send(
+        self.connection.send_obsolete(
             &request,
             Some(Box::new(move |ec, _size| {
                 if ec.is_ok() {

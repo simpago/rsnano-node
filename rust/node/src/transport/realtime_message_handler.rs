@@ -140,12 +140,7 @@ impl RealtimeMessageHandler {
                 };
 
                 let msg = Message::TelemetryAck(TelemetryAck(data));
-                channel.send(
-                    &msg,
-                    None,
-                    BufferDropPolicy::NoSocketDrop,
-                    TrafficType::Generic,
-                );
+                channel.try_send(&msg, BufferDropPolicy::NoSocketDrop, TrafficType::Generic);
             }
             Message::TelemetryAck(ack) => self.telemetry.process(&ack, channel),
             Message::AscPullReq(req) => {

@@ -260,12 +260,7 @@ impl Telemetry {
 
     fn broadcast(&self, channel: &ChannelEnum, message: &Message) {
         self.stats.inc(StatType::Telemetry, DetailType::Broadcast);
-        channel.send(
-            message,
-            None,
-            BufferDropPolicy::Limiter,
-            TrafficType::Generic,
-        )
+        channel.try_send(message, BufferDropPolicy::Limiter, TrafficType::Generic)
     }
 
     fn cleanup(&self, data: &mut TelemetryImpl) {
@@ -323,12 +318,7 @@ impl Telemetry {
     fn request(&self, channel: &ChannelEnum) {
         self.stats.inc(StatType::Telemetry, DetailType::Request);
         let message = Message::TelemetryReq;
-        channel.send(
-            &message,
-            None,
-            BufferDropPolicy::Limiter,
-            TrafficType::Generic,
-        );
+        channel.try_send(&message, BufferDropPolicy::Limiter, TrafficType::Generic);
     }
 
     pub fn local_telemetry(&self) -> TelemetryData {

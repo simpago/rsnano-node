@@ -505,7 +505,6 @@ impl Node {
             network.clone(),
             stats.clone(),
             async_rt.clone(),
-            workers.clone(),
             network_params.clone(),
             response_server_factory.clone(),
         ));
@@ -538,7 +537,6 @@ impl Node {
             network_params.clone(),
             async_rt.clone(),
             stats.clone(),
-            workers.clone(),
             response_server_factory.clone(),
         ));
 
@@ -796,7 +794,7 @@ impl Node {
             };
             let keepalive = factory.create_keepalive_self();
             let msg = Message::Keepalive(keepalive);
-            channel.send(&msg, None, BufferDropPolicy::Limiter, TrafficType::Generic);
+            channel.try_send(&msg, BufferDropPolicy::Limiter, TrafficType::Generic);
         }));
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
