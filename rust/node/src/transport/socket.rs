@@ -1,11 +1,9 @@
 use super::{
-    message_deserializer::AsyncBufferReader,
-    write_queue::{WriteCallback, WriteQueue},
-    TcpStream, TrafficType,
+    message_deserializer::AsyncBufferReader, write_queue::WriteQueue, TcpStream, TrafficType,
 };
 use crate::{
     stats,
-    utils::{into_ipv6_socket_address, AsyncRuntime, ErrorCode},
+    utils::{into_ipv6_socket_address, AsyncRuntime},
 };
 use async_trait::async_trait;
 use num_traits::FromPrimitive;
@@ -14,11 +12,11 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicU8, AtomicUsize, Ordering},
-        Arc, Mutex,
+        Arc,
     },
     time::Duration,
 };
-use tokio::{task::spawn_blocking, time::sleep};
+use tokio::time::sleep;
 use tracing::debug;
 
 /// Policy to affect at which stage a buffer can be dropped
@@ -130,7 +128,6 @@ pub struct Socket {
     observer: Arc<dyn SocketObserver>,
 
     write_queue: WriteQueue,
-    current_action: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
     stream: Arc<TcpStream>,
 }
 
@@ -175,13 +172,9 @@ impl Socket {
         self.timeout_seconds.store(seconds, Ordering::SeqCst);
     }
 
-    pub fn close_internal(&self) {
+    pub fn close(&self) {
         if !self.closed.swap(true, Ordering::SeqCst) {
             self.set_default_timeout_value(0);
-
-            if let Some(cb) = self.current_action.lock().unwrap().take() {
-                cb();
-            }
         }
     }
 
@@ -230,6 +223,14 @@ impl Socket {
         !self.is_closed()
     }
 
+    pub fn has_timed_out(&self) -> bool {
+        self.timed_out.load(Ordering::SeqCst)
+    }
+
+    pub fn get_remote(&self) -> Option<SocketAddrV6> {
+        Some(self.remote)
+    }
+
     pub async fn read_raw(&self, buffer: &mut [u8], size: usize) -> anyhow::Result<()> {
         if size > buffer.len() {
             return Err(anyhow!("buffer is too small for read count"));
@@ -276,7 +277,51 @@ impl Socket {
         }
     }
 
-    pub(crate) async fn write_raw(&self, data: &[u8]) -> anyhow::Result<()> {
+    pub async fn write(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()> {
+        if self.is_closed() {
+            bail!("socket closed");
+        }
+
+        let buf_size = buffer.len();
+
+        let result = self
+            .write_queue
+            .insert(Arc::new(buffer.to_vec()), traffic_type)
+            .await;
+
+        if result.is_ok() {
+            self.observer.write_successful(buf_size);
+            self.set_last_completion();
+        } else {
+            self.observer.write_error();
+            self.close();
+        }
+
+        result
+    }
+
+    pub fn try_write(&self, buffer: &[u8], traffic_type: TrafficType) {
+        if self.is_closed() {
+            return;
+        }
+
+        let buf_size = buffer.len();
+
+        let (inserted, write_error) = self
+            .write_queue
+            .try_insert(Arc::new(buffer.to_vec()), traffic_type);
+
+        if inserted {
+            self.observer.write_successful(buf_size);
+            self.set_last_completion();
+        } else if write_error {
+            self.observer.write_error();
+            self.close();
+        }
+    }
+
+    /// Writes directly to the stream and does not use the queues
+    pub(crate) async fn write_directly(&self, data: &[u8]) -> anyhow::Result<()> {
         let mut written = 0;
         loop {
             self.stream.writable().await?;
@@ -303,7 +348,7 @@ impl Socket {
             sleep(Duration::from_secs(2)).await;
             // If the socket is already dead, close just in case, and stop doing checkups
             if !self.is_alive() {
-                self.close_internal();
+                self.close();
                 return;
             }
 
@@ -330,7 +375,7 @@ impl Socket {
             if condition_to_disconnect {
                 self.observer.disconnect_due_to_timeout(self.remote);
                 self.timed_out.store(true, Ordering::SeqCst);
-                self.close_internal();
+                self.close();
             }
         }
     }
@@ -338,95 +383,9 @@ impl Socket {
 
 impl Drop for Socket {
     fn drop(&mut self) {
-        self.close_internal();
+        self.close();
         let alive = LIVE_SOCKETS.fetch_sub(1, Ordering::Relaxed) - 1;
         debug!(socket_id = self.socket_id, alive, "Socket dropped");
-    }
-}
-
-#[async_trait]
-pub trait SocketExtensions {
-    async fn write(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()>;
-
-    fn async_write(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        callback: Option<WriteCallback>,
-        traffic_type: TrafficType,
-    );
-    fn close(&self);
-
-    fn get_remote(&self) -> Option<SocketAddrV6>;
-    fn has_timed_out(&self) -> bool;
-}
-
-#[async_trait]
-impl SocketExtensions for Arc<Socket> {
-    async fn write(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()> {
-        if self.is_closed() {
-            bail!("socket closed");
-        }
-
-        let buf_size = buffer.len();
-
-        let result = self
-            .write_queue
-            .insert(Arc::new(buffer.to_vec()), traffic_type)
-            .await;
-
-        if result.is_ok() {
-            self.observer.write_successful(buf_size);
-            self.set_last_completion();
-        } else {
-            self.observer.write_error();
-            self.close();
-        }
-
-        result
-    }
-
-    fn async_write(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        callback: Option<WriteCallback>,
-        traffic_type: TrafficType,
-    ) {
-        if self.is_closed() {
-            if let Some(cb) = callback {
-                cb(ErrorCode::not_supported(), 0);
-            }
-            return;
-        }
-
-        let buf_size = buffer.len();
-
-        let (queued, write_error, callback) =
-            self.write_queue
-                .try_insert(Arc::clone(buffer), callback, traffic_type);
-        if write_error {
-            self.observer.write_error();
-            self.close();
-        }
-        if queued {
-            self.observer.write_successful(buf_size);
-            self.set_last_completion();
-        } else {
-            if let Some(cb) = callback {
-                cb(ErrorCode::not_supported(), 0);
-            }
-        }
-    }
-
-    fn close(&self) {
-        self.close_internal();
-    }
-
-    fn get_remote(&self) -> Option<SocketAddrV6> {
-        Some(self.remote)
-    }
-
-    fn has_timed_out(&self) -> bool {
-        self.timed_out.load(Ordering::SeqCst)
     }
 }
 
@@ -514,18 +473,12 @@ impl SocketBuilder {
             while let Some(entry) = receiver.pop().await {
                 let mut written = 0;
                 let buffer = &entry.buffer;
-                let callback = entry.callback;
                 loop {
                     match stream_l.writable().await {
                         Ok(()) => match stream_l.try_write(&buffer[written..]) {
                             Ok(n) => {
                                 written += n;
                                 if written >= buffer.len() {
-                                    if let Some(cb) = callback {
-                                        spawn_blocking(move || {
-                                            cb(ErrorCode::new(), written);
-                                        });
-                                    }
                                     break;
                                 }
                             }
@@ -533,20 +486,10 @@ impl SocketBuilder {
                                 continue;
                             }
                             Err(_) => {
-                                if let Some(cb) = callback {
-                                    spawn_blocking(move || {
-                                        cb(ErrorCode::fault(), 0);
-                                    });
-                                }
                                 break;
                             }
                         },
                         Err(_) => {
-                            if let Some(cb) = callback {
-                                spawn_blocking(move || {
-                                    cb(ErrorCode::fault(), 0);
-                                });
-                            }
                             break;
                         }
                     }
@@ -572,7 +515,6 @@ impl SocketBuilder {
                 socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
                 observer,
                 write_queue,
-                current_action: Mutex::new(None),
                 stream,
             }
         });

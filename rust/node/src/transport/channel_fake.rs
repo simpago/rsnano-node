@@ -1,19 +1,15 @@
 use super::{
-    AsyncBufferReader, BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelId,
-    ChannelMode, OutboundBandwidthLimiter, TrafficType, WriteCallback,
-};
-use crate::{
-    stats::{DetailType, Direction, StatType, Stats},
-    utils::{AsyncRuntime, ErrorCode},
+    AsyncBufferReader, BufferDropPolicy, Channel, ChannelDirection, ChannelId, ChannelMode,
+    TrafficType,
 };
 use async_trait::async_trait;
 use rsnano_core::Account;
-use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
+use rsnano_messages::{Message, ProtocolInfo};
 use std::{
     net::SocketAddrV6,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, Weak,
+        Arc, Mutex,
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -27,58 +23,30 @@ pub struct FakeChannelData {
 
 pub struct ChannelFake {
     channel_id: ChannelId,
-    async_rt: Weak<AsyncRuntime>,
     channel_mutex: Mutex<FakeChannelData>,
-    limiter: Arc<OutboundBandwidthLimiter>,
-    stats: Arc<Stats>,
     endpoint: SocketAddrV6,
     closed: AtomicBool,
     protocol: ProtocolInfo,
-    message_serializer: Mutex<MessageSerializer>, // TODO remove Mutex!
 }
 
 impl ChannelFake {
     pub fn new(
         now: SystemTime,
         channel_id: ChannelId,
-        async_rt: &Arc<AsyncRuntime>,
-        limiter: Arc<OutboundBandwidthLimiter>,
-        stats: Arc<Stats>,
         endpoint: SocketAddrV6,
         protocol: ProtocolInfo,
     ) -> Self {
         Self {
             channel_id,
-            async_rt: Arc::downgrade(async_rt),
             channel_mutex: Mutex::new(FakeChannelData {
                 last_bootstrap_attempt: UNIX_EPOCH,
                 last_packet_received: now,
                 last_packet_sent: now,
                 node_id: None,
             }),
-            limiter,
-            stats,
             endpoint,
             closed: AtomicBool::new(false),
             protocol,
-            message_serializer: Mutex::new(MessageSerializer::new(protocol)),
-        }
-    }
-
-    pub fn send_buffer(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        callback_a: Option<WriteCallback>,
-        _policy_a: BufferDropPolicy,
-        _traffic_type: TrafficType,
-    ) {
-        let size = buffer.len();
-        if let Some(cb) = callback_a {
-            if let Some(async_rt) = self.async_rt.upgrade() {
-                async_rt.post(Box::new(move || {
-                    cb(ErrorCode::new(), size);
-                }))
-            }
         }
     }
 }
@@ -161,45 +129,14 @@ impl Channel for ChannelFake {
 
     async fn send_buffer(
         &self,
-        buffer: &Arc<Vec<u8>>,
-        traffic_type: TrafficType,
+        _buffer: &Arc<Vec<u8>>,
+        _traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn send_obsolete(
-        &self,
-        message: &Message,
-        callback: Option<WriteCallback>,
-        drop_policy: BufferDropPolicy,
-        traffic_type: TrafficType,
-    ) {
-        let buffer = {
-            let mut serializer = self.message_serializer.lock().unwrap();
-            let buffer = serializer.serialize(message);
-            Arc::new(Vec::from(buffer)) // TODO don't copy into vec!
-        };
-        let detail = DetailType::from(message);
-        let is_droppable_by_limiter = drop_policy == BufferDropPolicy::Limiter;
-        let should_pass = self
-            .limiter
-            .should_pass(buffer.len(), BandwidthLimitType::from(traffic_type));
-
-        if !is_droppable_by_limiter || should_pass {
-            self.send_buffer(&buffer, callback, drop_policy, traffic_type);
-            self.stats
-                .inc_dir(StatType::Message, detail, Direction::Out);
-        } else {
-            if let Some(cb) = callback {
-                if let Some(async_rt) = self.async_rt.upgrade() {
-                    async_rt.post(Box::new(move || {
-                        cb(ErrorCode::not_supported(), 0);
-                    }))
-                }
-            }
-
-            self.stats.inc_dir(StatType::Drop, detail, Direction::Out);
-        }
+    async fn send(&self, _message: &Message, _traffic_type: TrafficType) -> anyhow::Result<()> {
+        Ok(())
     }
 
     fn close(&self) {

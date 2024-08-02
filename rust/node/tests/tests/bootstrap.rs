@@ -7,17 +7,17 @@ use rsnano_core::{
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::BulkPull;
 use rsnano_node::{
+    bootstrap::BulkPullServer,
+    node::Node,
+    stats::SocketStats,
+    transport::{ChannelDirection, ResponseServer, SocketBuilder},
+};
+use rsnano_node::{
     bootstrap::{BootstrapAttemptTrait, BootstrapInitiatorExt, BootstrapStrategy},
     config::{FrontiersConfirmationMode, NodeFlags},
     node::NodeExt,
     transport::TcpStream,
     wallets::WalletsExt,
-};
-use rsnano_node::{
-    bootstrap::{BootstrapMessageVisitorFactory, BulkPullServer},
-    node::Node,
-    stats::SocketStats,
-    transport::{ChannelDirection, ResponseServerImpl, SocketBuilder},
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -1292,33 +1292,27 @@ mod bulk_pull_account {
     }
 }
 
-fn create_response_server(node: &Node) -> Arc<ResponseServerImpl> {
+fn create_response_server(node: &Node) -> Arc<ResponseServer> {
     let socket_stats = Arc::new(SocketStats::new(node.stats.clone()));
     let socket = SocketBuilder::new(ChannelDirection::Inbound, node.async_rt.clone())
         .observer(socket_stats)
         .finish(TcpStream::new_null());
 
-    let visitor_factory = Arc::new(BootstrapMessageVisitorFactory::new(
-        node.async_rt.clone(),
-        node.stats.clone(),
-        node.network_params.network.clone(),
-        node.ledger.clone(),
-        node.workers.clone(),
-        node.block_processor.clone(),
-        node.bootstrap_initiator.clone(),
-        node.flags.clone(),
-    ));
-
-    Arc::new(ResponseServerImpl::new(
+    Arc::new(ResponseServer::new(
         &node.network,
         node.network.inbound_queue.clone(),
         socket,
         node.network.publish_filter.clone(),
         Arc::new(node.network_params.clone()),
         node.stats.clone(),
-        visitor_factory,
         true,
         node.syn_cookies.clone(),
         node.node_id.clone(),
+        node.async_rt.clone(),
+        node.ledger.clone(),
+        node.workers.clone(),
+        node.block_processor.clone(),
+        node.bootstrap_initiator.clone(),
+        node.flags.clone(),
     ))
 }

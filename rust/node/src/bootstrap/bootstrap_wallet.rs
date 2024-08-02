@@ -138,6 +138,7 @@ impl BootstrapAttemptWalletExt for Arc<BootstrapAttemptWallet> {
                         Arc::clone(&self_l.ledger),
                         bootstrap_initiator,
                         self_l.runtime.clone(),
+                        self_l.workers.clone(),
                     ));
                     client.request();
                 }

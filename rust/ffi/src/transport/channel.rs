@@ -205,18 +205,15 @@ pub unsafe extern "C" fn rsn_channel_inproc_endpoint(
 #[no_mangle]
 pub unsafe extern "C" fn rsn_channel_fake_create(
     channel_id: usize,
-    async_rt: &mut AsyncRuntimeHandle,
-    limiter: *mut OutboundBandwidthLimiterHandle,
-    stats: *mut StatHandle,
+    _async_rt: &mut AsyncRuntimeHandle,
+    _limiter: *mut OutboundBandwidthLimiterHandle,
+    _stats: *mut StatHandle,
     endpoint: *const EndpointDto,
     network_constants: &NetworkConstantsDto,
 ) -> *mut ChannelHandle {
     ChannelHandle::new(Arc::new(ChannelEnum::Fake(ChannelFake::new(
         SystemTime::now(),
         channel_id.into(),
-        &async_rt.0,
-        (*limiter).0.clone(),
-        (*stats).0.clone(),
         SocketAddrV6::from(&(*endpoint)),
         NetworkConstants::try_from(network_constants)
             .unwrap()

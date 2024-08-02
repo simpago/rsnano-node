@@ -1,8 +1,5 @@
 use super::{bootstrap_limits, BootstrapConnections};
-use crate::transport::{
-    BufferDropPolicy, Channel, ChannelEnum, ChannelTcp, ChannelTcpExt, TrafficType, WriteCallback,
-};
-use rsnano_messages::Message;
+use crate::transport::{ChannelEnum, ChannelTcp};
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -15,15 +12,12 @@ use std::{
 pub struct BootstrapClient {
     observer: Weak<BootstrapConnections>,
     channel: Arc<ChannelEnum>,
-    receive_buffer: Arc<Mutex<Vec<u8>>>,
     block_count: AtomicU64,
     block_rate: AtomicU64,
     pending_stop: AtomicBool,
     hard_stop: AtomicBool,
     start_time: Mutex<Instant>,
 }
-
-const BUFFER_SIZE: usize = 256;
 
 impl BootstrapClient {
     pub fn new(observer: &Arc<BootstrapConnections>, channel: Arc<ChannelEnum>) -> Self {
@@ -33,7 +27,6 @@ impl BootstrapClient {
         Self {
             observer: Arc::downgrade(observer),
             channel,
-            receive_buffer: Arc::new(Mutex::new(vec![0; BUFFER_SIZE])),
             block_count: AtomicU64::new(0),
             block_rate: AtomicU64::new(0f64.to_bits()),
             pending_stop: AtomicBool::new(false),
@@ -70,41 +63,11 @@ impl BootstrapClient {
         &self.channel
     }
 
-    pub fn receive_buffer(&self) -> Vec<u8> {
-        self.receive_buffer.lock().unwrap().clone()
-    }
-
-    pub fn receive_buffer_len(&self) -> usize {
-        self.receive_buffer.lock().unwrap().len()
-    }
-
     fn tcp_channel(&self) -> &Arc<ChannelTcp> {
         match self.channel.as_ref() {
             ChannelEnum::Tcp(tcp) => tcp,
             _ => panic!("not a tcp channel!"),
         }
-    }
-
-    pub fn send_buffer(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        callback: Option<WriteCallback>,
-        policy: BufferDropPolicy,
-        traffic_type: TrafficType,
-    ) {
-        self.tcp_channel()
-            .send_buffer_obsolete(buffer, callback, policy, traffic_type);
-    }
-
-    pub fn send_obsolete(
-        &self,
-        message: &Message,
-        callback: Option<WriteCallback>,
-        drop_policy: BufferDropPolicy,
-        traffic_type: TrafficType,
-    ) {
-        self.tcp_channel()
-            .send_obsolete(message, callback, drop_policy, traffic_type);
     }
 
     pub fn inc_block_count(&self) -> u64 {

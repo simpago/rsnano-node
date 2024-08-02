@@ -14,14 +14,14 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     config::NetworkConstants,
-    stats::{DetailType, Direction, StatType, Stats},
+    stats::{Direction, StatType, Stats},
     utils::{AsyncRuntime, ErrorCode},
 };
 
 use super::{
     message_deserializer::{AsyncBufferReader, MessageDeserializer},
-    BandwidthLimitType, BufferDropPolicy, Channel, ChannelDirection, ChannelEnum, ChannelId,
-    ChannelMode, NetworkFilter, OutboundBandwidthLimiter, TrafficType, WriteCallback,
+    BufferDropPolicy, Channel, ChannelDirection, ChannelEnum, ChannelId, ChannelMode,
+    NetworkFilter, OutboundBandwidthLimiter, TrafficType,
 };
 
 pub struct InProcChannelData {
@@ -91,13 +91,7 @@ impl ChannelInProc {
         }
     }
 
-    pub fn send_buffer_2(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        callback: Option<WriteCallback>,
-        _policy: BufferDropPolicy,
-        _traffic_type: TrafficType,
-    ) {
+    fn send_buffer_2(&self, buffer: &Arc<Vec<u8>>) {
         let stats = self.stats.clone();
         let network_constants = self.network_constants.clone();
         let limiter = self.limiter.clone();
@@ -150,15 +144,6 @@ impl ChannelInProc {
         });
 
         self.send_buffer_impl(buffer, callback_wrapper);
-
-        if let Some(cb) = callback {
-            let buffer_size = buffer.len();
-            if let Some(async_rt) = self.async_rt.upgrade() {
-                async_rt.post(Box::new(move || {
-                    cb(ErrorCode::new(), buffer_size);
-                }));
-            }
-        }
     }
 
     fn send_buffer_impl(
@@ -297,7 +282,7 @@ impl Channel for ChannelInProc {
             let buffer = serializer.serialize(message);
             Arc::new(Vec::from(buffer)) // TODO don't copy buffer
         };
-        self.send_buffer_2(&buffer, None, drop_policy, traffic_type);
+        self.send_buffer_2(&buffer);
     }
 
     async fn send_buffer(
@@ -305,43 +290,18 @@ impl Channel for ChannelInProc {
         buffer: &Arc<Vec<u8>>,
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
-        self.send_buffer_2(&buffer, None, BufferDropPolicy::NoSocketDrop, traffic_type);
+        self.send_buffer_2(&buffer);
         Ok(())
     }
 
-    fn send_obsolete(
-        &self,
-        message: &Message,
-        callback: Option<WriteCallback>,
-        drop_policy: BufferDropPolicy,
-        traffic_type: TrafficType,
-    ) {
+    async fn send(&self, message: &Message, traffic_type: TrafficType) -> anyhow::Result<()> {
         let buffer = {
             let mut serializer = self.message_serializer.lock().unwrap();
             let buffer = serializer.serialize(message);
             Arc::new(Vec::from(buffer)) // TODO don't copy buffer
         };
-        let detail = DetailType::from(message);
-        let is_droppable_by_limiter = drop_policy == BufferDropPolicy::Limiter;
-        let should_pass = self
-            .limiter
-            .should_pass(buffer.len(), BandwidthLimitType::from(traffic_type));
-
-        if !is_droppable_by_limiter || should_pass {
-            self.send_buffer_2(&buffer, callback, drop_policy, traffic_type);
-            self.stats
-                .inc_dir(StatType::Message, detail, Direction::Out);
-        } else {
-            if let Some(cb) = callback {
-                if let Some(async_rt) = self.async_rt.upgrade() {
-                    async_rt.post(Box::new(move || {
-                        cb(ErrorCode::not_supported(), 0);
-                    }))
-                }
-            }
-
-            self.stats.inc_dir(StatType::Drop, detail, Direction::Out);
-        }
+        self.send_buffer_2(&buffer);
+        Ok(())
     }
 
     fn close(&self) {
@@ -370,7 +330,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_vec() {
-        let mut reader = VecBufferReader::new(Vec::new());
+        let reader = VecBufferReader::new(Vec::new());
         let mut buffer = vec![0u8; 3];
         let result = reader.read(&mut buffer, 1).await;
         assert!(result.is_err());
@@ -378,7 +338,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_one_byte() {
-        let mut reader = VecBufferReader::new(vec![42]);
+        let reader = VecBufferReader::new(vec![42]);
         let mut buffer = vec![0u8; 1];
         let result = reader.read(&mut buffer, 1).await;
         assert!(result.is_ok());
@@ -387,7 +347,7 @@ mod tests {
 
     #[tokio::test]
     async fn multiple_reads() {
-        let mut reader = VecBufferReader::new(vec![1, 2, 3, 4, 5]);
+        let reader = VecBufferReader::new(vec![1, 2, 3, 4, 5]);
         let mut buffer = vec![0u8; 2];
         reader.read(&mut buffer, 1).await.unwrap();
         assert_eq!(buffer[0], 1);

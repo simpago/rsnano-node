@@ -181,7 +181,12 @@ impl BootstrapAttemptLegacyExt for Arc<BootstrapAttemptLegacy> {
         let connection_l = self.connections.find_connection(endpoint);
         guard = self.mutex.lock().unwrap();
         if let Some(connection_l) = connection_l {
-            let mut client = BulkPushClient::new(connection_l, Arc::clone(&self.ledger));
+            let mut client = BulkPushClient::new(
+                connection_l,
+                self.ledger.clone(),
+                self.runtime.clone(),
+                self.workers.clone(),
+            );
             client.set_attempt(self);
             let client = Arc::new(client);
             client.start();

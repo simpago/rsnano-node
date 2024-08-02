@@ -2,11 +2,11 @@ use rsnano_core::KeyPair;
 use rsnano_ledger::Ledger;
 
 use super::{
-    InboundMessageQueue, Network, OutboundBandwidthLimiter, ResponseServerImpl, Socket, SynCookies,
+    InboundMessageQueue, Network, OutboundBandwidthLimiter, ResponseServer, Socket, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
-    bootstrap::{BootstrapInitiator, BootstrapInitiatorConfig, BootstrapMessageVisitorFactory},
+    bootstrap::{BootstrapInitiator, BootstrapInitiatorConfig},
     config::NodeFlags,
     stats::Stats,
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
@@ -68,29 +68,23 @@ impl ResponseServerFactory {
         }
     }
 
-    pub(crate) fn create_response_server(&self, socket: Arc<Socket>) -> Arc<ResponseServerImpl> {
-        let message_visitor_factory = Arc::new(BootstrapMessageVisitorFactory::new(
-            self.runtime.clone(),
-            self.stats.clone(),
-            self.network_params.network.clone(),
-            self.ledger.clone(),
-            self.workers.clone(),
-            self.block_processor.clone(),
-            self.bootstrap_initiator.clone(),
-            self.node_flags.clone(),
-        ));
-
-        Arc::new(ResponseServerImpl::new(
+    pub(crate) fn create_response_server(&self, socket: Arc<Socket>) -> Arc<ResponseServer> {
+        Arc::new(ResponseServer::new(
             &self.network.clone(),
             self.inbound_queue.clone(),
             socket,
             Arc::clone(&self.network.publish_filter),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),
-            message_visitor_factory,
             true,
             self.syn_cookies.clone(),
             self.node_id.clone(),
+            self.runtime.clone(),
+            self.ledger.clone(),
+            self.workers.clone(),
+            self.block_processor.clone(),
+            self.bootstrap_initiator.clone(),
+            self.node_flags.clone(),
         ))
     }
 }

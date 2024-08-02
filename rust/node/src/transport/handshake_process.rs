@@ -85,7 +85,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
 
-        match socket.write_raw(data).await {
+        match socket.write_directly(data).await {
             Ok(()) => {
                 self.stats
                     .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
@@ -222,7 +222,7 @@ impl HandshakeProcess {
 
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
-        match socket.write_raw(buffer).await {
+        match socket.write_directly(buffer).await {
             Ok(_) => {
                 self.stats
                     .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);

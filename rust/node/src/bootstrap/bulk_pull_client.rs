@@ -14,12 +14,12 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::BootstrapMode,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{read_block, BufferDropPolicy, TrafficType},
+    transport::{read_block, TrafficType},
     utils::{AsyncRuntime, ThreadPool},
 };
+use async_trait::async_trait;
 use rsnano_core::{work::WorkThresholds, Account, BlockEnum, BlockHash};
 use rsnano_messages::{BulkPull, Message};
-use tokio::task::spawn_blocking;
 use tracing::{debug, trace};
 
 pub struct BulkPullClient {
@@ -117,12 +117,14 @@ impl Drop for BulkPullClient {
     }
 }
 
+#[async_trait]
 pub trait BulkPullClientExt {
     fn request(&self);
-    fn throttled_receive_block(&self);
+    async fn throttled_receive_block(&self);
     fn received_block(&self, block: Option<BlockEnum>);
 }
 
+#[async_trait]
 impl BulkPullClientExt for Arc<BulkPullClient> {
     fn request(&self) {
         debug_assert!(
@@ -152,16 +154,21 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
         }
 
         let self_clone = Arc::clone(self);
-        self.connection.send_obsolete(
-            &Message::BulkPull(payload),
-            Some(Box::new(move |ec, _len| {
-                if ec.is_ok() {
-                    self_clone.throttled_receive_block();
-                } else {
+        self.runtime.tokio.spawn(async move {
+            match self_clone
+                .connection
+                .get_channel()
+                .send(&Message::BulkPull(payload), TrafficType::Generic)
+                .await
+            {
+                Ok(()) => {
+                    self_clone.throttled_receive_block().await;
+                }
+                Err(e) => {
                     debug!(
                         "Error sending bulk pull request to: {} ({:?})",
                         self_clone.connection.channel_string(),
-                        ec
+                        e
                     );
                     self_clone.stats.inc_dir(
                         StatType::Bootstrap,
@@ -169,31 +176,30 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
                         Direction::In,
                     );
                 }
-            })),
-            BufferDropPolicy::NoLimiterDrop,
-            TrafficType::Generic,
-        );
+            }
+        });
     }
 
-    fn throttled_receive_block(&self) {
+    async fn throttled_receive_block(&self) {
         debug_assert!(!self.network_error.load(Ordering::Relaxed));
         if self.block_processor.queue_len(BlockSource::BootstrapLegacy) < 1024 {
+            let Ok(block) = read_block(&**self.connection.get_channel()).await else {
+                self.network_error.store(true, Ordering::SeqCst);
+                return;
+            };
             let self_clone = Arc::clone(self);
-
-            self.runtime.tokio.spawn(async move {
-                let Ok(block) = read_block(&**self_clone.connection.get_channel()).await else {
-                    self_clone.network_error.store(true, Ordering::SeqCst);
-                    return;
-                };
-                spawn_blocking(Box::new(move || self_clone.received_block(block)));
-            });
+            self.workers
+                .push_task(Box::new(move || self_clone.received_block(block)));
         } else {
             let self_clone = Arc::clone(self);
             self.workers.add_delayed_task(
                 Duration::from_secs(1),
                 Box::new(move || {
                     if !self_clone.connection.pending_stop() && !self_clone.attempt.stopped() {
-                        self_clone.throttled_receive_block();
+                        let runtime = self_clone.runtime.clone();
+                        runtime.tokio.spawn(async move {
+                            self_clone.throttled_receive_block().await;
+                        });
                     }
                 }),
             );
@@ -269,7 +275,10 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
             if self.attempt.mode() != BootstrapMode::Legacy
                 || self.unexpected_count.load(Ordering::SeqCst) < 16384
             {
-                self.throttled_receive_block();
+                let self_l = Arc::clone(self);
+                self.runtime.tokio.spawn(async move {
+                    self_l.throttled_receive_block().await;
+                });
             }
         } else if !stop_pull && block_expected {
             self.connections

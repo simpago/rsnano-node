@@ -179,23 +179,31 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
             guard.next(&self.ledger); // Load accounts from disk
         }
         let this_l = Arc::clone(self);
-        self.connection.send_obsolete(
-            &request,
-            Some(Box::new(move |ec, _size| {
-                if ec.is_ok() {
-                    this_l.receive_frontier();
-                } else {
-                    debug!("Error while sending bootstrap request: {:?}", ec);
+        self.runtime.tokio.spawn(async move {
+            match this_l
+                .connection
+                .get_channel()
+                .send(&request, TrafficType::Generic)
+                .await
+            {
+                Ok(()) => {
+                    let workers = this_l.workers.clone();
+                    workers.push_task(Box::new(move || {
+                        this_l.receive_frontier();
+                    }));
+                }
+                Err(e) => {
+                    debug!("Error while sending bootstrap request: {:?}", e);
                     {
-                        let mut guard = this_l.data.lock().unwrap();
-                        guard.result = Some(true); // Failed
+                        {
+                            let mut guard = this_l.data.lock().unwrap();
+                            guard.result = Some(true); // Failed
+                        }
                         this_l.condition.notify_all();
                     }
                 }
-            })),
-            BufferDropPolicy::NoLimiterDrop,
-            TrafficType::Generic,
-        );
+            }
+        });
     }
 
     fn receive_frontier(&self) {

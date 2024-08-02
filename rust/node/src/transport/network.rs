@@ -1,9 +1,8 @@
 use super::{
     attempt_container::AttemptContainer, channel_container::ChannelContainer, BufferDropPolicy,
     ChannelDirection, ChannelEnum, ChannelFake, ChannelId, ChannelMode, ChannelTcp,
-    InboundMessageQueue, NetworkFilter, OutboundBandwidthLimiter, PeerExclusion,
-    ResponseServerImpl, Socket, SocketExtensions, TcpConfig, TrafficType, TransportType,
-    WriteCallback,
+    InboundMessageQueue, NetworkFilter, OutboundBandwidthLimiter, PeerExclusion, ResponseServer,
+    Socket, TcpConfig, TrafficType, TransportType,
 };
 use crate::{
     config::{NetworkConstants, NodeFlags},
@@ -161,7 +160,7 @@ impl Network {
     pub async fn add(
         &self,
         socket: &Arc<Socket>,
-        response_server: &Arc<ResponseServerImpl>,
+        response_server: &Arc<ResponseServer>,
         direction: ChannelDirection,
     ) -> anyhow::Result<()> {
         let Some(remote_endpoint) = socket.get_remote() else {
@@ -211,9 +210,8 @@ impl Network {
         let tcp_channel = ChannelTcp::new(
             socket.clone(),
             SystemTime::now(),
-            Arc::clone(&self.stats),
-            Arc::clone(&self.limiter),
-            &self.async_rt,
+            self.stats.clone(),
+            self.limiter.clone(),
             self.get_next_channel_id(),
             self.network_params.network.protocol_info(),
         );
@@ -291,9 +289,6 @@ impl Network {
         let fake = Arc::new(ChannelEnum::Fake(ChannelFake::new(
             SystemTime::now(),
             self.get_next_channel_id(),
-            &self.async_rt,
-            Arc::clone(&self.limiter),
-            Arc::clone(&self.stats),
             endpoint,
             self.network_params.network.protocol_info(),
         )));
@@ -997,24 +992,4 @@ pub(crate) struct ChannelsInfo {
     pub bootstrap: usize,
     pub inbound: usize,
     pub outbound: usize,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    #[ignore = "todo"]
-    async fn initiate_handshake_when_outbound_connection_added() {
-        let network = Network::new_null();
-        let socket = Arc::new(Socket::new_null());
-        let response_server = Arc::new(ResponseServerImpl::new_null());
-
-        network
-            .add(&socket, &response_server, ChannelDirection::Outbound)
-            .await
-            .unwrap();
-
-        // TODO assert that initiate handshake was called
-    }
 }

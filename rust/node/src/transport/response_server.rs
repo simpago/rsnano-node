@@ -3,16 +3,23 @@ use super::{
     Network, NetworkFilter, SynCookies,
 };
 use crate::{
-    bootstrap::BootstrapMessageVisitorFactory,
+    block_processing::BlockProcessor,
+    bootstrap::{
+        BootstrapInitiator, BulkPullAccountServer, BulkPullServer, BulkPushServer,
+        FrontierReqServer,
+    },
+    config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelMode, NetworkExt, Socket, SocketExtensions},
+    transport::{ChannelMode, NetworkExt, Socket},
+    utils::{AsyncRuntime, ThreadPool},
     NetworkParams,
 };
 use async_trait::async_trait;
 use rsnano_core::{
-    utils::{OutputListenerMt, OutputTrackerMt, NULL_ENDPOINT, TEST_ENDPOINT_1},
-    Account, KeyPair, Networks,
+    utils::{OutputListenerMt, OutputTrackerMt, NULL_ENDPOINT},
+    Account, KeyPair,
 };
+use rsnano_ledger::Ledger;
 use rsnano_messages::*;
 use std::{
     net::SocketAddrV6,
@@ -58,7 +65,7 @@ impl Default for TcpConfig {
     }
 }
 
-pub struct ResponseServerImpl {
+pub struct ResponseServer {
     channel: Mutex<Option<Arc<ChannelEnum>>>,
     pub socket: Arc<Socket>,
     stopped: AtomicBool,
@@ -73,7 +80,6 @@ pub struct ResponseServerImpl {
     unique_id: usize,
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
-    message_visitor_factory: Arc<BootstrapMessageVisitorFactory>,
     allow_bootstrap: bool,
     notify_stop: Notify,
     last_keepalive: Mutex<Option<Keepalive>>,
@@ -82,11 +88,17 @@ pub struct ResponseServerImpl {
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
     publish_filter: Arc<NetworkFilter>,
+    runtime: Arc<AsyncRuntime>,
+    ledger: Arc<Ledger>,
+    workers: Arc<dyn ThreadPool>,
+    block_processor: Arc<BlockProcessor>,
+    bootstrap_initiator: Arc<BootstrapInitiator>,
+    flags: NodeFlags,
 }
 
 static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
 
-impl ResponseServerImpl {
+impl ResponseServer {
     pub fn new(
         network: &Arc<Network>,
         inbound_queue: Arc<InboundMessageQueue>,
@@ -94,10 +106,15 @@ impl ResponseServerImpl {
         publish_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
-        message_visitor_factory: Arc<BootstrapMessageVisitorFactory>,
         allow_bootstrap: bool,
         syn_cookies: Arc<SynCookies>,
         node_id: KeyPair,
+        runtime: Arc<AsyncRuntime>,
+        ledger: Arc<Ledger>,
+        workers: Arc<dyn ThreadPool>,
+        block_processor: Arc<BlockProcessor>,
+        bootstrap_initiator: Arc<BootstrapInitiator>,
+        flags: NodeFlags,
     ) -> Self {
         let network_constants = network_params.network.clone();
         debug!(
@@ -125,39 +142,19 @@ impl ResponseServerImpl {
             ),
             network_params,
             unique_id: NEXT_UNIQUE_ID.fetch_add(1, Ordering::Relaxed),
-            stats,
+            stats: stats.clone(),
             disable_bootstrap_bulk_pull_server: false,
-            message_visitor_factory,
             allow_bootstrap,
             notify_stop: Notify::new(),
             last_keepalive: Mutex::new(None),
             initiate_handshake_listener: OutputListenerMt::new(),
             publish_filter,
-        }
-    }
-
-    pub fn new_null() -> Self {
-        Self {
-            channel: Mutex::new(None),
-            socket: Socket::new_null(),
-            stopped: AtomicBool::new(false),
-            disable_bootstrap_listener: true,
-            connections_max: 1,
-            remote_endpoint: Mutex::new(TEST_ENDPOINT_1),
-            network_params: Arc::new(NetworkParams::new(Networks::NanoDevNetwork)),
-            last_telemetry_req: Mutex::new(None),
-            unique_id: 42,
-            stats: Arc::new(Stats::default()),
-            disable_bootstrap_bulk_pull_server: true,
-            message_visitor_factory: Arc::new(BootstrapMessageVisitorFactory::new_null()),
-            allow_bootstrap: false,
-            notify_stop: Notify::new(),
-            last_keepalive: Mutex::new(None),
-            network: Arc::downgrade(&Arc::new(Network::new_null())),
-            inbound_queue: Arc::new(InboundMessageQueue::default()),
-            handshake_process: HandshakeProcess::new_null(),
-            initiate_handshake_listener: OutputListenerMt::new(),
-            publish_filter: Arc::new(NetworkFilter::default()),
+            runtime,
+            ledger,
+            workers,
+            block_processor,
+            bootstrap_initiator,
+            flags,
         }
     }
 
@@ -273,7 +270,7 @@ impl ResponseServerImpl {
     }
 }
 
-impl Drop for ResponseServerImpl {
+impl Drop for ResponseServer {
     fn drop(&mut self) {
         let remote_ep = { *self.remote_endpoint.lock().unwrap() };
         debug!("Exiting server: {}", remote_ep);
@@ -294,10 +291,11 @@ pub trait BootstrapMessageVisitor: MessageVisitor {
 #[async_trait]
 pub trait ResponseServerExt {
     fn timeout(&self);
-
     fn to_realtime_connection(&self, node_id: &Account) -> bool;
     async fn run(&self);
     async fn process_message(&self, message: DeserializedMessage) -> ProcessResult;
+    fn process_realtime(&self, message: DeserializedMessage) -> ProcessResult;
+    fn process_bootstrap(&self, message: DeserializedMessage) -> ProcessResult;
 }
 
 pub enum ProcessResult {
@@ -307,7 +305,7 @@ pub enum ProcessResult {
 }
 
 #[async_trait]
-impl ResponseServerExt for Arc<ResponseServerImpl> {
+impl ResponseServerExt for Arc<ResponseServer> {
     fn to_realtime_connection(&self, node_id: &Account) -> bool {
         if self.socket.mode() != ChannelMode::Undefined {
             return false;
@@ -500,57 +498,22 @@ impl ResponseServerExt for Arc<ResponseServerImpl> {
                 }
             }
         } else if self.is_realtime_connection() {
-            let mut realtime_visitor = self
-                .message_visitor_factory
-                .realtime_visitor(Arc::clone(self));
-            realtime_visitor.received(&message.message);
-            if realtime_visitor.process() {
-                self.queue_realtime(message);
-            }
-            return ProcessResult::Progress;
+            return self.process_realtime(message);
         }
 
         // The server will switch to bootstrap mode immediately after processing the first bootstrap message, thus no `else if`
         if self.is_bootstrap_connection() {
-            let mut bootstrap_visitor = self
-                .message_visitor_factory
-                .bootstrap_visitor(Arc::clone(self));
-            let processed = bootstrap_visitor.received(&message.message);
-
-            // Pause receiving new messages if bootstrap serving started
-            return if processed {
-                ProcessResult::Pause
-            } else {
-                ProcessResult::Progress
-            };
+            return self.process_bootstrap(message);
         }
         debug_assert!(false);
         ProcessResult::Abort
     }
-}
 
-pub struct RealtimeMessageVisitorImpl {
-    server: Arc<ResponseServerImpl>,
-    stats: Arc<Stats>,
-    process: bool,
-}
-
-impl RealtimeMessageVisitorImpl {
-    pub fn new(server: Arc<ResponseServerImpl>, stats: Arc<Stats>) -> Self {
-        Self {
-            server,
-            stats,
-            process: false,
-        }
-    }
-}
-
-impl MessageVisitor for RealtimeMessageVisitorImpl {
-    fn received(&mut self, message: &Message) {
-        match message {
+    fn process_realtime(&self, message: DeserializedMessage) -> ProcessResult {
+        let process = match &message.message {
             Message::Keepalive(keepalive) => {
-                self.process = true;
-                self.server.set_last_keepalive(Some(keepalive.clone()));
+                self.set_last_keepalive(Some(keepalive.clone()));
+                true
             }
             Message::Publish(_)
             | Message::AscPullAck(_)
@@ -558,47 +521,111 @@ impl MessageVisitor for RealtimeMessageVisitorImpl {
             | Message::ConfirmAck(_)
             | Message::ConfirmReq(_)
             | Message::FrontierReq(_)
-            | Message::TelemetryAck(_) => self.process = true,
+            | Message::TelemetryAck(_) => true,
             Message::TelemetryReq => {
                 // Only handle telemetry requests if they are outside of the cooldown period
-                if self.server.is_outside_cooldown_period() {
-                    self.server.set_last_telemetry_req();
-                    self.process = true;
+                if self.is_outside_cooldown_period() {
+                    self.set_last_telemetry_req();
+                    true
                 } else {
                     self.stats.inc_dir(
                         StatType::Telemetry,
                         DetailType::RequestWithinProtectionCacheZone,
                         Direction::In,
                     );
+                    false
                 }
             }
-            _ => {}
+            _ => false,
+        };
+
+        if process {
+            self.queue_realtime(message);
         }
-    }
-}
 
-impl RealtimeMessageVisitor for RealtimeMessageVisitorImpl {
-    fn process(&self) -> bool {
-        self.process
+        ProcessResult::Progress
     }
 
-    fn as_message_visitor(&mut self) -> &mut dyn MessageVisitor {
-        self
-    }
-}
+    fn process_bootstrap(&self, message: DeserializedMessage) -> ProcessResult {
+        match &message.message {
+            Message::BulkPull(payload) => {
+                if self.flags.disable_bootstrap_bulk_pull_server {
+                    return ProcessResult::Progress;
+                }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+                let payload = payload.clone();
+                let connection = Arc::clone(self);
+                let ledger = Arc::clone(&self.ledger);
+                let thread_pool2 = self.workers.clone();
+                let runtime = self.runtime.clone();
+                self.workers.push_task(Box::new(move || {
+                    // TODO from original code: Add completion callback to bulk pull server
+                    // TODO from original code: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
+                    let mut bulk_pull_server =
+                        BulkPullServer::new(payload, connection, ledger, thread_pool2, runtime);
+                    bulk_pull_server.send_next();
+                }));
 
-    #[tokio::test]
-    #[ignore = "todo"]
-    async fn can_track_handshake_initiation() {
-        let response_server = ResponseServerImpl::new_null();
-        let handshake_tracker = response_server.track_handshake_initiation();
+                ProcessResult::Pause
+            }
+            Message::BulkPullAccount(payload) => {
+                if self.flags.disable_bootstrap_bulk_pull_server {
+                    return ProcessResult::Progress;
+                }
+                let payload = payload.clone();
+                let connection = Arc::clone(self);
+                let ledger = self.ledger.clone();
+                let thread_pool2 = self.workers.clone();
+                let runtime = self.runtime.clone();
+                self.workers.push_task(Box::new(move || {
+                    // original code TODO: Add completion callback to bulk pull server
+                    // original code TODO: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
+                    let bulk_pull_account_server = BulkPullAccountServer::new(
+                        connection,
+                        payload,
+                        thread_pool2,
+                        ledger,
+                        runtime,
+                    );
+                    bulk_pull_account_server.send_frontier();
+                }));
 
-        response_server.initiate_handshake().await;
+                ProcessResult::Pause
+            }
+            Message::BulkPush => {
+                // original code TODO: Add completion callback to bulk pull server
+                let bulk_push_server = BulkPushServer::new(
+                    self.runtime.clone(),
+                    Arc::clone(self),
+                    self.workers.clone(),
+                    self.block_processor.clone(),
+                    self.bootstrap_initiator.clone(),
+                    self.stats.clone(),
+                    self.network_params.network.work.clone(),
+                );
 
-        assert_eq!(handshake_tracker.output().len(), 1);
+                self.workers.push_task(Box::new(move || {
+                    bulk_push_server.throttled_receive();
+                }));
+
+                ProcessResult::Pause
+            }
+            Message::FrontierReq(payload) => {
+                // original code TODO: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
+                let response = FrontierReqServer::new(
+                    Arc::clone(self),
+                    payload.clone(),
+                    self.workers.clone(),
+                    self.ledger.clone(),
+                    self.runtime.clone(),
+                );
+                self.workers.push_task(Box::new(move || {
+                    response.send_next();
+                }));
+
+                ProcessResult::Pause
+            }
+            _ => ProcessResult::Progress,
+        }
     }
 }

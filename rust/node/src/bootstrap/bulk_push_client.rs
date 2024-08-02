@@ -1,5 +1,8 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient};
-use crate::transport::{BufferDropPolicy, TrafficType};
+use crate::{
+    transport::TrafficType,
+    utils::{AsyncRuntime, ThreadPool},
+};
 use rsnano_core::{utils::MemoryStream, BlockEnum, BlockHash, BlockType};
 use rsnano_ledger::Ledger;
 use rsnano_messages::Message;
@@ -15,6 +18,8 @@ pub struct BulkPushClient {
     data: Mutex<BulkPushClientData>,
     condition: Condvar,
     ledger: Arc<Ledger>,
+    runtime: Arc<AsyncRuntime>,
+    workers: Arc<dyn ThreadPool>,
 }
 
 struct BulkPushClientData {
@@ -23,7 +28,12 @@ struct BulkPushClientData {
 }
 
 impl BulkPushClient {
-    pub fn new(connection: Arc<BootstrapClient>, ledger: Arc<Ledger>) -> Self {
+    pub fn new(
+        connection: Arc<BootstrapClient>,
+        ledger: Arc<Ledger>,
+        runtime: Arc<AsyncRuntime>,
+        workers: Arc<dyn ThreadPool>,
+    ) -> Self {
         Self {
             attempt: None,
             connection,
@@ -33,6 +43,8 @@ impl BulkPushClient {
             }),
             condition: Condvar::new(),
             ledger,
+            runtime,
+            workers,
         }
     }
 
@@ -76,32 +88,39 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
 
         let message = Message::BulkPush;
         let this_l = Arc::clone(self);
-        self.connection.send_obsolete(
-            &message,
-            Some(Box::new(move |ec, _size| {
-                if ec.is_ok() {
-                    this_l.push();
-                } else {
-                    debug!("Unable to send bulk push request: {:?}", ec);
+
+        self.runtime.tokio.spawn(async move {
+            match this_l
+                .connection
+                .get_channel()
+                .send(&message, TrafficType::Generic)
+                .await
+            {
+                Ok(()) => {
+                    let workers = this_l.workers.clone();
+                    workers.push_task(Box::new(move || {
+                        this_l.push();
+                    }));
+                }
+                Err(e) => {
+                    debug!("Unable to send bulk push request: {:?}", e);
                     this_l.set_result(true);
                 }
-            })),
-            BufferDropPolicy::NoLimiterDrop,
-            TrafficType::Generic,
-        );
+            }
+        });
     }
 
     fn send_finished(&self) {
         let this_l = Arc::clone(self);
         let buffer = Arc::new(vec![BlockType::NotABlock as u8]);
-        self.connection.send_buffer(
-            &buffer,
-            Some(Box::new(move |_ec, _size| {
-                this_l.set_result(false);
-            })),
-            BufferDropPolicy::Limiter,
-            TrafficType::Generic,
-        )
+        self.runtime.tokio.spawn(async move {
+            let _ = this_l
+                .connection
+                .get_channel()
+                .send_buffer(&buffer, TrafficType::Generic)
+                .await;
+            this_l.set_result(false);
+        });
     }
 
     fn push(&self) {
@@ -153,21 +172,23 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
         let mut stream = MemoryStream::new();
         block.serialize(&mut stream);
         let buffer = Arc::new(stream.to_vec());
-        let this_w = Arc::downgrade(self);
-        self.connection.send_buffer(
-            &buffer,
-            Some(Box::new(move |ec, _size| {
-                let Some(this_l) = this_w.upgrade() else {
-                    return;
-                };
-                if ec.is_ok() {
-                    this_l.push();
-                } else {
-                    debug!("Error sending block during bulk push: {:?}", ec);
+        let this_l = Arc::clone(self);
+        let runtime = self.runtime.clone();
+        runtime.tokio.spawn(async move {
+            match this_l
+                .connection
+                .get_channel()
+                .send_buffer(&buffer, TrafficType::Generic)
+                .await
+            {
+                Ok(()) => {
+                    let workers = this_l.workers.clone();
+                    workers.push_task(Box::new(move || this_l.push()));
                 }
-            })),
-            BufferDropPolicy::Limiter,
-            TrafficType::Generic,
-        )
+                Err(e) => {
+                    debug!("Error sending block during bulk push: {:?}", e);
+                }
+            }
+        });
     }
 }

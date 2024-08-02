@@ -1,5 +1,5 @@
 use crate::{
-    transport::{ResponseServerExt, ResponseServerImpl, SocketExtensions, TrafficType},
+    transport::{ResponseServer, ResponseServerExt, TrafficType},
     utils::{AsyncRuntime, ThreadPool},
 };
 use rsnano_core::{utils::MemoryStream, Account, BlockEnum, BlockHash, BlockType};
@@ -30,7 +30,7 @@ pub struct BulkPullServer {
 impl BulkPullServer {
     pub fn new(
         request: BulkPull,
-        connection: Arc<ResponseServerImpl>,
+        connection: Arc<ResponseServer>,
         ledger: Arc<Ledger>,
         thread_pool: Arc<dyn ThreadPool>,
         runtime: Arc<AsyncRuntime>,
@@ -101,7 +101,7 @@ impl BulkPullServer {
 
 struct BulkPullServerImpl {
     ledger: Arc<Ledger>,
-    connection: Arc<ResponseServerImpl>,
+    connection: Arc<ResponseServer>,
     runtime: Arc<AsyncRuntime>,
     thread_pool: Weak<dyn ThreadPool>,
     include_start: bool,

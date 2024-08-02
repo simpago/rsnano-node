@@ -8,7 +8,7 @@ use crate::{
     stats::{DetailType, Direction, SocketStats, StatType, Stats},
     transport::{
         ChannelDirection, ChannelEnum, ChannelTcp, Network, OutboundBandwidthLimiter,
-        SocketBuilder, SocketExtensions, TcpStreamFactory,
+        SocketBuilder, TcpStreamFactory,
     },
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
@@ -565,7 +565,6 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 SystemTime::now(),
                 Arc::clone(&self_l.stats),
                 Arc::clone(&self_l.outbound_limiter),
-                &self_l.runtime,
                 channel_id,
                 protocol,
             ))));

@@ -1,5 +1,5 @@
 use crate::{
-    transport::{ResponseServerExt, ResponseServerImpl, SocketExtensions, TrafficType},
+    transport::{ResponseServer, ResponseServerExt, TrafficType},
     utils::{AsyncRuntime, ThreadPool},
 };
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey};
@@ -12,7 +12,7 @@ use std::{
 use tracing::{debug, trace};
 
 struct BulkPullAccountServerImpl {
-    connection: Arc<ResponseServerImpl>,
+    connection: Arc<ResponseServer>,
     request: BulkPullAccount,
     thread_pool: Weak<dyn ThreadPool>,
     ledger: Arc<Ledger>,
@@ -227,7 +227,7 @@ impl BulkPullAccountServerImpl {
 }
 
 async fn send_finished(
-    connection: &Arc<ResponseServerImpl>,
+    connection: &Arc<ResponseServer>,
     pending_address_only: bool,
     pending_include_address: bool,
 ) {
@@ -270,7 +270,7 @@ pub struct BulkPullAccountServer {
 
 impl BulkPullAccountServer {
     pub fn new(
-        connection: Arc<ResponseServerImpl>,
+        connection: Arc<ResponseServer>,
         request: BulkPullAccount,
         thread_pool: Arc<dyn ThreadPool>,
         ledger: Arc<Ledger>,

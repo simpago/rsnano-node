@@ -9,7 +9,7 @@ use rsnano_messages::FrontierReq;
 use tracing::{debug, trace};
 
 use crate::{
-    transport::{ResponseServerExt, ResponseServerImpl, SocketExtensions, TrafficType},
+    transport::{ResponseServer, ResponseServerExt, TrafficType},
     utils::{AsyncRuntime, ThreadPool},
 };
 
@@ -20,7 +20,7 @@ pub struct FrontierReqServer {
 
 impl FrontierReqServer {
     pub fn new(
-        connection: Arc<ResponseServerImpl>,
+        connection: Arc<ResponseServer>,
         request: FrontierReq,
         thread_pool: Arc<dyn ThreadPool>,
         ledger: Arc<Ledger>,
@@ -58,7 +58,7 @@ impl FrontierReqServer {
 }
 
 struct FrontierReqServerImpl {
-    connection: Arc<ResponseServerImpl>,
+    connection: Arc<ResponseServer>,
     current: Account,
     frontier: BlockHash,
     request: FrontierReq,
@@ -107,7 +107,7 @@ impl FrontierReqServerImpl {
         }
     }
 
-    async fn send_finished(connection: Arc<ResponseServerImpl>) {
+    async fn send_finished(connection: Arc<ResponseServer>) {
         let mut send_buffer = Vec::with_capacity(64);
         send_buffer.extend_from_slice(Account::zero().as_bytes());
         send_buffer.extend_from_slice(BlockHash::zero().as_bytes());

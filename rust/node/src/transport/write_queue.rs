@@ -1,5 +1,4 @@
 use super::TrafficType;
-use crate::utils::ErrorCode;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self};
 
@@ -27,28 +26,20 @@ impl WriteQueue {
         buffer: Arc<Vec<u8>>,
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
-        let entry = Entry {
-            buffer,
-            callback: None,
-        };
+        let entry = Entry { buffer };
         self.queue_for(traffic_type)
             .send(entry)
             .await
             .map_err(|_| anyhow!("queue closed"))
     }
 
-    /// returns: inserted | write_error | callback
-    pub fn try_insert(
-        &self,
-        buffer: Arc<Vec<u8>>,
-        callback: Option<WriteCallback>,
-        traffic_type: TrafficType,
-    ) -> (bool, bool, Option<WriteCallback>) {
-        let entry = Entry { buffer, callback };
+    /// returns: inserted | write_error
+    pub fn try_insert(&self, buffer: Arc<Vec<u8>>, traffic_type: TrafficType) -> (bool, bool) {
+        let entry = Entry { buffer };
         match self.queue_for(traffic_type).try_send(entry) {
-            Ok(()) => (true, false, None),
-            Err(mpsc::error::TrySendError::Full(e)) => (false, false, e.callback),
-            Err(mpsc::error::TrySendError::Closed(e)) => (false, true, e.callback),
+            Ok(()) => (true, false),
+            Err(mpsc::error::TrySendError::Full(_)) => (false, false),
+            Err(mpsc::error::TrySendError::Closed(_)) => (false, true),
         }
     }
 
@@ -91,9 +82,6 @@ impl WriteQueueReceiver {
     }
 }
 
-pub type WriteCallback = Box<dyn FnOnce(ErrorCode, usize) + Send>;
-
 pub(crate) struct Entry {
     pub buffer: Arc<Vec<u8>>,
-    pub callback: Option<WriteCallback>,
 }
