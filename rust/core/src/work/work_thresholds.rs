@@ -18,10 +18,10 @@ pub struct WorkThresholds {
 
     // Automatically calculated. The entry threshold is the minimum of all thresholds and defines the required work to enter the node, but does not guarantee a block is processed
     pub entry: u64,
-    pub difficulty: DifficultyV1,
+    pub difficulty: Box<dyn Difficulty>,
 }
 
-/*impl Clone for WorkThresholds {
+impl Clone for WorkThresholds {
     fn clone(&self) -> Self {
         Self {
             epoch_1: self.epoch_1,
@@ -32,7 +32,7 @@ pub struct WorkThresholds {
             difficulty: self.difficulty.clone(),
         }
     }
-}*/
+}
 
 impl PartialEq for WorkThresholds {
     fn eq(&self, other: &Self) -> bool {
@@ -140,7 +140,7 @@ impl WorkThresholds {
             epoch_2_receive,
             base: max(max(epoch_1, epoch_2), epoch_2_receive),
             entry: min(min(epoch_1, epoch_2), epoch_2_receive),
-            difficulty: DifficultyV1 {},
+            difficulty,
         }
     }
 

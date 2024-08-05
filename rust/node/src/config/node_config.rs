@@ -116,7 +116,11 @@ pub struct NodeConfig {
 impl Default for NodeConfig {
     fn default() -> Self {
         let network_params = &NetworkParams::default();
-        Self::new(None, network_params, get_cpu_count())
+        Self::new(
+            Some(network_params.network.default_node_port),
+            network_params,
+            get_cpu_count(),
+        )
     }
 }
 
@@ -378,15 +382,6 @@ impl NodeConfig {
     pub fn random_representative(&self) -> Account {
         let i = thread_rng().gen_range(0..self.preconfigured_representatives.len());
         return self.preconfigured_representatives[i];
-    }
-}
-
-fn serialize_frontiers_confirmation(mode: FrontiersConfirmationMode) -> &'static str {
-    match mode {
-        FrontiersConfirmationMode::Always => "always",
-        FrontiersConfirmationMode::Automatic => "auto",
-        FrontiersConfirmationMode::Disabled => "disabled",
-        FrontiersConfirmationMode::Invalid => "auto",
     }
 }
 

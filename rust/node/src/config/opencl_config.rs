@@ -1,6 +1,3 @@
-use anyhow::Result;
-use rsnano_core::utils::TomlWriter;
-
 #[derive(Debug, PartialEq)]
 pub struct OpenclConfig {
     pub platform: u32,
