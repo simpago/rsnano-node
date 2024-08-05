@@ -1,7 +1,6 @@
 use super::{DetailType, Direction, StatType, Stats};
 use crate::transport::{ChannelDirection, SocketObserver};
-use std::{net::SocketAddrV6, sync::Arc};
-use tracing::debug;
+use std::sync::Arc;
 
 pub struct SocketStats {
     stats: Arc<Stats>,
@@ -14,60 +13,6 @@ impl SocketStats {
 }
 
 impl SocketObserver for SocketStats {
-    fn disconnect_due_to_timeout(&self, endpoint: SocketAddrV6) {
-        debug!("Closing socket due to timeout ({})", endpoint);
-    }
-
-    fn connect_error(&self) {
-        self.stats
-            .inc_dir(StatType::Tcp, DetailType::TcpConnectError, Direction::In);
-    }
-
-    fn read_error(&self) {
-        self.stats
-            .inc_dir(StatType::Tcp, DetailType::TcpReadError, Direction::In);
-    }
-
-    fn read_successful(&self, len: usize) {
-        self.stats.add_dir(
-            StatType::TrafficTcp,
-            DetailType::All,
-            Direction::In,
-            len as u64,
-        );
-    }
-
-    fn write_error(&self) {
-        self.stats
-            .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-    }
-
-    fn write_successful(&self, len: usize) {
-        self.stats.add_dir_aggregate(
-            StatType::TrafficTcp,
-            DetailType::All,
-            Direction::Out,
-            len as u64,
-        );
-    }
-
-    fn silent_connection_dropped(&self) {
-        self.stats.inc_dir(
-            StatType::Tcp,
-            DetailType::TcpSilentConnectionDrop,
-            Direction::In,
-        );
-    }
-
     fn inactive_connection_dropped(&self, direction: ChannelDirection) {
-        self.stats.inc_dir(
-            StatType::Tcp,
-            DetailType::TcpIoTimeoutDrop,
-            if direction == ChannelDirection::Inbound {
-                Direction::In
-            } else {
-                Direction::Out
-            },
-        );
     }
 }

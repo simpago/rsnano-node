@@ -6,8 +6,8 @@ use super::{
 };
 use crate::{
     config::{NetworkConstants, NodeFlags},
-    stats::{DetailType, Direction, SocketStats, StatType, Stats},
-    transport::{Channel, SocketBuilder},
+    stats::{DetailType, Direction, StatType, Stats},
+    transport::Channel,
     utils::{
         into_ipv6_socket_address, ipv4_address_or_ipv6_subnet, is_ipv4_or_v4_mapped_address,
         map_address_to_subnetwork, reserved_address,
@@ -199,20 +199,6 @@ impl Network {
             direction.into(),
         );
 
-        let socket_stats = Arc::new(SocketStats::new(Arc::clone(&self.stats)));
-        let socket = SocketBuilder::new(direction)
-            .silent_connection_tolerance_time(Duration::from_secs(
-                self.network_params
-                    .network
-                    .silent_connection_tolerance_time_s as u64,
-            ))
-            .idle_timeout(self.network_params.network.idle_timeout)
-            .observer(socket_stats)
-            .finish(stream)
-            .await;
-
-        socket.set_timeout(self.network_params.network.idle_timeout);
-
         if direction == ChannelDirection::Outbound {
             self.stats.inc_dir(
                 StatType::TcpListener,
@@ -221,15 +207,16 @@ impl Network {
             );
         }
 
-        let channel = ChannelTcp::new(
-            socket.clone(),
-            SystemTime::now(),
+        let channel = ChannelTcp::create(
+            self.get_next_channel_id(),
+            stream,
+            direction,
+            self.network_params.network.protocol_info(),
             self.stats.clone(),
             self.limiter.clone(),
-            self.get_next_channel_id(),
-            self.network_params.network.protocol_info(),
-        );
-        let channel = Arc::new(ChannelEnum::Tcp(Arc::new(channel)));
+        )
+        .await;
+        let channel = Arc::new(ChannelEnum::Tcp(channel));
         self.state.lock().unwrap().channels.insert(channel.clone());
 
         debug!("Accepted connection: {} ({:?})", remote_endpoint, direction);

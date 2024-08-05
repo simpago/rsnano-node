@@ -1,6 +1,3 @@
-use std::{sync::Arc, time::Duration};
-
-use num::iter::range_step_from;
 use rsnano_core::{Account, Amount, BlockEnum, StateBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::ConfirmReq;
@@ -9,11 +6,10 @@ use rsnano_node::{
     consensus::{ConfirmationSolicitor, Election, ElectionBehavior, VoteInfo},
     representatives::PeeredRep,
     stats::{DetailType, Direction, StatType},
-    transport::{ChannelEnum, ChannelId},
+    transport::ChannelId,
     DEV_NETWORK_PARAMS,
 };
-
-use crate::tests::helpers::assert_timely_eq;
+use std::sync::Arc;
 
 use super::helpers::{establish_tcp, System};
 

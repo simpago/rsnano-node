@@ -9,10 +9,8 @@ use rsnano_messages::BulkPull;
 use rsnano_node::{
     bootstrap::BulkPullServer,
     node::Node,
-    stats::SocketStats,
     transport::{
         ChannelDirection, ChannelEnum, ChannelId, ChannelTcp, LatestKeepalives, ResponseServer,
-        SocketBuilder,
     },
 };
 use rsnano_node::{
@@ -22,11 +20,8 @@ use rsnano_node::{
     transport::TcpStream,
     wallets::WalletsExt,
 };
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::{
-    sync::{Arc, Mutex},
-    time::SystemTime,
-};
 
 mod bootstrap_processor {
     use super::*;
@@ -1299,22 +1294,16 @@ mod bulk_pull_account {
 }
 
 fn create_response_server(node: &Node) -> Arc<ResponseServer> {
-    let socket = node.async_rt.tokio.block_on(async {
-        let socket_stats = Arc::new(SocketStats::new(node.stats.clone()));
-        SocketBuilder::new(ChannelDirection::Inbound)
-            .observer(socket_stats)
-            .finish(TcpStream::new_null())
-            .await
-    });
-
-    let channel = Arc::new(ChannelEnum::Tcp(Arc::new(ChannelTcp::new(
-        socket.clone(),
-        SystemTime::now(),
+    let channel = node.async_rt.tokio.block_on(ChannelTcp::create(
+        ChannelId::from(1),
+        TcpStream::new_null(),
+        ChannelDirection::Inbound,
+        node.network_params.network.protocol_info(),
         node.stats.clone(),
         node.outbound_limiter.clone(),
-        ChannelId::from(1),
-        node.network_params.network.protocol_info(),
-    ))));
+    ));
+
+    let channel = Arc::new(ChannelEnum::Tcp(channel));
 
     Arc::new(ResponseServer::new(
         &node.network,

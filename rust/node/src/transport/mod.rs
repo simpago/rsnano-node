@@ -21,7 +21,6 @@ mod peer_exclusion;
 mod realtime_message_handler;
 mod response_server;
 mod response_server_factory;
-mod socket;
 mod syn_cookies;
 mod tcp_listener;
 mod tcp_stream;
@@ -56,7 +55,6 @@ pub use response_server::*;
 pub(crate) use response_server_factory::*;
 use rsnano_core::Account;
 use rsnano_messages::Message;
-pub use socket::*;
 use std::{
     fmt::{Debug, Display},
     net::{Ipv6Addr, SocketAddrV6},
@@ -70,6 +68,8 @@ pub use tcp_stream::TcpStream;
 pub use tcp_stream_factory::TcpStreamFactory;
 use token_bucket::TokenBucket;
 pub use tokio_socket_facade::*;
+
+use crate::stats;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 pub struct ChannelId(usize);
@@ -105,6 +105,54 @@ pub enum TransportType {
     Tcp = 1,
     Loopback = 2,
     Fake = 3,
+}
+
+/// Policy to affect at which stage a buffer can be dropped
+#[derive(PartialEq, Eq, FromPrimitive, Debug, Clone, Copy)]
+pub enum BufferDropPolicy {
+    /// Can be dropped by bandwidth limiter (default)
+    Limiter,
+    /// Should not be dropped by bandwidth limiter
+    NoLimiterDrop,
+    /// Should not be dropped by bandwidth limiter or socket write queue limiter
+    NoSocketDrop,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, FromPrimitive, Debug)]
+pub enum ChannelDirection {
+    /// Socket was created by accepting an incoming connection
+    Inbound,
+    /// Socket was created by initiating an outgoing connection
+    Outbound,
+}
+
+impl From<ChannelDirection> for stats::Direction {
+    fn from(value: ChannelDirection) -> Self {
+        match value {
+            ChannelDirection::Inbound => stats::Direction::In,
+            ChannelDirection::Outbound => stats::Direction::Out,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]
+pub enum ChannelMode {
+    /// No messages have been exchanged yet, so the mode is undefined
+    Undefined,
+    /// Only serve bootstrap requests
+    Bootstrap,
+    /// serve realtime traffic (votes, new blocks,...)
+    Realtime,
+}
+
+impl ChannelMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ChannelMode::Undefined => "undefined",
+            ChannelMode::Bootstrap => "bootstrap",
+            ChannelMode::Realtime => "realtime",
+        }
+    }
 }
 
 #[async_trait]

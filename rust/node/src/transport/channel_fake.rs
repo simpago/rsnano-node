@@ -9,7 +9,7 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Mutex,
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };

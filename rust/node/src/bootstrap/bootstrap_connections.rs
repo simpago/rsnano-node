@@ -5,10 +5,10 @@ use super::{
 };
 use crate::{
     block_processing::BlockProcessor,
-    stats::{DetailType, Direction, SocketStats, StatType, Stats},
+    stats::{DetailType, Direction, StatType, Stats},
     transport::{
         ChannelDirection, ChannelEnum, ChannelTcp, Network, OutboundBandwidthLimiter,
-        SocketBuilder, TcpStreamFactory,
+        TcpStreamFactory,
     },
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
@@ -23,7 +23,7 @@ use std::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Condvar, Mutex, MutexGuard, Weak,
     },
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tracing::debug;
 
@@ -526,7 +526,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
 
         self.runtime.tokio.spawn(async move {
             let tcp_stream_factory = Arc::new(TcpStreamFactory::new());
-            let stream = match tokio::time::timeout(
+            let tcp_stream = match tokio::time::timeout(
                 self_l.config.tcp_io_timeout,
                 tcp_stream_factory.connect(endpoint),
             )
@@ -550,25 +550,20 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
 
             debug!("Connection established to: {}", endpoint);
 
-            let socket = SocketBuilder::new(ChannelDirection::Outbound)
-                .default_timeout(self_l.config.tcp_io_timeout)
-                .silent_connection_tolerance_time(self_l.config.silent_connection_tolerance_time)
-                .idle_timeout(self_l.config.idle_timeout)
-                .observer(Arc::new(SocketStats::new(self_l.stats.clone())))
-                .finish(stream)
-                .await;
-
             let channel_id = self_l.network.get_next_channel_id();
-
             let protocol = self_l.config.protocol;
-            let channel = Arc::new(ChannelEnum::Tcp(Arc::new(ChannelTcp::new(
-                socket,
-                SystemTime::now(),
-                self_l.stats.clone(),
-                self_l.outbound_limiter.clone(),
-                channel_id,
-                protocol,
-            ))));
+
+            let channel = Arc::new(ChannelEnum::Tcp(
+                ChannelTcp::create(
+                    channel_id,
+                    tcp_stream,
+                    ChannelDirection::Outbound,
+                    protocol,
+                    self_l.stats.clone(),
+                    self_l.outbound_limiter.clone(),
+                )
+                .await,
+            ));
 
             let client = Arc::new(BootstrapClient::new(&self_l, channel));
             self_l.pool_connection(client, true, push_front);
