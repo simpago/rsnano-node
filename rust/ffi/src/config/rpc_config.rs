@@ -1,13 +1,8 @@
 use super::NetworkConstantsDto;
+use crate::utils::FfiToml;
 use rsnano_core::utils::get_cpu_count;
-use rsnano_node::config::{
-    NetworkConstants, RpcConfig, RpcLoggingConfig, RpcProcessConfig, RpcToml,
-};
-use std::{
-    convert::TryFrom,
-    ffi::{c_char, CString},
-    ptr::copy_nonoverlapping,
-};
+use rsnano_node::config::{NetworkConstants, RpcConfig, RpcLoggingConfig, RpcProcessConfig};
+use std::{convert::TryFrom, ffi::c_void};
 
 #[repr(C)]
 pub struct RpcConfigDto {
@@ -80,37 +75,16 @@ fn fill_rpc_config_dto(dto: &mut RpcConfigDto, cfg: &RpcConfig) {
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_rpc_config_serialize_toml(
-    dto: &RpcConfigDto,
-    buffer: *mut c_char,
-    buffer_len: usize,
-) -> i32 {
+pub extern "C" fn rsn_rpc_config_serialize_toml(dto: &RpcConfigDto, toml: *mut c_void) -> i32 {
     let cfg = match RpcConfig::try_from(dto) {
-        Ok(d) => d,
-        Err(_) => return -1,
-    };
-
-    let toml: RpcToml = (&cfg).into();
-    let toml_str = match toml::to_string(&toml) {
-        Ok(t) => t,
-        Err(_) => return -1,
-    };
-
-    let c_string = match CString::new(toml_str) {
         Ok(c) => c,
         Err(_) => return -1,
     };
-
-    let toml_len = c_string.as_bytes_with_nul().len();
-
-    if toml_len > buffer_len {
-        return -1;
+    let mut toml = FfiToml::new(toml);
+    match cfg.serialize_toml(&mut toml) {
+        Ok(_) => 0,
+        Err(_) => -1,
     }
-
-    unsafe {
-        copy_nonoverlapping(c_string.as_ptr(), buffer, toml_len);
-    }
-    0
 }
 
 impl TryFrom<&RpcConfigDto> for RpcConfig {

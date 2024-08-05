@@ -31,16 +31,6 @@ impl From<&DaemonToml> for DaemonConfig {
     }
 }
 
-impl From<&DaemonToml> for DaemonConfig {
-    fn from(toml: &DaemonToml) -> Self {
-        let mut config = DaemonConfig::default();
-        if let Some(node_toml) = &toml.node {
-            config.node = node_toml.into();
-        }
-        config
-    }
-}
-
 impl From<&DaemonConfig> for DaemonToml {
     fn from(config: &DaemonConfig) -> Self {
         Self {

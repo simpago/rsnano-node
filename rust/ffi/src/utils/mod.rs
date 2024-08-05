@@ -22,6 +22,7 @@ mod toml;
 use crate::{transport::EndpointDto, VoidPointerCallback};
 pub use container_info::*;
 pub use thread_pool::ThreadPoolHandle;
+pub use toml::FfiToml;
 
 pub struct ContextWrapper {
     context: *mut c_void,

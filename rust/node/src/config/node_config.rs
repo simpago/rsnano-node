@@ -31,7 +31,7 @@ pub enum FrontiersConfirmationMode {
     Invalid,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct NodeConfig {
     pub peering_port: Option<u16>,
     pub optimistic_scheduler: OptimisticSchedulerConfig,
