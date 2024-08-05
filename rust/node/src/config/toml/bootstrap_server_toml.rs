@@ -3,19 +3,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct BootstrapServerToml {
+    pub batch_size: Option<usize>,
     pub max_queue: Option<usize>,
     pub threads: Option<usize>,
-    pub batch_size: Option<usize>,
 }
 
 impl Default for BootstrapServerToml {
     fn default() -> Self {
         let config = BootstrapServerConfig::default();
-        Self {
-            max_queue: Some(config.max_queue),
-            threads: Some(config.threads),
-            batch_size: Some(config.batch_size),
-        }
+        (&config).into()
     }
 }
 

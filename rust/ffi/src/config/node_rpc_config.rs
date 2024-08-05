@@ -13,6 +13,7 @@ pub struct NodeRpcConfigDto {
 #[no_mangle]
 pub unsafe extern "C" fn rsn_node_rpc_config_create(dto: *mut NodeRpcConfigDto) -> i32 {
     let config = NodeRpcConfig::new();
+
     let dto = &mut (*dto);
     fill_node_rpc_config_dto(dto, &config);
     0

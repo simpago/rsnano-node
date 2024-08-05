@@ -33,7 +33,7 @@ pub fn fill_websocket_config_dto(dto: &mut WebsocketConfigDto, websocket: &Webso
     dto.address_len = bytes.len();
 }
 
-impl From<&WebsocketConfigDto> for WebsocketConfig {
+impl From<&WebsocketConfigDto> for rsnano_node::websocket::WebsocketConfig {
     fn from(dto: &WebsocketConfigDto) -> Self {
         Self {
             enabled: dto.enabled,

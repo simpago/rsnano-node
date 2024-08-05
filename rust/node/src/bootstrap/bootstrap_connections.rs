@@ -548,14 +548,15 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 }
             };
 
-            let socket = SocketBuilder::new(ChannelDirection::Outbound, self_l.runtime.clone())
+            debug!("Connection established to: {}", endpoint);
+
+            let socket = SocketBuilder::new(ChannelDirection::Outbound)
                 .default_timeout(self_l.config.tcp_io_timeout)
                 .silent_connection_tolerance_time(self_l.config.silent_connection_tolerance_time)
                 .idle_timeout(self_l.config.idle_timeout)
                 .observer(Arc::new(SocketStats::new(self_l.stats.clone())))
-                .finish(stream);
-
-            debug!("Connection established to: {}", endpoint);
+                .finish(stream)
+                .await;
 
             let channel_id = self_l.network.get_next_channel_id();
 
@@ -563,8 +564,8 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             let channel = Arc::new(ChannelEnum::Tcp(Arc::new(ChannelTcp::new(
                 socket,
                 SystemTime::now(),
-                Arc::clone(&self_l.stats),
-                Arc::clone(&self_l.outbound_limiter),
+                self_l.stats.clone(),
+                self_l.outbound_limiter.clone(),
                 channel_id,
                 protocol,
             ))));

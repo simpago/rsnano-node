@@ -1,67 +1,71 @@
-use crate::{
-    IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers, IpcConfigTcpSocket, IpcConfigTransport,
-};
+use crate::{IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers, IpcConfigTcpSocket};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct IpcToml {
-    pub transport_domain: Option<IpcConfigDomainSocketToml>,
-    pub transport_tcp: Option<IpcConfigTcpSocketToml>,
-    pub flatbuffers: Option<IpcConfigFlatbuffersToml>,
+    pub flatbuffers: Option<FlatbuffersToml>,
+    pub local: Option<LocalToml>,
+    pub tcp: Option<TcpToml>,
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct IpcConfigDomainSocketToml {
-    pub transport: Option<IpcConfigTransportToml>,
+impl Default for IpcToml {
+    fn default() -> Self {
+        let config = IpcConfig::default();
+        (&config).into()
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct LocalToml {
+    pub allow_unsafe: Option<bool>,
+    pub enable: Option<bool>,
+    pub io_timeout: Option<usize>,
+    pub io_threads: Option<i64>,
     pub path: Option<PathBuf>,
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct IpcConfigTransportToml {
-    pub enabled: Option<bool>,
-    pub io_timeout: Option<usize>,
+impl Default for LocalToml {
+    fn default() -> Self {
+        let config = IpcConfigDomainSocket::default();
+        (&config).into()
+    }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct IpcConfigFlatbuffersToml {
+#[derive(Clone, Deserialize, Serialize)]
+pub struct FlatbuffersToml {
     pub skip_unexpected_fields_in_json: Option<bool>,
     pub verify_buffers: Option<bool>,
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct IpcConfigTcpSocketToml {
-    pub transport: Option<IpcConfigTransportToml>,
+impl Default for FlatbuffersToml {
+    fn default() -> Self {
+        let config = IpcConfigFlatbuffers::default();
+        (&config).into()
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct TcpToml {
+    pub enable: Option<bool>,
+    pub io_timeout: Option<usize>,
+    pub io_threads: Option<i64>,
     pub port: Option<u16>,
+}
+
+impl Default for TcpToml {
+    fn default() -> Self {
+        let config = IpcConfigTcpSocket::default();
+        (&config).into()
+    }
 }
 
 impl From<&IpcConfig> for IpcToml {
     fn from(config: &IpcConfig) -> Self {
         Self {
-            transport_domain: Some(IpcConfigDomainSocketToml {
-                transport: Some(IpcConfigTransportToml {
-                    enabled: Some(config.transport_domain.transport.enabled),
-                    //allow_unsafe: Some(config.transport_domain.transport.allow_unsafe),
-                    io_timeout: Some(config.transport_domain.transport.io_timeout),
-                    //io_threads: Some(config.transport_domain.transport.io_threads),
-                }),
-                path: Some(config.transport_domain.path.clone()),
-            }),
-            transport_tcp: Some(IpcConfigTcpSocketToml {
-                transport: Some(IpcConfigTransportToml {
-                    enabled: Some(config.transport_tcp.transport.enabled),
-                    //allow_unsafe: Some(config.transport_tcp.transport.allow_unsafe),
-                    io_timeout: Some(config.transport_tcp.transport.io_timeout),
-                    //io_threads: Some(config.transport_tcp.transport.io_threads),
-                }),
-                port: Some(config.transport_tcp.port),
-            }),
-            flatbuffers: Some(IpcConfigFlatbuffersToml {
-                skip_unexpected_fields_in_json: Some(
-                    config.flatbuffers.skip_unexpected_fields_in_json,
-                ),
-                verify_buffers: Some(config.flatbuffers.verify_buffers),
-            }),
+            local: Some((&config.transport_domain).into()),
+            flatbuffers: Some((&config.flatbuffers).into()),
+            tcp: Some((&config.transport_tcp).into()),
         }
     }
 }
@@ -70,11 +74,11 @@ impl From<&IpcToml> for IpcConfig {
     fn from(toml: &IpcToml) -> Self {
         let mut config = IpcConfig::default();
 
-        if let Some(transport_domain) = &toml.transport_domain {
-            config.transport_domain = transport_domain.into();
+        if let Some(transport_domain) = &toml.tcp {
+            config.transport_tcp = transport_domain.into();
         }
-        if let Some(transport_tcp) = &toml.transport_tcp {
-            config.transport_tcp = transport_tcp.into();
+        if let Some(transport_tcp) = &toml.local {
+            config.transport_domain = transport_tcp.into();
         }
         if let Some(flatbuffers) = &toml.flatbuffers {
             config.flatbuffers = flatbuffers.into();
@@ -83,36 +87,43 @@ impl From<&IpcToml> for IpcConfig {
     }
 }
 
-impl From<&IpcConfigDomainSocketToml> for IpcConfigDomainSocket {
-    fn from(toml: &IpcConfigDomainSocketToml) -> Self {
-        let mut config = IpcConfigDomainSocket::new();
+impl From<&LocalToml> for IpcConfigDomainSocket {
+    fn from(toml: &LocalToml) -> Self {
+        let mut config = IpcConfigDomainSocket::default();
 
-        if let Some(transport) = &toml.transport {
-            config.transport = transport.into();
+        if let Some(enable) = toml.enable {
+            config.transport.enabled = enable;
         }
         if let Some(path) = &toml.path {
             config.path = path.clone();
         }
-        config
-    }
-}
-
-impl From<&IpcConfigTcpSocketToml> for IpcConfigTcpSocket {
-    fn from(toml: &IpcConfigTcpSocketToml) -> Self {
-        let mut config = IpcConfigTcpSocket::default();
-
-        if let Some(transport) = &toml.transport {
-            config.transport = transport.into();
+        if let Some(io_timeout) = toml.io_timeout {
+            config.transport.io_timeout = io_timeout;
         }
-        if let Some(port) = toml.port {
-            config.port = port;
+        if let Some(io_threads) = toml.io_threads {
+            config.transport.io_threads = io_threads;
+        }
+        if let Some(allow_unsafe) = toml.allow_unsafe {
+            config.transport.allow_unsafe = allow_unsafe;
         }
         config
     }
 }
 
-impl From<&IpcConfigFlatbuffersToml> for IpcConfigFlatbuffers {
-    fn from(toml: &IpcConfigFlatbuffersToml) -> Self {
+impl From<&IpcConfigDomainSocket> for LocalToml {
+    fn from(config: &IpcConfigDomainSocket) -> Self {
+        Self {
+            enable: Some(config.transport.enabled),
+            io_timeout: Some(config.transport.io_timeout),
+            io_threads: Some(config.transport.io_threads),
+            path: Some(config.path.clone()),
+            allow_unsafe: Some(config.transport.allow_unsafe),
+        }
+    }
+}
+
+impl From<&FlatbuffersToml> for IpcConfigFlatbuffers {
+    fn from(toml: &FlatbuffersToml) -> Self {
         let mut config = IpcConfigFlatbuffers::new();
 
         if let Some(skip_unexpected_fields_in_json) = toml.skip_unexpected_fields_in_json {
@@ -125,16 +136,42 @@ impl From<&IpcConfigFlatbuffersToml> for IpcConfigFlatbuffers {
     }
 }
 
-impl From<&IpcConfigTransportToml> for IpcConfigTransport {
-    fn from(toml: &IpcConfigTransportToml) -> Self {
-        let mut config = IpcConfigTransport::new();
+impl From<&IpcConfigFlatbuffers> for FlatbuffersToml {
+    fn from(config: &IpcConfigFlatbuffers) -> Self {
+        Self {
+            skip_unexpected_fields_in_json: Some(config.skip_unexpected_fields_in_json),
+            verify_buffers: Some(config.verify_buffers),
+        }
+    }
+}
 
-        if let Some(enabled) = toml.enabled {
-            config.enabled = enabled;
+impl From<&TcpToml> for IpcConfigTcpSocket {
+    fn from(toml: &TcpToml) -> Self {
+        let mut config = IpcConfigTcpSocket::default();
+
+        if let Some(enable) = toml.enable {
+            config.transport.enabled = enable;
         }
         if let Some(io_timeout) = toml.io_timeout {
-            config.io_timeout = io_timeout;
+            config.transport.io_timeout = io_timeout;
+        }
+        if let Some(io_threads) = toml.io_threads {
+            config.transport.io_threads = io_threads;
+        }
+        if let Some(port) = toml.port {
+            config.port = port;
         }
         config
+    }
+}
+
+impl From<&IpcConfigTcpSocket> for TcpToml {
+    fn from(config: &IpcConfigTcpSocket) -> Self {
+        Self {
+            enable: Some(config.transport.enabled),
+            io_timeout: Some(config.transport.io_timeout),
+            io_threads: Some(config.transport.io_threads),
+            port: Some(config.port),
+        }
     }
 }

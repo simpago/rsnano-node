@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use rsnano_core::Account;
 use rsnano_messages::{Message, ProtocolInfo};
 use std::{
-    net::SocketAddrV6,
+    net::{Ipv6Addr, SocketAddrV6},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -97,6 +97,10 @@ impl Channel for ChannelFake {
         super::TransportType::Fake
     }
 
+    fn local_addr(&self) -> SocketAddrV6 {
+        self.endpoint
+    }
+
     fn remote_addr(&self) -> SocketAddrV6 {
         self.endpoint
     }
@@ -119,6 +123,8 @@ impl Channel for ChannelFake {
 
     fn set_mode(&self, _mode: ChannelMode) {}
 
+    fn set_timeout(&self, _timeout: Duration) {}
+
     fn try_send(
         &self,
         _message: &Message,
@@ -127,11 +133,7 @@ impl Channel for ChannelFake {
     ) {
     }
 
-    async fn send_buffer(
-        &self,
-        _buffer: &Arc<Vec<u8>>,
-        _traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
+    async fn send_buffer(&self, _buffer: &[u8], _traffic_type: TrafficType) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -143,11 +145,13 @@ impl Channel for ChannelFake {
         self.closed.store(true, Ordering::SeqCst);
     }
 
-    fn local_addr(&self) -> SocketAddrV6 {
-        self.endpoint
+    fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {
+        Ipv6Addr::UNSPECIFIED
     }
 
-    fn set_timeout(&self, _timeout: Duration) {}
+    fn subnetwork(&self) -> Ipv6Addr {
+        Ipv6Addr::UNSPECIFIED
+    }
 }
 
 #[async_trait]

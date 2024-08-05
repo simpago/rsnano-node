@@ -1,9 +1,10 @@
-use crate::consensus::OptimisticSchedulerConfig;
 use serde::{Deserialize, Serialize};
+
+use crate::consensus::OptimisticSchedulerConfig;
 
 #[derive(Deserialize, Serialize)]
 pub struct OptimisticSchedulerToml {
-    pub enabled: Option<bool>,
+    pub enable: Option<bool>,
     pub gap_threshold: Option<u64>,
     pub max_size: Option<usize>,
 }
@@ -11,11 +12,7 @@ pub struct OptimisticSchedulerToml {
 impl Default for OptimisticSchedulerToml {
     fn default() -> Self {
         let config = OptimisticSchedulerConfig::new();
-        Self {
-            enabled: Some(config.enabled),
-            gap_threshold: Some(config.gap_threshold),
-            max_size: Some(config.max_size),
-        }
+        (&config).into()
     }
 }
 
@@ -23,7 +20,7 @@ impl From<&OptimisticSchedulerToml> for OptimisticSchedulerConfig {
     fn from(toml: &OptimisticSchedulerToml) -> Self {
         let mut config = OptimisticSchedulerConfig::new();
 
-        if let Some(enabled) = toml.enabled {
+        if let Some(enabled) = toml.enable {
             config.enabled = enabled;
         }
         if let Some(gap_threshold) = toml.gap_threshold {
@@ -39,7 +36,7 @@ impl From<&OptimisticSchedulerToml> for OptimisticSchedulerConfig {
 impl From<&OptimisticSchedulerConfig> for OptimisticSchedulerToml {
     fn from(config: &OptimisticSchedulerConfig) -> Self {
         Self {
-            enabled: Some(config.enabled),
+            enable: Some(config.enabled),
             gap_threshold: Some(config.gap_threshold),
             max_size: Some(config.max_size),
         }

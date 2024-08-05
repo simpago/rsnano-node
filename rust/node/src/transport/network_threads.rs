@@ -1,4 +1,6 @@
-use super::{Network, NetworkExt, PeerConnector, PeerConnectorExt, SynCookies};
+use super::{
+    ChannelId, LatestKeepalives, Network, NetworkExt, PeerConnector, PeerConnectorExt, SynCookies,
+};
 use crate::{
     config::{NodeConfig, NodeFlags},
     representatives::OnlineReps,
@@ -27,6 +29,7 @@ pub struct NetworkThreads {
     stats: Arc<Stats>,
     syn_cookies: Arc<SynCookies>,
     keepalive_factory: Arc<KeepaliveFactory>,
+    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
 }
 
 impl NetworkThreads {
@@ -39,6 +42,7 @@ impl NetworkThreads {
         syn_cookies: Arc<SynCookies>,
         keepalive_factory: Arc<KeepaliveFactory>,
         online_reps: Arc<Mutex<OnlineReps>>,
+        latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         Self {
             cleanup_thread: None,
@@ -53,6 +57,7 @@ impl NetworkThreads {
             syn_cookies,
             keepalive_factory,
             online_reps,
+            latest_keepalives,
         }
     }
 
@@ -65,6 +70,7 @@ impl NetworkThreads {
             syn_cookies: self.syn_cookies.clone(),
             network: self.network.clone(),
             online_reps: self.online_reps.clone(),
+            latest_keepalives: self.latest_keepalives.clone(),
         };
 
         self.cleanup_thread = Some(
@@ -94,8 +100,8 @@ impl NetworkThreads {
                 stopped: self.stopped.clone(),
                 reachout_interval: self.network_params.network.merge_period,
                 stats: self.stats.clone(),
-                network: self.network.clone(),
                 peer_connector: self.peer_connector.clone(),
+                latest_keepalives: self.latest_keepalives.clone(),
             };
 
             self.reachout_thread = Some(
@@ -138,6 +144,7 @@ struct CleanupLoop {
     syn_cookies: Arc<SynCookies>,
     network: Arc<Network>,
     online_reps: Arc<Mutex<OnlineReps>>,
+    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
 }
 
 impl CleanupLoop {
@@ -156,33 +163,38 @@ impl CleanupLoop {
             }
             drop(stopped);
 
-            self.stats.inc(StatType::Network, DetailType::LoopCleanup);
-
             if !self.flags.disable_connection_cleanup {
-                let removed_channel_ids = self
-                    .network
-                    .purge(SystemTime::now() - self.network_params.network.cleanup_cutoff());
-
-                for channel_id in removed_channel_ids {
-                    let removed_reps = self.online_reps.lock().unwrap().remove_peer(channel_id);
-                    for rep in removed_reps {
-                        info!(
-                            "Evicting representative {} with dead channel",
-                            rep.encode_account(),
-                        );
-                        self.stats.inc_dir(
-                            StatType::RepCrawler,
-                            DetailType::ChannelDead,
-                            Direction::In,
-                        );
-                    }
-                }
+                self.cleanup_channels();
             }
 
             self.syn_cookies
                 .purge(self.network_params.network.sync_cookie_cutoff);
 
             stopped = self.stopped.1.lock().unwrap();
+        }
+    }
+
+    fn cleanup_channels(&self) {
+        for channel_id in self.remove_dead_channels() {
+            self.remove_from_online_reps(channel_id);
+            self.latest_keepalives.lock().unwrap().remove(channel_id);
+        }
+    }
+
+    fn remove_dead_channels(&self) -> Vec<ChannelId> {
+        self.network
+            .purge(SystemTime::now() - self.network_params.network.cleanup_cutoff())
+    }
+
+    fn remove_from_online_reps(&self, channel_id: ChannelId) {
+        let removed_reps = self.online_reps.lock().unwrap().remove_peer(channel_id);
+        for rep in removed_reps {
+            info!(
+                "Evicting representative {} with dead channel",
+                rep.encode_account(),
+            );
+            self.stats
+                .inc_dir(StatType::RepCrawler, DetailType::ChannelDead, Direction::In);
         }
     }
 }
@@ -280,8 +292,8 @@ struct ReachoutLoop {
     stopped: Arc<(Condvar, Mutex<bool>)>,
     reachout_interval: Duration,
     stats: Arc<Stats>,
-    network: Arc<Network>,
     peer_connector: Arc<PeerConnector>,
+    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
 }
 
 impl ReachoutLoop {
@@ -300,9 +312,7 @@ impl ReachoutLoop {
             }
             drop(stopped);
 
-            self.stats.inc(StatType::Network, DetailType::LoopReachout);
-
-            if let Some(keepalive) = self.network.sample_keepalive() {
+            if let Some(keepalive) = self.latest_keepalives.lock().unwrap().pop_random() {
                 for peer in keepalive.peers {
                     self.stats.inc(StatType::Network, DetailType::ReachoutLive);
                     self.peer_connector.connect_to(peer);

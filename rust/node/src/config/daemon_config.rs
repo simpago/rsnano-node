@@ -15,7 +15,11 @@ impl DaemonConfig {
     pub fn new(network_params: &NetworkParams, parallelism: usize) -> Self {
         Self {
             rpc_enable: false,
-            node: NodeConfig::new(None, network_params, parallelism),
+            node: NodeConfig::new(
+                Some(network_params.network.default_node_port),
+                network_params,
+                parallelism,
+            ),
             opencl: OpenclConfig::new(),
             opencl_enable: false,
             rpc: NodeRpcConfig::new(),

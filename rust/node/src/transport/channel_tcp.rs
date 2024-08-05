@@ -2,7 +2,10 @@ use super::{
     AsyncBufferReader, BufferDropPolicy, Channel, ChannelDirection, ChannelId, ChannelMode,
     OutboundBandwidthLimiter, Socket, TrafficType,
 };
-use crate::stats::{Direction, StatType, Stats};
+use crate::{
+    stats::{Direction, StatType, Stats},
+    utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
+};
 use async_trait::async_trait;
 use rsnano_core::Account;
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
@@ -23,8 +26,7 @@ pub struct TcpChannelData {
     last_packet_received: SystemTime,
     last_packet_sent: SystemTime,
     node_id: Option<Account>,
-    pub remote_endpoint: SocketAddrV6,
-    pub peering_endpoint: Option<SocketAddrV6>,
+    peering_endpoint: Option<SocketAddrV6>,
 }
 
 pub struct ChannelTcp {
@@ -48,7 +50,7 @@ impl ChannelTcp {
     ) -> Self {
         let peering_endpoint = match socket.direction() {
             ChannelDirection::Inbound => None,
-            ChannelDirection::Outbound => socket.get_remote(),
+            ChannelDirection::Outbound => Some(socket.remote_addr()),
         };
         Self {
             channel_id,
@@ -57,7 +59,6 @@ impl ChannelTcp {
                 last_packet_received: now,
                 last_packet_sent: now,
                 node_id: None,
-                remote_endpoint: SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0),
                 peering_endpoint,
             }),
             socket,
@@ -65,15 +66,6 @@ impl ChannelTcp {
             limiter,
             message_serializer: Mutex::new(MessageSerializer::new(protocol)),
             stats,
-        }
-    }
-
-    pub(crate) fn update_remote_endpoint(&self) {
-        let mut lock = self.channel_mutex.lock().unwrap();
-        debug_assert!(lock.remote_endpoint == SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)); // Not initialized endpoint value
-                                                                                                  // Calculate TCP socket endpoint
-        if let Some(ep) = self.socket.get_remote() {
-            lock.remote_endpoint = ep;
         }
     }
 
@@ -89,7 +81,7 @@ impl ChannelTcp {
 
 impl Display for ChannelTcp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.channel_mutex.lock().unwrap().remote_endpoint.fmt(f)
+        self.socket.remote_addr().fmt(f)
     }
 }
 
@@ -144,7 +136,7 @@ impl Channel for Arc<ChannelTcp> {
     }
 
     fn remote_addr(&self) -> SocketAddrV6 {
-        self.channel_mutex.lock().unwrap().remote_endpoint
+        self.socket.remote_addr()
     }
 
     fn peering_endpoint(&self) -> Option<SocketAddrV6> {
@@ -198,11 +190,7 @@ impl Channel for Arc<ChannelTcp> {
         }
     }
 
-    async fn send_buffer(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
+    async fn send_buffer(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()> {
         while !self.limiter.should_pass(buffer.len(), traffic_type.into()) {
             // TODO: better implementation
             sleep(Duration::from_millis(20)).await;
@@ -228,6 +216,14 @@ impl Channel for Arc<ChannelTcp> {
 
     fn close(&self) {
         self.socket.close();
+    }
+
+    fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {
+        ipv4_address_or_ipv6_subnet(&self.remote_addr().ip())
+    }
+
+    fn subnetwork(&self) -> Ipv6Addr {
+        map_address_to_subnetwork(self.remote_addr().ip())
     }
 }
 

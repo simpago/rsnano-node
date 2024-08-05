@@ -4,18 +4,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 pub struct PriorityBucketToml {
     pub max_blocks: Option<usize>,
-    pub reserved_elections: Option<usize>,
     pub max_elections: Option<usize>,
+    pub reserved_elections: Option<usize>,
 }
 
 impl Default for PriorityBucketToml {
     fn default() -> Self {
         let config = PriorityBucketConfig::default();
-        Self {
-            max_blocks: Some(config.max_blocks),
-            reserved_elections: Some(config.max_elections),
-            max_elections: Some(config.reserved_elections),
-        }
+        (&config).into()
     }
 }
 
@@ -40,8 +36,8 @@ impl From<&PriorityBucketConfig> for PriorityBucketToml {
     fn from(config: &PriorityBucketConfig) -> Self {
         Self {
             max_blocks: Some(config.max_blocks),
-            reserved_elections: Some(config.max_elections),
-            max_elections: Some(config.reserved_elections),
+            reserved_elections: Some(config.reserved_elections),
+            max_elections: Some(config.max_elections),
         }
     }
 }

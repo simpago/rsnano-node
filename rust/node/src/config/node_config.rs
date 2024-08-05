@@ -1,35 +1,29 @@
-use super::DiagnosticsConfig;
-use crate::block_processing::BlockProcessorConfig;
-use crate::bootstrap::{BootstrapAscendingConfig, BootstrapServerConfig};
-use crate::consensus::{
-    ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig, PriorityBucketConfig,
-    RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
-};
-use crate::monitor::MonitorConfig;
-use crate::stats::StatsConfig;
-use crate::transport::MessageProcessorConfig;
-use crate::websocket::WebsocketConfig;
-use crate::IpcConfig;
+use super::{DiagnosticsConfig, Networks};
 use crate::{
-    block_processing::LocalBlockBroadcasterConfig, bootstrap::BootstrapInitiatorConfig,
-    cementation::ConfirmingSetConfig, transport::TcpConfig, NetworkParams, DEV_NETWORK_PARAMS,
+    block_processing::{BlockProcessorConfig, LocalBlockBroadcasterConfig},
+    bootstrap::{BootstrapAscendingConfig, BootstrapInitiatorConfig, BootstrapServerConfig},
+    cementation::ConfirmingSetConfig,
+    consensus::{
+        ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
+        PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
+    },
+    stats::StatsConfig,
+    transport::{MessageProcessorConfig, TcpConfig},
+    websocket::WebsocketConfig,
+    IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
-use rsnano_core::utils::{get_cpu_count, get_env_or_default_string, is_sanitizer_build};
-use rsnano_core::{Account, Amount, Networks, GXRB_RATIO, XRB_RATIO};
+use rsnano_core::{
+    utils::{get_cpu_count, get_env_or_default_string, is_sanitizer_build},
+    Account, Amount, GXRB_RATIO, XRB_RATIO,
+};
 use rsnano_store_lmdb::LmdbConfig;
-use serde::Serialize;
-use serde::{Deserialize, Deserializer, Serializer};
-use std::fmt;
-use std::str::FromStr;
-use std::time::Duration;
-use std::{cmp::max, net::Ipv6Addr};
+use std::{cmp::max, fmt, net::Ipv6Addr, str::FromStr, time::Duration};
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, FromPrimitive, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 pub enum FrontiersConfirmationMode {
     Always,    // Always confirm frontiers
     Automatic, // Always mode if node contains representative with at least 50% of principal weight, less frequest requests if not
@@ -138,6 +132,15 @@ impl fmt::Display for Peer {
     }
 }
 
+impl Peer {
+    pub fn new(address: impl Into<String>, port: u16) -> Self {
+        Self {
+            address: address.into(),
+            port,
+        }
+    }
+}
+
 impl FromStr for Peer {
     type Err = String;
 
@@ -153,34 +156,6 @@ impl FromStr for Peer {
             .map_err(|_| "Invalid port".to_string())?;
 
         Ok(Peer { address, port })
-    }
-}
-
-impl Serialize for Peer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for Peer {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        s.parse::<Peer>().map_err(serde::de::Error::custom)
-    }
-}
-
-impl Peer {
-    pub fn new(address: impl Into<String>, port: u16) -> Self {
-        Self {
-            address: address.into(),
-            port,
-        }
     }
 }
 
@@ -403,5 +378,20 @@ impl NodeConfig {
     pub fn random_representative(&self) -> Account {
         let i = thread_rng().gen_range(0..self.preconfigured_representatives.len());
         return self.preconfigured_representatives[i];
+    }
+}
+
+#[derive(Clone)]
+pub struct MonitorConfig {
+    pub enabled: bool,
+    pub interval: Duration,
+}
+
+impl Default for MonitorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval: Duration::from_secs(60),
+        }
     }
 }

@@ -1,10 +1,7 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(PartialEq, Eq, Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum SyncStrategy {
     /** Always flush to disk on commit. This is default. */
     Always,
-
     /** Do not flush meta data eagerly. This may cause loss of transactions, but maintains integrity. */
     NosyncSafe,
 

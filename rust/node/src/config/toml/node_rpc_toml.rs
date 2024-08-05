@@ -1,4 +1,4 @@
-use crate::config::RpcChildProcessConfig;
+use crate::config::{DaemonConfig, NodeRpcConfig, RpcChildProcessConfig};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -27,6 +27,19 @@ impl From<&RpcChildProcessConfig> for RpcChildProcessToml {
     }
 }
 
+impl From<&RpcChildProcessToml> for RpcChildProcessConfig {
+    fn from(toml: &RpcChildProcessToml) -> Self {
+        let mut config = RpcChildProcessConfig::new();
+        if let Some(enable) = toml.enable {
+            config.enable = enable;
+        }
+        if let Some(rpc_path) = &toml.rpc_path {
+            config.rpc_path = rpc_path.clone();
+        }
+        config
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct NodeRpcToml {
     pub enable: Option<bool>,
@@ -34,12 +47,23 @@ pub struct NodeRpcToml {
     pub child_process: Option<RpcChildProcessToml>,
 }
 
-impl NodeRpcToml {
-    pub fn new() -> Self {
-        Self {
-            enable: Some(false),
-            enable_sign_hash: Some(false),
-            child_process: Some(RpcChildProcessToml::new()),
+impl Default for NodeRpcToml {
+    fn default() -> Self {
+        let config = DaemonConfig::default();
+        (&config).into()
+    }
+}
+
+impl From<&NodeRpcToml> for NodeRpcConfig {
+    fn from(toml: &NodeRpcToml) -> Self {
+        let mut config = NodeRpcConfig::default();
+        if let Some(enable_sign_hash) = toml.enable_sign_hash {
+            config.enable_sign_hash = enable_sign_hash;
         }
+        if let Some(child_process) = &toml.child_process {
+            config.child_process = child_process.into();
+        }
+
+        config
     }
 }

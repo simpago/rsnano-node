@@ -1,10 +1,7 @@
 use super::{
     message_deserializer::AsyncBufferReader, write_queue::WriteQueue, TcpStream, TrafficType,
 };
-use crate::{
-    stats,
-    utils::{into_ipv6_socket_address, AsyncRuntime},
-};
+use crate::{stats, utils::into_ipv6_socket_address};
 use async_trait::async_trait;
 use num_traits::FromPrimitive;
 use rsnano_core::utils::{seconds_since_epoch, NULL_ENDPOINT};
@@ -132,14 +129,6 @@ pub struct Socket {
 }
 
 impl Socket {
-    pub fn new_null() -> Arc<Socket> {
-        SocketBuilder::new(
-            ChannelDirection::Outbound,
-            Arc::new(AsyncRuntime::default()),
-        )
-        .finish(TcpStream::new_null())
-    }
-
     pub fn is_closed(&self) -> bool {
         self.closed.load(Ordering::SeqCst) || self.write_queue.is_closed()
     }
@@ -227,8 +216,8 @@ impl Socket {
         self.timed_out.load(Ordering::SeqCst)
     }
 
-    pub fn get_remote(&self) -> Option<SocketAddrV6> {
-        Some(self.remote)
+    pub fn remote_addr(&self) -> SocketAddrV6 {
+        self.remote
     }
 
     pub async fn read_raw(&self, buffer: &mut [u8], size: usize) -> anyhow::Result<()> {
@@ -320,29 +309,6 @@ impl Socket {
         }
     }
 
-    /// Writes directly to the stream and does not use the queues
-    pub(crate) async fn write_directly(&self, data: &[u8]) -> anyhow::Result<()> {
-        let mut written = 0;
-        loop {
-            self.stream.writable().await?;
-            match self.stream.try_write(&data[written..]) {
-                Ok(n) => {
-                    written += n;
-                    if written >= data.len() {
-                        break;
-                    }
-                }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    continue;
-                }
-                Err(e) => {
-                    bail!(e)
-                }
-            }
-        }
-        Ok(())
-    }
-
     async fn ongoing_checkup(&self) {
         loop {
             sleep(Duration::from_secs(2)).await;
@@ -403,7 +369,6 @@ pub struct SocketBuilder {
     idle_timeout: Duration,
     observer: Option<Arc<dyn SocketObserver>>,
     max_write_queue_len: usize,
-    runtime: Arc<AsyncRuntime>,
 }
 
 static NEXT_SOCKET_ID: AtomicUsize = AtomicUsize::new(0);
@@ -414,7 +379,7 @@ pub fn alive_sockets() -> usize {
 }
 
 impl SocketBuilder {
-    pub fn new(direction: ChannelDirection, runtime: Arc<AsyncRuntime>) -> Self {
+    pub fn new(direction: ChannelDirection) -> Self {
         Self {
             direction,
             default_timeout: Duration::from_secs(15),
@@ -422,7 +387,6 @@ impl SocketBuilder {
             idle_timeout: Duration::from_secs(120),
             observer: None,
             max_write_queue_len: Socket::MAX_QUEUE_SIZE,
-            runtime,
         }
     }
 
@@ -451,7 +415,7 @@ impl SocketBuilder {
         self
     }
 
-    pub fn finish(self, stream: TcpStream) -> Arc<Socket> {
+    pub async fn finish(self, stream: TcpStream) -> Arc<Socket> {
         let socket_id = NEXT_SOCKET_ID.fetch_add(1, Ordering::Relaxed);
         let alive = LIVE_SOCKETS.fetch_add(1, Ordering::Relaxed) + 1;
         debug!(socket_id, alive, "Creating socket");
@@ -469,7 +433,7 @@ impl SocketBuilder {
         let stream = Arc::new(stream);
         let stream_l = stream.clone();
         // process write queue:
-        self.runtime.tokio.spawn(async move {
+        tokio::spawn(async move {
             while let Some(entry) = receiver.pop().await {
                 let mut written = 0;
                 let buffer = &entry.buffer;
@@ -521,10 +485,7 @@ impl SocketBuilder {
         socket.set_default_timeout();
 
         let socket_l = socket.clone();
-        self.runtime
-            .tokio
-            .spawn(async move { socket_l.ongoing_checkup().await });
-
+        tokio::spawn(async move { socket_l.ongoing_checkup().await });
         socket
     }
 }

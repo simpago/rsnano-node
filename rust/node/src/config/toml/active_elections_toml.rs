@@ -3,23 +3,17 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct ActiveElectionsToml {
-    pub size: Option<usize>,
+    pub confirmation_cache: Option<usize>,
+    pub confirmation_history_size: Option<usize>,
     pub hinted_limit_percentage: Option<usize>,
     pub optimistic_limit_percentage: Option<usize>,
-    pub confirmation_history_size: Option<usize>,
-    pub confirmation_cache: Option<usize>,
+    pub size: Option<usize>,
 }
 
 impl Default for ActiveElectionsToml {
     fn default() -> Self {
         let config = ActiveElectionsConfig::default();
-        Self {
-            size: Some(config.size),
-            hinted_limit_percentage: Some(config.hinted_limit_percentage),
-            optimistic_limit_percentage: Some(config.optimistic_limit_percentage),
-            confirmation_history_size: Some(config.confirmation_history_size),
-            confirmation_cache: Some(config.confirmation_cache),
-        }
+        (&config).into()
     }
 }
 

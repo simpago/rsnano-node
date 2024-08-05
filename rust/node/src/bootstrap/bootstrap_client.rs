@@ -21,9 +21,6 @@ pub struct BootstrapClient {
 
 impl BootstrapClient {
     pub fn new(observer: &Arc<BootstrapConnections>, channel: Arc<ChannelEnum>) -> Self {
-        if let ChannelEnum::Tcp(tcp) = channel.as_ref() {
-            tcp.update_remote_endpoint();
-        }
         Self {
             observer: Arc::downgrade(observer),
             channel,

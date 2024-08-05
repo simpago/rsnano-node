@@ -7,24 +7,9 @@ use crate::{
 use rsnano_ledger::Ledger;
 use std::{
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Instant,
 };
 use tracing::info;
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MonitorConfig {
-    pub enabled: bool,
-    pub interval: Duration,
-}
-
-impl Default for MonitorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            interval: Duration::from_secs(60),
-        }
-    }
-}
 
 pub struct Monitor {
     ledger: Arc<Ledger>,

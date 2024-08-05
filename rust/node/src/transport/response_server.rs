@@ -1,6 +1,6 @@
 use super::{
-    ChannelEnum, HandshakeProcess, HandshakeStatus, InboundMessageQueue, MessageDeserializer,
-    Network, NetworkFilter, SynCookies,
+    ChannelEnum, HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
+    MessageDeserializer, Network, NetworkFilter, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -10,13 +10,13 @@ use crate::{
     },
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelMode, NetworkExt, Socket},
+    transport::{ChannelMode, NetworkExt},
     utils::{AsyncRuntime, ThreadPool},
     NetworkParams,
 };
 use async_trait::async_trait;
 use rsnano_core::{
-    utils::{OutputListenerMt, OutputTrackerMt, NULL_ENDPOINT},
+    utils::{OutputListenerMt, OutputTrackerMt},
     Account, KeyPair,
 };
 use rsnano_ledger::Ledger;
@@ -24,12 +24,11 @@ use rsnano_messages::*;
 use std::{
     net::SocketAddrV6,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc, Mutex, Weak,
     },
     time::{Duration, Instant, SystemTime},
 };
-use tokio::sync::Notify;
 use tracing::{debug, info};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,9 +65,7 @@ impl Default for TcpConfig {
 }
 
 pub struct ResponseServer {
-    channel: Mutex<Option<Arc<ChannelEnum>>>,
-    pub socket: Arc<Socket>,
-    stopped: AtomicBool,
+    channel: Arc<ChannelEnum>,
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
 
@@ -81,8 +78,6 @@ pub struct ResponseServer {
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
     allow_bootstrap: bool,
-    notify_stop: Notify,
-    last_keepalive: Mutex<Option<Keepalive>>,
     network: Weak<Network>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
@@ -93,6 +88,7 @@ pub struct ResponseServer {
     workers: Arc<dyn ThreadPool>,
     block_processor: Arc<BlockProcessor>,
     bootstrap_initiator: Arc<BootstrapInitiator>,
+    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     flags: NodeFlags,
 }
 
@@ -102,7 +98,7 @@ impl ResponseServer {
     pub fn new(
         network: &Arc<Network>,
         inbound_queue: Arc<InboundMessageQueue>,
-        socket: Arc<Socket>,
+        channel: Arc<ChannelEnum>,
         publish_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
@@ -115,19 +111,14 @@ impl ResponseServer {
         block_processor: Arc<BlockProcessor>,
         bootstrap_initiator: Arc<BootstrapInitiator>,
         flags: NodeFlags,
+        latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        debug!(
-            socket_id = socket.socket_id,
-            "Cloning socket in TcpServer constructor"
-        );
-        let remote_endpoint = socket.get_remote().unwrap_or(NULL_ENDPOINT);
+        let remote_endpoint = channel.remote_addr();
         Self {
             network: Arc::downgrade(network),
             inbound_queue,
-            socket,
-            channel: Mutex::new(None),
-            stopped: AtomicBool::new(false),
+            channel,
             disable_bootstrap_listener: false,
             connections_max: 64,
             remote_endpoint: Mutex::new(remote_endpoint),
@@ -145,8 +136,6 @@ impl ResponseServer {
             stats: stats.clone(),
             disable_bootstrap_bulk_pull_server: false,
             allow_bootstrap,
-            notify_stop: Notify::new(),
-            last_keepalive: Mutex::new(None),
             initiate_handshake_listener: OutputListenerMt::new(),
             publish_filter,
             runtime,
@@ -155,7 +144,12 @@ impl ResponseServer {
             block_processor,
             bootstrap_initiator,
             flags,
+            latest_keepalives,
         }
+    }
+
+    pub fn channel(&self) -> &Arc<ChannelEnum> {
+        &self.channel
     }
 
     pub fn track_handshake_initiation(&self) -> Arc<OutputTrackerMt<()>> {
@@ -163,14 +157,7 @@ impl ResponseServer {
     }
 
     pub fn is_stopped(&self) -> bool {
-        self.stopped.load(Ordering::SeqCst)
-    }
-
-    pub fn stop(&self) {
-        if !self.stopped.swap(true, Ordering::SeqCst) {
-            self.socket.close();
-            self.notify_stop.notify_one();
-        }
+        !self.channel.is_alive()
     }
 
     pub fn remote_endpoint(&self) -> SocketAddrV6 {
@@ -192,7 +179,7 @@ impl ResponseServer {
             return false;
         }
 
-        if self.socket.mode() != ChannelMode::Undefined {
+        if self.channel.mode() != ChannelMode::Undefined {
             return false;
         }
 
@@ -208,7 +195,7 @@ impl ResponseServer {
             return false;
         }
 
-        self.socket.set_mode(ChannelMode::Bootstrap);
+        self.channel.set_mode(ChannelMode::Bootstrap);
         debug!("Switched to bootstrap mode ({})", self.remote_endpoint());
         true
     }
@@ -223,49 +210,39 @@ impl ResponseServer {
     }
 
     fn is_undefined_connection(&self) -> bool {
-        self.socket.mode() == ChannelMode::Undefined
+        self.channel.mode() == ChannelMode::Undefined
     }
 
     fn is_bootstrap_connection(&self) -> bool {
-        self.socket.is_bootstrap_connection()
+        self.channel.mode() == ChannelMode::Bootstrap
     }
 
     fn is_realtime_connection(&self) -> bool {
-        self.socket.is_realtime_connection()
+        self.channel.mode() == ChannelMode::Realtime
     }
 
     fn queue_realtime(&self, message: DeserializedMessage) {
-        let channel = self.channel.lock().unwrap().as_ref().unwrap().clone();
-        channel.set_last_packet_received(SystemTime::now());
-        self.inbound_queue.put(message, channel);
+        self.channel.set_last_packet_received(SystemTime::now());
+        self.inbound_queue.put(message, self.channel.clone());
         // TODO: Throttle if not added
     }
 
-    fn set_last_keepalive(&self, keepalive: Option<Keepalive>) {
-        *self.last_keepalive.lock().unwrap() = keepalive;
-    }
-
-    pub fn get_last_keepalive(&self) -> Option<Keepalive> {
-        self.last_keepalive.lock().unwrap().clone()
-    }
-
-    pub fn pop_last_keepalive(&self) -> Option<Keepalive> {
-        self.last_keepalive.lock().unwrap().take()
-    }
-
-    pub fn set_channel(&self, channel: Arc<ChannelEnum>) {
-        *self.channel.lock().unwrap() = Some(channel);
+    fn set_last_keepalive(&self, keepalive: Keepalive) {
+        self.latest_keepalives
+            .lock()
+            .unwrap()
+            .insert(self.channel.channel_id(), keepalive);
     }
 
     pub async fn initiate_handshake(&self) {
         self.initiate_handshake_listener.emit(());
         if self
             .handshake_process
-            .initiate_handshake(&self.socket)
+            .initiate_handshake(&self.channel)
             .await
             .is_err()
         {
-            self.stop();
+            self.channel.close();
         }
     }
 }
@@ -274,7 +251,7 @@ impl Drop for ResponseServer {
     fn drop(&mut self) {
         let remote_ep = { *self.remote_endpoint.lock().unwrap() };
         debug!("Exiting server: {}", remote_ep);
-        self.stop();
+        self.channel.close();
     }
 }
 
@@ -290,7 +267,6 @@ pub trait BootstrapMessageVisitor: MessageVisitor {
 
 #[async_trait]
 pub trait ResponseServerExt {
-    fn timeout(&self);
     fn to_realtime_connection(&self, node_id: &Account) -> bool;
     async fn run(&self);
     async fn process_message(&self, message: DeserializedMessage) -> ProcessResult;
@@ -307,7 +283,7 @@ pub enum ProcessResult {
 #[async_trait]
 impl ResponseServerExt for Arc<ResponseServer> {
     fn to_realtime_connection(&self, node_id: &Account) -> bool {
-        if self.socket.mode() != ChannelMode::Undefined {
+        if self.channel.mode() != ChannelMode::Undefined {
             return false;
         }
 
@@ -315,20 +291,11 @@ impl ResponseServerExt for Arc<ResponseServer> {
             return false;
         };
 
-        let Some(remote) = self.socket.get_remote() else {
-            return false;
-        };
+        let remote = self.channel.remote_addr();
 
         network.upgrade_to_realtime_connection(&remote, *node_id);
         debug!("Switched to realtime mode ({})", self.remote_endpoint());
         return true;
-    }
-
-    fn timeout(&self) {
-        if self.socket.has_timed_out() {
-            debug!("Closing TCP server due to timeout");
-            self.socket.close();
-        }
     }
 
     async fn run(&self) {
@@ -336,10 +303,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
         {
             let mut guard = self.remote_endpoint.lock().unwrap();
             if guard.port() == 0 {
-                if let Some(ep) = self.socket.get_remote() {
-                    *guard = ep;
-                }
-                //debug_assert!(guard.port() != 0);
+                *guard = self.channel.remote_addr();
             }
             debug!("Starting server: {}", guard.port());
         }
@@ -348,7 +312,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             self.network_params.network.protocol_info(),
             self.network_params.network.work.clone(),
             self.publish_filter.clone(),
-            self.socket.clone(),
+            self.channel.clone(),
         );
 
         loop {
@@ -356,12 +320,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 break;
             }
 
-            let result = tokio::select! {
-                i = message_deserializer.read() => i,
-                _ = self.notify_stop.notified() => Err(ParseMessageError::Stopped)
-            };
-
-            let result = match result {
+            let result = match message_deserializer.read().await {
                 Ok(msg) => self.process_message(msg).await,
                 Err(ParseMessageError::DuplicatePublishMessage) => {
                     // Avoid too much noise about `duplicate_publish_message` errors
@@ -396,7 +355,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
 
             match result {
                 ProcessResult::Abort => {
-                    self.stop();
+                    self.channel.close();
                     break;
                 }
                 ProcessResult::Progress => {}
@@ -439,7 +398,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
                 Message::NodeIdHandshake(payload) => {
                     self.handshake_process
-                        .process_handshake(payload, &self.socket)
+                        .process_handshake(payload, &self.channel)
                         .await
                 }
 
@@ -512,7 +471,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
     fn process_realtime(&self, message: DeserializedMessage) -> ProcessResult {
         let process = match &message.message {
             Message::Keepalive(keepalive) => {
-                self.set_last_keepalive(Some(keepalive.clone()));
+                self.set_last_keepalive(keepalive.clone());
                 true
             }
             Message::Publish(_)
@@ -553,16 +512,16 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     return ProcessResult::Progress;
                 }
 
-                let payload = payload.clone();
-                let connection = Arc::clone(self);
-                let ledger = Arc::clone(&self.ledger);
-                let thread_pool2 = self.workers.clone();
-                let runtime = self.runtime.clone();
+                // TODO from original code: Add completion callback to bulk pull server
+                // TODO from original code: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
+                let mut bulk_pull_server = BulkPullServer::new(
+                    payload.clone(),
+                    Arc::clone(self),
+                    self.ledger.clone(),
+                    self.workers.clone(),
+                    self.runtime.clone(),
+                );
                 self.workers.push_task(Box::new(move || {
-                    // TODO from original code: Add completion callback to bulk pull server
-                    // TODO from original code: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
-                    let mut bulk_pull_server =
-                        BulkPullServer::new(payload, connection, ledger, thread_pool2, runtime);
                     bulk_pull_server.send_next();
                 }));
 
@@ -572,21 +531,16 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 if self.flags.disable_bootstrap_bulk_pull_server {
                     return ProcessResult::Progress;
                 }
-                let payload = payload.clone();
-                let connection = Arc::clone(self);
-                let ledger = self.ledger.clone();
-                let thread_pool2 = self.workers.clone();
-                let runtime = self.runtime.clone();
+                // original code TODO: Add completion callback to bulk pull server
+                // original code TODO: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
+                let bulk_pull_account_server = BulkPullAccountServer::new(
+                    Arc::clone(self),
+                    payload.clone(),
+                    self.workers.clone(),
+                    self.ledger.clone(),
+                    self.runtime.clone(),
+                );
                 self.workers.push_task(Box::new(move || {
-                    // original code TODO: Add completion callback to bulk pull server
-                    // original code TODO: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
-                    let bulk_pull_account_server = BulkPullAccountServer::new(
-                        connection,
-                        payload,
-                        thread_pool2,
-                        ledger,
-                        runtime,
-                    );
                     bulk_pull_account_server.send_frontier();
                 }));
 

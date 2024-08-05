@@ -1,6 +1,24 @@
 use super::NetworkConstants;
-use rsnano_core::utils::get_cpu_count;
-use std::net::Ipv6Addr;
+use anyhow::Result;
+use rsnano_core::utils::{get_cpu_count, TomlWriter};
+use std::{
+    net::Ipv6Addr,
+    path::{Path, PathBuf},
+};
+
+pub fn get_default_rpc_filepath() -> PathBuf {
+    get_default_rpc_filepath_from(std::env::current_exe().unwrap_or_default().as_path())
+}
+
+fn get_default_rpc_filepath_from(node_exe_path: &Path) -> PathBuf {
+    let mut result = node_exe_path.to_path_buf();
+    result.pop();
+    result.push("nano_rpc");
+    if let Some(ext) = node_exe_path.extension() {
+        result.set_extension(ext);
+    }
+    result
+}
 
 pub struct RpcConfig {
     pub address: String,
@@ -37,6 +55,12 @@ impl RpcConfig {
             rpc_logging: RpcLoggingConfig::new(),
             rpc_process: RpcProcessConfig::new(network_constants, parallelism),
         }
+    }
+}
+
+impl Default for RpcConfig {
+    fn default() -> Self {
+        Self::new(&NetworkConstants::default(), get_cpu_count())
     }
 }
 

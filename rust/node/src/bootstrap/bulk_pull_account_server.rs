@@ -92,8 +92,8 @@ impl BulkPullAccountServerImpl {
             // Send the buffer to the requestor
             self.runtime.tokio.spawn(async move {
                 if connection_l
-                    .socket
-                    .write(&send_buffer, TrafficType::Bootstrap)
+                    .channel()
+                    .send_buffer(&send_buffer, TrafficType::Bootstrap)
                     .await
                     .is_ok()
                 {
@@ -139,8 +139,8 @@ impl BulkPullAccountServerImpl {
             let workers = self.thread_pool.clone();
             self.runtime.tokio.spawn(async move {
                 if connection
-                    .socket
-                    .write(&send_buffer, TrafficType::Bootstrap)
+                    .channel()
+                    .send_buffer(&send_buffer, TrafficType::Bootstrap)
                     .await
                     .is_ok()
                 {
@@ -252,8 +252,8 @@ async fn send_finished(
     }
 
     if connection
-        .socket
-        .write(&send_buffer, TrafficType::Bootstrap)
+        .channel()
+        .send_buffer(&send_buffer, TrafficType::Bootstrap)
         .await
         .is_ok()
     {

@@ -8,6 +8,7 @@ mod channel_tcp;
 mod fair_queue;
 mod handshake_process;
 mod inbound_message_queue;
+mod latest_keepalives;
 mod message_deserializer;
 mod message_processor;
 mod network;
@@ -40,6 +41,7 @@ pub use channel_tcp::*;
 pub use fair_queue::*;
 pub(crate) use handshake_process::*;
 pub use inbound_message_queue::InboundMessageQueue;
+pub use latest_keepalives::*;
 pub use message_deserializer::{AsyncBufferReader, MessageDeserializer};
 pub use message_processor::*;
 pub use network::*;
@@ -57,7 +59,7 @@ use rsnano_messages::Message;
 pub use socket::*;
 use std::{
     fmt::{Debug, Display},
-    net::SocketAddrV6,
+    net::{Ipv6Addr, SocketAddrV6},
     ops::Deref,
     sync::Arc,
     time::{Duration, SystemTime},
@@ -126,15 +128,11 @@ pub trait Channel: AsyncBufferReader {
     fn mode(&self) -> ChannelMode;
     fn set_mode(&self, mode: ChannelMode);
     fn set_timeout(&self, timeout: Duration);
+    fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr;
+    fn subnetwork(&self) -> Ipv6Addr;
 
     fn try_send(&self, message: &Message, drop_policy: BufferDropPolicy, traffic_type: TrafficType);
-
-    async fn send_buffer(
-        &self,
-        buffer: &Arc<Vec<u8>>,
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()>;
-
+    async fn send_buffer(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()>;
     async fn send(&self, message: &Message, traffic_type: TrafficType) -> anyhow::Result<()>;
 
     fn close(&self);
@@ -200,6 +198,13 @@ impl Deref for ChannelEnum {
 
 #[async_trait]
 impl AsyncBufferReader for ChannelEnum {
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
+        self.deref().read(buffer, count).await
+    }
+}
+
+#[async_trait]
+impl AsyncBufferReader for Arc<ChannelEnum> {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         self.deref().read(buffer, count).await
     }

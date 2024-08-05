@@ -39,7 +39,6 @@ impl From<&BootstrapAscendingConfig> for BootstrapAscendingConfigDto {
 impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfig {
     fn from(value: &BootstrapAscendingConfigDto) -> Self {
         let mut config = BootstrapAscendingConfig::default();
-
         config.requests_limit = value.requests_limit;
         config.database_requests_limit = value.database_requests_limit;
         config.pull_count = value.pull_count;
@@ -48,7 +47,6 @@ impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfig {
         config.throttle_wait = Duration::from_millis(value.throttle_wait_ms);
         config.account_sets = (&value.account_sets).into();
         config.block_wait_count = value.block_wait_count;
-
         config
     }
 }

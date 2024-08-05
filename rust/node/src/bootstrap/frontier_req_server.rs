@@ -91,7 +91,11 @@ impl FrontierReqServerImpl {
 
             let conn = self.connection.clone();
             self.runtime.tokio.spawn(async move {
-                match conn.socket.write(&send_buffer, TrafficType::Generic).await {
+                match conn
+                    .channel()
+                    .send_buffer(&send_buffer, TrafficType::Generic)
+                    .await
+                {
                     Ok(()) => {
                         let server2 = server.clone();
                         server.lock().unwrap().sent_action(server2);
@@ -114,8 +118,8 @@ impl FrontierReqServerImpl {
         debug!("Frontier sending finished");
 
         match connection
-            .socket
-            .write(&send_buffer, TrafficType::Generic)
+            .channel()
+            .send_buffer(&send_buffer, TrafficType::Generic)
             .await
         {
             Ok(()) => {

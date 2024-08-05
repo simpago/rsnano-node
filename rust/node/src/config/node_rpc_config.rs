@@ -30,3 +30,12 @@ impl NodeRpcConfig {
         }
     }
 }
+
+impl Default for NodeRpcConfig {
+    fn default() -> Self {
+        Self {
+            enable_sign_hash: false,
+            child_process: RpcChildProcessConfig::new(),
+        }
+    }
+}

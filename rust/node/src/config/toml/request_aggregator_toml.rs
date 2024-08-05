@@ -3,19 +3,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct RequestAggregatorToml {
-    pub threads: Option<usize>,
-    pub max_queue: Option<usize>,
     pub batch_size: Option<usize>,
+    pub max_queue: Option<usize>,
+    pub threads: Option<usize>,
 }
 
 impl Default for RequestAggregatorToml {
     fn default() -> Self {
         let config = RequestAggregatorConfig::default();
-        Self {
-            threads: Some(config.threads),
-            max_queue: Some(config.max_queue),
-            batch_size: Some(config.batch_size),
-        }
+        (&config).into()
     }
 }
 

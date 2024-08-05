@@ -193,26 +193,6 @@ impl std::cmp::Ord for Amount {
     }
 }
 
-impl serde::Serialize for Amount {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.raw.to_string())
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for Amount {
-    fn deserialize<D>(deserializer: D) -> Result<Amount, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let raw = s.parse::<u128>().map_err(serde::de::Error::custom)?;
-        Ok(Amount { raw })
-    }
-}
-
 pub static XRB_RATIO: Lazy<u128> = Lazy::new(|| str::parse("1000000000000000000000000").unwrap()); // 10^24
 pub static KXRB_RATIO: Lazy<u128> =
     Lazy::new(|| str::parse("1000000000000000000000000000").unwrap()); // 10^27

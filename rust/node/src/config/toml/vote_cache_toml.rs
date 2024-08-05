@@ -1,22 +1,18 @@
-use crate::{config::Miliseconds, consensus::VoteCacheConfig};
+use crate::consensus::VoteCacheConfig;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Deserialize, Serialize)]
 pub struct VoteCacheToml {
+    pub age_cutoff: Option<u64>,
     pub max_size: Option<usize>,
     pub max_voters: Option<usize>,
-    pub age_cutoff: Option<Miliseconds>,
 }
 
 impl Default for VoteCacheToml {
     fn default() -> Self {
         let config = VoteCacheConfig::default();
-        Self {
-            max_size: Some(config.max_size),
-            max_voters: Some(config.max_voters),
-            age_cutoff: Some(Miliseconds(config.age_cutoff.as_millis())),
-        }
+        (&config).into()
     }
 }
 
@@ -31,7 +27,7 @@ impl From<&VoteCacheToml> for VoteCacheConfig {
             config.max_voters = max_voters;
         }
         if let Some(age_cutoff) = &toml.age_cutoff {
-            config.age_cutoff = Duration::from_millis(age_cutoff.0 as u64);
+            config.age_cutoff = Duration::from_millis(*age_cutoff);
         }
         config
     }
@@ -42,7 +38,7 @@ impl From<&VoteCacheConfig> for VoteCacheToml {
         Self {
             max_size: Some(config.max_size),
             max_voters: Some(config.max_voters),
-            age_cutoff: Some(Miliseconds(config.age_cutoff.as_millis())),
+            age_cutoff: Some(config.age_cutoff.as_millis() as u64),
         }
     }
 }

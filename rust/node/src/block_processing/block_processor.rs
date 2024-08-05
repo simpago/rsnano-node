@@ -145,12 +145,6 @@ impl Default for BlockProcessorConfig {
     }
 }
 
-impl BlockProcessorConfig {
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
     processor_loop: Arc<BlockProcessorLoop>,

@@ -1,24 +1,20 @@
-use super::{ChannelDirection, Network, ResponseServerFactory, SocketBuilder, TcpConfig};
+use super::{ChannelDirection, Network, ResponseServerFactory, TcpConfig};
 use crate::{
-    config::NodeConfig,
-    stats::{DetailType, Direction, SocketStats, StatType, Stats},
+    stats::{DetailType, Direction, StatType, Stats},
     transport::TcpStream,
     utils::AsyncRuntime,
-    NetworkParams,
 };
 use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
-use std::{net::SocketAddrV6, sync::Arc, time::Duration};
+use std::{net::SocketAddrV6, sync::Arc};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
 /// Establishes a network connection to a given peer
 pub struct PeerConnector {
     config: TcpConfig,
-    node_config: NodeConfig,
     network: Arc<Network>,
     stats: Arc<Stats>,
     runtime: Arc<AsyncRuntime>,
-    network_params: NetworkParams,
     cancel_token: CancellationToken,
     response_server_factory: Arc<ResponseServerFactory>,
     connect_listener: OutputListenerMt<SocketAddrV6>,
@@ -27,20 +23,16 @@ pub struct PeerConnector {
 impl PeerConnector {
     pub(crate) fn new(
         config: TcpConfig,
-        node_config: NodeConfig,
         network: Arc<Network>,
         stats: Arc<Stats>,
         runtime: Arc<AsyncRuntime>,
-        network_params: NetworkParams,
         response_server_factory: Arc<ResponseServerFactory>,
     ) -> Self {
         Self {
             config,
-            node_config,
             network,
             stats,
             runtime,
-            network_params,
             cancel_token: CancellationToken::new(),
             response_server_factory,
             connect_listener: OutputListenerMt::new(),
@@ -51,11 +43,9 @@ impl PeerConnector {
     pub(crate) fn new_null() -> Self {
         Self {
             config: Default::default(),
-            node_config: NodeConfig::new_test_instance(),
             network: Arc::new(Network::new_null()),
             stats: Arc::new(Default::default()),
             runtime: Arc::new(Default::default()),
-            network_params: NetworkParams::new(rsnano_core::Networks::NanoDevNetwork),
             cancel_token: CancellationToken::new(),
             response_server_factory: Arc::new(ResponseServerFactory::new_null()),
             connect_listener: OutputListenerMt::new(),
@@ -74,28 +64,13 @@ impl PeerConnector {
         let raw_listener = tokio::net::TcpSocket::new_v6()?;
         let raw_stream = raw_listener.connect(endpoint.into()).await?;
         let raw_stream = TcpStream::new(raw_stream);
-
-        let socket_stats = Arc::new(SocketStats::new(Arc::clone(&self.stats)));
-        let socket = SocketBuilder::new(ChannelDirection::Outbound, self.runtime.clone())
-            .default_timeout(Duration::from_secs(
-                self.node_config.tcp_io_timeout_s as u64,
-            ))
-            .silent_connection_tolerance_time(Duration::from_secs(
-                self.network_params
-                    .network
-                    .silent_connection_tolerance_time_s as u64,
-            ))
-            .idle_timeout(self.network_params.network.idle_timeout)
-            .observer(socket_stats)
-            .finish(raw_stream);
-
-        let response_server = self
-            .response_server_factory
-            .create_response_server(socket.clone());
-
-        self.network
-            .add(&socket, &response_server, ChannelDirection::Outbound)
-            .await
+        let channel = self
+            .network
+            .add(raw_stream, ChannelDirection::Outbound)
+            .await?;
+        let response_server = self.response_server_factory.start_response_server(channel);
+        response_server.initiate_handshake().await;
+        Ok(())
     }
 }
 

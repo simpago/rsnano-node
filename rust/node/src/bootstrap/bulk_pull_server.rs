@@ -265,8 +265,8 @@ impl BulkPullServerImpl {
         let conn = self.connection.clone();
         self.runtime.tokio.spawn(async move {
             match conn
-                .socket
-                .write(&send_buffer, TrafficType::Bootstrap)
+                .channel()
+                .send_buffer(&send_buffer, TrafficType::Bootstrap)
                 .await
             {
                 Ok(()) => {
@@ -292,8 +292,8 @@ impl BulkPullServerImpl {
             let conn = self.connection.clone();
             self.runtime.tokio.spawn(async move {
                 if conn
-                    .socket
-                    .write(&send_buffer, TrafficType::Bootstrap)
+                    .channel()
+                    .send_buffer(&send_buffer, TrafficType::Bootstrap)
                     .await
                     .is_ok()
                 {

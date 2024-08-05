@@ -102,12 +102,12 @@ impl BulkPushServerImpl {
         if bootstrap_initiator.in_progress() {
             debug!("Aborting bulk_push because a bootstrap attempt is in progress");
         } else {
-            let socket = Arc::clone(&self.connection.socket);
+            let channel = Arc::clone(&self.connection.channel());
             let buffer = Arc::clone(&self.receive_buffer);
             let server_impl2 = Arc::clone(&server_impl);
             self.async_rt.tokio.spawn(async move {
                 let mut buf = [0; BUFFER_SIZE];
-                let result = socket.read_raw(&mut buf, 1).await;
+                let result = channel.read(&mut buf, 1).await;
                 buffer.lock().unwrap().copy_from_slice(&buf);
                 spawn_blocking(Box::new(move || {
                     let guard = server_impl.lock().unwrap();
@@ -128,7 +128,7 @@ impl BulkPushServerImpl {
         let stats = Arc::clone(&self.stats);
         let server_impl2 = Arc::clone(&server_impl);
         let block_type = { BlockType::from_u8(self.receive_buffer.lock().unwrap()[0]) };
-        let socket = Arc::clone(&self.connection.socket);
+        let channel = Arc::clone(&self.connection.channel());
         let buffer = Arc::clone(&self.receive_buffer);
 
         match block_type {
@@ -151,9 +151,7 @@ impl BulkPushServerImpl {
             match block_type {
                 Some(BlockType::LegacySend) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Send, Direction::In);
-                    let result = socket
-                        .read_raw(&mut buf, SendBlock::serialized_size())
-                        .await;
+                    let result = channel.read(&mut buf, SendBlock::serialized_size()).await;
                     buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
@@ -179,8 +177,8 @@ impl BulkPushServerImpl {
                 }
                 Some(BlockType::LegacyReceive) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Receive, Direction::In);
-                    let result = socket
-                        .read_raw(&mut buf, ReceiveBlock::serialized_size())
+                    let result = channel
+                        .read(&mut buf, ReceiveBlock::serialized_size())
                         .await;
                     buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
@@ -206,9 +204,7 @@ impl BulkPushServerImpl {
                 }
                 Some(BlockType::LegacyOpen) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Open, Direction::In);
-                    let result = socket
-                        .read_raw(&mut buf, OpenBlock::serialized_size())
-                        .await;
+                    let result = channel.read(&mut buf, OpenBlock::serialized_size()).await;
                     buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
@@ -233,9 +229,7 @@ impl BulkPushServerImpl {
                 }
                 Some(BlockType::LegacyChange) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::Change, Direction::In);
-                    let result = socket
-                        .read_raw(&mut buf, ChangeBlock::serialized_size())
-                        .await;
+                    let result = channel.read(&mut buf, ChangeBlock::serialized_size()).await;
                     buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;
@@ -260,9 +254,7 @@ impl BulkPushServerImpl {
                 }
                 Some(BlockType::State) => {
                     stats.inc_dir(StatType::Bootstrap, DetailType::StateBlock, Direction::In);
-                    let result = socket
-                        .read_raw(&mut buf, StateBlock::serialized_size())
-                        .await;
+                    let result = channel.read(&mut buf, StateBlock::serialized_size()).await;
                     buffer.lock().unwrap().copy_from_slice(&buf);
                     let ec;
                     let len;

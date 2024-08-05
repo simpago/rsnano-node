@@ -35,13 +35,11 @@ pub struct BlockProcessorConfigDto {
 impl From<&BlockProcessorConfigDto> for BlockProcessorConfig {
     fn from(value: &BlockProcessorConfigDto) -> Self {
         let mut config = BlockProcessorConfig::default();
-
         config.max_peer_queue = value.max_peer_queue;
         config.max_system_queue = value.max_system_queue;
         config.priority_live = value.priority_live;
         config.priority_bootstrap = value.priority_bootstrap;
         config.priority_local = value.priority_local;
-
         config
     }
 }

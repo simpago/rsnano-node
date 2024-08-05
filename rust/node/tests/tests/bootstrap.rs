@@ -10,7 +10,10 @@ use rsnano_node::{
     bootstrap::BulkPullServer,
     node::Node,
     stats::SocketStats,
-    transport::{ChannelDirection, ResponseServer, SocketBuilder},
+    transport::{
+        ChannelDirection, ChannelEnum, ChannelId, ChannelTcp, LatestKeepalives, ResponseServer,
+        SocketBuilder,
+    },
 };
 use rsnano_node::{
     bootstrap::{BootstrapAttemptTrait, BootstrapInitiatorExt, BootstrapStrategy},
@@ -19,8 +22,11 @@ use rsnano_node::{
     transport::TcpStream,
     wallets::WalletsExt,
 };
-use std::sync::Arc;
 use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::SystemTime,
+};
 
 mod bootstrap_processor {
     use super::*;
@@ -1293,15 +1299,27 @@ mod bulk_pull_account {
 }
 
 fn create_response_server(node: &Node) -> Arc<ResponseServer> {
-    let socket_stats = Arc::new(SocketStats::new(node.stats.clone()));
-    let socket = SocketBuilder::new(ChannelDirection::Inbound, node.async_rt.clone())
-        .observer(socket_stats)
-        .finish(TcpStream::new_null());
+    let socket = node.async_rt.tokio.block_on(async {
+        let socket_stats = Arc::new(SocketStats::new(node.stats.clone()));
+        SocketBuilder::new(ChannelDirection::Inbound)
+            .observer(socket_stats)
+            .finish(TcpStream::new_null())
+            .await
+    });
+
+    let channel = Arc::new(ChannelEnum::Tcp(Arc::new(ChannelTcp::new(
+        socket.clone(),
+        SystemTime::now(),
+        node.stats.clone(),
+        node.outbound_limiter.clone(),
+        ChannelId::from(1),
+        node.network_params.network.protocol_info(),
+    ))));
 
     Arc::new(ResponseServer::new(
         &node.network,
         node.network.inbound_queue.clone(),
-        socket,
+        channel,
         node.network.publish_filter.clone(),
         Arc::new(node.network_params.clone()),
         node.stats.clone(),
@@ -1314,5 +1332,6 @@ fn create_response_server(node: &Node) -> Arc<ResponseServer> {
         node.block_processor.clone(),
         node.bootstrap_initiator.clone(),
         node.flags.clone(),
+        Arc::new(Mutex::new(LatestKeepalives::default())),
     ))
 }

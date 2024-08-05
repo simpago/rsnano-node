@@ -14,17 +14,17 @@ pub struct Keepalive {
 }
 
 impl Keepalive {
-    pub fn new_test_instance() -> Self {
+    pub const fn new_test_instance() -> Self {
         Self {
             peers: [
-                "[::ffff:1.2.3.4]:1111".parse().unwrap(),
-                "[::ffff:1.2.3.5]:2222".parse().unwrap(),
-                "[::ffff:1.2.3.6]:3333".parse().unwrap(),
-                "[::ffff:1.2.3.7]:4444".parse().unwrap(),
-                "[::ffff:1.2.3.8]:5555".parse().unwrap(),
-                "[::ffff:1.2.3.9]:6666".parse().unwrap(),
-                "[::ffff:1.2.3.10]:7777".parse().unwrap(),
-                "[::ffff:1.2.3.11]:8888".parse().unwrap(),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 4), 1111, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 5), 2222, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 6), 3333, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 7), 4444, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 8), 5555, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 9), 6666, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 0x10), 7777, 0, 0),
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 1, 2, 3, 0x11), 8888, 0, 0),
             ],
         }
     }

@@ -19,10 +19,10 @@ use rsnano_core::{utils::get_cpu_count, Account, Amount};
 use rsnano_node::{
     block_processing::LocalBlockBroadcasterConfig,
     cementation::ConfirmingSetConfig,
-    config::{NodeConfig, Peer},
+    config::{MonitorConfig, NodeConfig, Peer},
     consensus::PriorityBucketConfig,
     transport::{MessageProcessorConfig, TcpConfig},
-    MonitorConfig, NetworkParams,
+    NetworkParams,
 };
 use std::{
     convert::{TryFrom, TryInto},
