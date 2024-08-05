@@ -37,7 +37,7 @@ public:
 	explicit rpc_config (nano::network_constants & network_constants, uint16_t, bool);
 	void load_dto (rsnano::RpcConfigDto & dto);
 	rsnano::RpcConfigDto to_dto () const;
-	nano::error serialize_toml (nano::tomlconfig &) const;
+	std::string serialize_toml () const;
 	nano::error deserialize_toml (nano::tomlconfig &);
 
 	nano::rpc_process_config rpc_process;

@@ -254,15 +254,6 @@ void nano::node_config::load_dto (rsnano::NodeConfigDto & dto)
 	monitor = nano::monitor_config{ dto.monitor };
 }
 
-nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
-{
-	auto dto{ to_node_config_dto (*this) };
-	if (rsnano::rsn_node_config_serialize_toml (&dto, &toml) < 0)
-		return nano::error ("could not TOML serialize node_config");
-
-	return nano::error ();
-}
-
 nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 {
 	try

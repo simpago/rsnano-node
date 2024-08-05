@@ -57,13 +57,18 @@ rsnano::RpcConfigDto nano::rpc_config::to_dto () const
 	return dto;
 }
 
-nano::error nano::rpc_config::serialize_toml (nano::tomlconfig & toml) const
+std::string nano::rpc_config::serialize_toml () const
 {
 	auto dto{ to_dto () };
-	if (rsnano::rsn_rpc_config_serialize_toml (&dto, &toml) < 0)
-		return nano::error ("could not TOML serialize rpc_config");
 
-	return toml.get_error ();
+	const size_t buffer_len = 1000;
+	std::vector<char> buffer (buffer_len);
+
+	rsnano::rsn_rpc_config_serialize_toml (&dto, buffer.data (), buffer_len);
+
+	std::string toml_str (buffer.data ());
+
+	return toml_str;
 }
 
 nano::error nano::rpc_config::deserialize_toml (nano::tomlconfig & toml)
