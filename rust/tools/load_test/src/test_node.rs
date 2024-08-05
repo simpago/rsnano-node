@@ -1,15 +1,6 @@
 use anyhow::{anyhow, Result};
 use reqwest::Url;
 use rsnano_core::{utils::get_cpu_count, DEV_GENESIS_KEY};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    process::{Child, Command},
-    sync::Arc,
-    time::Duration,
-};
-use tokio::time::sleep;
-
 use rsnano_node::{
     config::{
         get_node_toml_config_path, get_rpc_toml_config_path, DaemonConfig, NetworkConstants,
@@ -19,6 +10,14 @@ use rsnano_node::{
     utils::TomlConfig,
     NetworkParams, DEV_NETWORK_PARAMS,
 };
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::{Child, Command},
+    sync::Arc,
+    time::Duration,
+};
+use tokio::time::sleep;
 
 use crate::create_send_and_receive_blocks;
 use crate::Account;
@@ -187,8 +186,7 @@ fn write_node_config(index: usize, data_path: &Path, network_params: &NetworkPar
         .enabled = true;
     daemon_config.node.ipc_config.transport_tcp.port = IPC_PORT_START + index as u16;
     daemon_config.node.use_memory_pools = (index % 2) == 0;
-    let mut toml = TomlConfig::new();
-    daemon_config.serialize_toml(&mut toml)?;
+    let toml = TomlConfig::new();
     toml.write(get_node_toml_config_path(data_path))?;
     Ok(())
 }
@@ -198,8 +196,7 @@ fn write_rpc_config(index: usize, data_path: &Path, network_params: &NetworkPara
     rpc_config.port = RPC_PORT_START + index as u16;
     rpc_config.enable_control = true;
     rpc_config.rpc_process.ipc_port = IPC_PORT_START + index as u16;
-    let mut toml_rpc = TomlConfig::new();
-    rpc_config.serialize_toml(&mut toml_rpc)?;
+    let toml_rpc = TomlConfig::new();
     toml_rpc.write(get_rpc_toml_config_path(data_path))?;
     Ok(())
 }

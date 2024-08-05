@@ -10,10 +10,9 @@ use crate::{
         ActiveElectionsConfigDto, RequestAggregatorConfigDto, VoteCacheConfigDto,
         VoteProcessorConfigDto,
     },
-    fill_ipc_config_dto, fill_stat_config_dto,
-    utils::FfiToml,
-    BlockProcessorConfigDto, HintedSchedulerConfigDto, IpcConfigDto, NetworkParamsDto,
-    OptimisticSchedulerConfigDto, StatConfigDto, WebsocketConfigDto,
+    fill_ipc_config_dto, fill_stat_config_dto, BlockProcessorConfigDto, HintedSchedulerConfigDto,
+    IpcConfigDto, NetworkParamsDto, OptimisticSchedulerConfigDto, StatConfigDto,
+    WebsocketConfigDto,
 };
 use num::FromPrimitive;
 use rsnano_core::{utils::get_cpu_count, Account, Amount};
@@ -27,7 +26,6 @@ use rsnano_node::{
 };
 use std::{
     convert::{TryFrom, TryInto},
-    ffi::c_void,
     time::Duration,
 };
 
@@ -334,19 +332,6 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.local_block_broadcaster = (&cfg.local_block_broadcaster).into();
     dto.confirming_set = (&cfg.confirming_set).into();
     dto.monitor = (&cfg.monitor).into();
-}
-
-#[no_mangle]
-pub extern "C" fn rsn_node_config_serialize_toml(dto: &NodeConfigDto, toml: *mut c_void) -> i32 {
-    let cfg = match NodeConfig::try_from(dto) {
-        Ok(c) => c,
-        Err(_) => return -1,
-    };
-    let mut toml = FfiToml::new(toml);
-    match cfg.serialize_toml(&mut toml) {
-        Ok(_) => 0,
-        Err(_) => -1,
-    }
 }
 
 impl From<&PeerDto> for Peer {

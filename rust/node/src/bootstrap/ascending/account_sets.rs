@@ -12,7 +12,7 @@ use rand::{
     thread_rng, RngCore,
 };
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent, TomlWriter},
+    utils::{ContainerInfo, ContainerInfoComponent},
     Account, BlockHash,
 };
 use std::{
@@ -37,27 +37,6 @@ impl Default for AccountSetsConfig {
             blocking_max: 256 * 1024,
             cooldown: Duration::from_secs(3),
         }
-    }
-}
-
-impl AccountSetsConfig {
-    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize ("consideration_count", self.consideration_count, "Limit the number of account candidates to consider and also the number of iterations.\ntype:uint64")?;
-        toml.put_usize(
-            "priorities_max",
-            self.priorities_max,
-            "Cutoff size limit for the priority list.\ntype:uint64",
-        )?;
-        toml.put_usize(
-            "blocking_max",
-            self.blocking_max,
-            "Cutoff size limit for the blocked accounts from the priority list.\ntype:uint64",
-        )?;
-        toml.put_u64(
-            "cooldown",
-            self.cooldown.as_millis() as u64,
-            "Waiting time for an account to become available.\ntype:milliseconds",
-        )
     }
 }
 
