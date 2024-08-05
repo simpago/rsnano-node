@@ -31,7 +31,7 @@ pub enum FrontiersConfirmationMode {
     Invalid,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeConfig {
     pub peering_port: Option<u16>,
     pub optimistic_scheduler: OptimisticSchedulerConfig,
@@ -381,7 +381,16 @@ impl NodeConfig {
     }
 }
 
-#[derive(Clone)]
+fn serialize_frontiers_confirmation(mode: FrontiersConfirmationMode) -> &'static str {
+    match mode {
+        FrontiersConfirmationMode::Always => "always",
+        FrontiersConfirmationMode::Automatic => "auto",
+        FrontiersConfirmationMode::Disabled => "disabled",
+        FrontiersConfirmationMode::Invalid => "auto",
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct MonitorConfig {
     pub enabled: bool,
     pub interval: Duration,

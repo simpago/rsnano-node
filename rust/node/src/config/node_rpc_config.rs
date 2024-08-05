@@ -16,6 +16,7 @@ impl RpcChildProcessConfig {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct NodeRpcConfig {
     pub enable_sign_hash: bool,
     pub child_process: RpcChildProcessConfig,

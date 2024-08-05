@@ -7,7 +7,7 @@ use std::cmp::{max, min};
 
 pub static WORK_THRESHOLDS_STUB: Lazy<WorkThresholds> = Lazy::new(|| WorkThresholds::new_stub());
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub struct WorkThresholds {
     pub epoch_1: u64,
     pub epoch_2: u64,
@@ -33,6 +33,18 @@ pub struct WorkThresholds {
         }
     }
 }*/
+
+impl PartialEq for WorkThresholds {
+    fn eq(&self, other: &Self) -> bool {
+        self.epoch_1 == other.epoch_1
+            && self.epoch_2 == other.epoch_2
+            && self.epoch_2_receive == other.epoch_2_receive
+            && self.base == other.base
+            && self.entry == other.entry
+            && self.difficulty.get_difficulty(&Root::default(), 0)
+                == other.difficulty.get_difficulty(&Root::default(), 0)
+    }
+}
 
 static PUBLISH_FULL: Lazy<WorkThresholds> = Lazy::new(|| {
     WorkThresholds::new(

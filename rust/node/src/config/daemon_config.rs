@@ -2,6 +2,7 @@ use super::{NodeConfig, NodeRpcConfig, OpenclConfig};
 use crate::NetworkParams;
 use rsnano_core::utils::get_cpu_count;
 
+#[derive(Debug, PartialEq)]
 pub struct DaemonConfig {
     pub rpc_enable: bool,
     pub rpc: NodeRpcConfig,
