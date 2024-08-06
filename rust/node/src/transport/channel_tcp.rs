@@ -1,6 +1,7 @@
 use super::{
-    write_queue::WriteQueue, AsyncBufferReader, BufferDropPolicy, Channel, ChannelDirection,
-    ChannelId, ChannelMode, OutboundBandwidthLimiter, TcpStream, TrafficType,
+    write_queue::{WriteQueue, WriteQueueReceiver},
+    AsyncBufferReader, BufferDropPolicy, Channel, ChannelDirection, ChannelId, ChannelMode,
+    OutboundBandwidthLimiter, TcpStream, TrafficType,
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
@@ -68,10 +69,74 @@ pub struct ChannelTcp {
 
     write_queue: WriteQueue,
     stream: Arc<TcpStream>,
+    ignore_closed_write_queue: bool,
 }
 
 impl ChannelTcp {
     const MAX_QUEUE_SIZE: usize = 128;
+
+    fn new(
+        channel_id: ChannelId,
+        stream: Arc<TcpStream>,
+        direction: ChannelDirection,
+        protocol: ProtocolInfo,
+        stats: Arc<Stats>,
+        limiter: Arc<OutboundBandwidthLimiter>,
+    ) -> (Self, WriteQueueReceiver) {
+        let remote = stream
+            .peer_addr()
+            .map(into_ipv6_socket_address)
+            .unwrap_or(NULL_ENDPOINT);
+
+        let (write_queue, receiver) = WriteQueue::new(Self::MAX_QUEUE_SIZE);
+
+        let peering_endpoint = match direction {
+            ChannelDirection::Inbound => None,
+            ChannelDirection::Outbound => Some(remote),
+        };
+
+        let now = SystemTime::now();
+        let channel = Self {
+            channel_id,
+            channel_mutex: Mutex::new(TcpChannelData {
+                last_bootstrap_attempt: UNIX_EPOCH,
+                last_packet_received: now,
+                last_packet_sent: now,
+                node_id: None,
+                peering_endpoint,
+            }),
+            network_version: AtomicU8::new(protocol.version_using),
+            limiter,
+            message_serializer: Mutex::new(MessageSerializer::new(protocol)),
+            stats,
+            remote,
+            last_activity: AtomicU64::new(seconds_since_epoch()),
+            timeout_seconds: AtomicU64::new(DEFAULT_TIMEOUT),
+            direction,
+            timed_out: AtomicBool::new(false),
+            closed: AtomicBool::new(false),
+            socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
+            write_queue,
+            stream,
+            ignore_closed_write_queue: false,
+        };
+
+        (channel, receiver)
+    }
+
+    pub fn new_null() -> Self {
+        let (mut channel, _receiver) = Self::new(
+            ChannelId::from(42),
+            Arc::new(TcpStream::new_null()),
+            ChannelDirection::Inbound,
+            ProtocolInfo::default(),
+            Arc::new(Stats::default()),
+            Arc::new(OutboundBandwidthLimiter::default()),
+        );
+        // We drop the write queue receiver, so the channel would be dead immediately.
+        channel.ignore_closed_write_queue = true;
+        channel
+    }
 
     pub async fn create(
         channel_id: ChannelId,
@@ -81,14 +146,11 @@ impl ChannelTcp {
         stats: Arc<Stats>,
         limiter: Arc<OutboundBandwidthLimiter>,
     ) -> Arc<Self> {
-        let remote = stream
-            .peer_addr()
-            .map(into_ipv6_socket_address)
-            .unwrap_or(NULL_ENDPOINT);
-
-        let (write_queue, mut receiver) = WriteQueue::new(Self::MAX_QUEUE_SIZE);
         let stream = Arc::new(stream);
         let stream_l = stream.clone();
+        let (channel, mut receiver) =
+            Self::new(channel_id, stream, direction, protocol, stats, limiter);
+        //
         // process write queue:
         tokio::spawn(async move {
             while let Some(entry) = receiver.pop().await {
@@ -118,39 +180,10 @@ impl ChannelTcp {
             }
         });
 
-        let peering_endpoint = match direction {
-            ChannelDirection::Inbound => None,
-            ChannelDirection::Outbound => Some(remote),
-        };
-
-        let now = SystemTime::now();
-        let result = Arc::new(Self {
-            channel_id,
-            channel_mutex: Mutex::new(TcpChannelData {
-                last_bootstrap_attempt: UNIX_EPOCH,
-                last_packet_received: now,
-                last_packet_sent: now,
-                node_id: None,
-                peering_endpoint,
-            }),
-            network_version: AtomicU8::new(protocol.version_using),
-            limiter,
-            message_serializer: Mutex::new(MessageSerializer::new(protocol)),
-            stats,
-            remote,
-            last_activity: AtomicU64::new(seconds_since_epoch()),
-            timeout_seconds: AtomicU64::new(DEFAULT_TIMEOUT),
-            direction,
-            timed_out: AtomicBool::new(false),
-            closed: AtomicBool::new(false),
-            socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
-            write_queue,
-            stream,
-        });
-
-        let channel_l = Arc::clone(&result);
+        let channel = Arc::new(channel);
+        let channel_l = channel.clone();
         tokio::spawn(async move { channel_l.ongoing_checkup().await });
-        result
+        channel
     }
 
     pub(crate) fn set_peering_endpoint(&self, address: SocketAddrV6) {
@@ -163,7 +196,8 @@ impl ChannelTcp {
     }
 
     fn is_closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst) || self.write_queue.is_closed()
+        self.closed.load(Ordering::SeqCst)
+            || (!self.ignore_closed_write_queue && self.write_queue.is_closed())
     }
 
     fn is_alive_impl(&self) -> bool {

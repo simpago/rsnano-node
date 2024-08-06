@@ -11,9 +11,9 @@ use rsnano_core::{
 use rsnano_messages::DeserializedMessage;
 use rsnano_node::{
     config::NetworkConstants,
-    transport::{Channel, ChannelEnum, ChannelFake, ChannelInProc, ChannelTcp},
+    transport::{Channel, ChannelEnum, ChannelInProc, ChannelTcp},
 };
-use std::{ffi::c_void, net::SocketAddrV6, ops::Deref, sync::Arc, time::SystemTime};
+use std::{ffi::c_void, ops::Deref, sync::Arc, time::SystemTime};
 
 pub struct ChannelHandle(Arc<ChannelEnum>);
 
@@ -28,13 +28,6 @@ impl Deref for ChannelHandle {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-pub unsafe fn as_fake_channel(handle: *mut ChannelHandle) -> &'static ChannelFake {
-    match (*handle).0.as_ref() {
-        ChannelEnum::Fake(fake) => fake,
-        _ => panic!("expected fake channel"),
     }
 }
 
@@ -188,43 +181,10 @@ pub unsafe extern "C" fn rsn_channel_inproc_network_version(handle: *mut Channel
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_channel_fake_network_version(handle: *mut ChannelHandle) -> u8 {
-    let inproc = as_fake_channel(handle);
-    inproc.network_version()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn rsn_channel_inproc_endpoint(
     handle: *mut ChannelHandle,
     result: *mut EndpointDto,
 ) {
     let inproc = as_inproc_channel(handle);
     (*result) = inproc.local_endpoint.into()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_channel_fake_create(
-    channel_id: usize,
-    _async_rt: &mut AsyncRuntimeHandle,
-    _limiter: *mut OutboundBandwidthLimiterHandle,
-    _stats: *mut StatHandle,
-    endpoint: *const EndpointDto,
-    network_constants: &NetworkConstantsDto,
-) -> *mut ChannelHandle {
-    ChannelHandle::new(Arc::new(ChannelEnum::Fake(ChannelFake::new(
-        SystemTime::now(),
-        channel_id.into(),
-        SocketAddrV6::from(&(*endpoint)),
-        NetworkConstants::try_from(network_constants)
-            .unwrap()
-            .protocol_info(),
-    ))))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rsn_channel_fake_endpoint(
-    handle: *mut ChannelHandle,
-    result: *mut EndpointDto,
-) {
-    *result = as_fake_channel(handle).remote_addr().into();
 }

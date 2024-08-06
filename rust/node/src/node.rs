@@ -1259,6 +1259,11 @@ impl Node {
         self.ledger.confirm(&mut tx, hash);
     }
 
+    pub fn block_confirmed(&self, hash: &BlockHash) -> bool {
+        let tx = self.ledger.read_txn();
+        self.ledger.confirmed().block_exists(&tx, hash)
+    }
+
     pub fn blocks_confirmed(&self, blocks: &[BlockEnum]) -> bool {
         let tx = self.ledger.read_txn();
         blocks

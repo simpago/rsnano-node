@@ -1,6 +1,7 @@
 use rsnano_core::{work::WorkPoolImpl, Amount, BlockHash, Networks, WalletId};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
+    consensus::Election,
     node::{Node, NodeExt},
     transport::{ChannelDirection, ChannelEnum, PeerConnectorExt, TcpStream},
     unique_path,
@@ -283,7 +284,7 @@ pub(crate) fn make_fake_channel(node: &Node) -> Arc<ChannelEnum> {
         .unwrap()
 }
 
-pub(crate) fn start_election(node: &Node, hash: &BlockHash) {
+pub(crate) fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     assert_timely(
         Duration::from_secs(5),
         || node.block_exists(hash),
@@ -300,4 +301,5 @@ pub(crate) fn start_election(node: &Node, hash: &BlockHash) {
     );
     let election = node.active.election(&block.qualified_root()).unwrap();
     election.transition_active();
+    election
 }

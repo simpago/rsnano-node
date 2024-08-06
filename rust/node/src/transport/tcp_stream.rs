@@ -1,6 +1,6 @@
 use std::{
     cmp::min,
-    net::SocketAddr,
+    net::{SocketAddr, SocketAddrV6},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -21,13 +21,19 @@ impl TcpStream {
 
     pub fn new_null() -> Self {
         Self {
-            stream: Box::new(TcpStreamStub::new(Vec::new())),
+            stream: Box::new(TcpStreamStub::new(TEST_ENDPOINT_1, Vec::new())),
+        }
+    }
+
+    pub fn new_null_with_peer_addr(peer_addr: SocketAddrV6) -> Self {
+        Self {
+            stream: Box::new(TcpStreamStub::new(peer_addr, Vec::new())),
         }
     }
 
     pub fn new_null_with(incoming: Vec<u8>) -> Self {
         Self {
-            stream: Box::new(TcpStreamStub::new(incoming)),
+            stream: Box::new(TcpStreamStub::new(TEST_ENDPOINT_1, incoming)),
         }
     }
 
@@ -107,13 +113,15 @@ impl InternalTcpStream for TokioTcpStreamWrapper {
 struct TcpStreamStub {
     incoming: Vec<u8>,
     position: AtomicUsize,
+    peer_addr: SocketAddrV6,
 }
 
 impl TcpStreamStub {
-    pub fn new(incoming: Vec<u8>) -> Self {
+    pub fn new(peer_addr: SocketAddrV6, incoming: Vec<u8>) -> Self {
         Self {
             incoming,
             position: AtomicUsize::new(0),
+            peer_addr,
         }
     }
 
@@ -150,11 +158,11 @@ impl InternalTcpStream for TcpStreamStub {
     }
 
     fn local_addr(&self) -> std::io::Result<SocketAddr> {
-        todo!()
+        Ok(SocketAddr::V6(TEST_ENDPOINT_1))
     }
 
     fn peer_addr(&self) -> std::io::Result<SocketAddr> {
-        Ok(SocketAddr::V6(TEST_ENDPOINT_1))
+        Ok(SocketAddr::V6(self.peer_addr))
     }
 
     async fn writable(&self) -> tokio::io::Result<()> {

@@ -1,6 +1,6 @@
 use super::{
     attempt_container::AttemptContainer, channel_container::ChannelContainer, BufferDropPolicy,
-    ChannelDirection, ChannelEnum, ChannelFake, ChannelId, ChannelMode, ChannelTcp, NetworkFilter,
+    ChannelDirection, ChannelEnum, ChannelId, ChannelMode, ChannelTcp, NetworkFilter,
     OutboundBandwidthLimiter, PeerExclusion, TcpConfig, TcpStream, TrafficType, TransportType,
 };
 use crate::{
@@ -258,18 +258,6 @@ impl Network {
             .unwrap()
             .new_channel_observers
             .push(callback);
-    }
-
-    pub fn insert_fake(&self, endpoint: SocketAddrV6) {
-        let fake = Arc::new(ChannelEnum::Fake(ChannelFake::new(
-            SystemTime::now(),
-            self.get_next_channel_id(),
-            endpoint,
-            self.network_params.network.protocol_info(),
-        )));
-        fake.set_node_id(PublicKey::from(fake.channel_id().as_usize() as u64));
-        let mut channels = self.state.lock().unwrap();
-        channels.channels.insert(fake);
     }
 
     pub(crate) fn check_limits(&self, ip: &Ipv6Addr, direction: ChannelDirection) -> AcceptResult {

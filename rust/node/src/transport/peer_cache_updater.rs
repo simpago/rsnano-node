@@ -98,40 +98,44 @@ impl Runnable for PeerCacheUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stats::Direction;
+    use crate::{
+        stats::Direction,
+        transport::{ChannelDirection, ChannelMode, TcpStream},
+    };
     use rsnano_core::utils::{
         new_test_timestamp, TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3,
     };
     use std::{net::SocketAddrV6, time::SystemTime};
     use tracing_test::traced_test;
 
-    #[test]
-    fn no_peers() {
+    #[tokio::test]
+    async fn no_peers() {
         let open_channels = Vec::new();
         let already_stored = Vec::new();
-        let (written, _, _) = run_peer_history(new_test_timestamp(), open_channels, already_stored);
+        let (written, _, _) =
+            run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
         assert_eq!(written, Vec::new());
     }
 
-    #[test]
-    fn write_one_peer() {
+    #[tokio::test]
+    async fn write_one_peer() {
         let now = new_test_timestamp();
         let endpoint = TEST_ENDPOINT_1;
         let open_channels = vec![endpoint];
         let already_stored = Vec::new();
 
-        let (written, _, _) = run_peer_history(now, open_channels, already_stored);
+        let (written, _, _) = run_peer_history(now, open_channels, already_stored).await;
 
         assert_eq!(written, vec![(endpoint, now)]);
     }
 
-    #[test]
-    fn write_multiple_peers() {
+    #[tokio::test]
+    async fn write_multiple_peers() {
         let now = new_test_timestamp();
         let open_channels = vec![TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3];
         let already_stored = Vec::new();
 
-        let (written, deleted, _) = run_peer_history(now, open_channels, already_stored);
+        let (written, deleted, _) = run_peer_history(now, open_channels, already_stored).await;
 
         assert_eq!(
             written,
@@ -144,56 +148,57 @@ mod tests {
         assert_eq!(deleted, Vec::new());
     }
 
-    #[test]
-    fn update_peer() {
+    #[tokio::test]
+    async fn update_peer() {
         let endpoint = TEST_ENDPOINT_1;
         let now = new_test_timestamp();
         let open_channels = vec![endpoint];
         let already_stored = vec![(endpoint, now)];
 
-        let (written, deleted, _) = run_peer_history(now, open_channels, already_stored);
+        let (written, deleted, _) = run_peer_history(now, open_channels, already_stored).await;
 
         assert_eq!(written, vec![(endpoint, now)]);
         assert_eq!(deleted, Vec::new());
     }
 
-    #[test]
+    #[tokio::test]
     #[traced_test]
-    fn log_when_new_peer_saved() {
+    async fn log_when_new_peer_saved() {
         let open_channels = vec![TEST_ENDPOINT_1];
         let already_stored = Vec::new();
 
-        run_peer_history(new_test_timestamp(), open_channels, already_stored);
+        run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
 
         assert!(logs_contain("Saved new peer: [::ffff:10:0:0:1]:1111"));
     }
 
-    #[test]
+    #[tokio::test]
     #[traced_test]
-    fn dont_log_when_peer_updated() {
+    async fn dont_log_when_peer_updated() {
         let endpoint = TEST_ENDPOINT_1;
         let now = new_test_timestamp();
         let open_channels = vec![endpoint];
         let already_stored = vec![(endpoint, now)];
 
-        run_peer_history(now, open_channels, already_stored);
+        run_peer_history(now, open_channels, already_stored).await;
 
         logs_assert(|lines| {
-            if lines.is_empty() {
-                Ok(())
-            } else {
+            if lines.iter().any(|l| l.contains("Saved new peer")) {
                 Err("log was written".to_string())
+            } else {
+                Ok(())
             }
         });
     }
 
-    #[test]
-    fn inc_stats_when_peer_inserted() {
+    #[tokio::test]
+    async fn inc_stats_when_peer_inserted() {
         let endpoint = TEST_ENDPOINT_1;
         let open_channels = vec![endpoint];
         let already_stored = Vec::new();
 
-        let (_, _, stats) = run_peer_history(new_test_timestamp(), open_channels, already_stored);
+        let (_, _, stats) =
+            run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
         assert_eq!(
             stats.count(StatType::PeerHistory, DetailType::Inserted, Direction::In),
             1
@@ -204,13 +209,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn inc_stats_when_peer_updated() {
+    #[tokio::test]
+    async fn inc_stats_when_peer_updated() {
         let endpoint = TEST_ENDPOINT_1;
         let open_channels = vec![endpoint];
         let already_stored = vec![(endpoint, new_test_timestamp())];
 
-        let (_, _, stats) = run_peer_history(new_test_timestamp(), open_channels, already_stored);
+        let (_, _, stats) =
+            run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
         assert_eq!(
             stats.count(StatType::PeerHistory, DetailType::Inserted, Direction::In),
             0
@@ -221,40 +227,41 @@ mod tests {
         );
     }
 
-    #[test]
-    fn erase_entries_older_than_cutoff() {
+    #[tokio::test]
+    async fn erase_entries_older_than_cutoff() {
         let open_channels = Vec::new();
         let endpoint = TEST_ENDPOINT_1;
         let now = new_test_timestamp();
         let already_stored = vec![(endpoint, now - Duration::from_secs(60 * 61))];
 
         let (written, deleted, _) =
-            run_peer_history(new_test_timestamp(), open_channels, already_stored);
+            run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
 
         assert_eq!(written, Vec::new());
         assert_eq!(deleted, vec![endpoint]);
     }
 
-    #[test]
-    fn erase_entries_newer_than_now() {
+    #[tokio::test]
+    async fn erase_entries_newer_than_now() {
         let open_channels = Vec::new();
         let endpoint = TEST_ENDPOINT_1;
         let now = new_test_timestamp();
         let already_stored = vec![(endpoint, now + Duration::from_secs(60 * 61))];
 
         let (written, deleted, _) =
-            run_peer_history(new_test_timestamp(), open_channels, already_stored);
+            run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
 
         assert_eq!(written, Vec::new());
         assert_eq!(deleted, vec![endpoint]);
     }
 
-    #[test]
-    fn inc_loop_stats() {
+    #[tokio::test]
+    async fn inc_loop_stats() {
         let open_channels = Vec::new();
         let already_stored = Vec::new();
 
-        let (_, _, stats) = run_peer_history(new_test_timestamp(), open_channels, already_stored);
+        let (_, _, stats) =
+            run_peer_history(new_test_timestamp(), open_channels, already_stored).await;
 
         assert_eq!(
             stats.count(StatType::PeerHistory, DetailType::Loop, Direction::In),
@@ -262,7 +269,7 @@ mod tests {
         );
     }
 
-    fn run_peer_history(
+    async fn run_peer_history(
         now: SystemTime,
         open_channels: Vec<SocketAddrV6>,
         already_stored: Vec<(SocketAddrV6, SystemTime)>,
@@ -273,7 +280,14 @@ mod tests {
     ) {
         let network = Arc::new(Network::new_null());
         for endpoint in open_channels {
-            network.insert_fake(endpoint);
+            let channel = network
+                .add(
+                    TcpStream::new_null_with_peer_addr(endpoint),
+                    ChannelDirection::Outbound,
+                )
+                .await
+                .unwrap();
+            channel.set_mode(ChannelMode::Realtime);
         }
         let ledger = Arc::new(Ledger::new_null_builder().peers(already_stored).finish());
         let time_factory = SystemTimeFactory::new_null_with(now);
