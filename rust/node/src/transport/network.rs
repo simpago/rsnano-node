@@ -1,8 +1,7 @@
 use super::{
     attempt_container::AttemptContainer, channel_container::ChannelContainer, BufferDropPolicy,
-    ChannelDirection, ChannelEnum, ChannelFake, ChannelId, ChannelMode, ChannelTcp,
-    InboundMessageQueue, NetworkFilter, OutboundBandwidthLimiter, PeerExclusion, TcpConfig,
-    TcpStream, TrafficType, TransportType,
+    ChannelDirection, ChannelEnum, ChannelFake, ChannelId, ChannelMode, ChannelTcp, NetworkFilter,
+    OutboundBandwidthLimiter, PeerExclusion, TcpConfig, TcpStream, TrafficType, TransportType,
 };
 use crate::{
     config::{NetworkConstants, NodeFlags},
@@ -36,7 +35,6 @@ pub struct NetworkOptions {
     pub publish_filter: Arc<NetworkFilter>,
     pub network_params: NetworkParams,
     pub stats: Arc<Stats>,
-    pub inbound_queue: Arc<InboundMessageQueue>,
     pub port: u16,
     pub flags: NodeFlags,
     pub limiter: Arc<OutboundBandwidthLimiter>,
@@ -50,7 +48,6 @@ impl NetworkOptions {
             publish_filter: Arc::new(NetworkFilter::default()),
             network_params: DEV_NETWORK_PARAMS.clone(),
             stats: Arc::new(Default::default()),
-            inbound_queue: Arc::new(InboundMessageQueue::default()),
             port: 8088,
             flags: NodeFlags::default(),
             limiter: Arc::new(OutboundBandwidthLimiter::default()),
@@ -63,8 +60,6 @@ pub struct Network {
     port: AtomicU16,
     stopped: AtomicBool,
     allow_local_peers: bool,
-    // TODO remove inbound_queue as soon as it isn't used by C++ anymore
-    pub inbound_queue: Arc<InboundMessageQueue>,
     flags: NodeFlags,
     stats: Arc<Stats>,
     next_channel_id: AtomicUsize,
@@ -88,7 +83,6 @@ impl Network {
             port: AtomicU16::new(options.port),
             stopped: AtomicBool::new(false),
             allow_local_peers: options.allow_local_peers,
-            inbound_queue: options.inbound_queue,
             state: Mutex::new(State {
                 attempts: Default::default(),
                 channels: Default::default(),
@@ -827,8 +821,8 @@ impl State {
                     direction.into(),
                 );
                 debug!(
-                    "Max connections per IP reached ({}), unable to open new connection",
-                    ip
+                    "Max connections per IP reached ({}, count: {}), unable to open new connection",
+                    ip, count
                 );
                 return AcceptResult::Rejected;
             }

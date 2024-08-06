@@ -305,7 +305,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             if guard.port() == 0 {
                 *guard = self.channel.remote_addr();
             }
-            debug!("Starting server: {}", guard.port());
+            debug!("Starting response server for peer: {}", *guard);
         }
 
         let mut message_deserializer = MessageDeserializer::new(

@@ -249,6 +249,15 @@ impl Telemetry {
         }
     }
 
+    fn request(&self, channel: &ChannelEnum) {
+        self.stats.inc(StatType::Telemetry, DetailType::Request);
+        channel.try_send(
+            &Message::TelemetryReq,
+            BufferDropPolicy::Limiter,
+            TrafficType::Generic,
+        );
+    }
+
     fn run_broadcasts(&self) {
         let telemetry = self.local_telemetry();
         let peers = self.network.random_list(usize::MAX, 0);
@@ -313,12 +322,6 @@ impl Telemetry {
                 sizeof_element: OrderedTelemetries::ELEMENT_SIZE,
             })],
         )
-    }
-
-    fn request(&self, channel: &ChannelEnum) {
-        self.stats.inc(StatType::Telemetry, DetailType::Request);
-        let message = Message::TelemetryReq;
-        channel.try_send(&message, BufferDropPolicy::Limiter, TrafficType::Generic);
     }
 
     pub fn local_telemetry(&self) -> TelemetryData {

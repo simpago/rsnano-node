@@ -33,6 +33,9 @@ pub struct TcpChannelData {
     peering_endpoint: Option<SocketAddrV6>,
 }
 
+/// Default timeout in seconds
+const DEFAULT_TIMEOUT: u64 = 120;
+
 pub struct ChannelTcp {
     channel_id: ChannelId,
     channel_mutex: Mutex<TcpChannelData>,
@@ -45,22 +48,13 @@ pub struct ChannelTcp {
     remote: SocketAddrV6,
 
     /// the timestamp (in seconds since epoch) of the last time there was successful activity on the socket
-    /// activity is any successful connect, send or receive event
-    last_completion_time_or_init: AtomicU64,
-
-    /// the timestamp (in seconds since epoch) of the last time there was successful receive on the socket
-    /// successful receive includes graceful closing of the socket by the peer (the read succeeds but returns 0 bytes)
-    last_receive_time_or_init: AtomicU64,
-
-    default_timeout: AtomicU64,
+    last_activity: AtomicU64,
 
     /// Duration in seconds of inactivity that causes a socket timeout
     /// activity is any successful connect, send or receive event
     timeout_seconds: AtomicU64,
 
     direction: ChannelDirection,
-    /// used in real time server sockets, number of seconds of no receive traffic that will cause the socket to timeout
-    silent_connection_tolerance_time: AtomicU64,
 
     /// Flag that is set when cleanup decides to close the socket due to timeout.
     /// NOTE: Currently used by tcp_server::timeout() but I suspect that this and tcp_server::timeout() are not needed.
@@ -144,12 +138,9 @@ impl ChannelTcp {
             message_serializer: Mutex::new(MessageSerializer::new(protocol)),
             stats,
             remote,
-            last_completion_time_or_init: AtomicU64::new(seconds_since_epoch()),
-            last_receive_time_or_init: AtomicU64::new(seconds_since_epoch()),
-            default_timeout: AtomicU64::new(15),
-            timeout_seconds: AtomicU64::new(120),
+            last_activity: AtomicU64::new(seconds_since_epoch()),
+            timeout_seconds: AtomicU64::new(DEFAULT_TIMEOUT),
             direction,
-            silent_connection_tolerance_time: AtomicU64::new(120),
             timed_out: AtomicBool::new(false),
             closed: AtomicBool::new(false),
             socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
@@ -179,22 +170,13 @@ impl ChannelTcp {
         !self.is_closed()
     }
 
-    fn set_last_completion(&self) {
-        self.last_completion_time_or_init
-            .store(seconds_since_epoch(), std::sync::atomic::Ordering::SeqCst);
+    fn update_last_activity(&self) {
+        self.last_activity
+            .store(seconds_since_epoch(), Ordering::Relaxed);
     }
 
-    fn set_last_receive_time(&self) {
-        self.last_receive_time_or_init
-            .store(seconds_since_epoch(), std::sync::atomic::Ordering::SeqCst);
-    }
-
-    fn set_default_timeout(&self) {
-        self.set_default_timeout_value(self.default_timeout.load(Ordering::SeqCst));
-    }
-
-    fn set_default_timeout_value(&self, seconds: u64) {
-        self.timeout_seconds.store(seconds, Ordering::SeqCst);
+    fn set_timeout(&self, seconds: u64) {
+        self.timeout_seconds.store(seconds, Ordering::Relaxed);
     }
 
     async fn ongoing_checkup(&self) {
@@ -202,6 +184,7 @@ impl ChannelTcp {
             sleep(Duration::from_secs(2)).await;
             // If the socket is already dead, close just in case, and stop doing checkups
             if !self.is_alive_impl() {
+                debug!("Closing socket because it was dead ({})", self.remote);
                 self.close_internal();
                 return;
             }
@@ -209,22 +192,9 @@ impl ChannelTcp {
             let now = seconds_since_epoch();
             let mut condition_to_disconnect = false;
 
-            // if this is a server socket, and no data is received for silent_connection_tolerance_time seconds then disconnect
-            if self.direction == ChannelDirection::Inbound
-                && (now - self.last_receive_time_or_init.load(Ordering::SeqCst))
-                    > self.silent_connection_tolerance_time.load(Ordering::SeqCst)
-            {
-                self.stats.inc_dir(
-                    StatType::Tcp,
-                    DetailType::TcpSilentConnectionDrop,
-                    Direction::In,
-                );
-                condition_to_disconnect = true;
-            }
-
             // if there is no activity for timeout seconds then disconnect
-            if (now - self.last_completion_time_or_init.load(Ordering::SeqCst))
-                > self.timeout_seconds.load(Ordering::SeqCst)
+            if (now - self.last_activity.load(Ordering::Relaxed))
+                > self.timeout_seconds.load(Ordering::Relaxed)
             {
                 self.stats.inc_dir(
                     StatType::Tcp,
@@ -248,7 +218,7 @@ impl ChannelTcp {
 
     fn close_internal(&self) {
         if !self.closed.swap(true, Ordering::SeqCst) {
-            self.set_default_timeout_value(0);
+            self.set_timeout(0);
         }
     }
 
@@ -260,8 +230,6 @@ impl ChannelTcp {
         if self.is_closed() {
             return Err(anyhow!("Tried to read from a closed TcpStream"));
         }
-
-        self.set_default_timeout();
 
         let mut read = 0;
         loop {
@@ -285,8 +253,7 @@ impl ChannelTcp {
                                     Direction::In,
                                     size as u64,
                                 );
-                                self.set_last_completion();
-                                self.set_last_receive_time();
+                                self.update_last_activity();
                                 return Ok(());
                             }
                         }
@@ -331,10 +298,11 @@ impl ChannelTcp {
                 Direction::Out,
                 buf_size as u64,
             );
-            self.set_last_completion();
+            self.update_last_activity();
         } else {
             self.stats
                 .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+            debug!("Closing socket after write error: {}", self.remote);
             self.close_internal();
         }
 
@@ -359,11 +327,12 @@ impl ChannelTcp {
                 Direction::Out,
                 buf_size as u64,
             );
-            self.set_last_completion();
+            self.update_last_activity();
         } else if write_error {
             self.stats
                 .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
             self.close_internal();
+            debug!("Closing socket after write error: {}", self.remote);
         }
     }
 }

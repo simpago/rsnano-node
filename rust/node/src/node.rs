@@ -239,7 +239,6 @@ impl Node {
             publish_filter: Arc::new(NetworkFilter::new(256 * 1024)),
             network_params: network_params.clone(),
             stats: stats.clone(),
-            inbound_queue: inbound_message_queue.clone(),
             port: config.peering_port.unwrap_or(0),
             flags: flags.clone(),
             limiter: outbound_limiter.clone(),

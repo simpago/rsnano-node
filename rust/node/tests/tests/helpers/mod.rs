@@ -2,7 +2,7 @@ use rsnano_core::{work::WorkPoolImpl, Amount, Networks, WalletId};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
     node::{Node, NodeExt},
-    transport::{ChannelEnum, PeerConnectorExt},
+    transport::{ChannelDirection, ChannelEnum, PeerConnectorExt, TcpStream},
     unique_path,
     utils::AsyncRuntime,
     wallets::WalletsExt,
@@ -267,5 +267,15 @@ pub(crate) fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelEnum> {
 
     node.network
         .find_node_id(&peer.node_id.public_key())
+        .unwrap()
+}
+
+pub(crate) fn make_fake_channel(node: &Node) -> Arc<ChannelEnum> {
+    node.async_rt
+        .tokio
+        .block_on(
+            node.network
+                .add(TcpStream::new_null(), ChannelDirection::Inbound),
+        )
         .unwrap()
 }
