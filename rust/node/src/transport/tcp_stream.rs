@@ -158,11 +158,11 @@ impl InternalTcpStream for TcpStreamStub {
     }
 
     async fn writable(&self) -> tokio::io::Result<()> {
-        todo!()
+        Ok(())
     }
 
-    fn try_write(&self, _buf: &[u8]) -> tokio::io::Result<usize> {
-        todo!()
+    fn try_write(&self, buf: &[u8]) -> tokio::io::Result<usize> {
+        Ok(buf.len())
     }
 
     async fn shutdown(&mut self) -> tokio::io::Result<()> {

@@ -1,15 +1,16 @@
 use crate::tests::helpers::{
-    assert_never, assert_timely, assert_timely_eq, make_fake_channel, System,
+    assert_always_eq, assert_never, assert_timely, assert_timely_eq, make_fake_channel, System,
 };
 use rsnano_core::{
     utils::milliseconds_since_epoch, work::WorkPool, Amount, BlockEnum, BlockHash, KeyPair, RawKey,
-    SendBlock, Signature, StateBlock, Vote, VoteSource, DEV_GENESIS_KEY,
+    SendBlock, Signature, StateBlock, Vote, VoteSource, VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::{ConfirmAck, DeserializedMessage, Message, Publish};
 use rsnano_node::{
     config::NodeFlags,
-    consensus::ActiveElectionsExt,
+    consensus::{ActiveElectionsExt, VoteApplierExt},
+    node::NodeExt,
     stats::{DetailType, Direction, StatType},
     transport::{
         BufferDropPolicy, ChannelDirection, ChannelEnum, ChannelTcp, PeerConnectorExt, TcpStream,
@@ -19,6 +20,8 @@ use rsnano_node::{
 };
 use std::{sync::Arc, thread::sleep, time::Duration};
 use tracing::error;
+
+use super::helpers::start_election;
 
 #[test]
 fn local_block_broadcast() {
@@ -680,4 +683,426 @@ fn fork_election_invalid_block_signature() {
             .block_signature(),
         send2.block_signature()
     );
+}
+
+#[test]
+fn confirm_back() {
+    let mut system = System::new();
+    let node = system.make_node();
+    let key = KeyPair::new();
+
+    let send1 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::MAX - Amount::raw(1),
+        key.public_key().into(),
+        &DEV_GENESIS_KEY,
+        node.work_generate_dev((*DEV_GENESIS_HASH).into()),
+    ));
+    let open = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        BlockHash::zero(),
+        key.public_key(),
+        Amount::raw(1),
+        send1.hash().into(),
+        &key,
+        node.work_generate_dev(key.public_key().into()),
+    ));
+    let send2 = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        open.hash(),
+        key.public_key(),
+        Amount::zero(),
+        (*DEV_GENESIS_ACCOUNT).into(),
+        &key,
+        node.work_generate_dev(open.hash().into()),
+    ));
+
+    node.process_active(send1.clone());
+    node.process_active(open.clone());
+    node.process_active(send2.clone());
+
+    assert_timely(
+        Duration::from_secs(5),
+        || node.block_exists(&send2.hash()),
+        "send2 not found",
+    );
+
+    start_election(&node, &send1.hash());
+    start_election(&node, &open.hash());
+    start_election(&node, &send2.hash());
+    assert_eq!(node.active.len(), 3);
+    let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
+    let channel = make_fake_channel(&node);
+    node.vote_processor_queue
+        .vote(vote, &channel, VoteSource::Live);
+    assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
+}
+
+#[test]
+fn rollback_vote_self() {
+    let mut system = System::new();
+    let mut flags = NodeFlags::default();
+    flags.disable_request_loop = true;
+    let node = system.build_node().flags(flags).finish();
+    let wallet_id = node.wallets.wallet_ids()[0];
+    let key = KeyPair::new();
+
+    // send half the voting weight to a non voting rep to ensure quorum cannot be reached
+    let send1 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::MAX - Amount::MAX / 2,
+        key.public_key().into(),
+        &DEV_GENESIS_KEY,
+        node.work_generate_dev((*DEV_GENESIS_HASH).into()),
+    ));
+
+    let open = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        BlockHash::zero(),
+        key.public_key(),
+        Amount::MAX / 2,
+        send1.hash().into(),
+        &key,
+        node.work_generate_dev(key.public_key().into()),
+    ));
+
+    // send 1 raw
+    let send2 = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        open.hash(),
+        key.public_key(),
+        open.balance() - Amount::raw(1),
+        (*DEV_GENESIS_ACCOUNT).into(),
+        &key,
+        node.work_generate_dev(open.hash().into()),
+    ));
+
+    // fork of send2 block
+    let fork = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        open.hash(),
+        key.public_key(),
+        open.balance() - Amount::raw(2),
+        (*DEV_GENESIS_ACCOUNT).into(),
+        &key,
+        node.work_generate_dev(open.hash().into()),
+    ));
+
+    // Process and mark the first 2 blocks as confirmed to allow voting
+    node.process(send1.clone()).unwrap();
+    node.process(open.clone()).unwrap();
+    node.confirm(open.hash());
+
+    // wait until the rep weights have caught up with the weight transfer
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node.ledger.weight(&key.public_key()),
+        Amount::MAX / 2,
+    );
+
+    // process forked blocks, send2 will be the winner because it was first and there are no votes yet
+    node.process_active(send2.clone());
+    assert_timely(
+        Duration::from_secs(5),
+        || node.active.election(&send2.qualified_root()).is_some(),
+        "election not found",
+    );
+    let election = node.active.election(&send2.qualified_root()).unwrap();
+    node.process_active(fork.clone());
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || election.mutex.lock().unwrap().last_blocks.len(),
+        2,
+    );
+    assert_eq!(
+        election
+            .mutex
+            .lock()
+            .unwrap()
+            .status
+            .winner
+            .as_ref()
+            .unwrap()
+            .hash(),
+        send2.hash()
+    );
+
+    {
+        // The write guard prevents the block processor from performing the rollback
+        let _write_guard = node.ledger.write_queue.wait(Writer::Testing);
+
+        assert_eq!(0, node.active.votes_with_weight(&election).len());
+        // Vote with key to switch the winner
+        node.active.vote_applier.vote(
+            &election,
+            &key.public_key(),
+            0,
+            &fork.hash(),
+            VoteSource::Live,
+        );
+        assert_eq!(1, node.active.votes_with_weight(&election).len());
+        // The winner changed
+        assert_eq!(
+            election
+                .mutex
+                .lock()
+                .unwrap()
+                .status
+                .winner
+                .as_ref()
+                .unwrap()
+                .hash(),
+            fork.hash(),
+        );
+
+        // Insert genesis key in the wallet
+        node.wallets
+            .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
+            .unwrap();
+
+        // Without the rollback being finished, the aggregator should not reply with any vote
+        let channel = make_fake_channel(&node);
+
+        node.request_aggregator
+            .request(vec![(send2.hash(), send2.root())], channel);
+
+        assert_always_eq(
+            Duration::from_secs(1),
+            || {
+                node.stats.count(
+                    StatType::RequestAggregatorReplies,
+                    DetailType::NormalVote,
+                    Direction::Out,
+                )
+            },
+            0,
+        );
+
+        // Going out of the scope allows the rollback to complete
+    }
+
+    // A vote is eventually generated from the local representative
+    let is_genesis_vote = |info: &&VoteWithWeightInfo| info.representative == *DEV_GENESIS_ACCOUNT;
+
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node.active.votes_with_weight(&election).len(),
+        2,
+    );
+    let votes_with_weight = node.active.votes_with_weight(&election);
+    assert_eq!(1, votes_with_weight.iter().filter(is_genesis_vote).count());
+    let vote = votes_with_weight.iter().find(is_genesis_vote).unwrap();
+    assert_eq!(fork.hash(), vote.hash);
+}
+
+// Test that rep_crawler removes unreachable reps from its search results.
+// This test creates three principal representatives (rep1, rep2, genesis_rep) and
+// one node for searching them (searching_node).
+#[test]
+fn rep_crawler_rep_remove() {
+    let mut system = System::new();
+    let searching_node = system.make_node(); // will be used to find principal representatives
+    let keys_rep1 = KeyPair::new(); // Principal representative 1
+    let keys_rep2 = KeyPair::new(); // Principal representative 2
+
+    let min_pr_weight = searching_node
+        .online_reps
+        .lock()
+        .unwrap()
+        .minimum_principal_weight();
+
+    // Send enough nanos to Rep1 to make it a principal representative
+    let send_to_rep1 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::MAX - (min_pr_weight * 2),
+        keys_rep1.public_key().into(),
+        &DEV_GENESIS_KEY,
+        system
+            .work
+            .generate_dev2((*DEV_GENESIS_HASH).into())
+            .unwrap(),
+    ));
+
+    // Receive by Rep1
+    let receive_rep1 = BlockEnum::State(StateBlock::new(
+        keys_rep1.public_key(),
+        BlockHash::zero(),
+        keys_rep1.public_key(),
+        min_pr_weight * 2,
+        send_to_rep1.hash().into(),
+        &keys_rep1,
+        system
+            .work
+            .generate_dev2(keys_rep1.public_key().into())
+            .unwrap(),
+    ));
+
+    // Send enough nanos to Rep2 to make it a principal representative
+    let send_to_rep2 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        send_to_rep1.hash(),
+        *DEV_GENESIS_ACCOUNT,
+        Amount::MAX - (min_pr_weight * 4),
+        keys_rep2.public_key().into(),
+        &DEV_GENESIS_KEY,
+        system
+            .work
+            .generate_dev2(send_to_rep1.hash().into())
+            .unwrap(),
+    ));
+
+    // Receive by Rep2
+    let receive_rep2 = BlockEnum::State(StateBlock::new(
+        keys_rep2.public_key(),
+        BlockHash::zero(),
+        keys_rep2.public_key(),
+        min_pr_weight * 2,
+        send_to_rep2.hash().into(),
+        &keys_rep2,
+        system
+            .work
+            .generate_dev2(keys_rep2.public_key().into())
+            .unwrap(),
+    ));
+
+    searching_node.process(send_to_rep1).unwrap();
+    searching_node.process(receive_rep1).unwrap();
+    searching_node.process(send_to_rep2).unwrap();
+    searching_node.process(receive_rep2).unwrap();
+
+    // Create channel for Rep1
+    let channel_rep1 = make_fake_channel(&searching_node);
+
+    // Ensure Rep1 is found by the rep_crawler after receiving a vote from it
+    let vote_rep1 = Arc::new(Vote::new(
+        keys_rep1.public_key(),
+        &keys_rep1.private_key(),
+        0,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
+    searching_node
+        .rep_crawler
+        .force_process(vote_rep1, channel_rep1.clone());
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || {
+            searching_node
+                .online_reps
+                .lock()
+                .unwrap()
+                .peered_reps_count()
+        },
+        1,
+    );
+
+    let reps = searching_node.online_reps.lock().unwrap().peered_reps();
+    assert_eq!(1, reps.len());
+    assert_eq!(
+        min_pr_weight * 2,
+        searching_node.ledger.weight(&reps[0].account)
+    );
+    assert_eq!(keys_rep1.public_key(), reps[0].account);
+    assert_eq!(channel_rep1.channel_id(), reps[0].channel_id);
+
+    // When rep1 disconnects then rep1 should not be found anymore
+    channel_rep1.close();
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || {
+            searching_node
+                .online_reps
+                .lock()
+                .unwrap()
+                .peered_reps_count()
+        },
+        0,
+    );
+
+    // Add working node for genesis representative
+    let node_genesis_rep = system.make_node();
+    let wallet_id = node_genesis_rep.wallets.wallet_ids()[0];
+    node_genesis_rep
+        .wallets
+        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
+        .unwrap();
+    let channel_genesis_rep = searching_node
+        .network
+        .find_node_id(&node_genesis_rep.get_node_id())
+        .unwrap();
+
+    // genesis_rep should be found as principal representative after receiving a vote from it
+    let vote_genesis_rep = Arc::new(Vote::new(
+        *DEV_GENESIS_ACCOUNT,
+        &DEV_GENESIS_KEY.private_key(),
+        0,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
+    searching_node
+        .rep_crawler
+        .force_process(vote_genesis_rep, channel_genesis_rep);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || {
+            searching_node
+                .online_reps
+                .lock()
+                .unwrap()
+                .peered_reps_count()
+        },
+        1,
+    );
+
+    // Start a node for Rep2 and wait until it is connected
+    let node_rep2 = system.make_node();
+    searching_node
+        .peer_connector
+        .connect_to(node_rep2.tcp_listener.local_address());
+    assert_timely(
+        Duration::from_secs(10),
+        || {
+            searching_node
+                .network
+                .find_node_id(&node_rep2.get_node_id())
+                .is_some()
+        },
+        "channel to rep2 not found",
+    );
+    let channel_rep2 = searching_node
+        .network
+        .find_node_id(&node_rep2.get_node_id())
+        .unwrap();
+
+    // Rep2 should be found as a principal representative after receiving a vote from it
+    let vote_rep2 = Arc::new(Vote::new(
+        keys_rep2.public_key(),
+        &keys_rep2.private_key(),
+        0,
+        0,
+        vec![*DEV_GENESIS_HASH],
+    ));
+    searching_node
+        .rep_crawler
+        .force_process(vote_rep2, channel_rep2);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || {
+            searching_node
+                .online_reps
+                .lock()
+                .unwrap()
+                .peered_reps_count()
+        },
+        2,
+    );
+
+    // TODO rewrite this test and the missing part below this commit
+    // ... part missing:
 }

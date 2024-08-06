@@ -515,6 +515,10 @@ impl Network {
             .count_by_direction(direction)
     }
 
+    pub fn channel_count(&self) -> usize {
+        self.state.lock().unwrap().channels.len()
+    }
+
     pub fn bootstrap_peer(&self) -> SocketAddrV6 {
         self.state.lock().unwrap().bootstrap_peer()
     }
