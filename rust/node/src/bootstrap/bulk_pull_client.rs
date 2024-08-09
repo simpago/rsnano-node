@@ -183,7 +183,7 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
     async fn throttled_receive_block(&self) {
         debug_assert!(!self.network_error.load(Ordering::Relaxed));
         if self.block_processor.queue_len(BlockSource::BootstrapLegacy) < 1024 {
-            let Ok(block) = read_block(&**self.connection.get_channel()).await else {
+            let Ok(block) = read_block(self.connection.get_channel()).await else {
                 self.network_error.store(true, Ordering::SeqCst);
                 return;
             };

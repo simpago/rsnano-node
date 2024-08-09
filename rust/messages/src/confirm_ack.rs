@@ -117,7 +117,7 @@ mod tests {
     fn serialize_v1() {
         let keys = KeyPair::new();
         let hashes = vec![BlockHash::from(1)];
-        let vote = Vote::new(keys.public_key().into(), &keys.private_key(), 0, 0, hashes);
+        let vote = Vote::new(&keys, 0, 0, hashes);
         let confirm = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
 
         assert_deserializable(&confirm);
@@ -130,7 +130,7 @@ mod tests {
         for i in 0..ConfirmAck::HASHES_MAX {
             hashes.push(BlockHash::from(i as u64))
         }
-        let vote = Vote::new(keys.public_key().into(), &keys.private_key(), 0, 0, hashes);
+        let vote = Vote::new(&keys, 0, 0, hashes);
         let confirm = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
 
         assert_deserializable(&confirm);
@@ -141,7 +141,7 @@ mod tests {
     fn panics_when_vote_contains_too_many_hashes() {
         let keys = KeyPair::new();
         let hashes = vec![BlockHash::from(1); 256];
-        let vote = Vote::new(keys.public_key().into(), &keys.private_key(), 0, 0, hashes);
+        let vote = Vote::new(&keys, 0, 0, hashes);
         Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
     }
 

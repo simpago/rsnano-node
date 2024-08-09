@@ -1,5 +1,5 @@
 use super::{bootstrap_limits, BootstrapConnections};
-use crate::transport::{ChannelEnum, ChannelTcp};
+use crate::transport::Channel;
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -11,7 +11,7 @@ use std::{
 
 pub struct BootstrapClient {
     observer: Weak<BootstrapConnections>,
-    channel: Arc<ChannelEnum>,
+    channel: Arc<Channel>,
     block_count: AtomicU64,
     block_rate: AtomicU64,
     pending_stop: AtomicBool,
@@ -20,7 +20,7 @@ pub struct BootstrapClient {
 }
 
 impl BootstrapClient {
-    pub fn new(observer: &Arc<BootstrapConnections>, channel: Arc<ChannelEnum>) -> Self {
+    pub fn new(observer: &Arc<BootstrapConnections>, channel: Arc<Channel>) -> Self {
         Self {
             observer: Arc::downgrade(observer),
             channel,
@@ -56,15 +56,8 @@ impl BootstrapClient {
         *lock = Instant::now();
     }
 
-    pub fn get_channel(&self) -> &Arc<ChannelEnum> {
+    pub fn get_channel(&self) -> &Arc<Channel> {
         &self.channel
-    }
-
-    fn tcp_channel(&self) -> &Arc<ChannelTcp> {
-        match self.channel.as_ref() {
-            ChannelEnum::Tcp(tcp) => tcp,
-            _ => panic!("not a tcp channel!"),
-        }
     }
 
     pub fn inc_block_count(&self) -> u64 {
@@ -107,7 +100,7 @@ impl BootstrapClient {
     }
 
     pub fn channel_string(&self) -> String {
-        self.tcp_channel().to_string()
+        self.channel.to_string()
     }
 }
 

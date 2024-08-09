@@ -3,7 +3,6 @@
 #include <nano/lib/rsnano.hpp>
 #include <nano/node/active_elections.hpp>
 #include <nano/node/election.hpp>
-#include <nano/node/transport/inproc.hpp>
 #include <nano/node/vote_processor.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/test_common/chains.hpp>
@@ -13,98 +12,6 @@
 #include <gtest/gtest.h>
 
 using namespace std::chrono_literals;
-
-TEST (vote_processor, codes)
-{
-	nano::test::system system;
-	auto node_config = system.default_config ();
-	// Disable all election schedulers
-	node_config.frontiers_confirmation = nano::frontiers_confirmation_mode::disabled;
-	node_config.hinted_scheduler.enabled = false;
-	node_config.optimistic_scheduler.enabled = false;
-	auto & node = *system.add_node (node_config);
-
-	auto blocks = nano::test::setup_chain (system, node, 1, nano::dev::genesis_key, false);
-	auto vote = nano::test::make_vote (nano::dev::genesis_key, { blocks[0] }, nano::vote::timestamp_min * 1, 0);
-	auto vote_invalid = std::make_shared<nano::vote> (*vote);
-	vote_invalid->flip_signature_bit_0 ();
-	auto channel (std::make_shared<nano::transport::inproc::channel> (node, node));
-
-	// Invalid signature
-	ASSERT_EQ (nano::vote_code::invalid, node.vote_processor.vote_blocking (vote_invalid, channel));
-
-	// No ongoing election (vote goes to vote cache)
-	ASSERT_EQ (nano::vote_code::indeterminate, node.vote_processor.vote_blocking (vote, channel));
-
-	// Clear vote cache before starting election
-	node.vote_cache.clear ();
-
-	// First vote from an account for an ongoing election
-	node.start_election (blocks[0]);
-	std::shared_ptr<nano::election> election;
-	ASSERT_TIMELY (5s, election = node.active.election (blocks[0]->qualified_root ()));
-	ASSERT_EQ (nano::vote_code::vote, node.vote_processor.vote_blocking (vote, channel));
-
-	// Processing the same vote is a replay
-	ASSERT_EQ (nano::vote_code::replay, node.vote_processor.vote_blocking (vote, channel));
-
-	// Invalid takes precedence
-	ASSERT_EQ (nano::vote_code::invalid, node.vote_processor.vote_blocking (vote_invalid, channel));
-
-	// Once the election is removed (confirmed / dropped) the vote is again indeterminate
-	ASSERT_TRUE (node.active.erase (blocks[0]->qualified_root ()));
-	ASSERT_EQ (nano::vote_code::indeterminate, node.vote_processor.vote_blocking (vote, channel));
-}
-
-TEST (vote_processor, invalid_signature)
-{
-	nano::test::system system{ 1 };
-	auto & node = *system.nodes[0];
-	auto chain = nano::test::setup_chain (system, node, 1, nano::dev::genesis_key, false);
-	nano::keypair key;
-	auto vote = std::make_shared<nano::vote> (key.pub, key.prv, nano::vote::timestamp_min * 1, 0, std::vector<nano::block_hash>{ chain[0]->hash () });
-	auto vote_invalid = std::make_shared<nano::vote> (*vote);
-	vote_invalid->flip_signature_bit_0 ();
-	auto channel = std::make_shared<nano::transport::inproc::channel> (node, node);
-
-	auto election = nano::test::start_election (system, node, chain[0]->hash ());
-	ASSERT_NE (election, nullptr);
-	ASSERT_EQ (1, election->votes ().size ());
-
-	node.vote_processor_queue.vote (vote_invalid, channel);
-	ASSERT_TIMELY_EQ (5s, 1, election->votes ().size ());
-	node.vote_processor_queue.vote (vote, channel);
-	ASSERT_TIMELY_EQ (5s, 2, election->votes ().size ());
-}
-
-TEST (vote_processor, overflow)
-{
-	nano::test::system system;
-	nano::node_flags node_flags;
-	node_flags.set_vote_processor_capacity (1);
-	auto & node (*system.add_node (node_flags));
-	nano::keypair key;
-	auto vote = nano::test::make_vote (key, { nano::dev::genesis }, nano::vote::timestamp_min * 1, 0);
-	auto channel (std::make_shared<nano::transport::inproc::channel> (node, node));
-	auto start_time = std::chrono::system_clock::now ();
-
-	// No way to lock the processor, but queueing votes in quick succession must result in overflow
-	size_t not_processed{ 0 };
-	size_t const total{ 1000 };
-	for (unsigned i = 0; i < total; ++i)
-	{
-		if (!node.vote_processor_queue.vote (vote, channel))
-		{
-			++not_processed;
-		}
-	}
-	ASSERT_GT (not_processed, 0);
-	ASSERT_LT (not_processed, total);
-	ASSERT_EQ (not_processed, node.stats->count (nano::stat::type::vote_processor, nano::stat::detail::overfill));
-
-	// check that it did not timeout
-	ASSERT_LT (std::chrono::system_clock::now () - start_time, 10s);
-}
 
 TEST (vote_processor, weights)
 {

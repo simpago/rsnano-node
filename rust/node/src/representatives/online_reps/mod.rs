@@ -1,13 +1,13 @@
 mod builder;
+mod cleanup;
 mod online_container;
 mod peered_container;
 mod peered_rep;
 
+use crate::transport::ChannelId;
 pub use builder::{OnlineRepsBuilder, DEFAULT_ONLINE_WEIGHT_MINIMUM};
 pub use peered_container::InsertResult;
 pub use peered_rep::PeeredRep;
-
-use crate::transport::ChannelId;
 use primitive_types::U256;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},

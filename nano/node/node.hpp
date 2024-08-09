@@ -165,7 +165,6 @@ public:
 	nano::scheduler::component & scheduler;
 	nano::request_aggregator aggregator;
 	nano::backlog_population backlog;
-	nano::network_threads network_threads;
 
 	std::chrono::steady_clock::time_point const startup_time;
 	// For tests only

@@ -5,7 +5,7 @@ use super::{
 use crate::{
     bootstrap::BootstrapAttemptTrait,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::TrafficType,
+    transport::{AsyncBufferReader, TrafficType},
     utils::{AsyncRuntime, ThreadPool},
 };
 use async_trait::async_trait;

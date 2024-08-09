@@ -1,5 +1,7 @@
 use crate::{utils::FfiStream, StringDto};
-use rsnano_core::{utils::Serialize, Account, BlockHash, FullHash, RawKey, Signature, Vote};
+use rsnano_core::{
+    utils::Serialize, Account, BlockHash, FullHash, KeyPair, RawKey, Signature, Vote,
+};
 use std::{ffi::c_void, ops::Deref, sync::Arc};
 
 pub struct VoteHandle(pub Arc<Vote>);
@@ -29,14 +31,13 @@ pub extern "C" fn rsn_vote_create() -> *mut VoteHandle {
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_vote_create2(
-    account: *const u8,
+    _account: *const u8,
     prv_key: *const u8,
     timestamp: u64,
     duration: u8,
     hashes: *const [u8; 32],
     hash_count: usize,
 ) -> *mut VoteHandle {
-    let account = Account::from_ptr(account);
     let key = RawKey::from_ptr(prv_key);
 
     let hashes = if hashes.is_null() {
@@ -46,9 +47,8 @@ pub unsafe extern "C" fn rsn_vote_create2(
     };
     let hashes = hashes.iter().map(|&h| BlockHash::from_bytes(h)).collect();
 
-    VoteHandle::new(Arc::new(Vote::new(
-        account, &key, timestamp, duration, hashes,
-    )))
+    let keys = KeyPair::from_priv_key_bytes(key.as_bytes()).unwrap();
+    VoteHandle::new(Arc::new(Vote::new(&keys, timestamp, duration, hashes)))
 }
 
 #[no_mangle]

@@ -14,7 +14,7 @@ use rsnano_messages::{Message, TelemetryAck};
 use std::{net::SocketAddrV6, sync::Arc};
 use tracing::trace;
 
-use super::{peer_connector, ChannelEnum, Network, PeerConnector};
+use super::{peer_connector, Channel, Network, PeerConnector};
 
 /// Handle realtime messages (as opposed to bootstrap messages)
 pub struct RealtimeMessageHandler {
@@ -63,7 +63,7 @@ impl RealtimeMessageHandler {
         }
     }
 
-    pub fn process(&self, message: Message, channel: &Arc<ChannelEnum>) {
+    pub fn process(&self, message: Message, channel: &Arc<Channel>) {
         self.stats.inc_dir(
             StatType::Message,
             message.message_type().into(),
@@ -93,11 +93,9 @@ impl RealtimeMessageHandler {
                 } else {
                     BlockSource::Live
                 };
-                let added = self.block_processor.add(
-                    Arc::new(publish.block),
-                    source,
-                    Some(Arc::clone(channel)),
-                );
+                let added =
+                    self.block_processor
+                        .add(Arc::new(publish.block), source, channel.channel_id());
                 if !added {
                     self.network.publish_filter.clear(publish.digest);
                     self.stats
@@ -109,7 +107,7 @@ impl RealtimeMessageHandler {
                 // TODO: This check should be cached somewhere
                 if self.config.enable_voting && self.wallets.voting_reps_count() > 0 {
                     self.request_aggregator
-                        .request(req.roots_hashes, Arc::clone(channel));
+                        .request(req.roots_hashes, channel.clone());
                 }
             }
             Message::ConfirmAck(ack) => {
@@ -118,8 +116,11 @@ impl RealtimeMessageHandler {
                         true => VoteSource::Rebroadcast,
                         false => VoteSource::Live,
                     };
-                    self.vote_processor_queue
-                        .vote(Arc::new(ack.vote().clone()), channel, source);
+                    self.vote_processor_queue.vote(
+                        Arc::new(ack.vote().clone()),
+                        channel.channel_id(),
+                        source,
+                    );
                 }
             }
             Message::NodeIdHandshake(_) => {

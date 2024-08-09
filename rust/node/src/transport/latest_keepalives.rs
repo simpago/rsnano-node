@@ -1,7 +1,10 @@
-use super::ChannelId;
+use super::{ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget};
 use rand::{seq::IteratorRandom, thread_rng};
 use rsnano_messages::Keepalive;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 /// Keeps the last keepalive message per channel in memory, so that we can
 /// later use that information, when we want to connect to more nodes
@@ -55,6 +58,31 @@ impl LatestKeepalives {
 
     pub fn max_len(&self) -> usize {
         self.max_len
+    }
+}
+
+impl DeadChannelCleanupTarget for Arc<Mutex<LatestKeepalives>> {
+    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
+        Box::new(LatestKeepalivesCleanup::new(self.clone()))
+    }
+}
+
+pub(crate) struct LatestKeepalivesCleanup {
+    keepalives: Arc<Mutex<LatestKeepalives>>,
+}
+
+impl LatestKeepalivesCleanup {
+    pub(crate) fn new(keepalives: Arc<Mutex<LatestKeepalives>>) -> Self {
+        Self { keepalives }
+    }
+}
+
+impl DeadChannelCleanupStep for LatestKeepalivesCleanup {
+    fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
+        let mut keepalives = self.keepalives.lock().unwrap();
+        for channel_id in dead_channel_ids {
+            keepalives.remove(*channel_id);
+        }
     }
 }
 

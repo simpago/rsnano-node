@@ -2,7 +2,7 @@ use super::{LocalVoteHistory, VoteSpacing};
 use crate::{
     consensus::VoteBroadcaster,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BufferDropPolicy, ChannelEnum, TrafficType},
+    transport::{BufferDropPolicy, Channel, TrafficType},
     utils::ProcessingQueue,
     wallets::Wallets,
 };
@@ -108,7 +108,7 @@ impl VoteGenerator {
     }
 
     /// Queue blocks for vote generation, returning the number of successful candidates.
-    pub(crate) fn generate(&self, blocks: &[Arc<BlockEnum>], channel: Arc<ChannelEnum>) -> usize {
+    pub(crate) fn generate(&self, blocks: &[Arc<BlockEnum>], channel: Arc<Channel>) -> usize {
         let req_candidates = {
             let txn = self.ledger.read_txn();
             blocks
@@ -157,8 +157,7 @@ impl VoteGenerator {
                 ContainerInfoComponent::Leaf(ContainerInfo {
                     name: "requests".to_string(),
                     count: requests_count,
-                    sizeof_element: size_of::<Arc<ChannelEnum>>()
-                        + size_of::<Vec<(Root, BlockHash)>>(),
+                    sizeof_element: size_of::<Arc<Channel>>() + size_of::<Vec<(Root, BlockHash)>>(),
                 }),
             ],
         )
@@ -264,7 +263,7 @@ impl SharedState {
     {
         debug_assert_eq!(hashes.len(), roots.len());
         let mut votes = Vec::new();
-        self.wallets.foreach_representative(|pub_key, priv_key| {
+        self.wallets.foreach_representative(|keys| {
             let timestamp = if self.is_final {
                 Vote::TIMESTAMP_MAX
             } else {
@@ -276,8 +275,7 @@ impl SharedState {
                 0x9 /*8192ms*/
             };
             votes.push(Arc::new(Vote::new(
-                *pub_key,
-                priv_key,
+                keys,
                 timestamp,
                 duration,
                 hashes.clone(),
@@ -296,7 +294,7 @@ impl SharedState {
         }
     }
 
-    fn reply(&self, request: (Vec<(Root, BlockHash)>, Arc<ChannelEnum>)) {
+    fn reply(&self, request: (Vec<(Root, BlockHash)>, Arc<Channel>)) {
         let mut i = request.0.iter().peekable();
         while i.peek().is_some() && !self.stopped.load(Ordering::SeqCst) {
             let mut hashes = Vec::with_capacity(VoteGenerator::MAX_HASHES);
@@ -413,5 +411,5 @@ impl SharedState {
 #[derive(Default)]
 struct Queues {
     candidates: VecDeque<(Root, BlockHash)>,
-    requests: VecDeque<(Vec<(Root, BlockHash)>, Arc<ChannelEnum>)>,
+    requests: VecDeque<(Vec<(Root, BlockHash)>, Arc<Channel>)>,
 }

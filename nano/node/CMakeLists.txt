@@ -93,8 +93,6 @@ add_library(
   telemetry.cpp
   transport/channel.hpp
   transport/channel.cpp
-  transport/inproc.hpp
-  transport/inproc.cpp
   transport/tcp.hpp
   transport/tcp.cpp
   transport/tcp_listener.hpp

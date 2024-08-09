@@ -10,14 +10,13 @@ use crate::{
     cementation::ConfirmingSet,
     config::{GlobalConfig, NodeConfig, NodeFlags},
     consensus::{
-        create_loopback_channel, get_bootstrap_weights, log_bootstrap_weights,
-        AccountBalanceChangedCallback, ActiveElections, ActiveElectionsExt, ElectionEndCallback,
-        ElectionStatusType, HintedScheduler, HintedSchedulerExt, LocalVoteHistory, ManualScheduler,
-        ManualSchedulerExt, OptimisticScheduler, OptimisticSchedulerExt, PriorityScheduler,
-        PrioritySchedulerExt, ProcessLiveDispatcher, ProcessLiveDispatcherExt,
-        RecentlyConfirmedCache, RepTiers, RequestAggregator, VoteApplier, VoteBroadcaster,
-        VoteCache, VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt,
-        VoteProcessorQueue, VoteRouter,
+        get_bootstrap_weights, log_bootstrap_weights, AccountBalanceChangedCallback,
+        ActiveElections, ActiveElectionsExt, ElectionEndCallback, ElectionStatusType,
+        HintedScheduler, HintedSchedulerExt, LocalVoteHistory, ManualScheduler, ManualSchedulerExt,
+        OptimisticScheduler, OptimisticSchedulerExt, PriorityScheduler, PrioritySchedulerExt,
+        ProcessLiveDispatcher, ProcessLiveDispatcherExt, RecentlyConfirmedCache, RepTiers,
+        RequestAggregator, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
+        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteRouter,
     },
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
@@ -25,7 +24,7 @@ use crate::{
     representatives::{OnlineReps, RepCrawler, RepCrawlerExt},
     stats::{DetailType, Direction, LedgerStats, StatType, Stats},
     transport::{
-        BufferDropPolicy, ChannelEnum, InboundCallback, InboundMessageQueue, KeepaliveFactory,
+        BufferDropPolicy, ChannelId, DeadChannelCleanup, InboundMessageQueue, KeepaliveFactory,
         LatestKeepalives, MessageProcessor, Network, NetworkFilter, NetworkOptions, NetworkThreads,
         OutboundBandwidthLimiter, PeerCacheConnector, PeerCacheUpdater, PeerConnector,
         RealtimeMessageHandler, ResponseServerFactory, SynCookies, TcpListener, TcpListenerExt,
@@ -52,7 +51,7 @@ use rsnano_core::{
     VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
-use rsnano_messages::{ConfirmAck, DeserializedMessage, Message, Publish};
+use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
@@ -64,7 +63,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+        Arc, Mutex,
     },
     time::{Duration, Instant, SystemTime},
 };
@@ -93,7 +92,7 @@ pub struct Node {
     pub network: Arc<Network>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
-    pub online_weight_sampler: Arc<OnlineWeightSampler>,
+    online_weight_sampler: Arc<OnlineWeightSampler>,
     pub online_reps: Arc<Mutex<OnlineReps>>,
     pub rep_tiers: Arc<RepTiers>,
     pub vote_processor_queue: Arc<VoteProcessorQueue>,
@@ -111,17 +110,17 @@ pub struct Node {
     pub bootstrap_initiator: Arc<BootstrapInitiator>,
     pub rep_crawler: Arc<RepCrawler>,
     pub tcp_listener: Arc<TcpListener>,
-    pub hinted_scheduler: Arc<HintedScheduler>,
+    hinted_scheduler: Arc<HintedScheduler>,
     pub manual_scheduler: Arc<ManualScheduler>,
-    pub optimistic_scheduler: Arc<OptimisticScheduler>,
+    optimistic_scheduler: Arc<OptimisticScheduler>,
     pub priority_scheduler: Arc<PriorityScheduler>,
     pub request_aggregator: Arc<RequestAggregator>,
     pub backlog_population: Arc<BacklogPopulation>,
-    pub ascendboot: Arc<BootstrapAscending>,
+    ascendboot: Arc<BootstrapAscending>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
-    pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
+    _process_live_dispatcher: Arc<ProcessLiveDispatcher>,
     message_processor: Mutex<MessageProcessor>,
-    pub network_threads: Arc<Mutex<NetworkThreads>>,
+    network_threads: Arc<Mutex<NetworkThreads>>,
     ledger_pruning: Arc<LedgerPruning>,
     pub peer_connector: Arc<PeerConnector>,
     ongoing_bootstrap: Arc<OngoingBootstrap>,
@@ -142,9 +141,7 @@ impl Node {
         work: Arc<WorkPoolImpl>,
         election_end: ElectionEndCallback,
         account_balance_changed: AccountBalanceChangedCallback,
-        on_vote: Box<
-            dyn Fn(&Arc<Vote>, &Option<Arc<ChannelEnum>>, VoteSource, VoteCode) + Send + Sync,
-        >,
+        on_vote: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) -> Self {
         let network_label = network_params.network.get_current_network_as_string();
         let global_config = GlobalConfig {
@@ -226,11 +223,6 @@ impl Node {
             config.bootstrap_serving_threads as usize,
             "Bootstrap work",
         ));
-
-        let inbound_message_queue = Arc::new(InboundMessageQueue::new(
-            config.message_processor.max_queue,
-            stats.clone(),
-        ));
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
         let network = Arc::new(Network::new(NetworkOptions {
@@ -243,6 +235,15 @@ impl Node {
             flags: flags.clone(),
             limiter: outbound_limiter.clone(),
         }));
+
+        let mut dead_channel_cleanup =
+            DeadChannelCleanup::new(network.clone(), network_params.network.cleanup_cutoff());
+
+        let inbound_message_queue = Arc::new(InboundMessageQueue::new(
+            config.message_processor.max_queue,
+            stats.clone(),
+        ));
+        dead_channel_cleanup.add(&inbound_message_queue);
 
         let telemetry_config = TelementryConfig {
             enable_ongoing_requests: !flags.disable_ongoing_telemetry_requests,
@@ -271,6 +272,7 @@ impl Node {
             stats.clone(),
             ledger.clone(),
         ));
+        dead_channel_cleanup.add(&bootstrap_server);
 
         let online_weight_sampler = Arc::new(OnlineWeightSampler::new(
             ledger.clone(),
@@ -289,6 +291,7 @@ impl Node {
                 .trended(online_weight_sampler.calculate_trend())
                 .finish(),
         ));
+        dead_channel_cleanup.add(&online_reps);
 
         let rep_tiers = Arc::new(RepTiers::new(
             rep_weights.clone(),
@@ -302,6 +305,7 @@ impl Node {
             stats.clone(),
             rep_tiers.clone(),
         ));
+        dead_channel_cleanup.add(&vote_processor_queue);
 
         let history = Arc::new(LocalVoteHistory::new(network_params.voting.max_cache));
 
@@ -326,6 +330,7 @@ impl Node {
             unchecked.clone(),
             stats.clone(),
         ));
+        dead_channel_cleanup.add(&block_processor);
 
         let distributed_work =
             Arc::new(DistributedWorkFactory::new(work.clone(), async_rt.clone()));
@@ -362,32 +367,10 @@ impl Node {
         );
         wallets.initialize2();
 
-        let inbound_impl: Arc<
-            RwLock<Box<dyn Fn(DeserializedMessage, Arc<ChannelEnum>) + Send + Sync>>,
-        > = Arc::new(RwLock::new(Box::new(|_msg, _channel| {
-            panic!("inbound callback not set");
-        })));
-        let inbound_impl_clone = inbound_impl.clone();
-        let inbound: InboundCallback =
-            Arc::new(move |msg: DeserializedMessage, channel: Arc<ChannelEnum>| {
-                let cb = inbound_impl_clone.read().unwrap();
-                (*cb)(msg, channel);
-            });
-
-        let loopback_channel = create_loopback_channel(
-            node_id.public_key(),
-            &network,
-            stats.clone(),
-            &network_params,
-            inbound,
-            &async_rt,
-        );
-
         let vote_broadcaster = Arc::new(VoteBroadcaster::new(
             online_reps.clone(),
             network.clone(),
             vote_processor_queue.clone(),
-            loopback_channel,
         ));
 
         let vote_generators = Arc::new(VoteGenerators::new(
@@ -483,6 +466,7 @@ impl Node {
         bootstrap_initiator.start();
 
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
+        dead_channel_cleanup.add(&latest_keepalives);
 
         let response_server_factory = Arc::new(ResponseServerFactory {
             runtime: async_rt.clone(),
@@ -631,18 +615,11 @@ impl Node {
             ascendboot.clone(),
         ));
 
-        let realtime_message_handler_weak = Arc::downgrade(&realtime_message_handler);
-        *inbound_impl.write().unwrap() =
-            Box::new(move |msg: DeserializedMessage, channel: Arc<ChannelEnum>| {
-                if let Some(handler) = realtime_message_handler_weak.upgrade() {
-                    handler.process(msg.message, &channel);
-                }
-            });
-
         let keepalive_factory = Arc::new(KeepaliveFactory {
             network: network.clone(),
             config: config.clone(),
         });
+
         let network_threads = Arc::new(Mutex::new(NetworkThreads::new(
             network.clone(),
             peer_connector.clone(),
@@ -651,8 +628,8 @@ impl Node {
             stats.clone(),
             syn_cookies.clone(),
             keepalive_factory.clone(),
-            online_reps.clone(),
             latest_keepalives.clone(),
+            dead_channel_cleanup,
         )));
 
         let message_processor = Mutex::new(MessageProcessor::new(
@@ -725,7 +702,7 @@ impl Node {
                 processor.add(
                     info.block.as_ref().unwrap().clone(),
                     BlockSource::Unchecked,
-                    None,
+                    ChannelId::LOOPBACK,
                 );
             }
         }));
@@ -797,30 +774,29 @@ impl Node {
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         let reps_w = Arc::downgrade(&online_reps);
-        vote_processor.add_vote_processed_callback(Box::new(move |vote, channel, source, code| {
-            debug_assert!(code != VoteCode::Invalid);
-            let Some(rep_crawler) = rep_crawler_w.upgrade() else {
-                return;
-            };
-            let Some(reps) = reps_w.upgrade() else {
-                return;
-            };
-            let Some(channel) = &channel else {
-                return; // Channel expired when waiting for vote to be processed
-            };
-            // Ignore republished votes
-            if source != VoteSource::Live {
-                return;
-            }
+        vote_processor.add_vote_processed_callback(Box::new(
+            move |vote, channel_id, source, code| {
+                debug_assert!(code != VoteCode::Invalid);
+                let Some(rep_crawler) = rep_crawler_w.upgrade() else {
+                    return;
+                };
+                let Some(reps) = reps_w.upgrade() else {
+                    return;
+                };
+                // Ignore republished votes
+                if source != VoteSource::Live {
+                    return;
+                }
 
-            let active_in_rep_crawler = rep_crawler.process(vote.clone(), channel.clone());
-            if active_in_rep_crawler {
-                // Representative is defined as online if replying to live votes or rep_crawler queries
-                reps.lock()
-                    .unwrap()
-                    .vote_observed(vote.voting_account, relative_time.elapsed());
-            }
-        }));
+                let active_in_rep_crawler = rep_crawler.process(vote.clone(), channel_id);
+                if active_in_rep_crawler {
+                    // Representative is defined as online if replying to live votes or rep_crawler queries
+                    reps.lock()
+                        .unwrap()
+                        .vote_observed(vote.voting_account, relative_time.elapsed());
+                }
+            },
+        ));
 
         if !distributed_work.work_generation_enabled() {
             info!("Work generation is disabled");
@@ -1071,7 +1047,7 @@ impl Node {
             backlog_population,
             ascendboot,
             local_block_broadcaster,
-            process_live_dispatcher,
+            _process_live_dispatcher: process_live_dispatcher, // needs to stay alive
             ledger_pruning,
             network_threads,
             message_processor,

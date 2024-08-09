@@ -11,7 +11,6 @@
 #include <nano/node/scheduler/component.hpp>
 #include <nano/node/scheduler/manual.hpp>
 #include <nano/node/scheduler/priority.hpp>
-#include <nano/node/transport/inproc.hpp>
 #include <nano/node/transport/tcp_listener.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/test_common/network.hpp>
@@ -1454,7 +1453,7 @@ TEST (node, vote_by_hash_bundle)
 	nano::keypair key1;
 	(void)node.wallets.insert_adhoc (wallet_id, key1.prv);
 
-	system.nodes[0]->observers->vote.add ([&max_hashes] (std::shared_ptr<nano::vote> const & vote_a, std::shared_ptr<nano::transport::channel> const &, nano::vote_source, nano::vote_code) {
+	system.nodes[0]->observers->vote.add ([&max_hashes] (std::shared_ptr<nano::vote> const & vote_a, nano::vote_source, nano::vote_code) {
 		if (vote_a->hashes ().size () > max_hashes)
 		{
 			max_hashes = vote_a->hashes ().size ();

@@ -3,7 +3,7 @@ use crate::{
     cementation::ConfirmingSet,
     representatives::OnlineReps,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BandwidthLimiter, BufferDropPolicy, ChannelEnum, Network, TrafficType},
+    transport::{BandwidthLimiter, BufferDropPolicy, Channel, Network, TrafficType},
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -281,7 +281,7 @@ impl LocalBlockBroadcaster {
         }
     }
 
-    fn list_no_pr(&self, count: usize) -> Vec<Arc<ChannelEnum>> {
+    fn list_no_pr(&self, count: usize) -> Vec<Arc<Channel>> {
         let mut channels = self.network.random_list(usize::MAX, 0);
         {
             let reps = self.online_reps.lock().unwrap();

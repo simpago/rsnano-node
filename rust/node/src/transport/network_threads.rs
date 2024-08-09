@@ -1,10 +1,10 @@
 use super::{
-    ChannelId, LatestKeepalives, Network, NetworkExt, PeerConnector, PeerConnectorExt, SynCookies,
+    DeadChannelCleanup, LatestKeepalives, Network, NetworkExt, PeerConnector, PeerConnectorExt,
+    SynCookies,
 };
 use crate::{
     config::{NodeConfig, NodeFlags},
-    representatives::OnlineReps,
-    stats::{DetailType, Direction, StatType, Stats},
+    stats::{DetailType, StatType, Stats},
     NetworkParams,
 };
 use rsnano_messages::{Keepalive, Message};
@@ -12,17 +12,15 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
-    time::{Duration, SystemTime},
+    time::Duration,
 };
-use tracing::info;
 
-pub struct NetworkThreads {
+pub(crate) struct NetworkThreads {
     cleanup_thread: Option<JoinHandle<()>>,
     keepalive_thread: Option<JoinHandle<()>>,
     reachout_thread: Option<JoinHandle<()>>,
     stopped: Arc<(Condvar, Mutex<bool>)>,
     network: Arc<Network>,
-    online_reps: Arc<Mutex<OnlineReps>>,
     peer_connector: Arc<PeerConnector>,
     flags: NodeFlags,
     network_params: NetworkParams,
@@ -30,6 +28,7 @@ pub struct NetworkThreads {
     syn_cookies: Arc<SynCookies>,
     keepalive_factory: Arc<KeepaliveFactory>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+    dead_channel_cleanup: Option<DeadChannelCleanup>,
 }
 
 impl NetworkThreads {
@@ -41,8 +40,8 @@ impl NetworkThreads {
         stats: Arc<Stats>,
         syn_cookies: Arc<SynCookies>,
         keepalive_factory: Arc<KeepaliveFactory>,
-        online_reps: Arc<Mutex<OnlineReps>>,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+        dead_channel_cleanup: DeadChannelCleanup,
     ) -> Self {
         Self {
             cleanup_thread: None,
@@ -56,8 +55,8 @@ impl NetworkThreads {
             stats,
             syn_cookies,
             keepalive_factory,
-            online_reps,
             latest_keepalives,
+            dead_channel_cleanup: Some(dead_channel_cleanup),
         }
     }
 
@@ -65,12 +64,9 @@ impl NetworkThreads {
         let cleanup = CleanupLoop {
             stopped: self.stopped.clone(),
             network_params: self.network_params.clone(),
-            stats: self.stats.clone(),
             flags: self.flags.clone(),
             syn_cookies: self.syn_cookies.clone(),
-            network: self.network.clone(),
-            online_reps: self.online_reps.clone(),
-            latest_keepalives: self.latest_keepalives.clone(),
+            dead_channel_cleanup: self.dead_channel_cleanup.take().unwrap(),
         };
 
         self.cleanup_thread = Some(
@@ -139,12 +135,9 @@ impl Drop for NetworkThreads {
 struct CleanupLoop {
     stopped: Arc<(Condvar, Mutex<bool>)>,
     network_params: NetworkParams,
-    stats: Arc<Stats>,
     flags: NodeFlags,
     syn_cookies: Arc<SynCookies>,
-    network: Arc<Network>,
-    online_reps: Arc<Mutex<OnlineReps>>,
-    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+    dead_channel_cleanup: DeadChannelCleanup,
 }
 
 impl CleanupLoop {
@@ -164,37 +157,13 @@ impl CleanupLoop {
             drop(stopped);
 
             if !self.flags.disable_connection_cleanup {
-                self.cleanup_channels();
+                self.dead_channel_cleanup.clean_up();
             }
 
             self.syn_cookies
                 .purge(self.network_params.network.sync_cookie_cutoff);
 
             stopped = self.stopped.1.lock().unwrap();
-        }
-    }
-
-    fn cleanup_channels(&self) {
-        for channel_id in self.remove_dead_channels() {
-            self.remove_from_online_reps(channel_id);
-            self.latest_keepalives.lock().unwrap().remove(channel_id);
-        }
-    }
-
-    fn remove_dead_channels(&self) -> Vec<ChannelId> {
-        self.network
-            .purge(SystemTime::now() - self.network_params.network.cleanup_cutoff())
-    }
-
-    fn remove_from_online_reps(&self, channel_id: ChannelId) {
-        let removed_reps = self.online_reps.lock().unwrap().remove_peer(channel_id);
-        for rep in removed_reps {
-            info!(
-                "Evicting representative {} with dead channel",
-                rep.encode_account(),
-            );
-            self.stats
-                .inc_dir(StatType::RepCrawler, DetailType::ChannelDead, Direction::In);
         }
     }
 }

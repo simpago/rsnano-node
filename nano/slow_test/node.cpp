@@ -8,7 +8,6 @@
 #include <nano/node/scheduler/component.hpp>
 #include <nano/node/scheduler/manual.hpp>
 #include <nano/node/scheduler/priority.hpp>
-#include <nano/node/transport/inproc.hpp>
 #include <nano/node/unchecked_map.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/test_common/network.hpp>
@@ -331,17 +330,6 @@ TEST (store, unchecked_load)
 	}
 	// Waits for all the blocks to get saved in the database
 	ASSERT_TIMELY_EQ (8000s, num_unchecked, node.unchecked.count ());
-}
-
-TEST (store, vote_load)
-{
-	nano::test::system system{ 1 };
-	auto & node = *system.nodes[0];
-	for (auto i = 0u; i < 1000000u; ++i)
-	{
-		auto vote = std::make_shared<nano::vote> (nano::dev::genesis_key.pub, nano::dev::genesis_key.prv, i, 0, std::vector<nano::block_hash>{ i });
-		node.vote_processor_queue.vote (vote, std::make_shared<nano::transport::inproc::channel> (node, node));
-	}
 }
 
 /**

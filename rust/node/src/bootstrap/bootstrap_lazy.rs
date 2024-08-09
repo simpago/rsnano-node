@@ -6,6 +6,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::PullInfo,
     config::NodeFlags,
+    transport::ChannelId,
     websocket::WebsocketListener,
     NetworkParams,
 };
@@ -307,7 +308,7 @@ impl BootstrapAttemptLazy {
             drop(lock);
             drop(data);
             self.block_processor
-                .add(block, BlockSource::BootstrapLegacy, None);
+                .add(block, BlockSource::BootstrapLegacy, ChannelId::LOOPBACK);
         }
         // Force drop lazy bootstrap connection for long bulk_pull
         if pull_blocks_processed > max_blocks as u64 {

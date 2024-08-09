@@ -212,12 +212,12 @@ pub extern "C" fn rsn_wallets_foreach_representative(
     delete_context: VoidPointerCallback,
 ) {
     let context_wrapper = ContextWrapper::new(action_context, delete_context);
-    handle.0.foreach_representative(move |account, prv_key| {
+    handle.0.foreach_representative(move |keys| {
         let ctx = context_wrapper.get_context();
         action(
             ctx,
-            account.as_bytes().as_ptr(),
-            prv_key.as_bytes().as_ptr(),
+            keys.private_key().as_bytes().as_ptr(),
+            keys.private_key().as_bytes().as_ptr(),
         );
     });
 }

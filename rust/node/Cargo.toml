@@ -62,3 +62,5 @@ futures-util = { version = "0.3.30", features = ["sink"] }
 reqwest = { version = "0.12.4", default-features = false, features = ["json"] }
 tokio-util = "0.7.11"
 toml = "0.8.15"
+strum = "0"
+strum_macros = "0"

@@ -1,7 +1,7 @@
 use super::UncheckedMap;
 use crate::{
     stats::{DetailType, StatType, Stats},
-    transport::{ChannelEnum, FairQueue, Origin},
+    transport::{ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue},
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -17,9 +17,11 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tracing::{debug, error, info, trace};
 
-#[derive(FromPrimitive, Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
+#[derive(FromPrimitive, Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter)]
 pub enum BlockSource {
     Unknown = 0,
     Live,
@@ -158,19 +160,19 @@ impl BlockProcessor {
         stats: Arc<Stats>,
     ) -> Self {
         let config_l = config.clone();
-        let max_size_query = Box::new(move |origin: &Origin<BlockSource>| match origin.source {
+        let max_size_query = Box::new(move |origin: &(BlockSource, ChannelId)| match origin.0 {
             BlockSource::Live | BlockSource::LiveOriginator => config_l.max_peer_queue,
             _ => config_l.max_system_queue,
         });
 
         let config_l = config.clone();
-        let priority_query = Box::new(move |origin: &Origin<BlockSource>| match origin.source {
+        let priority_query = Box::new(move |origin: &(BlockSource, ChannelId)| match origin.0 {
             BlockSource::Live | BlockSource::LiveOriginator => config.priority_live,
             BlockSource::Bootstrap | BlockSource::BootstrapLegacy | BlockSource::Unchecked => {
                 config_l.priority_bootstrap
             }
             BlockSource::Local => config_l.priority_local,
-            _ => 1,
+            BlockSource::Forced | BlockSource::Unknown => 1,
         });
 
         Self {
@@ -254,13 +256,8 @@ impl BlockProcessor {
         self.processor_loop.add_rolled_back_observer(observer);
     }
 
-    pub fn add(
-        &self,
-        block: Arc<BlockEnum>,
-        source: BlockSource,
-        channel: Option<Arc<ChannelEnum>>,
-    ) -> bool {
-        self.processor_loop.add(block, source, channel)
+    pub fn add(&self, block: Arc<BlockEnum>, source: BlockSource, channel_id: ChannelId) -> bool {
+        self.processor_loop.add(block, source, channel_id)
     }
 
     pub fn add_blocking(&self, block: Arc<BlockEnum>, source: BlockSource) -> Option<BlockStatus> {
@@ -323,7 +320,7 @@ impl BlockProcessorLoop {
                         guard.queue.len(),
                         guard
                             .queue
-                            .queue_len(&Origin::new_opt(BlockSource::Forced, None))
+                            .queue_len(&(BlockSource::Forced, ChannelId::LOOPBACK))
                     );
                 }
 
@@ -393,15 +390,10 @@ impl BlockProcessorLoop {
     }
 
     pub fn process_active(&self, block: Arc<BlockEnum>) {
-        self.add(block, BlockSource::Live, None);
+        self.add(block, BlockSource::Live, ChannelId::LOOPBACK);
     }
 
-    pub fn add(
-        &self,
-        block: Arc<BlockEnum>,
-        source: BlockSource,
-        channel: Option<Arc<ChannelEnum>>,
-    ) -> bool {
+    pub fn add(&self, block: Arc<BlockEnum>, source: BlockSource, channel_id: ChannelId) -> bool {
         if self.config.work_thresholds.validate_entry_block(&block) {
             // true => error
             self.stats
@@ -412,16 +404,16 @@ impl BlockProcessorLoop {
         self.stats
             .inc(StatType::Blockprocessor, DetailType::Process);
         debug!(
-            "Processing block (async): {} (source: {:?} {})",
+            "Processing block (async): {} (source: {:?} channel id: {})",
             block.hash(),
             source,
-            channel
-                .as_ref()
-                .map(|c| c.remote_addr().to_string())
-                .unwrap_or_else(|| "<unknown>".to_string())
+            channel_id
         );
 
-        self.add_impl(Arc::new(BlockProcessorContext::new(block, source)), channel)
+        self.add_impl(
+            Arc::new(BlockProcessorContext::new(block, source)),
+            channel_id,
+        )
     }
 
     pub fn add_blocking(&self, block: Arc<BlockEnum>, source: BlockSource) -> Option<BlockStatus> {
@@ -436,7 +428,7 @@ impl BlockProcessorLoop {
         let hash = block.hash();
         let ctx = Arc::new(BlockProcessorContext::new(block, source));
         let waiter = ctx.get_waiter();
-        self.add_impl(ctx, None);
+        self.add_impl(ctx, ChannelId::LOOPBACK);
 
         match waiter.wait_result() {
             Some(status) => Some(status),
@@ -453,7 +445,7 @@ impl BlockProcessorLoop {
         self.stats.inc(StatType::Blockprocessor, DetailType::Force);
         debug!("Forcing block: {}", block.hash());
         let ctx = Arc::new(BlockProcessorContext::new(block, BlockSource::Forced));
-        self.add_impl(ctx, None);
+        self.add_impl(ctx, ChannelId::LOOPBACK);
     }
 
     // TODO: Remove and replace all checks with calls to size (block_source)
@@ -462,19 +454,19 @@ impl BlockProcessorLoop {
     }
 
     pub fn queue_len(&self, source: BlockSource) -> usize {
-        self.mutex.lock().unwrap().queue.queue_len(&source.into())
+        self.mutex
+            .lock()
+            .unwrap()
+            .queue
+            .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
     }
 
-    fn add_impl(
-        &self,
-        context: Arc<BlockProcessorContext>,
-        channel: Option<Arc<ChannelEnum>>,
-    ) -> bool {
+    fn add_impl(&self, context: Arc<BlockProcessorContext>, channel_id: ChannelId) -> bool {
         let source = context.source;
         let added;
         {
             let mut guard = self.mutex.lock().unwrap();
-            added = guard.queue.push(context, Origin::new_opt(source, channel));
+            added = guard.queue.push((source, channel_id), context);
         }
         if added {
             self.condition.notify_all();
@@ -496,7 +488,6 @@ impl BlockProcessorLoop {
         data: &mut BlockProcessorImpl,
         max_count: usize,
     ) -> VecDeque<Arc<BlockProcessorContext>> {
-        data.queue.periodic_update(Duration::from_secs(30));
         let mut results = VecDeque::new();
         while !data.queue.is_empty() && results.len() < max_count {
             results.push_back(data.next());
@@ -679,7 +670,9 @@ impl BlockProcessorLoop {
                 }),
                 ContainerInfoComponent::Leaf(ContainerInfo {
                     name: "forced".to_owned(),
-                    count: guard.queue.queue_len(&BlockSource::Forced.into()),
+                    count: guard
+                        .queue
+                        .queue_len(&(BlockSource::Forced, ChannelId::LOOPBACK)),
                     sizeof_element: size_of::<Arc<BlockEnum>>(),
                 }),
                 guard.queue.collect_container_info("queue"),
@@ -688,8 +681,14 @@ impl BlockProcessorLoop {
     }
 }
 
+impl DeadChannelCleanupTarget for Arc<BlockProcessor> {
+    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
+        Box::new(BlockProcessorCleanup(self.processor_loop.clone()))
+    }
+}
+
 struct BlockProcessorImpl {
-    pub queue: FairQueue<Arc<BlockProcessorContext>, BlockSource>,
+    pub queue: FairQueue<(BlockSource, ChannelId), Arc<BlockProcessorContext>>,
     pub last_log: Option<Instant>,
     stopped: bool,
 }
@@ -698,8 +697,8 @@ impl BlockProcessorImpl {
     fn next(&mut self) -> Arc<BlockProcessorContext> {
         debug_assert!(!self.queue.is_empty()); // This should be checked before calling next
         if !self.queue.is_empty() {
-            let (request, origin) = self.queue.next().unwrap();
-            assert!(origin.source != BlockSource::Forced || request.source == BlockSource::Forced);
+            let ((source, _), request) = self.queue.next().unwrap();
+            assert!(source != BlockSource::Forced || request.source == BlockSource::Forced);
             return request;
         }
 
@@ -718,11 +717,23 @@ impl BlockProcessorImpl {
     }
 }
 
+pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoop>);
+
+impl DeadChannelCleanupStep for BlockProcessorCleanup {
+    fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
+        let mut guard = self.0.mutex.lock().unwrap();
+        for channel_id in dead_channel_ids {
+            for source in BlockSource::iter() {
+                guard.queue.remove(&(source, *channel_id))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::stats::Direction;
-
     use super::*;
+    use crate::stats::Direction;
 
     #[test]
     fn insufficient_work() {
@@ -738,7 +749,7 @@ mod tests {
         let mut block = BlockEnum::new_test_instance();
         block.set_work(3);
 
-        block_processor.add(Arc::new(block), BlockSource::Live, None);
+        block_processor.add(Arc::new(block), BlockSource::Live, ChannelId::LOOPBACK);
 
         assert_eq!(
             stats.count(

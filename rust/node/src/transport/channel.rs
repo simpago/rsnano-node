@@ -1,6 +1,6 @@
 use super::{
     write_queue::{WriteQueue, WriteQueueReceiver},
-    AsyncBufferReader, BufferDropPolicy, Channel, ChannelDirection, ChannelId, ChannelMode,
+    AsyncBufferReader, BufferDropPolicy, ChannelDirection, ChannelId, ChannelMode,
     OutboundBandwidthLimiter, TcpStream, TrafficType,
 };
 use crate::{
@@ -26,7 +26,7 @@ use std::{
 use tokio::time::sleep;
 use tracing::{debug, trace};
 
-pub struct TcpChannelData {
+pub struct ChannelData {
     last_bootstrap_attempt: SystemTime,
     last_packet_received: SystemTime,
     last_packet_sent: SystemTime,
@@ -37,9 +37,9 @@ pub struct TcpChannelData {
 /// Default timeout in seconds
 const DEFAULT_TIMEOUT: u64 = 120;
 
-pub struct ChannelTcp {
+pub struct Channel {
     channel_id: ChannelId,
-    channel_mutex: Mutex<TcpChannelData>,
+    channel_mutex: Mutex<ChannelData>,
     network_version: AtomicU8,
     limiter: Arc<OutboundBandwidthLimiter>,
     message_serializer: Mutex<MessageSerializer>, // TODO remove mutex
@@ -72,7 +72,7 @@ pub struct ChannelTcp {
     ignore_closed_write_queue: bool,
 }
 
-impl ChannelTcp {
+impl Channel {
     const MAX_QUEUE_SIZE: usize = 128;
 
     fn new(
@@ -98,7 +98,7 @@ impl ChannelTcp {
         let now = SystemTime::now();
         let channel = Self {
             channel_id,
-            channel_mutex: Mutex::new(TcpChannelData {
+            channel_mutex: Mutex::new(ChannelData {
                 last_bootstrap_attempt: UNIX_EPOCH,
                 last_packet_received: now,
                 last_packet_sent: now,
@@ -125,8 +125,12 @@ impl ChannelTcp {
     }
 
     pub fn new_null() -> Self {
+        Self::new_null_with_id(42)
+    }
+
+    pub fn new_null_with_id(id: impl Into<ChannelId>) -> Self {
         let (mut channel, _receiver) = Self::new(
-            ChannelId::from(42),
+            id.into(),
             Arc::new(TcpStream::new_null()),
             ChannelDirection::Inbound,
             ProtocolInfo::default(),
@@ -209,10 +213,6 @@ impl ChannelTcp {
             .store(seconds_since_epoch(), Ordering::Relaxed);
     }
 
-    fn set_timeout(&self, seconds: u64) {
-        self.timeout_seconds.store(seconds, Ordering::Relaxed);
-    }
-
     async fn ongoing_checkup(&self) {
         loop {
             sleep(Duration::from_secs(2)).await;
@@ -252,7 +252,7 @@ impl ChannelTcp {
 
     fn close_internal(&self) {
         if !self.closed.swap(true, Ordering::SeqCst) {
-            self.set_timeout(0);
+            self.set_timeout(Duration::ZERO);
         }
     }
 
@@ -369,97 +369,84 @@ impl ChannelTcp {
             debug!("Closing socket after write error: {}", self.remote);
         }
     }
-}
 
-impl Display for ChannelTcp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.remote.fmt(f)
-    }
-}
-
-#[async_trait]
-impl Channel for Arc<ChannelTcp> {
-    fn channel_id(&self) -> ChannelId {
+    pub fn channel_id(&self) -> ChannelId {
         self.channel_id
     }
 
-    fn get_last_bootstrap_attempt(&self) -> SystemTime {
+    pub fn get_last_bootstrap_attempt(&self) -> SystemTime {
         self.channel_mutex.lock().unwrap().last_bootstrap_attempt
     }
 
-    fn set_last_bootstrap_attempt(&self, time: SystemTime) {
+    pub fn set_last_bootstrap_attempt(&self, time: SystemTime) {
         self.channel_mutex.lock().unwrap().last_bootstrap_attempt = time;
     }
 
-    fn get_last_packet_received(&self) -> SystemTime {
+    pub fn get_last_packet_received(&self) -> SystemTime {
         self.channel_mutex.lock().unwrap().last_packet_received
     }
 
-    fn set_last_packet_received(&self, instant: SystemTime) {
+    pub fn set_last_packet_received(&self, instant: SystemTime) {
         self.channel_mutex.lock().unwrap().last_packet_received = instant;
     }
 
-    fn get_last_packet_sent(&self) -> SystemTime {
+    pub fn get_last_packet_sent(&self) -> SystemTime {
         self.channel_mutex.lock().unwrap().last_packet_sent
     }
 
-    fn set_last_packet_sent(&self, instant: SystemTime) {
+    pub fn set_last_packet_sent(&self, instant: SystemTime) {
         self.channel_mutex.lock().unwrap().last_packet_sent = instant;
     }
 
-    fn get_node_id(&self) -> Option<Account> {
+    pub fn get_node_id(&self) -> Option<Account> {
         self.channel_mutex.lock().unwrap().node_id
     }
 
-    fn set_node_id(&self, id: Account) {
+    pub fn set_node_id(&self, id: Account) {
         self.channel_mutex.lock().unwrap().node_id = Some(id);
     }
 
-    fn is_alive(&self) -> bool {
+    pub fn is_alive(&self) -> bool {
         self.is_alive_impl()
     }
 
-    fn get_type(&self) -> super::TransportType {
-        super::TransportType::Tcp
-    }
-
-    fn local_addr(&self) -> SocketAddrV6 {
+    pub fn local_addr(&self) -> SocketAddrV6 {
         self.stream
             .local_addr()
             .map(|addr| into_ipv6_socket_address(addr))
             .unwrap_or(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0))
     }
 
-    fn remote_addr(&self) -> SocketAddrV6 {
+    pub fn remote_addr(&self) -> SocketAddrV6 {
         self.remote
     }
 
-    fn peering_endpoint(&self) -> Option<SocketAddrV6> {
+    pub fn peering_endpoint(&self) -> Option<SocketAddrV6> {
         self.channel_mutex.lock().unwrap().peering_endpoint
     }
 
-    fn network_version(&self) -> u8 {
+    pub fn network_version(&self) -> u8 {
         self.network_version.load(Ordering::Relaxed)
     }
 
-    fn direction(&self) -> ChannelDirection {
+    pub fn direction(&self) -> ChannelDirection {
         self.direction
     }
 
-    fn mode(&self) -> ChannelMode {
+    pub fn mode(&self) -> ChannelMode {
         FromPrimitive::from_u8(self.socket_type.load(Ordering::SeqCst)).unwrap()
     }
 
-    fn set_mode(&self, mode: ChannelMode) {
+    pub fn set_mode(&self, mode: ChannelMode) {
         self.socket_type.store(mode as u8, Ordering::SeqCst);
     }
 
-    fn set_timeout(&self, timeout: Duration) {
+    pub fn set_timeout(&self, timeout: Duration) {
         self.timeout_seconds
             .store(timeout.as_secs(), Ordering::SeqCst);
     }
 
-    fn try_send(
+    pub fn try_send(
         &self,
         message: &Message,
         drop_policy: BufferDropPolicy,
@@ -486,7 +473,11 @@ impl Channel for Arc<ChannelTcp> {
         }
     }
 
-    async fn send_buffer(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()> {
+    pub async fn send_buffer(
+        &self,
+        buffer: &[u8],
+        traffic_type: TrafficType,
+    ) -> anyhow::Result<()> {
         while !self.limiter.should_pass(buffer.len(), traffic_type.into()) {
             // TODO: better implementation
             sleep(Duration::from_millis(20)).await;
@@ -497,7 +488,7 @@ impl Channel for Arc<ChannelTcp> {
         Ok(())
     }
 
-    async fn send(&self, message: &Message, traffic_type: TrafficType) -> anyhow::Result<()> {
+    pub async fn send(&self, message: &Message, traffic_type: TrafficType) -> anyhow::Result<()> {
         let buffer = {
             let mut serializer = self.message_serializer.lock().unwrap();
             let buffer = serializer.serialize(message);
@@ -510,27 +501,33 @@ impl Channel for Arc<ChannelTcp> {
         Ok(())
     }
 
-    fn close(&self) {
+    pub fn close(&self) {
         self.close_internal();
     }
 
-    fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {
+    pub fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {
         ipv4_address_or_ipv6_subnet(&self.remote_addr().ip())
     }
 
-    fn subnetwork(&self) -> Ipv6Addr {
+    pub fn subnetwork(&self) -> Ipv6Addr {
         map_address_to_subnetwork(self.remote_addr().ip())
     }
 }
 
-impl Drop for ChannelTcp {
+impl Display for Channel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.remote.fmt(f)
+    }
+}
+
+impl Drop for Channel {
     fn drop(&mut self) {
         self.close_internal();
     }
 }
 
 #[async_trait]
-impl AsyncBufferReader for Arc<ChannelTcp> {
+impl AsyncBufferReader for Arc<Channel> {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         self.read_raw(buffer, count).await
     }

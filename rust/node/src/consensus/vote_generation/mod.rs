@@ -7,6 +7,5 @@ mod vote_spacing;
 
 pub use local_vote_history::*;
 pub use request_aggregator::*;
-pub(crate) use vote_generators::create_loopback_channel;
 pub use vote_generators::*;
 pub use vote_spacing::VoteSpacing;

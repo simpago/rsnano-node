@@ -106,7 +106,7 @@ namespace
 		obs->account_balance.notify (nano::account::from_bytes (account), is_pending);
 	}
 
-	void on_vote_processed (void * context, rsnano::VoteHandle * vote_handle, rsnano::ChannelHandle * channel_handle, uint8_t source, uint8_t code)
+	void on_vote_processed (void * context, rsnano::VoteHandle * vote_handle, uint8_t source, uint8_t code)
 	{
 		auto observers = static_cast<std::weak_ptr<nano::node_observers> *> (context);
 		auto obs = observers->lock ();
@@ -115,12 +115,7 @@ namespace
 			return;
 		}
 		auto vote = std::make_shared<nano::vote> (vote_handle);
-		std::shared_ptr<nano::transport::channel> channel{};
-		if (channel_handle != nullptr)
-		{
-			channel = nano::transport::channel_handle_to_channel (channel_handle);
-		}
-		obs->vote.notify (vote, channel, static_cast<nano::vote_source> (source), static_cast<nano::vote_code> (code));
+		obs->vote.notify (vote, static_cast<nano::vote_source> (source), static_cast<nano::vote_code> (code));
 	}
 
 }
@@ -201,8 +196,7 @@ nano::node::node (rsnano::async_runtime & async_rt_a, std::filesystem::path cons
 	backlog{ rsnano::rsn_node_backlog_population (handle) },
 	websocket{ rsnano::rsn_node_websocket (handle) },
 	startup_time (std::chrono::steady_clock::now ()),
-	node_seq (seq),
-	network_threads{ rsnano::rsn_node_network_threads (handle) }
+	node_seq (seq)
 {
 }
 

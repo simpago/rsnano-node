@@ -17,8 +17,8 @@ use crate::{
     telemetry::TelemetryHandle,
     to_rust_string,
     transport::{
-        ChannelHandle, EndpointDto, NetworkFilterHandle, NetworkThreadsHandle,
-        OutboundBandwidthLimiterHandle, SynCookiesHandle, TcpChannelsHandle,
+        ChannelHandle, EndpointDto, NetworkFilterHandle, OutboundBandwidthLimiterHandle,
+        SynCookiesHandle, TcpChannelsHandle,
     },
     utils::{AsyncRuntimeHandle, ContainerInfoComponentHandle, ContextWrapper, ThreadPoolHandle},
     wallets::LmdbWalletsHandle,
@@ -33,7 +33,7 @@ use rsnano_core::{
 use rsnano_node::{
     consensus::{AccountBalanceChangedCallback, ElectionEndCallback},
     node::{Node, NodeExt},
-    transport::{ChannelDirection, ChannelEnum, PeerConnectorExt, TcpStream},
+    transport::{ChannelDirection, ChannelId, PeerConnectorExt, TcpStream},
 };
 use std::{
     collections::VecDeque,
@@ -91,22 +91,9 @@ pub unsafe extern "C" fn rsn_node_create(
 
     let ctx = Arc::clone(&ctx_wrapper);
     let vote_processed = Box::new(
-        move |vote: &Arc<Vote>,
-              channel: &Option<Arc<ChannelEnum>>,
-              source: VoteSource,
-              code: VoteCode| {
+        move |vote: &Arc<Vote>, _channel_id: ChannelId, source: VoteSource, code: VoteCode| {
             let vote_handle = VoteHandle::new(Arc::clone(vote));
-            let channel_handle = match channel {
-                Some(c) => ChannelHandle::new(Arc::clone(c)),
-                None => std::ptr::null_mut(),
-            };
-            vote_processed(
-                ctx.get_context(),
-                vote_handle,
-                channel_handle,
-                source as u8,
-                code as u8,
-            );
+            vote_processed(ctx.get_context(), vote_handle, source as u8, code as u8);
         },
     );
 
@@ -349,13 +336,6 @@ pub extern "C" fn rsn_node_backlog_population(handle: &NodeHandle) -> *mut Backl
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_node_network_threads(handle: &NodeHandle) -> *mut NetworkThreadsHandle {
-    Box::into_raw(Box::new(NetworkThreadsHandle(Arc::clone(
-        &handle.0.network_threads,
-    ))))
-}
-
-#[no_mangle]
 pub extern "C" fn rsn_node_start(handle: &NodeHandle) {
     handle.0.start();
 }
@@ -430,7 +410,7 @@ pub unsafe extern "C" fn rsn_node_inbound(
     handle
         .0
         .inbound_message_queue
-        .put(message.0.clone(), (**channel).clone());
+        .put(message.0.message.clone(), (**channel).clone());
 }
 
 #[no_mangle]

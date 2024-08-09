@@ -13,7 +13,6 @@
 #include <nano/node/json_handler.hpp>
 #include <nano/node/node.hpp>
 #include <nano/node/rsnano_callbacks.hpp>
-#include <nano/node/transport/inproc.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/store/pending.hpp>
 

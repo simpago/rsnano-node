@@ -1,7 +1,7 @@
 use super::{
     sign_message,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Stream},
-    validate_message, Account, BlockHash, BlockHashBuilder, FullHash, KeyPair, RawKey, Signature,
+    validate_message, Account, BlockHash, BlockHashBuilder, FullHash, KeyPair, Signature,
 };
 use crate::{utils::Serialize, Amount};
 use anyhow::Result;
@@ -65,49 +65,35 @@ impl Vote {
 
     pub fn new_final(key: &KeyPair, hashes: Vec<BlockHash>) -> Self {
         assert!(hashes.len() <= Self::MAX_HASHES);
-        Self::new(
-            key.public_key(),
-            &key.private_key(),
-            Self::TIMESTAMP_MAX,
-            Self::DURATION_MAX,
-            hashes,
-        )
+        Self::new(&key, Self::TIMESTAMP_MAX, Self::DURATION_MAX, hashes)
     }
 
-    pub fn new(
-        account: Account,
-        prv: &RawKey,
-        timestamp: u64,
-        duration: u8,
-        hashes: Vec<BlockHash>,
-    ) -> Self {
+    pub fn new(keys: &KeyPair, timestamp: u64, duration: u8, hashes: Vec<BlockHash>) -> Self {
         assert!(hashes.len() <= Self::MAX_HASHES);
         let mut result = Self {
-            voting_account: account,
+            voting_account: keys.public_key(),
             timestamp: packed_timestamp(timestamp, duration),
             signature: Signature::new(),
             hashes,
         };
-        result.signature = sign_message(prv, &result.voting_account, result.hash().as_bytes());
+        result.signature = sign_message(
+            &keys.private_key(),
+            &result.voting_account,
+            result.hash().as_bytes(),
+        );
         result
     }
 
     pub fn new_test_instance() -> Self {
         let key = KeyPair::from(42);
-
-        Self::new(
-            key.public_key(),
-            &key.private_key(),
-            1,
-            2,
-            vec![BlockHash::from(5)],
-        )
+        Self::new(&key, 1, 2, vec![BlockHash::from(5)])
     }
 
     /// Timestamp for final vote
     pub const FINAL_TIMESTAMP: u64 = u64::MAX;
     pub const DURATION_MAX: u8 = 0x0F;
     pub const TIMESTAMP_MAX: u64 = 0xFFFF_FFFF_FFFF_FFF0;
+    pub const TIMESTAMP_MIN: u64 = 0x0000_0000_0000_0010;
     const TIMESTAMP_MASK: u64 = 0xFFFF_FFFF_FFFF_FFF0;
 
     /// Returns the timestamp of the vote (with the duration bits masked, set to zero)

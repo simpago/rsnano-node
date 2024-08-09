@@ -1,7 +1,7 @@
 use super::VoteProcessorQueue;
 use crate::{
     representatives::OnlineReps,
-    transport::{BufferDropPolicy, ChannelEnum, Network, TrafficType},
+    transport::{BufferDropPolicy, ChannelId, Network, TrafficType},
 };
 use rsnano_core::{Vote, VoteSource};
 use rsnano_messages::{ConfirmAck, Message};
@@ -15,7 +15,6 @@ pub struct VoteBroadcaster {
     online_reps: Arc<Mutex<OnlineReps>>,
     network: Arc<Network>,
     vote_processor_queue: Arc<VoteProcessorQueue>,
-    loopback_channel: Arc<ChannelEnum>,
 }
 
 impl VoteBroadcaster {
@@ -23,13 +22,11 @@ impl VoteBroadcaster {
         online_reps: Arc<Mutex<OnlineReps>>,
         network: Arc<Network>,
         vote_processor_queue: Arc<VoteProcessorQueue>,
-        loopback_channel: Arc<ChannelEnum>,
     ) -> Self {
         Self {
             online_reps,
             network,
             vote_processor_queue,
-            loopback_channel,
         }
     }
 
@@ -41,7 +38,7 @@ impl VoteBroadcaster {
         self.network.flood_message(&ack, 2.0);
 
         self.vote_processor_queue
-            .vote(vote, &self.loopback_channel, VoteSource::Live);
+            .vote(vote, ChannelId::LOOPBACK, VoteSource::Live);
     }
 
     fn flood_vote_pr(&self, vote: Vote) {

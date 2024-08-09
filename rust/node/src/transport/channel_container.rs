@@ -1,4 +1,4 @@
-use super::{ChannelDirection, ChannelEnum, ChannelId, ChannelMode};
+use super::{Channel, ChannelDirection, ChannelId, ChannelMode};
 use rsnano_core::PublicKey;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -12,7 +12,7 @@ use tracing::debug;
 /// Keeps track of all connected channels
 #[derive(Default)]
 pub struct ChannelContainer {
-    by_endpoint: HashMap<SocketAddrV6, Arc<ChannelEnum>>,
+    by_endpoint: HashMap<SocketAddrV6, Arc<Channel>>,
     by_random_access: Vec<SocketAddrV6>,
     by_bootstrap_attempt: BTreeMap<SystemTime, Vec<SocketAddrV6>>,
     by_network_version: BTreeMap<u8, Vec<SocketAddrV6>>,
@@ -22,9 +22,9 @@ pub struct ChannelContainer {
 }
 
 impl ChannelContainer {
-    pub const ELEMENT_SIZE: usize = std::mem::size_of::<ChannelEnum>();
+    pub const ELEMENT_SIZE: usize = std::mem::size_of::<Channel>();
 
-    pub fn insert(&mut self, channel: Arc<ChannelEnum>) -> bool {
+    pub fn insert(&mut self, channel: Arc<Channel>) -> bool {
         let endpoint = channel.remote_addr();
         if self.by_endpoint.contains_key(&endpoint) {
             return false;
@@ -52,11 +52,11 @@ impl ChannelContainer {
         true
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Arc<ChannelEnum>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Arc<Channel>> {
         self.by_endpoint.values()
     }
 
-    pub fn iter_by_last_bootstrap_attempt(&self) -> impl Iterator<Item = &Arc<ChannelEnum>> {
+    pub fn iter_by_last_bootstrap_attempt(&self) -> impl Iterator<Item = &Arc<Channel>> {
         self.by_bootstrap_attempt
             .iter()
             .flat_map(|(_, v)| v.iter().map(|ep| self.by_endpoint.get(ep).unwrap()))
@@ -73,7 +73,7 @@ impl ChannelContainer {
             .count()
     }
 
-    pub fn remove_by_endpoint(&mut self, endpoint: &SocketAddrV6) -> Option<Arc<ChannelEnum>> {
+    pub fn remove_by_endpoint(&mut self, endpoint: &SocketAddrV6) -> Option<Arc<Channel>> {
         if let Some(channel) = self.by_endpoint.remove(endpoint) {
             self.by_random_access.retain(|x| x != endpoint); // todo: linear search is slow?
 
@@ -100,22 +100,22 @@ impl ChannelContainer {
         }
     }
 
-    pub fn get_by_remote_addr(&self, remote_addr: &SocketAddrV6) -> Option<&Arc<ChannelEnum>> {
+    pub fn get_by_remote_addr(&self, remote_addr: &SocketAddrV6) -> Option<&Arc<Channel>> {
         self.by_endpoint.get(remote_addr)
     }
 
-    pub fn get_by_peering_addr(&self, peering_addr: &SocketAddrV6) -> Option<&Arc<ChannelEnum>> {
+    pub fn get_by_peering_addr(&self, peering_addr: &SocketAddrV6) -> Option<&Arc<Channel>> {
         // TODO use a hashmap?
         self.by_endpoint
             .values()
             .find(|i| i.peering_endpoint().as_ref() == Some(peering_addr))
     }
 
-    pub fn get_by_id(&self, id: ChannelId) -> Option<&Arc<ChannelEnum>> {
+    pub fn get_by_id(&self, id: ChannelId) -> Option<&Arc<Channel>> {
         self.by_id.get(&id).and_then(|ep| self.by_endpoint.get(ep))
     }
 
-    pub fn get_by_node_id(&self, node_id: &PublicKey) -> Option<&Arc<ChannelEnum>> {
+    pub fn get_by_node_id(&self, node_id: &PublicKey) -> Option<&Arc<Channel>> {
         self.by_endpoint
             .values()
             .filter(|i| i.get_node_id() == Some(*node_id))

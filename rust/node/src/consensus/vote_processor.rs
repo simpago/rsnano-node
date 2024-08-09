@@ -1,7 +1,7 @@
 use super::{VoteProcessorQueue, VoteRouter};
 use crate::{
     stats::{DetailType, StatType, Stats},
-    transport::ChannelEnum,
+    transport::ChannelId,
 };
 use rsnano_core::{utils::get_cpu_count, Vote, VoteCode, VoteSource};
 use std::{
@@ -50,9 +50,8 @@ pub struct VoteProcessor {
     queue: Arc<VoteProcessorQueue>,
     vote_router: Arc<VoteRouter>,
     stats: Arc<Stats>,
-    vote_processed: Mutex<
-        Vec<Box<dyn Fn(&Arc<Vote>, &Option<Arc<ChannelEnum>>, VoteSource, VoteCode) + Send + Sync>>,
-    >,
+    vote_processed:
+        Mutex<Vec<Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>>>,
     pub total_processed: AtomicU64,
 }
 
@@ -61,9 +60,7 @@ impl VoteProcessor {
         queue: Arc<VoteProcessorQueue>,
         vote_router: Arc<VoteRouter>,
         stats: Arc<Stats>,
-        on_vote: Box<
-            dyn Fn(&Arc<Vote>, &Option<Arc<ChannelEnum>>, VoteSource, VoteCode) + Send + Sync,
-        >,
+        on_vote: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) -> Self {
         Self {
             queue,
@@ -99,8 +96,8 @@ impl VoteProcessor {
 
             let start = Instant::now();
 
-            for ((vote, source), origin) in &batch {
-                self.vote_blocking(vote, &origin.channel, *source);
+            for ((_, channel_id), (vote, source)) in &batch {
+                self.vote_blocking(vote, *channel_id, *source);
             }
 
             self.total_processed
@@ -121,7 +118,7 @@ impl VoteProcessor {
     pub fn vote_blocking(
         &self,
         vote: &Arc<Vote>,
-        channel: &Option<Arc<ChannelEnum>>,
+        channel_id: ChannelId,
         source: VoteSource,
     ) -> VoteCode {
         let mut result = VoteCode::Invalid;
@@ -145,7 +142,7 @@ impl VoteProcessor {
 
             let callbacks = self.vote_processed.lock().unwrap();
             for callback in callbacks.iter() {
-                (callback)(vote, channel, source, result);
+                (callback)(vote, channel_id, source, result);
             }
         }
 
@@ -157,9 +154,7 @@ impl VoteProcessor {
 
     pub fn add_vote_processed_callback(
         &self,
-        callback: Box<
-            dyn Fn(&Arc<Vote>, &Option<Arc<ChannelEnum>>, VoteSource, VoteCode) + Send + Sync,
-        >,
+        callback: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) {
         self.vote_processed.lock().unwrap().push(callback);
     }

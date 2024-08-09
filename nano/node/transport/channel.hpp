@@ -23,7 +23,6 @@ enum class transport_type : uint8_t
 {
 	undefined = 0,
 	tcp = 1,
-	loopback = 2,
 };
 
 class channel

@@ -1,7 +1,7 @@
 use super::{ChannelHandle, EndpointDto};
 use crate::messages::MessageHandle;
 use rsnano_core::{utils::system_time_from_nanoseconds, PublicKey};
-use rsnano_node::transport::{ChannelEnum, ChannelMode, Network};
+use rsnano_node::transport::{Channel, ChannelMode, Network};
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
     ops::Deref,
@@ -128,7 +128,7 @@ pub extern "C" fn rsn_tcp_channels_flood_message(
     handle.flood_message(&msg.message, scale)
 }
 
-pub struct ChannelListHandle(Vec<Arc<ChannelEnum>>);
+pub struct ChannelListHandle(Vec<Arc<Channel>>);
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_channel_list_len(handle: *mut ChannelListHandle) -> usize {

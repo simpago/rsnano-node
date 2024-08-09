@@ -1,7 +1,7 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient, BootstrapConnections};
 use crate::{
     bootstrap::{bootstrap_limits, BootstrapAttemptTrait, BootstrapConnectionsExt, PullInfo},
-    transport::TrafficType,
+    transport::{AsyncBufferReader, TrafficType},
     utils::{AsyncRuntime, ThreadPool},
 };
 use primitive_types::U256;

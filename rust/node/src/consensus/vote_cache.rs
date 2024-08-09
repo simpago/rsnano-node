@@ -534,8 +534,7 @@ mod tests {
 
     fn create_vote(rep: &KeyPair, hash: &BlockHash, timestamp_offset: u64) -> Arc<Vote> {
         Arc::new(Vote::new(
-            rep.public_key(),
-            &rep.private_key(),
+            &rep,
             timestamp_offset * 1024 * 1024,
             0,
             vec![*hash],
@@ -681,8 +680,7 @@ mod tests {
         cache.insert(&vote1, Amount::raw(9), &HashMap::new());
 
         let vote2 = Arc::new(Vote::new(
-            rep.public_key(),
-            &rep.private_key(),
+            &rep,
             Vote::TIMESTAMP_MAX,
             Vote::DURATION_MAX,
             vec![hash],

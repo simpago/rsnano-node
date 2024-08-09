@@ -64,17 +64,4 @@ public:
 
 	static std::size_t const confirm_req_hashes_max = 7;
 };
-
-class network_threads
-{
-public:
-	network_threads (rsnano::NetworkThreadsHandle * handle);
-	network_threads (network_threads const &) = delete;
-	~network_threads ();
-
-	void start ();
-	void stop ();
-
-	rsnano::NetworkThreadsHandle * handle;
-};
 }

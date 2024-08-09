@@ -1,19 +1,18 @@
-use std::{
-    sync::{Arc, Mutex, Weak},
-    time::Duration,
-};
-
 use super::BootstrapInitiator;
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ResponseServer, ResponseServerExt},
+    transport::{AsyncBufferReader, ResponseServer, ResponseServerExt},
     utils::{AsyncRuntime, ErrorCode, ThreadPool},
 };
 use num_traits::FromPrimitive;
 use rsnano_core::{
     utils::BufferReader, work::WorkThresholds, BlockEnum, BlockType, ChangeBlock, OpenBlock,
     ReceiveBlock, SendBlock, StateBlock,
+};
+use std::{
+    sync::{Arc, Mutex, Weak},
+    time::Duration,
 };
 use tokio::task::spawn_blocking;
 use tracing::debug;

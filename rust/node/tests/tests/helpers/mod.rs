@@ -1,16 +1,17 @@
-use rsnano_core::{work::WorkPoolImpl, Amount, BlockHash, Networks, WalletId};
+use rsnano_core::{
+    work::WorkPoolImpl, Amount, BlockEnum, BlockHash, KeyPair, Networks, StateBlock, WalletId,
+};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
     consensus::Election,
     node::{Node, NodeExt},
-    transport::{ChannelDirection, ChannelEnum, PeerConnectorExt, TcpStream},
+    transport::{Channel, ChannelDirection, PeerConnectorExt, TcpStream},
     unique_path,
     utils::AsyncRuntime,
     wallets::WalletsExt,
     NetworkParams,
 };
 use std::{
-    fmt::Display,
     net::TcpListener,
     sync::{
         atomic::{AtomicU16, Ordering},
@@ -198,7 +199,14 @@ pub(crate) fn assert_never(duration: Duration, mut check: impl FnMut() -> bool) 
     }
 }
 
-pub(crate) fn assert_timely<F>(timeout: Duration, mut check: F, error_message: &str)
+pub(crate) fn assert_timely<F>(timeout: Duration, check: F)
+where
+    F: FnMut() -> bool,
+{
+    assert_timely_msg(timeout, check, "timeout");
+}
+
+pub(crate) fn assert_timely_msg<F>(timeout: Duration, mut check: F, error_message: &str)
 where
     F: FnMut() -> bool,
 {
@@ -255,11 +263,11 @@ fn init_tracing() {
     });
 }
 
-pub(crate) fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelEnum> {
+pub(crate) fn establish_tcp(node: &Node, peer: &Node) -> Arc<Channel> {
     node.peer_connector
         .connect_to(peer.tcp_listener.local_address());
 
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(2),
         || {
             node.network
@@ -274,7 +282,7 @@ pub(crate) fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelEnum> {
         .unwrap()
 }
 
-pub(crate) fn make_fake_channel(node: &Node) -> Arc<ChannelEnum> {
+pub(crate) fn make_fake_channel(node: &Node) -> Arc<Channel> {
     node.async_rt
         .tokio
         .block_on(
@@ -285,7 +293,7 @@ pub(crate) fn make_fake_channel(node: &Node) -> Arc<ChannelEnum> {
 }
 
 pub(crate) fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.block_exists(hash),
         "block not in ledger",
@@ -294,7 +302,7 @@ pub(crate) fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     let block = node.block(hash).unwrap();
     node.manual_scheduler.push(Arc::new(block.clone()), None);
     // wait for the election to appear
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.active.election(&block.qualified_root()).is_some(),
         "election not active",
@@ -302,4 +310,45 @@ pub(crate) fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     let election = node.active.election(&block.qualified_root()).unwrap();
     election.transition_active();
     election
+}
+
+pub(crate) fn setup_chain(
+    node: &Node,
+    count: usize,
+    target: &KeyPair,
+    confirm: bool,
+) -> Vec<BlockEnum> {
+    let mut latest = node.latest(&target.public_key());
+    let mut balance = node.balance(&target.public_key());
+
+    let mut blocks = Vec::new();
+
+    for _ in 0..count {
+        let throwaway = KeyPair::new();
+        balance = balance - Amount::raw(1);
+        let send = BlockEnum::State(StateBlock::new(
+            target.public_key(),
+            latest,
+            target.public_key(),
+            balance,
+            throwaway.public_key().into(),
+            &target,
+            node.work_generate_dev(latest.into()),
+        ));
+        latest = send.hash();
+        blocks.push(send);
+    }
+
+    for block in &blocks {
+        node.process(block.clone()).unwrap();
+    }
+
+    if confirm {
+        // Confirm whole chain at once
+        for block in &blocks {
+            node.confirm(block.hash());
+        }
+    }
+
+    blocks
 }

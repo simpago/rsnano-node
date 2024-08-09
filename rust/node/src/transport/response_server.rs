@@ -1,5 +1,5 @@
 use super::{
-    ChannelEnum, HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
+    Channel, HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
     MessageDeserializer, Network, NetworkFilter, SynCookies,
 };
 use crate::{
@@ -65,7 +65,7 @@ impl Default for TcpConfig {
 }
 
 pub struct ResponseServer {
-    channel: Arc<ChannelEnum>,
+    channel: Arc<Channel>,
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
 
@@ -98,7 +98,7 @@ impl ResponseServer {
     pub fn new(
         network: &Arc<Network>,
         inbound_queue: Arc<InboundMessageQueue>,
-        channel: Arc<ChannelEnum>,
+        channel: Arc<Channel>,
         publish_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
@@ -148,7 +148,7 @@ impl ResponseServer {
         }
     }
 
-    pub fn channel(&self) -> &Arc<ChannelEnum> {
+    pub fn channel(&self) -> &Arc<Channel> {
         &self.channel
     }
 
@@ -221,7 +221,7 @@ impl ResponseServer {
         self.channel.mode() == ChannelMode::Realtime
     }
 
-    fn queue_realtime(&self, message: DeserializedMessage) {
+    fn queue_realtime(&self, message: Message) {
         self.channel.set_last_packet_received(SystemTime::now());
         self.inbound_queue.put(message, self.channel.clone());
         // TODO: Throttle if not added
@@ -269,9 +269,9 @@ pub trait BootstrapMessageVisitor: MessageVisitor {
 pub trait ResponseServerExt {
     fn to_realtime_connection(&self, node_id: &Account) -> bool;
     async fn run(&self);
-    async fn process_message(&self, message: DeserializedMessage) -> ProcessResult;
-    fn process_realtime(&self, message: DeserializedMessage) -> ProcessResult;
-    fn process_bootstrap(&self, message: DeserializedMessage) -> ProcessResult;
+    async fn process_message(&self, message: Message) -> ProcessResult;
+    fn process_realtime(&self, message: Message) -> ProcessResult;
+    fn process_bootstrap(&self, message: Message) -> ProcessResult;
 }
 
 pub enum ProcessResult {
@@ -321,7 +321,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             }
 
             let result = match message_deserializer.read().await {
-                Ok(msg) => self.process_message(msg).await,
+                Ok(msg) => self.process_message(msg.message).await,
                 Err(ParseMessageError::DuplicatePublishMessage) => {
                     // Avoid too much noise about `duplicate_publish_message` errors
                     self.stats.inc_dir(
@@ -366,10 +366,10 @@ impl ResponseServerExt for Arc<ResponseServer> {
         }
     }
 
-    async fn process_message(&self, message: DeserializedMessage) -> ProcessResult {
+    async fn process_message(&self, message: Message) -> ProcessResult {
         self.stats.inc_dir(
             StatType::TcpServer,
-            DetailType::from(message.message.message_type()),
+            DetailType::from(message.message_type()),
             Direction::In,
         );
 
@@ -391,7 +391,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
          * In bootstrap mode any realtime messages are ignored
          */
         if self.is_undefined_connection() {
-            let result = match &message.message {
+            let result = match &message {
                 Message::BulkPull(_)
                 | Message::BulkPullAccount(_)
                 | Message::BulkPush
@@ -414,7 +414,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     );
                     debug!(
                         "Aborting handshake: {:?} ({})",
-                        message.message.message_type(),
+                        message.message_type(),
                         self.remote_endpoint()
                     );
                     return ProcessResult::Abort;
@@ -447,7 +447,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         );
                         debug!(
                             "Error switching to bootstrap mode: {:?} ({})",
-                            message.message.message_type(),
+                            message.message_type(),
                             self.remote_endpoint()
                         );
                         return ProcessResult::Abort;
@@ -468,8 +468,8 @@ impl ResponseServerExt for Arc<ResponseServer> {
         ProcessResult::Abort
     }
 
-    fn process_realtime(&self, message: DeserializedMessage) -> ProcessResult {
-        let process = match &message.message {
+    fn process_realtime(&self, message: Message) -> ProcessResult {
+        let process = match &message {
             Message::Keepalive(keepalive) => {
                 self.set_last_keepalive(keepalive.clone());
                 true
@@ -505,8 +505,8 @@ impl ResponseServerExt for Arc<ResponseServer> {
         ProcessResult::Progress
     }
 
-    fn process_bootstrap(&self, message: DeserializedMessage) -> ProcessResult {
-        match &message.message {
+    fn process_bootstrap(&self, message: Message) -> ProcessResult {
+        match &message {
             Message::BulkPull(payload) => {
                 if self.flags.disable_bootstrap_bulk_pull_server {
                     return ProcessResult::Progress;

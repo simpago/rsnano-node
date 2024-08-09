@@ -1,21 +1,17 @@
 use crate::tests::helpers::{
-    assert_always_eq, assert_never, assert_timely, assert_timely_eq, make_fake_channel, System,
+    assert_always_eq, assert_never, assert_timely_eq, assert_timely_msg, make_fake_channel, System,
 };
 use rsnano_core::{
-    utils::milliseconds_since_epoch, work::WorkPool, Amount, BlockEnum, BlockHash, KeyPair, RawKey,
+    utils::milliseconds_since_epoch, work::WorkPool, Amount, BlockEnum, BlockHash, KeyPair,
     SendBlock, Signature, StateBlock, Vote, VoteSource, VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
-use rsnano_messages::{ConfirmAck, DeserializedMessage, Message, Publish};
+use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_node::{
     config::NodeFlags,
     consensus::{ActiveElectionsExt, VoteApplierExt},
-    node::NodeExt,
     stats::{DetailType, Direction, StatType},
-    transport::{
-        BufferDropPolicy, ChannelDirection, ChannelEnum, ChannelTcp, PeerConnectorExt, TcpStream,
-        TrafficType,
-    },
+    transport::{BufferDropPolicy, ChannelId, PeerConnectorExt, TrafficType},
     wallets::WalletsExt,
 };
 use std::{sync::Arc, thread::sleep, time::Duration};
@@ -62,7 +58,7 @@ fn local_block_broadcast() {
         || node1.local_block_broadcaster.len(),
         1,
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || {
             node1.stats.count(
@@ -88,12 +84,12 @@ fn local_block_broadcast() {
     node1
         .peer_connector
         .connect_to(node2.tcp_listener.local_address());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.network.find_node_id(&node2.get_node_id()).is_some(),
         "node2 not connected",
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(10),
         || node2.block(&send_hash).is_some(),
         "block not received",
@@ -149,7 +145,7 @@ fn fork_no_vote_quorum() {
             None,
         )
         .unwrap();
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(30),
         || {
             node3.balance(&key1) == node1.config.receive_minimum
@@ -190,8 +186,7 @@ fn fork_no_vote_quorum() {
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(block.hash().into()),
     ));
-    let key3 = RawKey::random();
-    let vote = Vote::new(key1, &key3, 0, 0, vec![send2.hash()]);
+    let vote = Vote::new(&KeyPair::new(), 0, 0, vec![send2.hash()]);
     let confirm = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
     let channel = node2
         .network
@@ -203,7 +198,7 @@ fn fork_no_vote_quorum() {
         TrafficType::Generic,
     );
 
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(10),
         || {
             node3
@@ -240,14 +235,11 @@ fn fork_open() {
     let channel = make_fake_channel(&node);
 
     node.inbound_message_queue.put(
-        DeserializedMessage::new(
-            Message::Publish(Publish::new_forward(send1.clone())),
-            node.network_params.network.protocol_info(),
-        ),
+        Message::Publish(Publish::new_forward(send1.clone())),
         channel.clone(),
     );
 
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.active.election(&send1.qualified_root()).is_some(),
         "election not found",
@@ -273,10 +265,7 @@ fn fork_open() {
         node.work_generate_dev(key1.public_key().into()),
     ));
     node.inbound_message_queue.put(
-        DeserializedMessage::new(
-            Message::Publish(Publish::new_forward(open1.clone())),
-            node.network_params.network.protocol_info(),
-        ),
+        Message::Publish(Publish::new_forward(open1.clone())),
         channel.clone(),
     );
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
@@ -293,13 +282,10 @@ fn fork_open() {
         node.work_generate_dev(key1.public_key().into()),
     ));
     node.inbound_message_queue.put(
-        DeserializedMessage::new(
-            Message::Publish(Publish::new_forward(open2.clone())),
-            node.network_params.network.protocol_info(),
-        ),
+        Message::Publish(Publish::new_forward(open2.clone())),
         channel.clone(),
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.active.election(&open2.qualified_root()).is_some(),
         "no election for open2",
@@ -312,25 +298,14 @@ fn fork_open() {
         || election.mutex.lock().unwrap().last_blocks.len(),
         2,
     );
-    assert_eq!(
-        open1.hash(),
-        election
-            .mutex
-            .lock()
-            .unwrap()
-            .status
-            .winner
-            .as_ref()
-            .unwrap()
-            .hash()
-    );
+    assert_eq!(open1.hash(), election.winner_hash().unwrap());
 
     // wait for a second and check that the election did not get confirmed
     sleep(Duration::from_millis(1000));
     assert_eq!(node.active.confirmed(&election), false);
 
     // check that only the first block is saved to the ledger
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.block_exists(&open1.hash()),
         "open1 not in ledger",
@@ -345,8 +320,7 @@ fn online_reps_rep_crawler() {
     flags.disable_rep_crawler = true;
     let node = system.build_node().flags(flags).finish();
     let vote = Arc::new(Vote::new(
-        *DEV_GENESIS_ACCOUNT,
-        &DEV_GENESIS_KEY.private_key(),
+        &DEV_GENESIS_KEY,
         milliseconds_since_epoch(),
         0,
         vec![*DEV_GENESIS_HASH],
@@ -359,7 +333,7 @@ fn online_reps_rep_crawler() {
     // Without rep crawler
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote, &Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote, channel.channel_id(), VoteSource::Live);
     assert_eq!(
         Amount::zero(),
         node.online_reps.lock().unwrap().online_weight()
@@ -367,9 +341,9 @@ fn online_reps_rep_crawler() {
 
     // After inserting to rep crawler
     node.rep_crawler
-        .force_query(*DEV_GENESIS_HASH, channel.clone());
+        .force_query(*DEV_GENESIS_HASH, channel.channel_id());
     node.vote_processor
-        .vote_blocking(&vote, &Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote, channel.channel_id(), VoteSource::Live);
     assert_eq!(
         Amount::MAX,
         node.online_reps.lock().unwrap().online_weight()
@@ -400,8 +374,7 @@ fn online_reps_election() {
 
     // Process vote for ongoing election
     let vote = Arc::new(Vote::new(
-        *DEV_GENESIS_ACCOUNT,
-        &DEV_GENESIS_KEY.private_key(),
+        &DEV_GENESIS_KEY,
         milliseconds_since_epoch(),
         0,
         vec![send1.hash()],
@@ -413,7 +386,7 @@ fn online_reps_election() {
 
     let channel = make_fake_channel(&node);
     node.vote_processor
-        .vote_blocking(&vote, &Some(channel.clone()), VoteSource::Live);
+        .vote_blocking(&vote, channel.channel_id(), VoteSource::Live);
 
     assert_eq!(
         Amount::MAX - Amount::nano(1000),
@@ -456,17 +429,17 @@ fn vote_republish() {
 
     // process send1 first, this will make sure send1 goes into the ledger and an election is started
     node1.process_active(send1.clone());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node2.block_exists(&send1.hash()),
         "block not found on node2",
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.active.active(&send1),
         "not active on node 1",
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node2.active.active(&send1),
         "not active on node 2",
@@ -474,7 +447,7 @@ fn vote_republish() {
 
     // now process send2, send2 will not go in the ledger because only the first block of a fork goes in the ledger
     node1.process_active(send2.clone());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.active.active(&send2),
         "send2 not active on node 2",
@@ -485,10 +458,10 @@ fn vote_republish() {
 
     // the vote causes the election to reach quorum and for the vote (and block?) to be published from node1 to node2
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    let channel = make_fake_channel(&node1);
+    let channel_id = ChannelId::from(999);
     node1
         .vote_processor_queue
-        .vote(vote, &channel, VoteSource::Live);
+        .vote(vote, channel_id, VoteSource::Live);
 
     // FIXME: there is a race condition here, if the vote arrives before the block then the vote is wasted and the test fails
     // we could resend the vote but then there is a race condition between the vote resending and the election reaching quorum on node1
@@ -496,12 +469,12 @@ fn vote_republish() {
     // the real node will do a confirm request if it needs to find a lost vote
 
     // check that send2 won on both nodes
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.blocks_confirmed(&[send2.clone()]),
         "not confirmed on node1",
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node2.blocks_confirmed(&[send2.clone()]),
         "not confirmed on node2",
@@ -560,12 +533,12 @@ fn vote_by_hash_republish() {
 
     // give block send1 to node1 and check that an election for send1 starts on both nodes
     node1.process_active(send1.clone());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.active.active(&send1),
         "not active on node 1",
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node2.active.active(&send1),
         "not active on node 2",
@@ -574,7 +547,7 @@ fn vote_by_hash_republish() {
     // give block send2 to node1 and wait until the block is received and processed by node1
     node1.network.publish_filter.clear_all();
     node1.process_active(send2.clone());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.active.active(&send2),
         "send2 not active on node 1",
@@ -582,18 +555,17 @@ fn vote_by_hash_republish() {
 
     // construct a vote for send2 in order to overturn send1
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    let channel = make_fake_channel(&node1);
     node1
         .vote_processor_queue
-        .vote(vote, &channel, VoteSource::Live);
+        .vote(vote, ChannelId::from(999), VoteSource::Live);
 
     // send2 should win on both nodes
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.blocks_confirmed(&[send2.clone()]),
         "not confirmed on node1",
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node2.blocks_confirmed(&[send2.clone()]),
         "not confirmed on node2",
@@ -639,13 +611,10 @@ fn fork_election_invalid_block_signature() {
 
     let channel = make_fake_channel(&node1);
     node1.inbound_message_queue.put(
-        DeserializedMessage::new(
-            Message::Publish(Publish::new_forward(send1.clone())),
-            node1.network_params.network.protocol_info(),
-        ),
+        Message::Publish(Publish::new_forward(send1.clone())),
         channel.clone(),
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node1.active.active(&send1),
         "not active on node 1",
@@ -654,20 +623,14 @@ fn fork_election_invalid_block_signature() {
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
 
     node1.inbound_message_queue.put(
-        DeserializedMessage::new(
-            Message::Publish(Publish::new_forward(send3)),
-            node1.network_params.network.protocol_info(),
-        ),
+        Message::Publish(Publish::new_forward(send3)),
         channel.clone(),
     );
     node1.inbound_message_queue.put(
-        DeserializedMessage::new(
-            Message::Publish(Publish::new_forward(send2.clone())),
-            node1.network_params.network.protocol_info(),
-        ),
+        Message::Publish(Publish::new_forward(send2.clone())),
         channel.clone(),
     );
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(3),
         || election.mutex.lock().unwrap().last_blocks.len() > 1,
         "block len was < 2",
@@ -723,7 +686,7 @@ fn confirm_back() {
     node.process_active(open.clone());
     node.process_active(send2.clone());
 
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.block_exists(&send2.hash()),
         "send2 not found",
@@ -734,9 +697,8 @@ fn confirm_back() {
     start_election(&node, &send2.hash());
     assert_eq!(node.active.len(), 3);
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send2.hash()]));
-    let channel = make_fake_channel(&node);
     node.vote_processor_queue
-        .vote(vote, &channel, VoteSource::Live);
+        .vote(vote, ChannelId::from(999), VoteSource::Live);
     assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
 }
 
@@ -806,7 +768,7 @@ fn rollback_vote_self() {
 
     // process forked blocks, send2 will be the winner because it was first and there are no votes yet
     node.process_active(send2.clone());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(5),
         || node.active.election(&send2.qualified_root()).is_some(),
         "election not found",
@@ -818,18 +780,7 @@ fn rollback_vote_self() {
         || election.mutex.lock().unwrap().last_blocks.len(),
         2,
     );
-    assert_eq!(
-        election
-            .mutex
-            .lock()
-            .unwrap()
-            .status
-            .winner
-            .as_ref()
-            .unwrap()
-            .hash(),
-        send2.hash()
-    );
+    assert_eq!(election.winner_hash().unwrap(), send2.hash());
 
     {
         // The write guard prevents the block processor from performing the rollback
@@ -846,18 +797,7 @@ fn rollback_vote_self() {
         );
         assert_eq!(1, node.active.votes_with_weight(&election).len());
         // The winner changed
-        assert_eq!(
-            election
-                .mutex
-                .lock()
-                .unwrap()
-                .status
-                .winner
-                .as_ref()
-                .unwrap()
-                .hash(),
-            fork.hash(),
-        );
+        assert_eq!(election.winner_hash().unwrap(), fork.hash(),);
 
         // Insert genesis key in the wallet
         node.wallets
@@ -980,16 +920,10 @@ fn rep_crawler_rep_remove() {
     let channel_rep1 = make_fake_channel(&searching_node);
 
     // Ensure Rep1 is found by the rep_crawler after receiving a vote from it
-    let vote_rep1 = Arc::new(Vote::new(
-        keys_rep1.public_key(),
-        &keys_rep1.private_key(),
-        0,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
+    let vote_rep1 = Arc::new(Vote::new(&keys_rep1, 0, 0, vec![*DEV_GENESIS_HASH]));
     searching_node
         .rep_crawler
-        .force_process(vote_rep1, channel_rep1.clone());
+        .force_process(vote_rep1, channel_rep1.channel_id());
     assert_timely_eq(
         Duration::from_secs(5),
         || {
@@ -1038,16 +972,10 @@ fn rep_crawler_rep_remove() {
         .unwrap();
 
     // genesis_rep should be found as principal representative after receiving a vote from it
-    let vote_genesis_rep = Arc::new(Vote::new(
-        *DEV_GENESIS_ACCOUNT,
-        &DEV_GENESIS_KEY.private_key(),
-        0,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
+    let vote_genesis_rep = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]));
     searching_node
         .rep_crawler
-        .force_process(vote_genesis_rep, channel_genesis_rep);
+        .force_process(vote_genesis_rep, channel_genesis_rep.channel_id());
     assert_timely_eq(
         Duration::from_secs(10),
         || {
@@ -1065,7 +993,7 @@ fn rep_crawler_rep_remove() {
     searching_node
         .peer_connector
         .connect_to(node_rep2.tcp_listener.local_address());
-    assert_timely(
+    assert_timely_msg(
         Duration::from_secs(10),
         || {
             searching_node
@@ -1081,16 +1009,10 @@ fn rep_crawler_rep_remove() {
         .unwrap();
 
     // Rep2 should be found as a principal representative after receiving a vote from it
-    let vote_rep2 = Arc::new(Vote::new(
-        keys_rep2.public_key(),
-        &keys_rep2.private_key(),
-        0,
-        0,
-        vec![*DEV_GENESIS_HASH],
-    ));
+    let vote_rep2 = Arc::new(Vote::new(&keys_rep2, 0, 0, vec![*DEV_GENESIS_HASH]));
     searching_node
         .rep_crawler
-        .force_process(vote_rep2, channel_rep2);
+        .force_process(vote_rep2, channel_rep2.channel_id());
     assert_timely_eq(
         Duration::from_secs(10),
         || {

@@ -145,6 +145,20 @@ impl Election {
     pub fn contains(&self, hash: &BlockHash) -> bool {
         self.mutex.lock().unwrap().last_blocks.contains_key(hash)
     }
+
+    pub fn vote_count(&self) -> usize {
+        self.mutex.lock().unwrap().last_votes.len()
+    }
+
+    pub fn winner_hash(&self) -> Option<BlockHash> {
+        self.mutex
+            .lock()
+            .unwrap()
+            .status
+            .winner
+            .as_ref()
+            .map(|w| w.hash())
+    }
 }
 
 impl Debug for Election {

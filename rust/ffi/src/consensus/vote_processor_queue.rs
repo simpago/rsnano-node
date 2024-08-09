@@ -28,7 +28,7 @@ pub extern "C" fn rsn_vote_processor_queue_vote(
 ) -> bool {
     handle.0.vote(
         (**vote).clone(),
-        channel,
+        channel.channel_id(),
         FromPrimitive::from_u8(source).unwrap(),
     )
 }

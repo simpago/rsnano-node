@@ -15,10 +15,11 @@ use std::{
     thread::JoinHandle,
     time::Duration,
 };
+use strum_macros::EnumIter;
 use tracing::debug;
 
 // Higher number means higher priority
-#[derive(FromPrimitive, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(FromPrimitive, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, EnumIter)]
 pub enum RepTier {
     None,  // Not a principal representatives
     Tier1, // (0.1-1%) of online stake

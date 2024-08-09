@@ -38,7 +38,7 @@ pub extern "C" fn rsn_rep_crawler_process(
     vote: &VoteHandle,
     channel: &ChannelHandle,
 ) -> bool {
-    handle.process(Arc::clone(vote), Arc::clone(channel))
+    handle.process(Arc::clone(vote), channel.channel_id())
 }
 
 #[no_mangle]
@@ -62,7 +62,7 @@ pub unsafe extern "C" fn rsn_rep_crawler_force_process(
     vote: &VoteHandle,
     channel: &ChannelHandle,
 ) {
-    handle.force_process(Arc::clone(vote), Arc::clone(channel))
+    handle.force_process(Arc::clone(vote), channel.channel_id())
 }
 
 #[no_mangle]
@@ -71,5 +71,5 @@ pub unsafe extern "C" fn rsn_rep_crawler_force_query(
     hash: *const u8,
     channel: &ChannelHandle,
 ) {
-    handle.force_query(BlockHash::from_ptr(hash), Arc::clone(channel))
+    handle.force_query(BlockHash::from_ptr(hash), channel.channel_id())
 }

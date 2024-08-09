@@ -1,4 +1,4 @@
-use super::helpers::{assert_timely, assert_timely_eq, establish_tcp, System};
+use super::helpers::{assert_timely_eq, assert_timely_msg, establish_tcp, System};
 use crate::tests::helpers::get_available_port;
 use rsnano_core::{
     Account, Amount, BlockEnum, BlockHash, KeyPair, StateBlock, UncheckedKey, WalletId,
@@ -9,9 +9,7 @@ use rsnano_messages::BulkPull;
 use rsnano_node::{
     bootstrap::BulkPullServer,
     node::Node,
-    transport::{
-        ChannelDirection, ChannelEnum, ChannelId, ChannelTcp, LatestKeepalives, ResponseServer,
-    },
+    transport::{Channel, ChannelDirection, ChannelId, LatestKeepalives, ResponseServer},
 };
 use rsnano_node::{
     bootstrap::{BootstrapAttemptTrait, BootstrapInitiatorExt, BootstrapStrategy},
@@ -82,7 +80,7 @@ mod bootstrap_processor {
         let blocks = [send1, receive1, send2, receive2.clone()];
         node0.process_multi(&blocks);
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node0.blocks_exist(&blocks),
             "blocks not processed",
@@ -172,7 +170,7 @@ mod bootstrap_processor {
         let blocks = [send1, receive1, send2, receive2.clone()];
         node0.process_multi(&blocks);
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node0.blocks_exist(&blocks),
             "blocks not processed",
@@ -279,7 +277,7 @@ mod bootstrap_processor {
         let blocks = [send1.clone(), send2.clone(), receive1, receive2];
         node1.process_multi(&blocks);
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node1.blocks_exist(&blocks),
             "blocks not processed",
@@ -287,7 +285,7 @@ mod bootstrap_processor {
 
         node1.confirm_multi(&blocks);
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node1.blocks_confirmed(&blocks),
             "blocks not confirmed",
@@ -323,7 +321,7 @@ mod bootstrap_processor {
             .current_lazy_attempt()
             .expect("no lazy attempt");
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || lazy_attempt.stopped() || lazy_attempt.requeued_pulls() >= 4,
             "did not stop",
@@ -385,7 +383,7 @@ mod bootstrap_processor {
                 .expect("no lazy attempt found");
         }
         // Cancel failing lazy bootstrap
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(10),
             || !node1.bootstrap_initiator.in_progress(),
             "attempt not cancelled",
@@ -449,7 +447,7 @@ mod bootstrap_processor {
         let blocks = [send1, receive1, send2, receive2.clone()];
         node0.process_multi(&blocks);
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node0.blocks_exist(&blocks),
             "blocks not processed",
@@ -472,14 +470,14 @@ mod bootstrap_processor {
             .bootstrap_initiator
             .bootstrap(false, "".to_owned(), u32::MAX, Account::zero());
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node1.bootstrap_initiator.current_legacy_attempt().is_some(),
             "no legacy attempt found",
         );
 
         // Check processed blocks
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(10),
             || node1.balance(&key2.public_key()) > Amount::zero(),
             "balance not updated",
@@ -553,7 +551,7 @@ mod bootstrap_processor {
         let blocks = [send1, receive1, send2, receive2.clone()];
         node0.process_multi(&blocks);
 
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(5),
             || node0.blocks_exist(&blocks),
             "blocks not processed",
@@ -576,7 +574,7 @@ mod bootstrap_processor {
                 .expect("no wallet attempt found");
         }
         // Check processed blocks
-        assert_timely(
+        assert_timely_msg(
             Duration::from_secs(10),
             || node1.block_exists(&receive2.hash()),
             "receive 2 not  found",
@@ -1294,7 +1292,7 @@ mod bulk_pull_account {
 }
 
 fn create_response_server(node: &Node) -> Arc<ResponseServer> {
-    let channel = node.async_rt.tokio.block_on(ChannelTcp::create(
+    let channel = node.async_rt.tokio.block_on(Channel::create(
         ChannelId::from(1),
         TcpStream::new_null(),
         ChannelDirection::Inbound,
@@ -1302,8 +1300,6 @@ fn create_response_server(node: &Node) -> Arc<ResponseServer> {
         node.stats.clone(),
         node.outbound_limiter.clone(),
     ));
-
-    let channel = Arc::new(ChannelEnum::Tcp(channel));
 
     Arc::new(ResponseServer::new(
         &node.network,

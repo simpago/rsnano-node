@@ -1,6 +1,7 @@
 use super::{bootstrap_limits, BootstrapInitiator, BootstrapMode};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
+    transport::ChannelId,
     utils::HardenedConstants,
     websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
 };
@@ -182,7 +183,7 @@ impl BootstrapAttempt {
         {
             stop_pull = true;
         } else if let Some(p) = self.block_processor.upgrade() {
-            p.add(block, BlockSource::BootstrapLegacy, None);
+            p.add(block, BlockSource::BootstrapLegacy, ChannelId::LOOPBACK);
         }
 
         stop_pull

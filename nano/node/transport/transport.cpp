@@ -3,7 +3,6 @@
 #include <nano/lib/rsnano.hpp>
 #include <nano/node/common.hpp>
 #include <nano/node/node.hpp>
-#include <nano/node/transport/inproc.hpp>
 #include <nano/node/transport/transport.hpp>
 
 #include <boost/asio/ip/address.hpp>

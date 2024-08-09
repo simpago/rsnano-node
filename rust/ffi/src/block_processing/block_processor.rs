@@ -1,6 +1,9 @@
 use crate::{core::BlockHandle, transport::ChannelHandle};
 use num_traits::FromPrimitive;
-use rsnano_node::block_processing::{BlockProcessor, BlockSource};
+use rsnano_node::{
+    block_processing::{BlockProcessor, BlockSource},
+    transport::ChannelId,
+};
 use std::{ops::Deref, sync::Arc};
 
 pub struct BlockProcessorHandle(pub Arc<BlockProcessor>);
@@ -38,7 +41,9 @@ pub unsafe extern "C" fn rsn_block_processor_add(
     handle.add(
         Arc::clone(block),
         FromPrimitive::from_u8(source).unwrap(),
-        channel,
+        channel
+            .map(|c| c.channel_id())
+            .unwrap_or(ChannelId::LOOPBACK),
     )
 }
 

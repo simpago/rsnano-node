@@ -1,6 +1,9 @@
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BufferDropPolicy, ChannelEnum, FairQueue, Origin, TrafficType},
+    transport::{
+        BufferDropPolicy, Channel, ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget,
+        FairQueue, TrafficType,
+    },
 };
 use rsnano_core::{BlockEnum, BlockHash, Frontier, NoValue};
 use rsnano_ledger::Ledger;
@@ -100,16 +103,11 @@ impl BootstrapServer {
         }
     }
 
-    pub fn set_response_callback(
-        &self,
-        cb: Box<dyn Fn(&AscPullAck, &Arc<ChannelEnum>) + Send + Sync>,
-    ) {
+    pub fn set_response_callback(&self, cb: Box<dyn Fn(&AscPullAck, &Arc<Channel>) + Send + Sync>) {
         *self.server_impl.on_response.lock().unwrap() = Some(cb);
     }
-}
 
-impl BootstrapServer {
-    pub fn request(&self, message: AscPullReq, channel: Arc<ChannelEnum>) -> bool {
+    pub fn request(&self, message: AscPullReq, channel: Arc<Channel>) -> bool {
         if !self.verify(&message) {
             self.stats
                 .inc(StatType::BootstrapServer, DetailType::Invalid);
@@ -130,10 +128,7 @@ impl BootstrapServer {
         let req_type = DetailType::from(&message.req_type);
         let added = {
             let mut guard = self.server_impl.queue.lock().unwrap();
-            guard.push(
-                (message, Arc::clone(&channel)),
-                Origin::new(NoValue {}, channel),
-            )
+            guard.push(channel.channel_id(), (message, channel.clone()))
         };
 
         if added {
@@ -166,13 +161,21 @@ impl Drop for BootstrapServer {
     }
 }
 
+impl DeadChannelCleanupTarget for Arc<BootstrapServer> {
+    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
+        Box::new(BootstrapServerCleanup {
+            server: self.server_impl.clone(),
+        })
+    }
+}
+
 struct BootstrapServerImpl {
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
-    on_response: Arc<Mutex<Option<Box<dyn Fn(&AscPullAck, &Arc<ChannelEnum>) + Send + Sync>>>>,
+    on_response: Arc<Mutex<Option<Box<dyn Fn(&AscPullAck, &Arc<Channel>) + Send + Sync>>>>,
     stopped: AtomicBool,
     condition: Condvar,
-    queue: Mutex<FairQueue<(AscPullReq, Arc<ChannelEnum>), NoValue>>,
+    queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
 }
 
@@ -196,13 +199,13 @@ impl BootstrapServerImpl {
 
     fn run_batch<'a>(
         &'a self,
-        mut queue: MutexGuard<'a, FairQueue<(AscPullReq, Arc<ChannelEnum>), NoValue>>,
-    ) -> MutexGuard<'a, FairQueue<(AscPullReq, Arc<ChannelEnum>), NoValue>> {
+        mut queue: MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
+    ) -> MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>> {
         let batch = queue.next_batch(self.batch_size);
         drop(queue);
 
         let mut tx = self.ledger.read_txn();
-        for ((request, channel), _) in batch {
+        for (_, (request, channel)) in batch {
             tx.refresh_if_needed();
 
             if !channel.max(TrafficType::Bootstrap) {
@@ -368,7 +371,7 @@ impl BootstrapServerImpl {
         result
     }
 
-    fn respond(&self, response: AscPullAck, channel: Arc<ChannelEnum>) {
+    fn respond(&self, response: AscPullAck, channel: Arc<Channel>) {
         self.stats.inc_dir(
             StatType::BootstrapServer,
             DetailType::Response,
@@ -428,6 +431,19 @@ impl From<&AscPullReqType> for DetailType {
             AscPullReqType::Blocks(_) => DetailType::Blocks,
             AscPullReqType::AccountInfo(_) => DetailType::AccountInfo,
             AscPullReqType::Frontiers(_) => DetailType::Frontiers,
+        }
+    }
+}
+
+pub(crate) struct BootstrapServerCleanup {
+    server: Arc<BootstrapServerImpl>,
+}
+
+impl DeadChannelCleanupStep for BootstrapServerCleanup {
+    fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
+        let mut queue = self.server.queue.lock().unwrap();
+        for channel_id in dead_channel_ids {
+            queue.remove(channel_id);
         }
     }
 }
