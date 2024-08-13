@@ -5,7 +5,7 @@ use crate::{
     config::{NetworkConstants, NodeConfig},
     representatives::OnlineReps,
     stats::Stats,
-    transport::{BufferDropPolicy, Network},
+    transport::{DropPolicy, Network},
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
     work::DistributedWorkFactory,
     NetworkParams,
@@ -646,7 +646,7 @@ impl Wallets {
             cached_block = true;
             let msg = Message::Publish(Publish::new_forward(block.clone()));
             self.network
-                .flood_message2(&msg, BufferDropPolicy::NoLimiterDrop, 1.0);
+                .flood_message2(&msg, DropPolicy::ShouldNotDrop, 1.0);
         } else {
             cached_block = false;
             if wallet.store.valid_password(tx) {

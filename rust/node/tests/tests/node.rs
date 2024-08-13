@@ -12,7 +12,7 @@ use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, VoteApplierExt},
     stats::{DetailType, Direction, StatType},
-    transport::{BufferDropPolicy, ChannelId, PeerConnectorExt, TrafficType},
+    transport::{ChannelId, DropPolicy, PeerConnectorExt, TrafficType},
     wallets::WalletsExt,
 };
 use std::{sync::Arc, thread::sleep, time::Duration};
@@ -187,9 +187,10 @@ fn fork_no_vote_quorum() {
         .network
         .find_node_id(&node3.node_id.public_key())
         .unwrap();
-    channel.try_send(
+    node2.message_publisher.lock().unwrap().try_send(
+        channel.channel_id(),
         &confirm,
-        BufferDropPolicy::NoLimiterDrop,
+        DropPolicy::ShouldNotDrop,
         TrafficType::Generic,
     );
 

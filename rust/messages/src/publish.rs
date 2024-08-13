@@ -96,7 +96,7 @@ impl MessageVariant for Publish {
 impl Debug for Publish {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PublishPayload")
-            .field("digest", &self.digest)
+            .field("block", &self.block.hash())
             .finish()
     }
 }

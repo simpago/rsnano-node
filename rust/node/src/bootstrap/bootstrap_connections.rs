@@ -209,7 +209,7 @@ pub trait BootstrapConnectionsExt {
     fn connection(&self, use_front_connection: bool) -> (Option<Arc<BootstrapClient>>, bool);
     fn find_connection(&self, endpoint: SocketAddrV6) -> Option<Arc<BootstrapClient>>;
     fn add_connection(&self, endpoint: SocketAddrV6);
-    fn connect_client(&self, endpoint: SocketAddrV6, push_front: bool);
+    fn connect_client(&self, endpoint: SocketAddrV6, push_front: bool) -> bool;
     fn request_pull<'a>(
         &'a self,
         guard: MutexGuard<'a, BootstrapConnectionsData>,
@@ -513,9 +513,9 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
         self.connect_client(endpoint, true);
     }
 
-    fn connect_client(&self, peer_addr: SocketAddrV6, push_front: bool) {
+    fn connect_client(&self, peer_addr: SocketAddrV6, push_front: bool) -> bool {
         if !self.network.add_attempt(peer_addr) {
-            return;
+            return false;
         }
 
         let self_l = Arc::clone(self);
@@ -529,7 +529,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                     "Could not create outbound bootstrap connection to {}, because of failed limit check",
                     peer_addr);
             self.network.remove_attempt(&peer_addr);
-            return;
+            return false;
         }
 
         self.runtime.tokio.spawn(async move {
@@ -577,6 +577,8 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             self_l.network.remove_attempt(&peer_addr);
             self_l.pool_connection(client, true, push_front);
         });
+
+        true
     }
 
     fn request_pull<'a>(

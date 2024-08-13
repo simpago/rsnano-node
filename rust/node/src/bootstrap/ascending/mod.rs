@@ -17,7 +17,9 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::ascending::ordered_tags::QueryType,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{BandwidthLimiter, BufferDropPolicy, Channel, ChannelId, Network, TrafficType},
+    transport::{
+        BandwidthLimiter, Channel, ChannelId, DropPolicy, MessagePublisher, Network, TrafficType,
+    },
 };
 use num::integer::sqrt;
 use rand::{thread_rng, RngCore};
@@ -50,6 +52,7 @@ pub struct BootstrapAscending {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     network: Arc<Network>,
+    message_publisher: Mutex<MessagePublisher>,
     thread: Mutex<Option<JoinHandle<()>>>,
     timeout_thread: Mutex<Option<JoinHandle<()>>>,
     mutex: Mutex<BootstrapAscendingImpl>,
@@ -61,11 +64,12 @@ pub struct BootstrapAscending {
 }
 
 impl BootstrapAscending {
-    pub fn new(
+    pub(crate) fn new(
         block_processor: Arc<BlockProcessor>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         network: Arc<Network>,
+        message_publisher: MessagePublisher,
         config: BootstrapAscendingConfig,
     ) -> Self {
         Self {
@@ -86,6 +90,7 @@ impl BootstrapAscending {
             stats,
             network,
             ledger,
+            message_publisher: Mutex::new(message_publisher),
         }
     }
 
@@ -127,7 +132,12 @@ impl BootstrapAscending {
         );
 
         // TODO: There is no feedback mechanism if bandwidth limiter starts dropping our requests
-        channel.try_send(&request, BufferDropPolicy::Limiter, TrafficType::Bootstrap);
+        self.message_publisher.lock().unwrap().try_send(
+            channel.channel_id(),
+            &request,
+            DropPolicy::CanDrop,
+            TrafficType::Bootstrap,
+        );
     }
 
     pub fn priority_len(&self) -> usize {

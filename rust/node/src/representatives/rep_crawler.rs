@@ -4,7 +4,8 @@ use crate::{
     consensus::ActiveElections,
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::{
-        BufferDropPolicy, Channel, ChannelId, Network, PeerConnector, PeerConnectorExt, TrafficType,
+        Channel, ChannelId, DropPolicy, MessagePublisher, Network, PeerConnector, PeerConnectorExt,
+        TrafficType,
     },
     utils::{into_ipv6_socket_address, AsyncRuntime, SteadyClock, Timestamp},
     NetworkParams,
@@ -42,12 +43,13 @@ pub struct RepCrawler {
     active: Arc<ActiveElections>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
+    message_publisher: Arc<Mutex<MessagePublisher>>,
 }
 
 impl RepCrawler {
     const MAX_RESPONSES: usize = 1024 * 4;
 
-    pub fn new(
+    pub(crate) fn new(
         online_reps: Arc<Mutex<OnlineReps>>,
         stats: Arc<Stats>,
         query_timeout: Duration,
@@ -59,6 +61,7 @@ impl RepCrawler {
         active: Arc<ActiveElections>,
         peer_connector: Arc<PeerConnector>,
         steady_clock: Arc<SteadyClock>,
+        message_publisher: MessagePublisher,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();
         Self {
@@ -74,6 +77,7 @@ impl RepCrawler {
             thread: Mutex::new(None),
             peer_connector,
             steady_clock,
+            message_publisher: Arc::new(Mutex::new(message_publisher)),
             rep_crawler_impl: Mutex::new(RepCrawlerImpl {
                 is_dev_network,
                 queries: OrderedQueries::new(),
@@ -170,7 +174,12 @@ impl RepCrawler {
 
             let req = Message::ConfirmReq(ConfirmReq::new(vec![hash_root]));
 
-            channel.try_send(&req, BufferDropPolicy::NoSocketDrop, TrafficType::Generic)
+            self.message_publisher.lock().unwrap().try_send(
+                channel.channel_id(),
+                &req,
+                DropPolicy::ShouldNotDrop,
+                TrafficType::Generic,
+            );
         }
     }
 
@@ -370,6 +379,7 @@ impl RepCrawler {
     pub fn keepalive_or_connect(&self, address: String, port: u16) {
         let peer_connector = self.peer_connector.clone();
         let network = self.network.clone();
+        let publisher = self.message_publisher.clone();
         self.async_rt.tokio.spawn(async move {
             match tokio::net::lookup_host((address.as_str(), port)).await {
                 Ok(addresses) => {
@@ -378,11 +388,12 @@ impl RepCrawler {
                         match network.find_realtime_channel_by_peering_addr(&endpoint) {
                             Some(channel) => {
                                 let keepalive = network.create_keepalive_message();
-                                channel.try_send(
+                                publisher.lock().unwrap().try_send(
+                                    channel.channel_id(),
                                     &keepalive,
-                                    BufferDropPolicy::Limiter,
+                                    DropPolicy::CanDrop,
                                     TrafficType::Generic,
-                                )
+                                );
                             }
                             None => {
                                 peer_connector.connect_to(endpoint);

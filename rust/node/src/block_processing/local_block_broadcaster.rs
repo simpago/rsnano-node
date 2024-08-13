@@ -1,9 +1,8 @@
 use super::{BlockProcessor, BlockSource};
 use crate::{
     cementation::ConfirmingSet,
-    representatives::OnlineReps,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BandwidthLimiter, BufferDropPolicy, Channel, Network, TrafficType},
+    transport::{BandwidthLimiter, DropPolicy, MessagePublisher, TrafficType},
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -74,19 +73,17 @@ pub struct LocalBlockBroadcaster {
     mutex: Mutex<LocalBlockBroadcasterData>,
     condition: Condvar,
     limiter: BandwidthLimiter,
-    network: Arc<Network>,
-    online_reps: Arc<Mutex<OnlineReps>>,
+    message_publisher: Mutex<MessagePublisher>,
 }
 
 impl LocalBlockBroadcaster {
-    pub fn new(
+    pub(crate) fn new(
         config: LocalBlockBroadcasterConfig,
         block_processor: Arc<BlockProcessor>,
         stats: Arc<Stats>,
-        network: Arc<Network>,
-        online_reps: Arc<Mutex<OnlineReps>>,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
+        message_publisher: MessagePublisher,
         enabled: bool,
     ) -> Self {
         Self {
@@ -97,10 +94,8 @@ impl LocalBlockBroadcaster {
             config,
             block_processor,
             stats,
-            network,
             ledger,
             confirming_set,
-            online_reps,
             thread: Mutex::new(None),
             enabled,
             mutex: Mutex::new(LocalBlockBroadcasterData {
@@ -109,6 +104,7 @@ impl LocalBlockBroadcaster {
                 cleanup_interval: Instant::now(),
             }),
             condition: Condvar::new(),
+            message_publisher: Mutex::new(message_publisher),
         }
     }
 
@@ -263,32 +259,13 @@ impl LocalBlockBroadcaster {
     /// Flood block to all PRs and a random selection of non-PRs
     fn flood_block_initial(&self, block: BlockEnum) {
         let message = Message::Publish(Publish::new_from_originator(block));
-        for rep in self.online_reps.lock().unwrap().peered_principal_reps() {
-            self.network.try_send(
-                rep.channel_id,
-                &message,
-                BufferDropPolicy::NoLimiterDrop,
-                TrafficType::Generic,
-            )
-        }
-
-        for peer in self.list_no_pr(self.network.fanout(1.0)) {
-            peer.try_send(
-                &message,
-                BufferDropPolicy::NoLimiterDrop,
-                TrafficType::Generic,
-            )
-        }
-    }
-
-    fn list_no_pr(&self, count: usize) -> Vec<Arc<Channel>> {
-        let mut channels = self.network.random_list_realtime(usize::MAX, 0);
-        {
-            let reps = self.online_reps.lock().unwrap();
-            channels.retain(|c| !reps.is_pr(c.channel_id()));
-        }
-        channels.truncate(count);
-        channels
+        let mut publisher = self.message_publisher.lock().unwrap();
+        publisher.flood_prs_and_some_non_prs(
+            &message,
+            DropPolicy::ShouldNotDrop,
+            TrafficType::Generic,
+            1.0,
+        );
     }
 }
 

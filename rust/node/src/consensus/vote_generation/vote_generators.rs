@@ -1,7 +1,11 @@
 use super::{vote_generator::VoteGenerator, LocalVoteHistory};
 use crate::{
-    config::NodeConfig, consensus::VoteBroadcaster, stats::Stats, transport::Channel,
-    wallets::Wallets, NetworkParams,
+    config::NodeConfig,
+    consensus::VoteBroadcaster,
+    stats::Stats,
+    transport::{Channel, MessagePublisher},
+    wallets::Wallets,
+    NetworkParams,
 };
 use rsnano_core::{utils::ContainerInfoComponent, BlockEnum, BlockHash, Root};
 use rsnano_ledger::Ledger;
@@ -21,6 +25,7 @@ impl VoteGenerators {
         config: &NodeConfig,
         network_params: &NetworkParams,
         vote_broadcaster: Arc<VoteBroadcaster>,
+        message_publisher: MessagePublisher,
     ) -> Self {
         let non_final_vote_generator = VoteGenerator::new(
             ledger.clone(),
@@ -28,6 +33,7 @@ impl VoteGenerators {
             history.clone(),
             false, //none-final
             stats.clone(),
+            message_publisher.clone(),
             Duration::from_secs(network_params.voting.delay_s as u64),
             Duration::from_millis(config.vote_generator_delay_ms as u64),
             config.vote_generator_threshold as usize,
@@ -40,6 +46,7 @@ impl VoteGenerators {
             history,
             true, //final
             stats,
+            message_publisher.clone(),
             Duration::from_secs(network_params.voting.delay_s as u64),
             Duration::from_millis(config.vote_generator_delay_ms as u64),
             config.vote_generator_threshold as usize,

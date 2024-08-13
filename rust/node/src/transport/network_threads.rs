@@ -1,5 +1,6 @@
 use super::{
-    DeadChannelCleanup, LatestKeepalives, Network, PeerConnector, PeerConnectorExt, SynCookies,
+    DeadChannelCleanup, DropPolicy, LatestKeepalives, MessagePublisher, Network, PeerConnector,
+    PeerConnectorExt, SynCookies, TrafficType,
 };
 use crate::{
     config::{NodeConfig, NodeFlags},
@@ -28,6 +29,7 @@ pub(crate) struct NetworkThreads {
     keepalive_factory: Arc<KeepaliveFactory>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     dead_channel_cleanup: Option<DeadChannelCleanup>,
+    message_publisher: MessagePublisher,
 }
 
 impl NetworkThreads {
@@ -41,6 +43,7 @@ impl NetworkThreads {
         keepalive_factory: Arc<KeepaliveFactory>,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         dead_channel_cleanup: DeadChannelCleanup,
+        message_publisher: MessagePublisher,
     ) -> Self {
         Self {
             cleanup_thread: None,
@@ -56,6 +59,7 @@ impl NetworkThreads {
             keepalive_factory,
             latest_keepalives,
             dead_channel_cleanup: Some(dead_channel_cleanup),
+            message_publisher,
         }
     }
 
@@ -75,12 +79,13 @@ impl NetworkThreads {
                 .unwrap(),
         );
 
-        let keepalive = KeepaliveLoop {
+        let mut keepalive = KeepaliveLoop {
             stopped: self.stopped.clone(),
             network: Arc::clone(&self.network),
             network_params: self.network_params.clone(),
             stats: Arc::clone(&self.stats),
             keepalive_factory: Arc::clone(&self.keepalive_factory),
+            message_publisher: self.message_publisher.clone(),
         };
 
         self.keepalive_thread = Some(
@@ -214,10 +219,11 @@ struct KeepaliveLoop {
     stats: Arc<Stats>,
     network: Arc<Network>,
     keepalive_factory: Arc<KeepaliveFactory>,
+    message_publisher: MessagePublisher,
 }
 
 impl KeepaliveLoop {
-    fn run(&self) {
+    fn run(&mut self) {
         let mut stopped = self.stopped.1.lock().unwrap();
         while !*stopped {
             stopped = self
@@ -236,9 +242,22 @@ impl KeepaliveLoop {
             self.flood_keepalive(0.75);
             self.flood_keepalive_self(0.25);
 
-            self.network.keepalive();
+            self.keepalive();
 
             stopped = self.stopped.1.lock().unwrap();
+        }
+    }
+
+    fn keepalive(&mut self) {
+        let message = self.network.create_keepalive_message();
+
+        for channel_id in self.network.keepalive_list() {
+            self.message_publisher.try_send(
+                channel_id,
+                &message,
+                DropPolicy::CanDrop,
+                TrafficType::Generic,
+            );
         }
     }
 

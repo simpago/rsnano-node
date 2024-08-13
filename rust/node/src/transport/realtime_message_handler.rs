@@ -1,17 +1,20 @@
-use super::{Channel, Network};
+use super::{message_publisher, Channel, MessagePublisher, Network};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapAscending, BootstrapServer},
     config::{NodeConfig, NodeFlags},
     consensus::{RequestAggregator, VoteProcessorQueue},
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BufferDropPolicy, TrafficType},
+    transport::{DropPolicy, TrafficType},
     wallets::Wallets,
     Telemetry,
 };
 use rsnano_core::VoteSource;
 use rsnano_messages::{Message, TelemetryAck};
-use std::{net::SocketAddrV6, sync::Arc};
+use std::{
+    net::SocketAddrV6,
+    sync::{Arc, Mutex},
+};
 use tracing::trace;
 
 /// Handle realtime messages (as opposed to bootstrap messages)
@@ -27,10 +30,11 @@ pub struct RealtimeMessageHandler {
     telemetry: Arc<Telemetry>,
     bootstrap_server: Arc<BootstrapServer>,
     ascend_boot: Arc<BootstrapAscending>,
+    message_publisher: Mutex<MessagePublisher>,
 }
 
 impl RealtimeMessageHandler {
-    pub fn new(
+    pub(crate) fn new(
         stats: Arc<Stats>,
         network: Arc<Network>,
         block_processor: Arc<BlockProcessor>,
@@ -42,6 +46,7 @@ impl RealtimeMessageHandler {
         telemetry: Arc<Telemetry>,
         bootstrap_server: Arc<BootstrapServer>,
         ascend_boot: Arc<BootstrapAscending>,
+        message_publisher: MessagePublisher,
     ) -> Self {
         Self {
             stats,
@@ -55,6 +60,7 @@ impl RealtimeMessageHandler {
             telemetry,
             bootstrap_server,
             ascend_boot,
+            message_publisher: Mutex::new(message_publisher),
         }
     }
 
@@ -134,7 +140,12 @@ impl RealtimeMessageHandler {
                 };
 
                 let msg = Message::TelemetryAck(TelemetryAck(data));
-                channel.try_send(&msg, BufferDropPolicy::NoSocketDrop, TrafficType::Generic);
+                self.message_publisher.lock().unwrap().try_send(
+                    channel.channel_id(),
+                    &msg,
+                    DropPolicy::ShouldNotDrop,
+                    TrafficType::Generic,
+                );
             }
             Message::TelemetryAck(ack) => self.telemetry.process(&ack, channel),
             Message::AscPullReq(req) => {

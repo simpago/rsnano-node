@@ -1,6 +1,6 @@
 use super::{
-    attempt_container::AttemptContainer, channel_container::ChannelContainer, BufferDropPolicy,
-    Channel, ChannelDirection, ChannelId, ChannelMode, NetworkFilter, OutboundBandwidthLimiter,
+    attempt_container::AttemptContainer, channel_container::ChannelContainer, Channel,
+    ChannelDirection, ChannelId, ChannelMode, DropPolicy, NetworkFilter, OutboundBandwidthLimiter,
     PeerExclusion, TcpConfig, TcpStream, TrafficType,
 };
 use crate::{
@@ -371,24 +371,21 @@ impl Network {
             .unwrap_or(true)
     }
 
-    pub(crate) fn try_send(
+    pub(crate) fn try_send_buffer(
         &self,
         channel_id: ChannelId,
-        message: &Message,
-        drop_policy: BufferDropPolicy,
+        buffer: &[u8],
+        drop_policy: DropPolicy,
         traffic_type: TrafficType,
-    ) {
+    ) -> bool {
         if let Some(channel) = self.state.lock().unwrap().channels.get_by_id(channel_id) {
-            channel.try_send(message, drop_policy, traffic_type);
+            channel.try_send_buffer(buffer, drop_policy, traffic_type)
+        } else {
+            false
         }
     }
 
-    pub(crate) fn flood_message2(
-        &self,
-        message: &Message,
-        drop_policy: BufferDropPolicy,
-        scale: f32,
-    ) {
+    pub(crate) fn flood_message2(&self, message: &Message, drop_policy: DropPolicy, scale: f32) {
         let channels = self.random_fanout_realtime(scale);
         for channel in channels {
             channel.try_send(message, drop_policy, TrafficType::Generic)
@@ -398,7 +395,7 @@ impl Network {
     pub fn flood_message(&self, message: &Message, scale: f32) {
         let channels = self.random_fanout_realtime(scale);
         for channel in channels {
-            channel.try_send(message, BufferDropPolicy::Limiter, TrafficType::Generic)
+            channel.try_send(message, DropPolicy::CanDrop, TrafficType::Generic)
         }
     }
 
@@ -467,20 +464,22 @@ impl Network {
             return false;
         }
 
-        // Don't connect to nodes that already sent us something
-        if state
-            .find_channels_by_remote_addr(peer)
-            .iter()
-            .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
-        {
-            return false;
-        }
-        if state
-            .find_channels_by_peering_addr(peer)
-            .iter()
-            .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
-        {
-            return false;
+        if mode != ChannelMode::Bootstrap {
+            // Don't connect to nodes that already sent us something
+            if state
+                .find_channels_by_remote_addr(peer)
+                .iter()
+                .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
+            {
+                return false;
+            }
+            if state
+                .find_channels_by_peering_addr(peer)
+                .iter()
+                .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
+            {
+                return false;
+            }
         }
 
         if state.check_limits(peer, ChannelDirection::Outbound, self.clock.now())
@@ -643,18 +642,9 @@ impl Network {
         true
     }
 
-    pub(crate) fn keepalive(&self) {
-        let message = self.create_keepalive_message();
-
-        // Wake up channels
-        let to_wake_up = {
-            let guard = self.state.lock().unwrap();
-            guard.keepalive_list()
-        };
-
-        for channel in to_wake_up {
-            channel.try_send(&message, BufferDropPolicy::Limiter, TrafficType::Generic);
-        }
+    pub(crate) fn keepalive_list(&self) -> Vec<ChannelId> {
+        let guard = self.state.lock().unwrap();
+        guard.keepalive_list()
     }
 }
 
@@ -739,12 +729,12 @@ impl State {
             .collect()
     }
 
-    pub fn keepalive_list(&self) -> Vec<Arc<Channel>> {
+    pub fn keepalive_list(&self) -> Vec<ChannelId> {
         let cutoff = SystemTime::now() - self.network_constants.keepalive_period;
         let mut result = Vec::new();
         for channel in self.channels.iter() {
             if channel.mode() == ChannelMode::Realtime && channel.get_last_packet_sent() < cutoff {
-                result.push(channel.clone());
+                result.push(channel.channel_id());
             }
         }
 

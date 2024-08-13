@@ -30,7 +30,11 @@ fn batches() {
     );
     let representatives = vec![representative];
 
-    let mut solicitor = ConfirmationSolicitor::new(&DEV_NETWORK_PARAMS, &node2.network);
+    let mut solicitor = ConfirmationSolicitor::new(
+        &DEV_NETWORK_PARAMS,
+        &node2.network,
+        node2.message_publisher.lock().unwrap().clone(),
+    );
     solicitor.prepare(&representatives);
 
     let send = Arc::new(BlockEnum::State(StateBlock::new(
@@ -107,7 +111,11 @@ fn different_hashes() {
     );
     let representatives = vec![representative];
 
-    let mut solicitor = ConfirmationSolicitor::new(&DEV_NETWORK_PARAMS, &node2.network);
+    let mut solicitor = ConfirmationSolicitor::new(
+        &DEV_NETWORK_PARAMS,
+        &node2.network,
+        node2.message_publisher.lock().unwrap().clone(),
+    );
     solicitor.prepare(&representatives);
 
     let send = Arc::new(BlockEnum::State(StateBlock::new(
@@ -160,7 +168,11 @@ fn bypass_max_requests_cap() {
     let node1 = system.build_node().flags(flags.clone()).finish();
     let node2 = system.build_node().flags(flags).finish();
 
-    let mut solicitor = ConfirmationSolicitor::new(&DEV_NETWORK_PARAMS, &node2.network);
+    let mut solicitor = ConfirmationSolicitor::new(
+        &DEV_NETWORK_PARAMS,
+        &node2.network,
+        node2.message_publisher.lock().unwrap().clone(),
+    );
 
     let mut representatives = Vec::new();
     const MAX_REPRESENTATIVES: usize = 50;

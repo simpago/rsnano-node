@@ -1,6 +1,7 @@
 use super::{Message, MessageHeader, ProtocolInfo};
 use rsnano_core::utils::MutStreamAdapter;
 
+#[derive(Clone)]
 pub struct MessageSerializer {
     protocol: ProtocolInfo,
     buffer: [u8; Self::BUFFER_SIZE],

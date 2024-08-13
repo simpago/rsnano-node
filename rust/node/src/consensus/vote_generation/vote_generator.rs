@@ -2,7 +2,7 @@ use super::{LocalVoteHistory, VoteSpacing};
 use crate::{
     consensus::VoteBroadcaster,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BufferDropPolicy, Channel, TrafficType},
+    transport::{Channel, DropPolicy, MessagePublisher, TrafficType},
     utils::ProcessingQueue,
     wallets::Wallets,
 };
@@ -42,6 +42,7 @@ impl VoteGenerator {
         history: Arc<LocalVoteHistory>,
         is_final: bool,
         stats: Arc<Stats>,
+        message_publisher: MessagePublisher,
         voting_delay: Duration,
         vote_generator_delay: Duration,
         vote_generator_threshold: usize,
@@ -49,6 +50,7 @@ impl VoteGenerator {
     ) -> Self {
         let shared_state = Arc::new(SharedState {
             ledger: Arc::clone(&ledger),
+            message_publisher: Mutex::new(message_publisher),
             history,
             wallets,
             condition: Condvar::new(),
@@ -174,6 +176,7 @@ struct SharedState {
     ledger: Arc<Ledger>,
     wallets: Arc<Wallets>,
     history: Arc<LocalVoteHistory>,
+    message_publisher: Mutex<MessagePublisher>,
     is_final: bool,
     condition: Condvar,
     stopped: AtomicBool,
@@ -327,7 +330,12 @@ impl SharedState {
                     let channel = &request.1;
                     let confirm =
                         Message::ConfirmAck(ConfirmAck::new_with_own_vote((*vote).clone()));
-                    channel.try_send(&confirm, BufferDropPolicy::Limiter, TrafficType::Generic);
+                    self.message_publisher.lock().unwrap().try_send(
+                        channel.channel_id(),
+                        &confirm,
+                        DropPolicy::CanDrop,
+                        TrafficType::Generic,
+                    );
                     self.stats.inc_dir(
                         StatType::Requests,
                         DetailType::RequestsGeneratedVotes,

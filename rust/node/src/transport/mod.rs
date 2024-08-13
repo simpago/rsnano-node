@@ -10,6 +10,7 @@ mod inbound_message_queue;
 mod latest_keepalives;
 mod message_deserializer;
 mod message_processor;
+mod message_publisher;
 mod network;
 mod network_filter;
 mod network_threads;
@@ -41,6 +42,7 @@ pub use inbound_message_queue::InboundMessageQueue;
 pub use latest_keepalives::*;
 pub use message_deserializer::{AsyncBufferReader, MessageDeserializer};
 pub use message_processor::*;
+pub use message_publisher::*;
 pub use network::*;
 pub use network_filter::NetworkFilter;
 pub(crate) use network_threads::*;
@@ -95,13 +97,12 @@ impl From<usize> for ChannelId {
 
 /// Policy to affect at which stage a buffer can be dropped
 #[derive(PartialEq, Eq, FromPrimitive, Debug, Clone, Copy)]
-pub enum BufferDropPolicy {
+pub enum DropPolicy {
     /// Can be dropped by bandwidth limiter (default)
-    Limiter,
-    /// Should not be dropped by bandwidth limiter
-    NoLimiterDrop,
-    /// Should not be dropped by bandwidth limiter or socket write queue limiter
-    NoSocketDrop,
+    CanDrop,
+    /// Should not be dropped by bandwidth limiter,
+    /// but it can still be dropped if the write queue is full
+    ShouldNotDrop,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, FromPrimitive, Debug)]

@@ -1,6 +1,6 @@
 use super::{
     write_queue::{WriteQueue, WriteQueueReceiver},
-    AsyncBufferReader, BufferDropPolicy, ChannelDirection, ChannelId, ChannelMode,
+    AsyncBufferReader, ChannelDirection, ChannelId, ChannelMode, DropPolicy,
     OutboundBandwidthLimiter, TcpStream, TrafficType,
 };
 use crate::{
@@ -285,39 +285,16 @@ impl Channel {
             .store(timeout.as_secs(), Ordering::SeqCst);
     }
 
-    fn try_write(&self, buffer: &[u8], traffic_type: TrafficType) {
-        if self.is_closed() {
-            return;
-        }
-
-        let buf_size = buffer.len();
-
-        let (inserted, write_error) = self
-            .write_queue
-            .try_insert(Arc::new(buffer.to_vec()), traffic_type);
-
-        if inserted {
-            self.stats.add_dir_aggregate(
-                StatType::TrafficTcp,
-                DetailType::All,
-                Direction::Out,
-                buf_size as u64,
-            );
-            self.update_last_activity();
-            self.set_last_packet_sent(SystemTime::now());
-        } else if write_error {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-            self.close();
-            debug!(peer_addr = ?self.remote, channel_id = %self.channel_id(), mode = ?self.mode(), "Closing socket after write error");
-        }
-    }
-
     pub async fn send_buffer(
         &self,
         buffer: &[u8],
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
+        while self.max(traffic_type) {
+            // TODO: better implementation
+            sleep(Duration::from_millis(20)).await;
+        }
+
         while !self.limiter.should_pass(buffer.len(), traffic_type.into()) {
             // TODO: better implementation
             sleep(Duration::from_millis(20)).await;
@@ -331,7 +308,7 @@ impl Channel {
 
         let result = self
             .write_queue
-            .insert(Arc::new(buffer.to_vec()), traffic_type)
+            .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
             .await;
 
         if result.is_ok() {
@@ -356,22 +333,59 @@ impl Channel {
         Ok(())
     }
 
-    pub fn try_send(
+    pub fn try_send_buffer(
         &self,
-        message: &Message,
-        drop_policy: BufferDropPolicy,
+        buffer: &[u8],
+        drop_policy: DropPolicy,
         traffic_type: TrafficType,
-    ) {
+    ) -> bool {
+        if self.is_closed() {
+            return false;
+        }
+
+        if drop_policy == DropPolicy::CanDrop && self.max(traffic_type) {
+            return false;
+        }
+
+        let should_pass = self.limiter.should_pass(buffer.len(), traffic_type.into());
+        if !should_pass && drop_policy == DropPolicy::CanDrop {
+            return false;
+        } else {
+            // TODO notify bandwidth limiter that we are sending it anyway
+        }
+
+        let buf_size = buffer.len();
+
+        let (inserted, write_error) = self
+            .write_queue
+            .try_insert(Arc::new(buffer.to_vec()), traffic_type); // TODO don't copy into vec. Split into fixed size packets
+
+        if inserted {
+            self.stats.add_dir_aggregate(
+                StatType::TrafficTcp,
+                DetailType::All,
+                Direction::Out,
+                buf_size as u64,
+            );
+            self.update_last_activity();
+            self.set_last_packet_sent(SystemTime::now());
+        } else if write_error {
+            self.stats
+                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+            self.close();
+            debug!(peer_addr = ?self.remote, channel_id = %self.channel_id(), mode = ?self.mode(), "Closing socket after write error");
+        }
+        inserted
+    }
+
+    // TODO extract into MessagePublisher
+    pub fn try_send(&self, message: &Message, drop_policy: DropPolicy, traffic_type: TrafficType) {
         let buffer = {
             let mut serializer = self.message_serializer.lock().unwrap();
-            let buffer = serializer.serialize(message);
-            Arc::new(Vec::from(buffer)) // TODO don't copy into vec. Pass slice directly
+            serializer.serialize(message).to_vec()
         };
 
-        let is_droppable_by_limiter = drop_policy == BufferDropPolicy::Limiter;
-        let should_pass = self.limiter.should_pass(buffer.len(), traffic_type.into());
-        if !is_droppable_by_limiter || should_pass {
-            self.try_write(&buffer, traffic_type);
+        if self.try_send_buffer(&buffer, drop_policy, traffic_type) {
             self.stats
                 .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);
             trace!(channel_id = %self.channel_id, message = ?message, "Message sent");
@@ -383,11 +397,11 @@ impl Channel {
         }
     }
 
+    // TODO extract into MessagePublisher
     pub async fn send(&self, message: &Message, traffic_type: TrafficType) -> anyhow::Result<()> {
         let buffer = {
             let mut serializer = self.message_serializer.lock().unwrap();
-            let buffer = serializer.serialize(message);
-            Arc::new(Vec::from(buffer)) // TODO don't copy into vec. Pass slice directly
+            serializer.serialize(message).to_vec()
         };
         self.send_buffer(&buffer, traffic_type).await?;
         self.stats

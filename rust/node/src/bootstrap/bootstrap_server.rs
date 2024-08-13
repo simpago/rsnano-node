@@ -1,8 +1,8 @@
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     transport::{
-        BufferDropPolicy, Channel, ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget,
-        FairQueue, TrafficType,
+        Channel, ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, DropPolicy,
+        FairQueue, MessagePublisher, TrafficType,
     },
 };
 use rsnano_core::{BlockEnum, BlockHash, Frontier};
@@ -53,7 +53,12 @@ impl BootstrapServer {
     const MAX_BLOCKS: usize = BlocksAckPayload::MAX_BLOCKS;
     const MAX_FRONTIERS: usize = AscPullAck::MAX_FRONTIERS;
 
-    pub fn new(config: BootstrapServerConfig, stats: Arc<Stats>, ledger: Arc<Ledger>) -> Self {
+    pub(crate) fn new(
+        config: BootstrapServerConfig,
+        stats: Arc<Stats>,
+        ledger: Arc<Ledger>,
+        message_publisher: MessagePublisher,
+    ) -> Self {
         let max_queue = config.max_queue;
         let server_impl = Arc::new(BootstrapServerImpl {
             stats: Arc::clone(&stats),
@@ -66,6 +71,7 @@ impl BootstrapServer {
                 Box::new(move |_| max_queue),
                 Box::new(|_| 1),
             )),
+            message_publisher: Mutex::new(message_publisher),
         });
 
         Self {
@@ -177,6 +183,7 @@ struct BootstrapServerImpl {
     condition: Condvar,
     queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
+    message_publisher: Mutex<MessagePublisher>,
 }
 
 impl BootstrapServerImpl {
@@ -411,7 +418,12 @@ impl BootstrapServerImpl {
         }
 
         let msg = Message::AscPullAck(response);
-        channel.try_send(&msg, BufferDropPolicy::Limiter, TrafficType::Bootstrap);
+        self.message_publisher.lock().unwrap().try_send(
+            channel.channel_id(),
+            &msg,
+            DropPolicy::CanDrop,
+            TrafficType::Bootstrap,
+        );
     }
 }
 

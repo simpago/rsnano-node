@@ -24,11 +24,11 @@ use crate::{
     representatives::{OnlineReps, RepCrawler, RepCrawlerExt},
     stats::{DetailType, Direction, LedgerStats, StatType, Stats},
     transport::{
-        BufferDropPolicy, ChannelId, DeadChannelCleanup, InboundMessageQueue, KeepaliveFactory,
-        LatestKeepalives, MessageProcessor, Network, NetworkFilter, NetworkOptions, NetworkThreads,
-        OutboundBandwidthLimiter, PeerCacheConnector, PeerCacheUpdater, PeerConnector,
-        RealtimeMessageHandler, ResponseServerFactory, SynCookies, TcpListener, TcpListenerExt,
-        TrafficType,
+        ChannelId, DeadChannelCleanup, DropPolicy, InboundMessageQueue, KeepaliveFactory,
+        LatestKeepalives, MessageProcessor, MessagePublisher, Network, NetworkFilter,
+        NetworkOptions, NetworkThreads, OutboundBandwidthLimiter, PeerCacheConnector,
+        PeerCacheUpdater, PeerConnector, RealtimeMessageHandler, ResponseServerFactory, SynCookies,
+        TcpListener, TcpListenerExt, TrafficType,
     },
     utils::{
         AsyncRuntime, LongRunningTransactionLogger, SteadyClock, ThreadPool, ThreadPoolImpl,
@@ -129,6 +129,8 @@ pub struct Node {
     pub inbound_message_queue: Arc<InboundMessageQueue>,
     monitor: TimerThread<Monitor>,
     stopped: AtomicBool,
+    pub message_publisher: Arc<Mutex<MessagePublisher>>, // TODO remove this. It is needed right now
+                                                         // to keep the weak pointer alive
 }
 
 impl Node {
@@ -261,24 +263,6 @@ impl Node {
             flags.disable_block_processor_unchecked_deletion,
         ));
 
-        let telemetry = Arc::new(Telemetry::new(
-            telemetry_config,
-            config.clone(),
-            stats.clone(),
-            ledger.clone(),
-            unchecked.clone(),
-            network_params.clone(),
-            network.clone(),
-            node_id.clone(),
-        ));
-
-        let bootstrap_server = Arc::new(BootstrapServer::new(
-            config.bootstrap_server.clone(),
-            stats.clone(),
-            ledger.clone(),
-        ));
-        dead_channel_cleanup.add(&bootstrap_server);
-
         let online_weight_sampler = Arc::new(OnlineWeightSampler::new(
             ledger.clone(),
             network_params.node.max_weight_samples as usize,
@@ -293,6 +277,33 @@ impl Node {
                 .finish(),
         ));
         dead_channel_cleanup.add(&online_reps);
+
+        let message_publisher = MessagePublisher::new(
+            online_reps.clone(),
+            network.clone(),
+            stats.clone(),
+            network_params.network.protocol_info(),
+        );
+
+        let telemetry = Arc::new(Telemetry::new(
+            telemetry_config,
+            config.clone(),
+            stats.clone(),
+            ledger.clone(),
+            unchecked.clone(),
+            network_params.clone(),
+            network.clone(),
+            message_publisher.clone(),
+            node_id.clone(),
+        ));
+
+        let bootstrap_server = Arc::new(BootstrapServer::new(
+            config.bootstrap_server.clone(),
+            stats.clone(),
+            ledger.clone(),
+            message_publisher.clone(),
+        ));
+        dead_channel_cleanup.add(&bootstrap_server);
 
         let rep_tiers = Arc::new(RepTiers::new(
             rep_weights.clone(),
@@ -372,6 +383,7 @@ impl Node {
             online_reps.clone(),
             network.clone(),
             vote_processor_queue.clone(),
+            message_publisher.clone(),
         ));
 
         let vote_generators = Arc::new(VoteGenerators::new(
@@ -382,6 +394,7 @@ impl Node {
             &config,
             &network_params,
             vote_broadcaster,
+            message_publisher.clone(),
         ));
 
         let vote_applier = Arc::new(VoteApplier::new(
@@ -438,6 +451,7 @@ impl Node {
             vote_router.clone(),
             vote_cache_processor.clone(),
             steady_clock.clone(),
+            message_publisher.clone(),
         ));
 
         active_elections.initialize();
@@ -504,6 +518,7 @@ impl Node {
             active_elections.clone(),
             peer_connector.clone(),
             steady_clock.clone(),
+            message_publisher.clone(),
         ));
 
         // BEWARE: `bootstrap` takes `network.port` instead of `config.peering_port` because when the user doesn't specify
@@ -579,6 +594,7 @@ impl Node {
             ledger.clone(),
             stats.clone(),
             network.clone(),
+            message_publisher.clone(),
             global_config.into(),
         ));
 
@@ -586,10 +602,9 @@ impl Node {
             config.local_block_broadcaster.clone(),
             block_processor.clone(),
             stats.clone(),
-            network.clone(),
-            online_reps.clone(),
             ledger.clone(),
             confirming_set.clone(),
+            message_publisher.clone(),
             !flags.disable_block_processor_republishing,
         ));
         local_block_broadcaster.initialize();
@@ -612,6 +627,7 @@ impl Node {
             telemetry.clone(),
             bootstrap_server.clone(),
             ascendboot.clone(),
+            message_publisher.clone(),
         ));
 
         let keepalive_factory = Arc::new(KeepaliveFactory {
@@ -629,6 +645,7 @@ impl Node {
             keepalive_factory.clone(),
             latest_keepalives.clone(),
             dead_channel_cleanup,
+            message_publisher.clone(),
         )));
 
         let message_processor = Mutex::new(MessageProcessor::new(
@@ -762,13 +779,23 @@ impl Node {
         });
 
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
+        let message_publisher_l = Arc::new(Mutex::new(message_publisher.clone()));
+        let message_publisher_w = Arc::downgrade(&message_publisher_l);
         network.on_new_realtime_channel(Arc::new(move |channel| {
             let Some(factory) = keepalive_factory_w.upgrade() else {
                 return;
             };
+            let Some(publisher) = message_publisher_w.upgrade() else {
+                return;
+            };
             let keepalive = factory.create_keepalive_self();
             let msg = Message::Keepalive(keepalive);
-            channel.try_send(&msg, BufferDropPolicy::Limiter, TrafficType::Generic);
+            publisher.lock().unwrap().try_send(
+                channel.channel_id(),
+                &msg,
+                DropPolicy::CanDrop,
+                TrafficType::Generic,
+            );
         }));
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
@@ -1053,6 +1080,7 @@ impl Node {
             message_processor,
             inbound_message_queue,
             monitor,
+            message_publisher: message_publisher_l,
             stopped: AtomicBool::new(false),
         }
     }

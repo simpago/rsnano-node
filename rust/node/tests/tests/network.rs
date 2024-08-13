@@ -5,7 +5,7 @@ use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::{ConfirmAck, Keepalive, Message, Publish};
 use rsnano_node::{
     stats::{DetailType, Direction, StatType},
-    transport::{BufferDropPolicy, ChannelMode, TrafficType},
+    transport::{ChannelMode, DropPolicy, TrafficType},
 };
 use std::{
     ops::Deref,
@@ -61,19 +61,23 @@ fn last_contacted() {
     // and we need one more keepalive to handle the possibility that there is a keepalive already in flight when we start the crucial part of the test
     // it is possible that there could be multiple keepalives in flight but we assume here that there will be no more than one in flight for the purposes of this test
     let keepalive = Message::Keepalive(Keepalive::default());
-    channel1.try_send(
+    let mut publisher = node0.message_publisher.lock().unwrap();
+    publisher.try_send(
+        channel1.channel_id(),
         &keepalive,
-        BufferDropPolicy::NoLimiterDrop,
+        DropPolicy::ShouldNotDrop,
         TrafficType::Generic,
     );
-    channel1.try_send(
+    publisher.try_send(
+        channel1.channel_id(),
         &keepalive,
-        BufferDropPolicy::NoLimiterDrop,
+        DropPolicy::ShouldNotDrop,
         TrafficType::Generic,
     );
-    channel1.try_send(
+    publisher.try_send(
+        channel1.channel_id(),
         &keepalive,
-        BufferDropPolicy::NoLimiterDrop,
+        DropPolicy::ShouldNotDrop,
         TrafficType::Generic,
     );
 
