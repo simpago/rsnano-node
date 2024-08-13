@@ -1,8 +1,6 @@
-use std::time::Duration;
-
 use crate::transport::ChannelHandle;
 use rsnano_core::Account;
-use rsnano_node::representatives::PeeredRep;
+use rsnano_node::{representatives::PeeredRep, utils::Timestamp};
 
 pub struct RepresentativeHandle(pub PeeredRep);
 
@@ -14,7 +12,7 @@ pub unsafe extern "C" fn rsn_representative_create(
     Box::into_raw(Box::new(RepresentativeHandle(PeeredRep::new(
         Account::from_ptr(account),
         channel.channel_id(),
-        Duration::ZERO,
+        Timestamp::new_test_instance(),
     ))))
 }
 

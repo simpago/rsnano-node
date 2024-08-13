@@ -1,6 +1,4 @@
-use std::time::Duration;
-
-use crate::transport::ChannelId;
+use crate::{transport::ChannelId, utils::Timestamp};
 use rsnano_core::Account;
 
 /// A representative to which we have a direct connection
@@ -8,20 +6,15 @@ use rsnano_core::Account;
 pub struct PeeredRep {
     pub account: Account,
     pub channel_id: ChannelId,
-    pub last_request: Duration,
+    pub last_request: Timestamp,
 }
 
 impl PeeredRep {
-    pub fn new(account: Account, channel_id: ChannelId, last_request: Duration) -> Self {
+    pub fn new(account: Account, channel_id: ChannelId, last_request: Timestamp) -> Self {
         Self {
             account,
             channel_id,
             last_request,
         }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn new_test_instance() -> Self {
-        Self::new(Account::from(42), 123.into(), Duration::from_secs(1))
     }
 }

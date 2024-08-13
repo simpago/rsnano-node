@@ -116,7 +116,6 @@ impl LmdbEnv {
     }
 
     pub fn new_with_env(env: LmdbEnvironment) -> Self {
-        ENV_COUNT.fetch_add(1, Ordering::SeqCst);
         let env_id = NEXT_ENV_ID.fetch_add(1, Ordering::SeqCst);
         let alive = ENV_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
         debug!(env_id, alive, "LMDB env created",);

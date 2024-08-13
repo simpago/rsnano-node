@@ -1,7 +1,7 @@
 use super::PeeredRep;
-use crate::transport::ChannelId;
+use crate::{transport::ChannelId, utils::Timestamp};
 use rsnano_core::Account;
-use std::{collections::HashMap, mem::size_of, time::Duration};
+use std::{collections::HashMap, mem::size_of};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InsertResult {
@@ -32,7 +32,7 @@ impl PeeredContainer {
         &mut self,
         account: Account,
         channel_id: ChannelId,
-        now: Duration,
+        now: Timestamp,
     ) -> InsertResult {
         if let Some(rep) = self.by_account.get_mut(&account) {
             // Update if representative channel was changed
@@ -115,6 +115,8 @@ impl PeeredContainer {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[test]
@@ -132,7 +134,7 @@ mod tests {
         let mut container = PeeredContainer::new();
         let account = Account::from(1);
         let channel_id = ChannelId::from(2);
-        let now = Duration::from_secs(3);
+        let now = Timestamp::new_test_instance();
         assert_eq!(
             container.update_or_insert(account, channel_id, now),
             InsertResult::Inserted
@@ -166,19 +168,16 @@ mod tests {
     #[test]
     fn insert_two() {
         let mut container = PeeredContainer::new();
+        let now = Timestamp::new_test_instance();
         assert_eq!(
-            container.update_or_insert(
-                Account::from(100),
-                ChannelId::from(101),
-                Duration::from_secs(1),
-            ),
+            container.update_or_insert(Account::from(100), ChannelId::from(101), now,),
             InsertResult::Inserted
         );
         assert_eq!(
             container.update_or_insert(
                 Account::from(200),
                 ChannelId::from(201),
-                Duration::from_secs(2),
+                now + Duration::from_secs(1),
             ),
             InsertResult::Inserted
         );
@@ -192,7 +191,8 @@ mod tests {
         let mut container = PeeredContainer::new();
 
         let channel_id = ChannelId::from(101);
-        container.update_or_insert(Account::from(100), channel_id, Duration::from_secs(1));
+        let now = Timestamp::new_test_instance();
+        container.update_or_insert(Account::from(100), channel_id, now);
 
         container.remove(channel_id);
         assert_eq!(container.len(), 0);
@@ -203,17 +203,14 @@ mod tests {
     fn remove_from_container_with_multiple_entries() {
         let mut container = PeeredContainer::new();
 
+        let now = Timestamp::new_test_instance();
         let channel_id = ChannelId::from(1);
-        container.update_or_insert(
-            Account::from(100),
-            ChannelId::from(100),
-            Duration::from_secs(1),
-        );
-        container.update_or_insert(Account::from(200), channel_id, Duration::from_secs(2));
+        container.update_or_insert(Account::from(100), ChannelId::from(100), now);
+        container.update_or_insert(Account::from(200), channel_id, now + Duration::from_secs(1));
         container.update_or_insert(
             Account::from(300),
             ChannelId::from(101),
-            Duration::from_secs(3),
+            now + Duration::from_secs(2),
         );
 
         container.remove(channel_id);
@@ -224,16 +221,13 @@ mod tests {
     #[test]
     fn modify_by_channel() {
         let mut container = PeeredContainer::new();
+        let now = Timestamp::new_test_instance();
 
         let channel_id = ChannelId::from(1);
-        container.update_or_insert(
-            Account::from(100),
-            ChannelId::from(100),
-            Duration::from_secs(1),
-        );
-        container.update_or_insert(Account::from(200), channel_id, Duration::from_secs(2));
+        container.update_or_insert(Account::from(100), ChannelId::from(100), now);
+        container.update_or_insert(Account::from(200), channel_id, now + Duration::from_secs(1));
 
-        let new_value = Duration::from_secs(1234);
+        let new_value = now + Duration::from_secs(1234);
         container.modify_by_channel(channel_id, |rep| {
             rep.last_request = new_value;
         });
@@ -250,12 +244,13 @@ mod tests {
     #[test]
     fn update_entry() {
         let mut container = PeeredContainer::new();
+        let now = Timestamp::new_test_instance();
 
         let account = Account::from(1);
         let channel_id = ChannelId::from(2);
-        container.update_or_insert(account, channel_id, Duration::from_secs(1));
+        container.update_or_insert(account, channel_id, now);
         assert_eq!(
-            container.update_or_insert(account, channel_id, Duration::from_secs(3)),
+            container.update_or_insert(account, channel_id, now + Duration::from_secs(2)),
             InsertResult::Updated
         );
         assert_eq!(container.len(), 1);
@@ -264,13 +259,14 @@ mod tests {
     #[test]
     fn channel_changed() {
         let mut container = PeeredContainer::new();
+        let now = Timestamp::new_test_instance();
 
         let account = Account::from(1);
         let channel_a = ChannelId::from(2);
         let channel_b = ChannelId::from(3);
-        container.update_or_insert(account, channel_a, Duration::from_secs(1));
+        container.update_or_insert(account, channel_a, now);
         assert_eq!(
-            container.update_or_insert(account, channel_b, Duration::from_secs(3)),
+            container.update_or_insert(account, channel_b, now + Duration::from_secs(2)),
             InsertResult::ChannelChanged(channel_a)
         );
         assert_eq!(container.len(), 1);
@@ -281,16 +277,17 @@ mod tests {
     #[test]
     fn two_reps_in_same_channel() {
         let mut container = PeeredContainer::new();
+        let now = Timestamp::new_test_instance();
 
         let account_a = Account::from(1);
         let account_b = Account::from(2);
         let channel = ChannelId::from(100);
         assert_eq!(
-            container.update_or_insert(account_a, channel, Duration::from_secs(1)),
+            container.update_or_insert(account_a, channel, now),
             InsertResult::Inserted,
         );
         assert_eq!(
-            container.update_or_insert(account_b, channel, Duration::from_secs(1)),
+            container.update_or_insert(account_b, channel, now),
             InsertResult::Inserted,
         );
 

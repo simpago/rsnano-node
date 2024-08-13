@@ -1,7 +1,7 @@
-use super::{ChannelDirection, Network, ResponseServerFactory, TcpConfig};
+use super::{AcceptResult, ChannelDirection, Network, ResponseServerFactory, TcpConfig};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::TcpStream,
+    transport::{ChannelMode, TcpStream},
     utils::AsyncRuntime,
 };
 use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
@@ -66,7 +66,11 @@ impl PeerConnector {
         let raw_stream = TcpStream::new(raw_stream);
         let channel = self
             .network
-            .add(raw_stream, ChannelDirection::Outbound)
+            .add(
+                raw_stream,
+                ChannelDirection::Outbound,
+                ChannelMode::Realtime,
+            )
             .await?;
         let response_server = self.response_server_factory.start_response_server(channel);
         response_server.initiate_handshake().await;
@@ -76,19 +80,28 @@ impl PeerConnector {
 
 pub trait PeerConnectorExt {
     /// Establish a network connection to the given peer
-    fn connect_to(&self, peer: SocketAddrV6);
+    fn connect_to(&self, peer: SocketAddrV6) -> bool;
 }
 
 impl PeerConnectorExt for Arc<PeerConnector> {
-    fn connect_to(&self, peer: SocketAddrV6) {
+    fn connect_to(&self, peer: SocketAddrV6) -> bool {
         self.connect_listener.emit(peer);
 
         if self.cancel_token.is_cancelled() {
-            return;
+            return false;
         }
 
-        if !self.network.track_connection_attempt(&peer) {
-            return;
+        if !self.network.add_attempt(peer) {
+            return false;
+        }
+
+        if self
+            .network
+            .can_add_connection(&peer, ChannelDirection::Outbound, ChannelMode::Realtime)
+            != AcceptResult::Accepted
+        {
+            self.network.remove_attempt(&peer);
+            return false;
         }
 
         self.stats.inc(StatType::Network, DetailType::MergePeer);
@@ -127,6 +140,8 @@ impl PeerConnectorExt for Arc<PeerConnector> {
 
             self_l.network.remove_attempt(&peer);
         });
+
+        true
     }
 }
 

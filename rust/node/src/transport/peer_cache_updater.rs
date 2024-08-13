@@ -37,7 +37,7 @@ impl PeerCacheUpdater {
     }
 
     fn save_peers(&self, tx: &mut LmdbWriteTransaction) {
-        let live_peers = self.network.list_channels(0);
+        let live_peers = self.network.list_realtime_channels(0);
         for peer in live_peers {
             self.save_peer(tx, &peer);
         }
@@ -284,6 +284,7 @@ mod tests {
                 .add(
                     TcpStream::new_null_with_peer_addr(endpoint),
                     ChannelDirection::Outbound,
+                    ChannelMode::Realtime,
                 )
                 .await
                 .unwrap();

@@ -204,170 +204,9 @@ impl Channel {
             || (!self.ignore_closed_write_queue && self.write_queue.is_closed())
     }
 
-    fn is_alive_impl(&self) -> bool {
-        !self.is_closed()
-    }
-
     fn update_last_activity(&self) {
         self.last_activity
             .store(seconds_since_epoch(), Ordering::Relaxed);
-    }
-
-    async fn ongoing_checkup(&self) {
-        loop {
-            sleep(Duration::from_secs(2)).await;
-            // If the socket is already dead, close just in case, and stop doing checkups
-            if !self.is_alive_impl() {
-                debug!("Closing socket because it was dead ({})", self.remote);
-                self.close_internal();
-                return;
-            }
-
-            let now = seconds_since_epoch();
-            let mut condition_to_disconnect = false;
-
-            // if there is no activity for timeout seconds then disconnect
-            if (now - self.last_activity.load(Ordering::Relaxed))
-                > self.timeout_seconds.load(Ordering::Relaxed)
-            {
-                self.stats.inc_dir(
-                    StatType::Tcp,
-                    DetailType::TcpIoTimeoutDrop,
-                    if self.direction == ChannelDirection::Inbound {
-                        Direction::In
-                    } else {
-                        Direction::Out
-                    },
-                );
-                condition_to_disconnect = true;
-            }
-
-            if condition_to_disconnect {
-                debug!("Closing socket due to timeout ({})", self.remote);
-                self.timed_out.store(true, Ordering::SeqCst);
-                self.close_internal();
-            }
-        }
-    }
-
-    fn close_internal(&self) {
-        if !self.closed.swap(true, Ordering::SeqCst) {
-            self.set_timeout(Duration::ZERO);
-        }
-    }
-
-    async fn read_raw(&self, buffer: &mut [u8], size: usize) -> anyhow::Result<()> {
-        if size > buffer.len() {
-            return Err(anyhow!("buffer is too small for read count"));
-        }
-
-        if self.is_closed() {
-            return Err(anyhow!("Tried to read from a closed TcpStream"));
-        }
-
-        let mut read = 0;
-        loop {
-            match self.stream.readable().await {
-                Ok(_) => {
-                    match self.stream.try_read(&mut buffer[read..size]) {
-                        Ok(0) => {
-                            self.stats.inc_dir(
-                                StatType::Tcp,
-                                DetailType::TcpReadError,
-                                Direction::In,
-                            );
-                            return Err(anyhow!("remote side closed the channel"));
-                        }
-                        Ok(n) => {
-                            read += n;
-                            if read >= size {
-                                self.stats.add_dir(
-                                    StatType::TrafficTcp,
-                                    DetailType::All,
-                                    Direction::In,
-                                    size as u64,
-                                );
-                                self.update_last_activity();
-                                return Ok(());
-                            }
-                        }
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            continue;
-                        }
-                        Err(e) => {
-                            self.stats.inc_dir(
-                                StatType::Tcp,
-                                DetailType::TcpReadError,
-                                Direction::In,
-                            );
-                            return Err(e.into());
-                        }
-                    };
-                }
-                Err(e) => {
-                    self.stats
-                        .inc_dir(StatType::Tcp, DetailType::TcpReadError, Direction::In);
-                    return Err(e.into());
-                }
-            }
-        }
-    }
-
-    async fn write(&self, buffer: &[u8], traffic_type: TrafficType) -> anyhow::Result<()> {
-        if self.is_closed() {
-            bail!("socket closed");
-        }
-
-        let buf_size = buffer.len();
-
-        let result = self
-            .write_queue
-            .insert(Arc::new(buffer.to_vec()), traffic_type)
-            .await;
-
-        if result.is_ok() {
-            self.stats.add_dir_aggregate(
-                StatType::TrafficTcp,
-                DetailType::All,
-                Direction::Out,
-                buf_size as u64,
-            );
-            self.update_last_activity();
-        } else {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-            debug!("Closing socket after write error: {}", self.remote);
-            self.close_internal();
-        }
-
-        result
-    }
-
-    fn try_write(&self, buffer: &[u8], traffic_type: TrafficType) {
-        if self.is_closed() {
-            return;
-        }
-
-        let buf_size = buffer.len();
-
-        let (inserted, write_error) = self
-            .write_queue
-            .try_insert(Arc::new(buffer.to_vec()), traffic_type);
-
-        if inserted {
-            self.stats.add_dir_aggregate(
-                StatType::TrafficTcp,
-                DetailType::All,
-                Direction::Out,
-                buf_size as u64,
-            );
-            self.update_last_activity();
-        } else if write_error {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-            self.close_internal();
-            debug!("Closing socket after write error: {}", self.remote);
-        }
     }
 
     pub fn channel_id(&self) -> ChannelId {
@@ -407,7 +246,7 @@ impl Channel {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.is_alive_impl()
+        !self.is_closed()
     }
 
     pub fn local_addr(&self) -> SocketAddrV6 {
@@ -446,6 +285,77 @@ impl Channel {
             .store(timeout.as_secs(), Ordering::SeqCst);
     }
 
+    fn try_write(&self, buffer: &[u8], traffic_type: TrafficType) {
+        if self.is_closed() {
+            return;
+        }
+
+        let buf_size = buffer.len();
+
+        let (inserted, write_error) = self
+            .write_queue
+            .try_insert(Arc::new(buffer.to_vec()), traffic_type);
+
+        if inserted {
+            self.stats.add_dir_aggregate(
+                StatType::TrafficTcp,
+                DetailType::All,
+                Direction::Out,
+                buf_size as u64,
+            );
+            self.update_last_activity();
+            self.set_last_packet_sent(SystemTime::now());
+        } else if write_error {
+            self.stats
+                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+            self.close();
+            debug!(peer_addr = ?self.remote, channel_id = %self.channel_id(), mode = ?self.mode(), "Closing socket after write error");
+        }
+    }
+
+    pub async fn send_buffer(
+        &self,
+        buffer: &[u8],
+        traffic_type: TrafficType,
+    ) -> anyhow::Result<()> {
+        while !self.limiter.should_pass(buffer.len(), traffic_type.into()) {
+            // TODO: better implementation
+            sleep(Duration::from_millis(20)).await;
+        }
+
+        if self.is_closed() {
+            bail!("socket closed");
+        }
+
+        let buf_size = buffer.len();
+
+        let result = self
+            .write_queue
+            .insert(Arc::new(buffer.to_vec()), traffic_type)
+            .await;
+
+        if result.is_ok() {
+            self.stats.add_dir_aggregate(
+                StatType::TrafficTcp,
+                DetailType::All,
+                Direction::Out,
+                buf_size as u64,
+            );
+            self.update_last_activity();
+            self.set_last_packet_sent(SystemTime::now());
+        } else {
+            self.stats
+                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+            debug!(channel_id = %self.channel_id(), remote_addr = ?self.remote_addr(), "Closing channel after write error");
+            self.close();
+        }
+
+        result?;
+
+        self.channel_mutex.lock().unwrap().last_packet_sent = SystemTime::now();
+        Ok(())
+    }
+
     pub fn try_send(
         &self,
         message: &Message,
@@ -473,21 +383,6 @@ impl Channel {
         }
     }
 
-    pub async fn send_buffer(
-        &self,
-        buffer: &[u8],
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
-        while !self.limiter.should_pass(buffer.len(), traffic_type.into()) {
-            // TODO: better implementation
-            sleep(Duration::from_millis(20)).await;
-        }
-
-        self.write(buffer, traffic_type).await?;
-        self.channel_mutex.lock().unwrap().last_packet_sent = SystemTime::now();
-        Ok(())
-    }
-
     pub async fn send(&self, message: &Message, traffic_type: TrafficType) -> anyhow::Result<()> {
         let buffer = {
             let mut serializer = self.message_serializer.lock().unwrap();
@@ -502,7 +397,9 @@ impl Channel {
     }
 
     pub fn close(&self) {
-        self.close_internal();
+        if !self.closed.swap(true, Ordering::SeqCst) {
+            self.set_timeout(Duration::ZERO);
+        }
     }
 
     pub fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {
@@ -511,6 +408,45 @@ impl Channel {
 
     pub fn subnetwork(&self) -> Ipv6Addr {
         map_address_to_subnetwork(self.remote_addr().ip())
+    }
+
+    async fn ongoing_checkup(&self) {
+        loop {
+            sleep(Duration::from_secs(2)).await;
+            // If the socket is already dead, close just in case, and stop doing checkups
+            if !self.is_alive() {
+                debug!(
+                    remote_addr = ?self.remote,
+                    "Stopping checkup for dead channel"
+                );
+                return;
+            }
+
+            let now = seconds_since_epoch();
+            let mut condition_to_disconnect = false;
+
+            // if there is no activity for timeout seconds then disconnect
+            if (now - self.last_activity.load(Ordering::Relaxed))
+                > self.timeout_seconds.load(Ordering::Relaxed)
+            {
+                self.stats.inc_dir(
+                    StatType::Tcp,
+                    DetailType::TcpIoTimeoutDrop,
+                    if self.direction == ChannelDirection::Inbound {
+                        Direction::In
+                    } else {
+                        Direction::Out
+                    },
+                );
+                condition_to_disconnect = true;
+            }
+
+            if condition_to_disconnect {
+                debug!(channel_id = %self.channel_id(), remote_addr = ?self.remote_addr(), mode = ?self.mode(), direction = ?self.direction(), "Closing channel due to timeout");
+                self.timed_out.store(true, Ordering::SeqCst);
+                self.close();
+            }
+        }
     }
 }
 
@@ -522,13 +458,67 @@ impl Display for Channel {
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        self.close_internal();
+        self.close();
     }
 }
 
 #[async_trait]
 impl AsyncBufferReader for Arc<Channel> {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
-        self.read_raw(buffer, count).await
+        if count > buffer.len() {
+            return Err(anyhow!("buffer is too small for read count"));
+        }
+
+        if self.is_closed() {
+            return Err(anyhow!("Tried to read from a closed TcpStream"));
+        }
+
+        let mut read = 0;
+        loop {
+            match self.stream.readable().await {
+                Ok(_) => {
+                    match self.stream.try_read(&mut buffer[read..count]) {
+                        Ok(0) => {
+                            self.stats.inc_dir(
+                                StatType::Tcp,
+                                DetailType::TcpReadError,
+                                Direction::In,
+                            );
+                            return Err(anyhow!("remote side closed the channel"));
+                        }
+                        Ok(n) => {
+                            read += n;
+                            if read >= count {
+                                self.stats.add_dir(
+                                    StatType::TrafficTcp,
+                                    DetailType::All,
+                                    Direction::In,
+                                    count as u64,
+                                );
+                                self.update_last_activity();
+                                self.set_last_packet_received(SystemTime::now());
+                                return Ok(());
+                            }
+                        }
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            continue;
+                        }
+                        Err(e) => {
+                            self.stats.inc_dir(
+                                StatType::Tcp,
+                                DetailType::TcpReadError,
+                                Direction::In,
+                            );
+                            return Err(e.into());
+                        }
+                    };
+                }
+                Err(e) => {
+                    self.stats
+                        .inc_dir(StatType::Tcp, DetailType::TcpReadError, Direction::In);
+                    return Err(e.into());
+                }
+            }
+        }
     }
 }

@@ -31,8 +31,8 @@ use crate::{
         TrafficType,
     },
     utils::{
-        AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread,
-        TxnTrackingConfig,
+        AsyncRuntime, LongRunningTransactionLogger, SteadyClock, ThreadPool, ThreadPoolImpl,
+        TimerThread, TxnTrackingConfig,
     },
     wallets::{Wallets, WalletsExt},
     websocket::{create_websocket_server, WebsocketListenerExt},
@@ -65,14 +65,14 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 use tracing::{debug, error, info, warn};
 
 pub struct Node {
     pub async_rt: Arc<AsyncRuntime>,
     pub application_path: PathBuf,
-    pub relative_time: Instant,
+    pub steady_clock: Arc<SteadyClock>,
     pub node_id: KeyPair,
     pub config: NodeConfig,
     pub network_params: NetworkParams,
@@ -143,6 +143,10 @@ impl Node {
         account_balance_changed: AccountBalanceChangedCallback,
         on_vote: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) -> Self {
+        // Time relative to the start of the node. This makes time exlicit and enables us to
+        // write time relevant unit tests with ease.
+        let steady_clock = Arc::new(SteadyClock::default());
+
         let network_label = network_params.network.get_current_network_as_string();
         let global_config = GlobalConfig {
             node_config: config.clone(),
@@ -234,6 +238,7 @@ impl Node {
             port: config.peering_port.unwrap_or(0),
             flags: flags.clone(),
             limiter: outbound_limiter.clone(),
+            clock: steady_clock.clone(),
         }));
 
         let mut dead_channel_cleanup =
@@ -278,10 +283,6 @@ impl Node {
             ledger.clone(),
             network_params.node.max_weight_samples as usize,
         ));
-
-        // Time relative to the start of the node. This makes time exlicit and enables us to
-        // write time relevant unit tests with ease.
-        let relative_time = Instant::now();
 
         let online_reps = Arc::new(Mutex::new(
             OnlineReps::builder()
@@ -436,7 +437,7 @@ impl Node {
             vote_applier,
             vote_router.clone(),
             vote_cache_processor.clone(),
-            relative_time,
+            steady_clock.clone(),
         ));
 
         active_elections.initialize();
@@ -457,7 +458,6 @@ impl Node {
             bootstrap_workers.clone(),
             network_params.clone(),
             stats.clone(),
-            outbound_limiter.clone(),
             block_processor.clone(),
             websocket.clone(),
             ledger.clone(),
@@ -503,7 +503,7 @@ impl Node {
             ledger.clone(),
             active_elections.clone(),
             peer_connector.clone(),
-            relative_time,
+            steady_clock.clone(),
         ));
 
         // BEWARE: `bootstrap` takes `network.port` instead of `config.peering_port` because when the user doesn't specify
@@ -603,7 +603,6 @@ impl Node {
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(
             stats.clone(),
             network.clone(),
-            peer_connector.clone(),
             block_processor.clone(),
             config.clone(),
             flags.clone(),
@@ -660,7 +659,7 @@ impl Node {
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         if !flags.disable_rep_crawler {
-            network.on_new_channel(Arc::new(move |channel| {
+            network.on_new_realtime_channel(Arc::new(move |channel| {
                 if let Some(crawler) = rep_crawler_w.upgrade() {
                     crawler.query_channel(channel);
                 }
@@ -763,7 +762,7 @@ impl Node {
         });
 
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
-        network.on_new_channel(Arc::new(move |channel| {
+        network.on_new_realtime_channel(Arc::new(move |channel| {
             let Some(factory) = keepalive_factory_w.upgrade() else {
                 return;
             };
@@ -774,6 +773,7 @@ impl Node {
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         let reps_w = Arc::downgrade(&online_reps);
+        let clock = steady_clock.clone();
         vote_processor.add_vote_processed_callback(Box::new(
             move |vote, channel_id, source, code| {
                 debug_assert!(code != VoteCode::Invalid);
@@ -793,7 +793,7 @@ impl Node {
                     // Representative is defined as online if replying to live votes or rep_crawler queries
                     reps.lock()
                         .unwrap()
-                        .vote_observed(vote.voting_account, relative_time.elapsed());
+                        .vote_observed(vote.voting_account, clock.now());
                 }
             },
         ));
@@ -992,7 +992,7 @@ impl Node {
         );
 
         Self {
-            relative_time,
+            steady_clock,
             peer_cache_updater: TimerThread::new("Peer history", peer_cache_updater),
             peer_cache_connector: TimerThread::new_run_immedately(
                 "Net reachout",

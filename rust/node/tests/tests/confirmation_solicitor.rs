@@ -26,7 +26,7 @@ fn batches() {
     let representative = PeeredRep::new(
         *DEV_GENESIS_ACCOUNT,
         channel1.channel_id(),
-        node2.relative_time.elapsed(),
+        node2.steady_clock.now(),
     );
     let representatives = vec![representative];
 
@@ -103,7 +103,7 @@ fn different_hashes() {
     let representative = PeeredRep::new(
         *DEV_GENESIS_ACCOUNT,
         channel1.channel_id(),
-        node2.relative_time.elapsed(),
+        node2.steady_clock.now(),
     );
     let representatives = vec![representative];
 
@@ -169,7 +169,7 @@ fn bypass_max_requests_cap() {
         let rep = PeeredRep::new(
             Account::from(i as u64),
             ChannelId::from(i),
-            node2.relative_time.elapsed(),
+            node2.steady_clock.now(),
         );
         representatives.push(rep);
     }

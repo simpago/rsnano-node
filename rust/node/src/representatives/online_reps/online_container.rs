@@ -6,11 +6,13 @@ use std::{
 
 use rsnano_core::Account;
 
+use crate::utils::Timestamp;
+
 /// Collection of all representatives that are currently online
 #[derive(Default)]
 pub(super) struct OnlineContainer {
-    by_time: BTreeMap<Duration, Vec<Account>>,
-    by_account: HashMap<Account, Duration>,
+    by_time: BTreeMap<Timestamp, Vec<Account>>,
+    by_account: HashMap<Account, Timestamp>,
 }
 
 impl OnlineContainer {
@@ -23,7 +25,7 @@ impl OnlineContainer {
     }
 
     /// Returns `true` if it was a new insert and `false` if an entry for that account was already present
-    pub fn insert(&mut self, rep: Account, now: Duration) -> bool {
+    pub fn insert(&mut self, rep: Account, now: Timestamp) -> bool {
         let new_insert = if let Some(time) = self.by_account.get_mut(&rep) {
             let old_time = *time;
             *time = now;
@@ -46,7 +48,7 @@ impl OnlineContainer {
         new_insert
     }
 
-    pub fn trim(&mut self, upper_bound: Duration) -> bool {
+    pub fn trim(&mut self, upper_bound: Timestamp) -> bool {
         let mut trimmed = false;
 
         while let Some((time, _)) = self.by_time.first_key_value() {
@@ -88,7 +90,7 @@ mod tests {
     fn insert_one_rep() {
         let mut container = OnlineContainer::new();
 
-        let new_insert = container.insert(Account::from(1), Duration::from_secs(1));
+        let new_insert = container.insert(Account::from(1), Timestamp::new_test_instance());
 
         assert_eq!(container.len(), 1);
         assert_eq!(container.iter().count(), 1);
@@ -100,8 +102,9 @@ mod tests {
     fn insert_two_reps() {
         let mut container = OnlineContainer::new();
 
-        let new_insert_a = container.insert(Account::from(1), Duration::from_secs(1));
-        let new_insert_b = container.insert(Account::from(2), Duration::from_secs(2));
+        let now = Timestamp::new_test_instance();
+        let new_insert_a = container.insert(Account::from(1), now);
+        let new_insert_b = container.insert(Account::from(2), now + Duration::from_secs(1));
 
         assert_eq!(container.len(), 2);
         assert_eq!(container.iter().count(), 2);
@@ -113,7 +116,7 @@ mod tests {
     fn insert_same_rep_twice_with_same_time() {
         let mut container = OnlineContainer::new();
 
-        let now = Duration::from_secs(1);
+        let now = Timestamp::new_test_instance();
         let new_insert_a = container.insert(Account::from(1), now);
         let new_insert_b = container.insert(Account::from(1), now);
 
@@ -127,8 +130,9 @@ mod tests {
     fn insert_same_rep_twice_with_different_time() {
         let mut container = OnlineContainer::new();
 
-        let new_insert_a = container.insert(Account::from(1), Duration::from_secs(1));
-        let new_insert_b = container.insert(Account::from(1), Duration::from_secs(2));
+        let now = Timestamp::new_test_instance();
+        let new_insert_a = container.insert(Account::from(1), now);
+        let new_insert_b = container.insert(Account::from(1), now + Duration::from_secs(1));
 
         assert_eq!(container.len(), 1);
         assert_eq!(container.iter().count(), 1);
@@ -140,21 +144,24 @@ mod tests {
     #[test]
     fn trimming_empty_container_does_nothing() {
         let mut container = OnlineContainer::new();
-        assert_eq!(container.trim(Duration::from_secs(1)), false);
+        let now = Timestamp::new_test_instance();
+        assert_eq!(container.trim(now), false);
     }
 
     #[test]
     fn dont_trim_if_upper_bound_not_reached() {
         let mut container = OnlineContainer::new();
-        container.insert(Account::from(1), Duration::from_secs(1));
-        assert_eq!(container.trim(Duration::from_secs(1)), false);
+        let now = Timestamp::new_test_instance();
+        container.insert(Account::from(1), now);
+        assert_eq!(container.trim(now), false);
     }
 
     #[test]
     fn trim_if_upper_bound_reached() {
         let mut container = OnlineContainer::new();
-        container.insert(Account::from(1), Duration::from_secs(1));
-        assert_eq!(container.trim(Duration::from_millis(1001)), true);
+        let now = Timestamp::new_test_instance();
+        container.insert(Account::from(1), now);
+        assert_eq!(container.trim(now + Duration::from_millis(1)), true);
         assert_eq!(container.len(), 0);
     }
 
@@ -162,12 +169,13 @@ mod tests {
     fn trim_multiple_entries() {
         let mut container = OnlineContainer::new();
 
-        container.insert(Account::from(1), Duration::from_secs(1));
-        container.insert(Account::from(2), Duration::from_secs(1));
-        container.insert(Account::from(3), Duration::from_secs(2));
-        container.insert(Account::from(4), Duration::from_secs(3));
+        let now = Timestamp::new_test_instance();
+        container.insert(Account::from(1), now);
+        container.insert(Account::from(2), now);
+        container.insert(Account::from(3), now + Duration::from_secs(1));
+        container.insert(Account::from(4), now + Duration::from_secs(2));
 
-        assert_eq!(container.trim(Duration::from_millis(2500)), true);
+        assert_eq!(container.trim(now + Duration::from_millis(1500)), true);
         assert_eq!(container.len(), 1);
         assert_eq!(container.iter().next().unwrap(), &Account::from(4));
         assert_eq!(container.by_time.len(), 1);

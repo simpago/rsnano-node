@@ -6,7 +6,7 @@ use crate::{
     transport::{
         BufferDropPolicy, Channel, ChannelId, Network, PeerConnector, PeerConnectorExt, TrafficType,
     },
-    utils::{into_ipv6_socket_address, AsyncRuntime},
+    utils::{into_ipv6_socket_address, AsyncRuntime, SteadyClock, Timestamp},
     NetworkParams,
 };
 use bounded_vec_deque::BoundedVecDeque;
@@ -41,7 +41,7 @@ pub struct RepCrawler {
     ledger: Arc<Ledger>,
     active: Arc<ActiveElections>,
     thread: Mutex<Option<JoinHandle<()>>>,
-    relative_time: Instant,
+    steady_clock: Arc<SteadyClock>,
 }
 
 impl RepCrawler {
@@ -58,7 +58,7 @@ impl RepCrawler {
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
         peer_connector: Arc<PeerConnector>,
-        relative_time: Instant,
+        steady_clock: Arc<SteadyClock>,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();
         Self {
@@ -73,7 +73,7 @@ impl RepCrawler {
             active,
             thread: Mutex::new(None),
             peer_connector,
-            relative_time,
+            steady_clock,
             rep_crawler_impl: Mutex::new(RepCrawlerImpl {
                 is_dev_network,
                 queries: OrderedQueries::new(),
@@ -159,11 +159,7 @@ impl RepCrawler {
         let mut guard = self.rep_crawler_impl.lock().unwrap();
 
         for channel in target_channels {
-            guard.track_rep_request(
-                hash_root,
-                Arc::clone(&channel),
-                self.relative_time.elapsed(),
-            );
+            guard.track_rep_request(hash_root, Arc::clone(&channel), self.steady_clock.now());
             debug!(
                 "Sending query for block: {} to: {}",
                 hash_root.0,
@@ -250,7 +246,7 @@ impl RepCrawler {
                 guard.last_query = Some(Instant::now());
 
                 let targets =
-                    guard.prepare_crawl_targets(sufficient_weight, self.relative_time.elapsed());
+                    guard.prepare_crawl_targets(sufficient_weight, self.steady_clock.now());
                 drop(guard);
                 self.query(targets);
                 guard = self.rep_crawler_impl.lock().unwrap();
@@ -290,7 +286,7 @@ impl RepCrawler {
             let result = self.online_reps.lock().unwrap().vote_observed_directly(
                 vote.voting_account,
                 channel_id,
-                self.relative_time.elapsed(),
+                self.steady_clock.now(),
             );
 
             match result {
@@ -379,7 +375,7 @@ impl RepCrawler {
                 Ok(addresses) => {
                     for address in addresses {
                         let endpoint = into_ipv6_socket_address(address);
-                        match network.find_channel_by_peering_addr(&endpoint) {
+                        match network.find_realtime_channel_by_peering_addr(&endpoint) {
                             Some(channel) => {
                                 let keepalive = network.create_keepalive_message();
                                 channel.try_send(
@@ -451,7 +447,7 @@ impl RepCrawlerImpl {
         }
     }
 
-    fn prepare_crawl_targets(&self, sufficient_weight: bool, now: Duration) -> Vec<Arc<Channel>> {
+    fn prepare_crawl_targets(&self, sufficient_weight: bool, now: Timestamp) -> Vec<Arc<Channel>> {
         // TODO: Make these values configurable
         const CONSERVATIVE_COUNT: usize = 160;
         const AGGRESSIVE_COUNT: usize = 160;
@@ -481,7 +477,9 @@ impl RepCrawlerImpl {
         };
 
         /* include channels with ephemeral remote ports */
-        let mut random_peers = self.network.random_channels(required_peer_count, 0);
+        let mut random_peers = self
+            .network
+            .random_realtime_channels(required_peer_count, 0);
 
         random_peers.retain(|channel| {
             match self
@@ -513,7 +511,7 @@ impl RepCrawlerImpl {
         &mut self,
         hash_root: (BlockHash, Root),
         channel: Arc<Channel>,
-        now: Duration,
+        now: Timestamp,
     ) {
         self.queries.insert(QueryEntry {
             hash: hash_root.0,

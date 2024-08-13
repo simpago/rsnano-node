@@ -4,7 +4,7 @@ mod online_container;
 mod peered_container;
 mod peered_rep;
 
-use crate::transport::ChannelId;
+use crate::{transport::ChannelId, utils::Timestamp};
 pub use builder::{OnlineRepsBuilder, DEFAULT_ONLINE_WEIGHT_MINIMUM};
 pub use peered_container::InsertResult;
 pub use peered_rep::PeeredRep;
@@ -124,18 +124,18 @@ impl OnlineReps {
         Amount::raw(delta.as_u128())
     }
 
-    pub fn on_rep_request(&mut self, channel_id: ChannelId, now: Duration) {
+    pub fn on_rep_request(&mut self, channel_id: ChannelId, now: Timestamp) {
         // Find and update the timestamp on all reps available on the endpoint (a single host may have multiple reps)
         self.peered_reps.modify_by_channel(channel_id, |rep| {
             rep.last_request = now;
         });
     }
 
-    pub fn last_request_elapsed(&self, channel_id: ChannelId, now: Duration) -> Option<Duration> {
+    pub fn last_request_elapsed(&self, channel_id: ChannelId, now: Timestamp) -> Option<Duration> {
         self.peered_reps
             .iter_by_channel(channel_id)
             .next()
-            .map(|rep| now.checked_sub(rep.last_request).unwrap_or_default())
+            .map(|rep| rep.last_request.elapsed(now))
     }
 
     /// List of online representatives, both the currently sampling ones and the ones observed in the previous sampling period
@@ -172,7 +172,7 @@ impl OnlineReps {
 
     /// Add voting account rep_account to the set of online representatives
     /// This can happen for directly connected or indirectly connected reps
-    pub fn vote_observed(&mut self, rep_account: Account, now: Duration) {
+    pub fn vote_observed(&mut self, rep_account: Account, now: Timestamp) {
         if self.rep_weights.weight(&rep_account) > Amount::zero() {
             let new_insert = self.online_reps.insert(rep_account, now);
             let trimmed = self
@@ -198,7 +198,7 @@ impl OnlineReps {
         &mut self,
         rep_account: Account,
         channel_id: ChannelId,
-        now: Duration,
+        now: Timestamp,
     ) -> InsertResult {
         self.vote_observed(rep_account, now);
         self.peered_reps
@@ -236,6 +236,8 @@ impl Default for OnlineReps {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::SteadyClock;
+
     use super::*;
     use std::time::Duration;
 
@@ -267,13 +269,14 @@ mod tests {
 
     #[test]
     fn observe_vote() {
+        let clock = SteadyClock::new_null();
         let account = Account::from(1);
         let weight = Amount::nano(100_000);
         let weights = Arc::new(RepWeightCache::new());
         weights.set(account, weight);
         let mut online_reps = OnlineReps::builder().rep_weights(weights).finish();
 
-        online_reps.vote_observed(account, Duration::from_secs(1));
+        online_reps.vote_observed(account, clock.now());
 
         assert_eq!(online_reps.online_weight(), weight, "online");
         assert_eq!(online_reps.peered_weight(), Amount::zero(), "peered");
@@ -281,13 +284,14 @@ mod tests {
 
     #[test]
     fn observe_direct_vote() {
+        let clock = SteadyClock::new_null();
         let account = Account::from(1);
         let weight = Amount::nano(100_000);
         let weights = Arc::new(RepWeightCache::new());
         weights.set(account, weight);
         let mut online_reps = OnlineReps::builder().rep_weights(weights).finish();
 
-        online_reps.vote_observed_directly(account, ChannelId::from(1), Duration::from_secs(1));
+        online_reps.vote_observed_directly(account, ChannelId::from(1), clock.now());
 
         assert_eq!(online_reps.online_weight(), weight, "online");
         assert_eq!(online_reps.peered_weight(), weight, "peered");
@@ -326,18 +330,18 @@ mod tests {
 
     #[test]
     fn is_pr() {
+        let clock = SteadyClock::new_null();
         let weights = Arc::new(RepWeightCache::new());
         let mut online_reps = OnlineReps::builder().rep_weights(weights.clone()).finish();
         let rep_account = Account::from(42);
         let channel_id = ChannelId::from(1);
-        let now = Duration::from_secs(1);
         weights.set(rep_account, Amount::nano(50_000));
 
         // unknown channel
         assert_eq!(online_reps.is_pr(channel_id), false);
 
         // below PR limit
-        online_reps.vote_observed_directly(rep_account, channel_id, now);
+        online_reps.vote_observed_directly(rep_account, channel_id, clock.now());
         assert_eq!(online_reps.is_pr(channel_id), false);
 
         // above PR limit
@@ -353,9 +357,8 @@ mod tests {
         assert_eq!(online_reps.quorum_delta(), Amount::nano(40_200_000));
 
         let rep_account = Account::from(42);
-        let now = Duration::from_secs(1);
         weights.set(rep_account, Amount::nano(100_000_000));
-        online_reps.vote_observed(rep_account, now);
+        online_reps.vote_observed(rep_account, Timestamp::new_test_instance());
 
         assert_eq!(online_reps.quorum_delta(), Amount::nano(67_000_000));
     }
@@ -374,9 +377,10 @@ mod tests {
             .weight_period(Duration::from_secs(30))
             .finish();
 
-        online_reps.vote_observed(rep_a, Duration::from_secs(10));
-        online_reps.vote_observed(rep_b, Duration::from_secs(20));
-        online_reps.vote_observed(rep_c, Duration::from_secs(41));
+        let now = SteadyClock::new_null().now();
+        online_reps.vote_observed(rep_a, now);
+        online_reps.vote_observed(rep_b, now + Duration::from_secs(10));
+        online_reps.vote_observed(rep_c, now + Duration::from_secs(31));
 
         assert_eq!(online_reps.online_weight(), Amount::nano(600_000));
     }

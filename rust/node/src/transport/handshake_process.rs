@@ -19,6 +19,7 @@ use tracing::{debug, warn};
 
 pub enum HandshakeStatus {
     Abort,
+    AbortOwnNodeId,
     Handshake,
     Realtime(PublicKey),
     Bootstrap,
@@ -186,7 +187,7 @@ impl HandshakeProcess {
                         "This node tried to connect to itself. Closing channel ({})",
                         self.remote_endpoint
                     );
-                    return HandshakeStatus::Abort;
+                    return HandshakeStatus::AbortOwnNodeId;
                 }
                 Err(e) => {
                     self.stats

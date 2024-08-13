@@ -269,7 +269,7 @@ impl BootstrapAscending {
     fn run_timeouts(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
-            guard.scoring.sync(&self.network.list_channels(0));
+            guard.scoring.sync(&self.network.list_realtime_channels(0));
             guard.scoring.timeout();
             guard
                 .throttle

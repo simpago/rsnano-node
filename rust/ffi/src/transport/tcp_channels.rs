@@ -53,7 +53,7 @@ pub unsafe extern "C" fn rsn_tcp_channels_find_channel(
     handle: &mut TcpChannelsHandle,
     endpoint: &EndpointDto,
 ) -> *mut ChannelHandle {
-    match handle.find_channel_by_remote_addr(&endpoint.into()) {
+    match handle.find_realtime_channel_by_remote_addr(&endpoint.into()) {
         Some(channel) => ChannelHandle::new(channel),
         None => std::ptr::null_mut(),
     }
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn rsn_tcp_channels_random_channels(
     count: usize,
     min_version: u8,
 ) -> *mut ChannelListHandle {
-    let channels = handle.random_channels(count, min_version);
+    let channels = handle.random_realtime_channels(count, min_version);
     Box::into_raw(Box::new(ChannelListHandle(channels)))
 }
 
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn rsn_tcp_channels_random_fill(
     let endpoints = std::slice::from_raw_parts_mut(endpoints, 8);
     let null_endpoint = SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0);
     let mut tmp = [null_endpoint; 8];
-    handle.random_fill(&mut tmp);
+    handle.random_fill_realtime(&mut tmp);
     endpoints
         .iter_mut()
         .zip(&tmp)
@@ -115,7 +115,7 @@ pub extern "C" fn rsn_tcp_channels_random_fanout(
     handle: &TcpChannelsHandle,
     scale: f32,
 ) -> *mut ChannelListHandle {
-    let channels = handle.random_fanout(scale);
+    let channels = handle.random_fanout_realtime(scale);
     Box::into_raw(Box::new(ChannelListHandle(channels)))
 }
 

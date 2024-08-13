@@ -282,7 +282,7 @@ impl LocalBlockBroadcaster {
     }
 
     fn list_no_pr(&self, count: usize) -> Vec<Arc<Channel>> {
-        let mut channels = self.network.random_list(usize::MAX, 0);
+        let mut channels = self.network.random_list_realtime(usize::MAX, 0);
         {
             let reps = self.online_reps.lock().unwrap();
             channels.retain(|c| !reps.is_pr(c.channel_id()));

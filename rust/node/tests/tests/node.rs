@@ -2,22 +2,22 @@ use crate::tests::helpers::{
     assert_always_eq, assert_never, assert_timely_eq, assert_timely_msg, make_fake_channel, System,
 };
 use rsnano_core::{
-    utils::milliseconds_since_epoch, work::WorkPool, Amount, BlockEnum, BlockHash, KeyPair,
-    SendBlock, Signature, StateBlock, Vote, VoteSource, VoteWithWeightInfo, DEV_GENESIS_KEY,
+    utils::milliseconds_since_epoch, work::WorkPool, Account, Amount, BlockEnum, BlockHash, Epoch,
+    KeyPair, Link, SendBlock, Signature, StateBlock, Vote, VoteSource, VoteWithWeightInfo,
+    DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_node::{
-    config::NodeFlags,
+    config::{FrontiersConfirmationMode, NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, VoteApplierExt},
     stats::{DetailType, Direction, StatType},
     transport::{BufferDropPolicy, ChannelId, PeerConnectorExt, TrafficType},
     wallets::WalletsExt,
 };
 use std::{sync::Arc, thread::sleep, time::Duration};
-use tracing::error;
 
-use super::helpers::start_election;
+use super::helpers::{activate_hashes, assert_timely, start_election, start_elections};
 
 #[test]
 fn local_block_broadcast() {
@@ -74,11 +74,6 @@ fn local_block_broadcast() {
     assert_never(Duration::from_millis(500), || {
         node2.block(&send_hash).is_some()
     });
-
-    error!(
-        "node2 local addr is {:?}",
-        node2.tcp_listener.local_address()
-    );
 
     // Connect the nodes and check that the block is propagated
     node1
@@ -1027,4 +1022,129 @@ fn rep_crawler_rep_remove() {
 
     // TODO rewrite this test and the missing part below this commit
     // ... part missing:
+}
+
+#[test]
+fn epoch_conflict_confirm() {
+    let mut system = System::new();
+    let config0 = NodeConfig {
+        frontiers_confirmation: FrontiersConfirmationMode::Disabled,
+        ..System::default_config()
+    };
+    let node0 = system.build_node().config(config0).finish();
+
+    let config1 = NodeConfig {
+        frontiers_confirmation: FrontiersConfirmationMode::Disabled,
+        ..System::default_config()
+    };
+    let node1 = system.build_node().config(config1).finish();
+
+    let key = KeyPair::new();
+    let epoch_signer = DEV_GENESIS_KEY.clone();
+
+    let send = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_ACCOUNT,
+        Amount::MAX - Amount::raw(1),
+        key.public_key().into(),
+        &DEV_GENESIS_KEY,
+        system
+            .work
+            .generate_dev2((*DEV_GENESIS_HASH).into())
+            .unwrap(),
+    ));
+
+    let open = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        BlockHash::zero(),
+        key.public_key(),
+        Amount::raw(1),
+        send.hash().into(),
+        &key,
+        system.work.generate_dev2(key.public_key().into()).unwrap(),
+    ));
+
+    let change = BlockEnum::State(StateBlock::new(
+        key.public_key(),
+        open.hash(),
+        key.public_key(),
+        Amount::raw(1),
+        Link::zero(),
+        &key,
+        system.work.generate_dev2(open.hash().into()).unwrap(),
+    ));
+
+    let send2 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        send.hash(),
+        *DEV_GENESIS_ACCOUNT,
+        Amount::MAX - Amount::raw(2),
+        open.hash().into(),
+        &DEV_GENESIS_KEY,
+        system.work.generate_dev2(send.hash().into()).unwrap(),
+    ));
+
+    let epoch_open = BlockEnum::State(StateBlock::new(
+        change.root().into(),
+        BlockHash::zero(),
+        Account::zero(),
+        Amount::zero(),
+        node0.ledger.epoch_link(Epoch::Epoch1).unwrap(),
+        &epoch_signer,
+        system.work.generate_dev2(open.hash().into()).unwrap(),
+    ));
+
+    // Process initial blocks on node1
+    node1.process(send.clone()).unwrap();
+    node1.process(send2.clone()).unwrap();
+    node1.process(open.clone()).unwrap();
+
+    // Confirm open block in node1 to allow generating votes
+    node1.confirm(open.hash());
+
+    // Process initial blocks on node0
+    node0.process(send.clone()).unwrap();
+    node0.process(send2.clone()).unwrap();
+    node0.process(open.clone()).unwrap();
+
+    // Process conflicting blocks on node 0 as blocks coming from live network
+    node0.process_active(change.clone());
+    node0.process_active(epoch_open.clone());
+
+    // Ensure blocks were propagated to both nodes
+    assert_timely(Duration::from_secs(5), || {
+        node0.blocks_exist(&[change.clone(), epoch_open.clone()])
+    });
+    assert_timely(Duration::from_secs(5), || {
+        node1.blocks_exist(&[change.clone(), epoch_open.clone()])
+    });
+
+    // Confirm initial blocks in node1 to allow generating votes later
+    start_elections(
+        &node1,
+        &[change.hash(), epoch_open.hash(), send2.hash()],
+        true,
+    );
+    assert_timely(Duration::from_secs(5), || {
+        node1.blocks_confirmed(&[change.clone(), epoch_open.clone(), send2.clone()])
+    });
+
+    // Start elections for node0 for conflicting change and epoch_open blocks (those two blocks have the same root)
+    activate_hashes(&node0, &[change.hash(), epoch_open.hash()]);
+    assert_timely(Duration::from_secs(5), || {
+        node0.vote_router.active(&change.hash()) && node0.vote_router.active(&epoch_open.hash())
+    });
+
+    // Make node1 a representative
+    let wallet_id = node1.wallets.wallet_ids()[0];
+    node1
+        .wallets
+        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
+        .unwrap();
+
+    // Ensure both conflicting blocks were successfully processed and confirmed
+    assert_timely(Duration::from_secs(15), || {
+        node0.blocks_confirmed(&[change.clone(), epoch_open.clone()])
+    });
 }

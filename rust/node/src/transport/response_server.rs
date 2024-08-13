@@ -10,7 +10,7 @@ use crate::{
     },
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelMode, NetworkExt},
+    transport::ChannelMode,
     utils::{AsyncRuntime, ThreadPool},
     NetworkParams,
 };
@@ -25,7 +25,7 @@ use std::{
     net::SocketAddrV6,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc, Mutex, Weak,
+        Arc, Mutex,
     },
     time::{Duration, Instant, SystemTime},
 };
@@ -78,7 +78,7 @@ pub struct ResponseServer {
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
     allow_bootstrap: bool,
-    network: Weak<Network>,
+    network: Arc<Network>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
@@ -96,7 +96,7 @@ static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
 
 impl ResponseServer {
     pub fn new(
-        network: &Arc<Network>,
+        network: Arc<Network>,
         inbound_queue: Arc<InboundMessageQueue>,
         channel: Arc<Channel>,
         publish_filter: Arc<NetworkFilter>,
@@ -116,7 +116,7 @@ impl ResponseServer {
         let network_constants = network_params.network.clone();
         let remote_endpoint = channel.remote_addr();
         Self {
-            network: Arc::downgrade(network),
+            network,
             inbound_queue,
             channel,
             disable_bootstrap_listener: false,
@@ -187,11 +187,7 @@ impl ResponseServer {
             return false;
         }
 
-        let Some(network) = self.network.upgrade() else {
-            return false;
-        };
-
-        if network.count_by_mode(ChannelMode::Bootstrap) >= self.connections_max {
+        if self.network.count_by_mode(ChannelMode::Bootstrap) >= self.connections_max {
             return false;
         }
 
@@ -222,7 +218,6 @@ impl ResponseServer {
     }
 
     fn queue_realtime(&self, message: Message) {
-        self.channel.set_last_packet_received(SystemTime::now());
         self.inbound_queue.put(message, self.channel.clone());
         // TODO: Throttle if not added
     }
@@ -287,15 +282,8 @@ impl ResponseServerExt for Arc<ResponseServer> {
             return false;
         }
 
-        let Some(network) = self.network.upgrade() else {
-            return false;
-        };
-
-        let remote = self.channel.remote_addr();
-
-        network.upgrade_to_realtime_connection(&remote, *node_id);
-        debug!("Switched to realtime mode ({})", self.remote_endpoint());
-        return true;
+        self.network
+            .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id)
     }
 
     async fn run(&self) {
@@ -406,7 +394,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             };
 
             match result {
-                HandshakeStatus::Abort => {
+                HandshakeStatus::Abort | HandshakeStatus::AbortOwnNodeId => {
                     self.stats.inc_dir(
                         StatType::TcpServer,
                         DetailType::HandshakeAbort,
@@ -417,6 +405,11 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         message.message_type(),
                         self.remote_endpoint()
                     );
+                    if matches!(result, HandshakeStatus::AbortOwnNodeId) {
+                        if let Some(peering_addr) = self.channel.peering_endpoint() {
+                            self.network.perma_ban(peering_addr);
+                        }
+                    }
                     return ProcessResult::Abort;
                 }
                 HandshakeStatus::Handshake => {

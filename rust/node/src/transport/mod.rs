@@ -47,7 +47,7 @@ pub(crate) use network_threads::*;
 pub use peer_cache_connector::*;
 pub use peer_cache_updater::*;
 pub use peer_connector::*;
-pub use peer_exclusion::PeerExclusion;
+pub(crate) use peer_exclusion::PeerExclusion;
 pub use realtime_message_handler::RealtimeMessageHandler;
 pub use response_server::*;
 pub(crate) use response_server_factory::*;

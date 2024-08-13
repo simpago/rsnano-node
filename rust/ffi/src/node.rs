@@ -33,7 +33,7 @@ use rsnano_core::{
 use rsnano_node::{
     consensus::{AccountBalanceChangedCallback, ElectionEndCallback},
     node::{Node, NodeExt},
-    transport::{ChannelDirection, ChannelId, PeerConnectorExt, TcpStream},
+    transport::{ChannelDirection, ChannelId, ChannelMode, PeerConnectorExt, TcpStream},
 };
 use std::{
     collections::VecDeque,
@@ -571,12 +571,11 @@ pub extern "C" fn rsn_node_fake_channel(handle: &NodeHandle) -> *mut ChannelHand
         .0
         .async_rt
         .tokio
-        .block_on(
-            handle
-                .0
-                .network
-                .add(TcpStream::new_null(), ChannelDirection::Inbound),
-        )
+        .block_on(handle.0.network.add(
+            TcpStream::new_null(),
+            ChannelDirection::Inbound,
+            ChannelMode::Realtime,
+        ))
         .unwrap();
 
     ChannelHandle::new(channel)

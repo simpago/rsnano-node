@@ -1,3 +1,4 @@
+use super::{Channel, Network};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapAscending, BootstrapServer},
@@ -8,19 +9,15 @@ use crate::{
     wallets::Wallets,
     Telemetry,
 };
-use peer_connector::PeerConnectorExt;
 use rsnano_core::VoteSource;
 use rsnano_messages::{Message, TelemetryAck};
 use std::{net::SocketAddrV6, sync::Arc};
 use tracing::trace;
 
-use super::{peer_connector, Channel, Network, PeerConnector};
-
 /// Handle realtime messages (as opposed to bootstrap messages)
 pub struct RealtimeMessageHandler {
     stats: Arc<Stats>,
     network: Arc<Network>,
-    peer_connector: Arc<PeerConnector>,
     block_processor: Arc<BlockProcessor>,
     config: NodeConfig,
     flags: NodeFlags,
@@ -36,7 +33,6 @@ impl RealtimeMessageHandler {
     pub fn new(
         stats: Arc<Stats>,
         network: Arc<Network>,
-        peer_connector: Arc<PeerConnector>,
         block_processor: Arc<BlockProcessor>,
         config: NodeConfig,
         flags: NodeFlags,
@@ -50,7 +46,6 @@ impl RealtimeMessageHandler {
         Self {
             stats,
             network,
-            peer_connector,
             block_processor,
             config,
             flags,
@@ -76,10 +71,8 @@ impl RealtimeMessageHandler {
                 // Check for special node port data
                 let peer0 = keepalive.peers[0];
                 if peer0.ip().is_unspecified() && peer0.port() != 0 {
-                    // TODO: Remove this as we do not need to establish a second connection to the same peer
                     let new_endpoint =
                         SocketAddrV6::new(*channel.remote_addr().ip(), peer0.port(), 0, 0);
-                    self.peer_connector.connect_to(new_endpoint);
 
                     // Remember this for future forwarding to other peers
                     channel.set_peering_endpoint(new_endpoint);
