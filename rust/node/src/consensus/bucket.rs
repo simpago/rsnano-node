@@ -3,7 +3,7 @@ use crate::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, StatType, Stats},
 };
-use rsnano_core::{utils::TomlWriter, Amount, BlockEnum, QualifiedRoot};
+use rsnano_core::{Amount, BlockEnum, QualifiedRoot};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -29,18 +29,6 @@ impl Default for PriorityBucketConfig {
             reserved_elections: 100,
             max_elections: 150,
         }
-    }
-}
-
-impl PriorityBucketConfig {
-    pub(crate) fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_blocks",
-            self.max_blocks,
-            "Maximum number of blocks to sort by priority per bucket. \nType: uint64",
-        )?;
-        toml.put_usize ("reserved_elections", self.reserved_elections, "Number of guaranteed slots per bucket available for election activation. \nType: uint64")?;
-        toml.put_usize ("max_elections", self.max_elections, "Maximum number of slots per bucket available for election activation if the active election count is below the configured limit. \nType: uint64")
     }
 }
 

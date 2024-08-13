@@ -10,10 +10,9 @@ use crate::{
         ActiveElectionsConfigDto, RequestAggregatorConfigDto, VoteCacheConfigDto,
         VoteProcessorConfigDto,
     },
-    fill_ipc_config_dto, fill_stat_config_dto,
-    utils::FfiToml,
-    BlockProcessorConfigDto, HintedSchedulerConfigDto, IpcConfigDto, NetworkParamsDto,
-    OptimisticSchedulerConfigDto, StatConfigDto, WebsocketConfigDto,
+    fill_ipc_config_dto, fill_stat_config_dto, BlockProcessorConfigDto, HintedSchedulerConfigDto,
+    IpcConfigDto, NetworkParamsDto, OptimisticSchedulerConfigDto, StatConfigDto,
+    WebsocketConfigDto,
 };
 use num::FromPrimitive;
 use rsnano_core::{utils::get_cpu_count, Account, Amount};
@@ -342,11 +341,7 @@ pub extern "C" fn rsn_node_config_serialize_toml(dto: &NodeConfigDto, toml: *mut
         Ok(c) => c,
         Err(_) => return -1,
     };
-    let mut toml = FfiToml::new(toml);
-    match cfg.serialize_toml(&mut toml) {
-        Ok(_) => 0,
-        Err(_) => -1,
-    }
+    0
 }
 
 impl From<&PeerDto> for Peer {

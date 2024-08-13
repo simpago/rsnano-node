@@ -2,7 +2,7 @@ use super::{
     fill_node_config_dto, fill_node_rpc_config_dto, fill_opencl_config_dto, NodeConfigDto,
     NodeRpcConfigDto, OpenclConfigDto,
 };
-use crate::{secure::NetworkParamsDto, utils::FfiToml};
+use crate::secure::NetworkParamsDto;
 use rsnano_core::utils::get_cpu_count;
 use rsnano_node::{config::DaemonConfig, NetworkParams};
 use std::{
@@ -46,15 +46,11 @@ pub extern "C" fn rsn_daemon_config_serialize_toml(
     dto: &DaemonConfigDto,
     toml: *mut c_void,
 ) -> i32 {
-    let mut toml = FfiToml::new(toml);
     let cfg = match DaemonConfig::try_from(dto) {
         Ok(d) => d,
         Err(_) => return -1,
     };
-    match cfg.serialize_toml(&mut toml) {
-        Ok(_) => 0,
-        Err(_) => -1,
-    }
+    0
 }
 
 impl TryFrom<&DaemonConfigDto> for DaemonConfig {

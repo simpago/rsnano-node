@@ -6,10 +6,7 @@ use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     transport::{Channel, ChannelId, DeadChannelCleanupStep, FairQueue, TrafficType},
 };
-use rsnano_core::{
-    utils::{ContainerInfoComponent, TomlWriter},
-    BlockHash, Root,
-};
+use rsnano_core::{utils::ContainerInfoComponent, BlockHash, Root};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
@@ -32,24 +29,6 @@ impl RequestAggregatorConfig {
             max_queue: 128,
             batch_size: 16,
         }
-    }
-
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_queue",
-            self.max_queue,
-            "Maximum number of queued requests per peer. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "threads",
-            self.threads,
-            "Number of threads for request processing. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "batch_size",
-            self.batch_size,
-            "Number of requests to process in a single batch. \ntype:uint64",
-        )
     }
 }
 

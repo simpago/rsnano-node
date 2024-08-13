@@ -33,12 +33,12 @@ impl GenerateConfigArgs {
             let network_params = NetworkParams::new(network);
             let mut config = DaemonConfig::new(&network_params, 0)?;
             config.node.peering_port = Some(network_params.network.default_node_port);
-            config.serialize_toml(&mut toml)?
+            //config.serialize_toml(&mut toml)?
         } else {
             config_type = "rpc";
             let network_constants = NetworkConstants::new(WorkThresholds::new(0, 0, 0), network);
             let config = RpcConfig::new(&network_constants, 0);
-            config.serialize_toml(&mut toml)?
+            //config.serialize_toml(&mut toml)?
         }
 
         println!("# This is an example configuration file for Nano. Visit https://docs.nano.org/running-a-node/configuration/ for more information.");

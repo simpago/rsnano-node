@@ -5,7 +5,7 @@ use crate::{
         FairQueue, TrafficType,
     },
 };
-use rsnano_core::{utils::TomlWriter, BlockEnum, BlockHash, Frontier};
+use rsnano_core::{BlockEnum, BlockHash, Frontier};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
@@ -35,26 +35,6 @@ impl Default for BootstrapServerConfig {
             threads: 1,
             batch_size: 64,
         }
-    }
-}
-
-impl BootstrapServerConfig {
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
-        toml.put_usize(
-            "max_queue",
-            self.max_queue,
-            "Maximum number of queued requests per peer. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "threads",
-            self.threads,
-            "Number of threads to process requests. \ntype:uint64",
-        )?;
-        toml.put_usize(
-            "batch_size",
-            self.batch_size,
-            "Maximum number of requests to process in a single batch. \ntype:uint64",
-        )
     }
 }
 

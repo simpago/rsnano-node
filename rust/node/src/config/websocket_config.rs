@@ -1,6 +1,4 @@
 use super::NetworkConstants;
-use anyhow::Result;
-use rsnano_core::utils::TomlWriter;
 use std::net::Ipv6Addr;
 
 #[derive(Clone)]
@@ -17,25 +15,6 @@ impl WebsocketConfig {
             port: network.default_websocket_port,
             address: Ipv6Addr::LOCALHOST.to_string(),
         }
-    }
-
-    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
-        toml.put_bool(
-            "enable",
-            self.enabled,
-            "Enable or disable WebSocket server.\ntype:bool",
-        )?;
-        toml.put_str(
-            "address",
-            &self.address,
-            "WebSocket server bind address.\ntype:string,ip",
-        )?;
-        toml.put_u16(
-            "port",
-            self.port,
-            "WebSocket server listening port.\ntype:uint16",
-        )?;
-        Ok(())
     }
 }
 
