@@ -1,6 +1,6 @@
 use super::{Channel, ChannelId, InboundMessageQueue, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
-use rsnano_core::utils::{get_cpu_count, TomlWriter};
+use rsnano_core::utils::get_cpu_count;
 use rsnano_messages::Message;
 use std::{
     cmp::{max, min},
@@ -28,7 +28,6 @@ impl MessageProcessorConfig {
         }
     }
 }
-
 
 impl Default for MessageProcessorConfig {
     fn default() -> Self {

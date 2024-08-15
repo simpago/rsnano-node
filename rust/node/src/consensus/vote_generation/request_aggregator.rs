@@ -6,7 +6,10 @@ use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     transport::{ChannelId, DeadChannelCleanupStep, FairQueue, Network, TrafficType},
 };
-use rsnano_core::{utils::ContainerInfoComponent, BlockHash, Root};
+use rsnano_core::{
+    utils::{get_cpu_count, ContainerInfoComponent},
+    BlockHash, Root,
+};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{

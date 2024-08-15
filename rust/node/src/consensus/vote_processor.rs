@@ -3,10 +3,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
     transport::ChannelId,
 };
-use rsnano_core::{
-    utils::{get_cpu_count, TomlWriter},
-    Vote, VoteCode, VoteSource,
-};
+use rsnano_core::{utils::get_cpu_count, Vote, VoteCode, VoteSource};
 use std::{
     cmp::{max, min},
     sync::{
@@ -47,8 +44,6 @@ impl Default for VoteProcessorConfig {
         Self::new(parallelism)
     }
 }
-
-
 
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,

@@ -1,5 +1,4 @@
 use super::get_default_rpc_filepath;
-use anyhow::Result;
 use std::path::PathBuf;
 
 #[derive(Debug, PartialEq)]

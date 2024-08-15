@@ -15,7 +15,7 @@ use crate::{
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
 use rsnano_core::{
-    utils::{get_env_or_default_string, is_sanitizer_build},
+    utils::{get_cpu_count, get_env_or_default_string, is_sanitizer_build},
     Account, Amount, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
@@ -384,7 +384,7 @@ impl NodeConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MonitorConfig {
     pub enabled: bool,
     pub interval: Duration,

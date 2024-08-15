@@ -1,3 +1,4 @@
+#[derive(Debug, PartialEq)]
 pub struct OpenclConfig {
     pub platform: u32,
     pub device: u32,
