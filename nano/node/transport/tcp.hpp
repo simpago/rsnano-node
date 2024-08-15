@@ -69,7 +69,6 @@ namespace transport
 		void purge (std::chrono::system_clock::time_point const & cutoff_deadline);
 		std::deque<std::shared_ptr<nano::transport::channel>> list (std::size_t max_count = 0, uint8_t = 0);
 		std::deque<std::shared_ptr<nano::transport::channel>> random_fanout (float scale = 1.0f);
-		void flood_message (nano::message & msg, float scale);
 
 		void random_fill (std::array<nano::endpoint, 8> &) const;
 		uint16_t port () const;

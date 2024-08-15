@@ -1,6 +1,6 @@
+use super::{ActiveElections, ElectionBehavior, VoteCache};
 use crate::{
     cementation::ConfirmingSet,
-    config::HintedSchedulerConfig,
     consensus::ActiveElectionsExt,
     representatives::OnlineReps,
     stats::{DetailType, StatType, Stats},
@@ -19,10 +19,39 @@ use std::{
         Arc, Condvar, Mutex,
     },
     thread::JoinHandle,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
-use super::{ActiveElections, ElectionBehavior, VoteCache};
+#[derive(Clone, Debug, PartialEq)]
+pub struct HintedSchedulerConfig {
+    pub enabled: bool,
+    pub check_interval: Duration,
+    pub block_cooldown: Duration,
+    pub hinting_threshold_percent: u32,
+    pub vacancy_threshold_percent: u32,
+}
+
+impl HintedSchedulerConfig {
+    pub fn default_for_dev_network() -> Self {
+        Self {
+            check_interval: Duration::from_millis(100),
+            block_cooldown: Duration::from_millis(100),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for HintedSchedulerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            check_interval: Duration::from_millis(1000),
+            block_cooldown: Duration::from_millis(5000),
+            hinting_threshold_percent: 10,
+            vacancy_threshold_percent: 20,
+        }
+    }
+}
 
 /// Monitors inactive vote cache and schedules elections with the highest observed vote tally.
 pub struct HintedScheduler {
@@ -230,7 +259,7 @@ impl HintedScheduler {
             .unwrap()
             .trended_weight_or_minimum_online_weight()
             / 100)
-            * self.config.hinting_theshold_percent as u128
+            * self.config.hinting_threshold_percent as u128
     }
 
     fn final_tally_threshold(&self) -> Amount {

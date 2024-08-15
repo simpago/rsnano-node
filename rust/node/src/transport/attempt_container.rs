@@ -71,10 +71,6 @@ impl AttemptContainer {
         }
     }
 
-    pub fn contains(&self, remote_endpoint: &SocketAddrV6) -> bool {
-        self.by_endpoint.contains_key(remote_endpoint)
-    }
-
     pub fn count_by_subnetwork(&self, subnet: &Ipv6Addr) -> usize {
         match self.by_subnetwork.get(subnet) {
             Some(entries) => entries.len(),

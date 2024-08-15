@@ -5,7 +5,7 @@ use crate::{
     config::{NetworkConstants, NodeConfig},
     representatives::OnlineReps,
     stats::Stats,
-    transport::{DropPolicy, Network},
+    transport::{DropPolicy, MessagePublisher},
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
     work::DistributedWorkFactory,
     NetworkParams,
@@ -51,11 +51,11 @@ pub enum WalletsError {
 pub type WalletsIterator<'txn> = BinaryDbIterator<'txn, [u8; 64], NoValue>;
 
 pub struct Wallets {
-    pub handle: Option<LmdbDatabase>,
-    pub send_action_ids_handle: Option<LmdbDatabase>,
+    db: Option<LmdbDatabase>,
+    send_action_ids_handle: Option<LmdbDatabase>,
     env: Arc<LmdbEnv>,
     pub mutex: Mutex<HashMap<WalletId, Arc<Wallet>>>,
-    pub node_config: NodeConfig,
+    node_config: NodeConfig,
     ledger: Arc<Ledger>,
     last_log: Mutex<Option<Instant>>,
     distributed_work: Arc<DistributedWorkFactory>,
@@ -63,14 +63,14 @@ pub struct Wallets {
     network_params: NetworkParams,
     pub delayed_work: Mutex<HashMap<Account, Root>>,
     workers: Arc<dyn ThreadPool>,
-    pub wallet_actions: WalletActionThread,
+    wallet_actions: WalletActionThread,
     block_processor: Arc<BlockProcessor>,
     pub representative_wallets: Mutex<WalletRepresentatives>,
     online_reps: Arc<Mutex<OnlineReps>>,
     pub kdf: KeyDerivationFunction,
-    network: Arc<Network>,
     start_election: Mutex<Option<Box<dyn Fn(Arc<BlockEnum>) + Send + Sync>>>,
     confirming_set: Arc<ConfirmingSet>,
+    message_publisher: Mutex<MessagePublisher>,
 }
 
 impl Wallets {
@@ -93,12 +93,12 @@ impl Wallets {
                 Duration::default(),
                 Amount::zero(),
             ))),
-            Arc::new(Network::new_null()),
             Arc::new(ConfirmingSet::new(
                 ConfirmingSetConfig::default(),
                 Arc::new(Ledger::new_null()),
                 Arc::new(Stats::default()),
             )),
+            MessagePublisher::new_null(),
         )
     }
 
@@ -113,12 +113,12 @@ impl Wallets {
         workers: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,
         online_reps: Arc<Mutex<OnlineReps>>,
-        network: Arc<Network>,
         confirming_set: Arc<ConfirmingSet>,
+        message_publisher: MessagePublisher,
     ) -> anyhow::Result<Self> {
         let kdf = KeyDerivationFunction::new(kdf_work);
         let mut wallets = Self {
-            handle: None,
+            db: None,
             send_action_ids_handle: None,
             mutex: Mutex::new(HashMap::new()),
             env,
@@ -138,9 +138,9 @@ impl Wallets {
             )),
             online_reps,
             kdf: kdf.clone(),
-            network,
             start_election: Mutex::new(None),
             confirming_set,
+            message_publisher: Mutex::new(message_publisher),
         };
         let mut txn = wallets.env.tx_begin_write();
         wallets.initialize(&mut txn)?;
@@ -196,7 +196,7 @@ impl Wallets {
     }
 
     pub fn initialize(&mut self, txn: &mut LmdbWriteTransaction) -> anyhow::Result<()> {
-        self.handle = Some(unsafe { txn.rw_txn_mut().create_db(None, DatabaseFlags::empty())? });
+        self.db = Some(unsafe { txn.rw_txn_mut().create_db(None, DatabaseFlags::empty())? });
         self.send_action_ids_handle = Some(unsafe {
             txn.rw_txn_mut()
                 .create_db(Some("send_action_ids"), DatabaseFlags::empty())?
@@ -216,7 +216,7 @@ impl Wallets {
         let hash_bytes: [u8; 64] = hash.as_bytes().try_into().unwrap();
         WalletsIterator::new(LmdbIteratorImpl::new(
             txn,
-            self.handle.unwrap(),
+            self.db.unwrap(),
             Some(&hash_bytes),
             true,
         ))
@@ -645,8 +645,10 @@ impl Wallets {
         if let Some(block) = &block {
             cached_block = true;
             let msg = Message::Publish(Publish::new_forward(block.clone()));
-            self.network
-                .flood_message2(&msg, DropPolicy::ShouldNotDrop, 1.0);
+            self.message_publisher
+                .lock()
+                .unwrap()
+                .flood(&msg, DropPolicy::ShouldNotDrop, 1.0);
         } else {
             cached_block = false;
             if wallet.store.valid_password(tx) {

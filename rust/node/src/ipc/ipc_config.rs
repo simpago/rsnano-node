@@ -2,7 +2,7 @@ use crate::config::NetworkConstants;
 use std::path::PathBuf;
 
 /** Base for transport configurations */
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IpcConfigTransport {
     pub enabled: bool,
     pub allow_unsafe: bool,
@@ -30,7 +30,7 @@ impl IpcConfigTransport {
 /**
  * Flatbuffers encoding config. See TOML serialization calls for details about each field.
  */
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IpcConfigFlatbuffers {
     pub skip_unexpected_fields_in_json: bool,
     pub verify_buffers: bool,
@@ -52,7 +52,7 @@ impl IpcConfigFlatbuffers {
 }
 
 /** Domain socket specific transport config */
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IpcConfigDomainSocket {
     pub transport: IpcConfigTransport,
     /**
@@ -78,7 +78,7 @@ impl IpcConfigDomainSocket {
 }
 
 /** TCP specific transport config */
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IpcConfigTcpSocket {
     pub transport: IpcConfigTransport,
     pub network_constants: NetworkConstants,
@@ -96,7 +96,13 @@ impl IpcConfigTcpSocket {
     }
 }
 
-#[derive(Clone)]
+impl Default for IpcConfigTcpSocket {
+    fn default() -> Self {
+        Self::new(&NetworkConstants::default())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct IpcConfig {
     pub transport_domain: IpcConfigDomainSocket,
     pub transport_tcp: IpcConfigTcpSocket,
@@ -110,5 +116,11 @@ impl IpcConfig {
             transport_tcp: IpcConfigTcpSocket::new(network_constants),
             flatbuffers: IpcConfigFlatbuffers::new(),
         }
+    }
+}
+
+impl Default for IpcConfig {
+    fn default() -> Self {
+        Self::new(&NetworkConstants::default())
     }
 }

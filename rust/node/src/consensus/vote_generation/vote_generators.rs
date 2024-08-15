@@ -3,7 +3,7 @@ use crate::{
     config::NodeConfig,
     consensus::VoteBroadcaster,
     stats::Stats,
-    transport::{Channel, MessagePublisher},
+    transport::{ChannelId, MessagePublisher},
     wallets::Wallets,
     NetworkParams,
 };
@@ -76,9 +76,9 @@ impl VoteGenerators {
     pub(crate) fn generate_final_votes(
         &self,
         blocks: &[Arc<BlockEnum>],
-        channel: Arc<Channel>,
+        channel_id: ChannelId,
     ) -> usize {
-        self.final_vote_generator.generate(blocks, channel)
+        self.final_vote_generator.generate(blocks, channel_id)
     }
 
     pub fn generate_non_final_vote(&self, root: &Root, hash: &BlockHash) {
@@ -88,9 +88,9 @@ impl VoteGenerators {
     pub fn generate_non_final_votes(
         &self,
         blocks: &[Arc<BlockEnum>],
-        channel: Arc<Channel>,
+        channel_id: ChannelId,
     ) -> usize {
-        self.non_final_vote_generator.generate(blocks, channel)
+        self.non_final_vote_generator.generate(blocks, channel_id)
     }
 
     pub(crate) fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{Channel, ChannelId, DeadChannelCleanupStep, FairQueue, TrafficType},
+    transport::{ChannelId, DeadChannelCleanupStep, FairQueue, Network, TrafficType},
 };
 use rsnano_core::{utils::ContainerInfoComponent, BlockHash, Root};
 use rsnano_ledger::Ledger;
@@ -15,7 +15,7 @@ use std::{
     thread::JoinHandle,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RequestAggregatorConfig {
     pub threads: usize,
     pub max_queue: usize,
@@ -29,6 +29,12 @@ impl RequestAggregatorConfig {
             max_queue: 128,
             batch_size: 16,
         }
+    }
+}
+
+impl Default for RequestAggregatorConfig {
+    fn default() -> Self {
+        Self::new(get_cpu_count())
     }
 }
 
@@ -48,6 +54,7 @@ pub struct RequestAggregator {
     state: Arc<Mutex<RequestAggregatorState>>,
     condition: Arc<Condvar>,
     threads: Mutex<Vec<JoinHandle<()>>>,
+    network: Arc<Network>,
 }
 
 impl RequestAggregator {
@@ -56,6 +63,7 @@ impl RequestAggregator {
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
         ledger: Arc<Ledger>,
+        network: Arc<Network>,
     ) -> Self {
         let max_queue = config.max_queue;
         Self {
@@ -69,6 +77,7 @@ impl RequestAggregator {
                 stopped: false,
             })),
             threads: Mutex::new(Vec::new()),
+            network,
         }
     }
 
@@ -82,6 +91,7 @@ impl RequestAggregator {
                 config: self.config.clone(),
                 ledger: self.ledger.clone(),
                 vote_generators: self.vote_generators.clone(),
+                network: self.network.clone(),
             };
 
             guard.push(
@@ -93,20 +103,14 @@ impl RequestAggregator {
         }
     }
 
-    pub fn request(&self, request: RequestType, channel: Arc<Channel>) -> bool {
+    pub fn request(&self, request: RequestType, channel_id: ChannelId) -> bool {
         if request.is_empty() {
             return false;
         }
 
         let request_len = request.len();
 
-        let added = {
-            self.state
-                .lock()
-                .unwrap()
-                .queue
-                .push(channel.channel_id(), (request, channel.clone()))
-        };
+        let added = { self.state.lock().unwrap().queue.push(channel_id, request) };
 
         if added {
             self.stats
@@ -178,10 +182,9 @@ impl Drop for RequestAggregator {
 }
 
 type RequestType = Vec<(BlockHash, Root)>;
-type ValueType = (RequestType, Arc<Channel>);
 
 struct RequestAggregatorState {
-    queue: FairQueue<ChannelId, ValueType>,
+    queue: FairQueue<ChannelId, RequestType>,
     stopped: bool,
 }
 
@@ -192,6 +195,7 @@ struct RequestAggregatorLoop {
     config: RequestAggregatorConfig,
     ledger: Arc<Ledger>,
     vote_generators: Arc<VoteGenerators>,
+    network: Arc<Network>,
 }
 
 impl RequestAggregatorLoop {
@@ -218,11 +222,14 @@ impl RequestAggregatorLoop {
 
         let mut tx = self.ledger.read_txn();
 
-        for (_, (request, channel)) in &batch {
+        for (channel_id, request) in &batch {
             tx.refresh_if_needed();
 
-            if !channel.max(TrafficType::Generic) {
-                self.process(&tx, request, channel);
+            if !self
+                .network
+                .is_queue_full(*channel_id, TrafficType::Generic)
+            {
+                self.process(&tx, request, *channel_id);
             } else {
                 self.stats.inc_dir(
                     StatType::RequestAggregator,
@@ -235,7 +242,7 @@ impl RequestAggregatorLoop {
         self.mutex.lock().unwrap()
     }
 
-    fn process(&self, tx: &LmdbReadTransaction, request: &RequestType, channel: &Arc<Channel>) {
+    fn process(&self, tx: &LmdbReadTransaction, request: &RequestType, channel_id: ChannelId) {
         let remaining = self.aggregate(tx, request);
 
         if !remaining.remaining_normal.is_empty() {
@@ -245,7 +252,7 @@ impl RequestAggregatorLoop {
             // Generate votes for the remaining hashes
             let generated = self
                 .vote_generators
-                .generate_non_final_votes(&remaining.remaining_normal, channel.clone());
+                .generate_non_final_votes(&remaining.remaining_normal, channel_id);
             self.stats.add_dir(
                 StatType::Requests,
                 DetailType::RequestsCannotVote,
@@ -261,7 +268,7 @@ impl RequestAggregatorLoop {
             // Generate final votes for the remaining hashes
             let generated = self
                 .vote_generators
-                .generate_final_votes(&remaining.remaining_final, channel.clone());
+                .generate_final_votes(&remaining.remaining_final, channel_id);
             self.stats.add_dir(
                 StatType::Requests,
                 DetailType::RequestsCannotVote,

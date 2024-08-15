@@ -1,11 +1,10 @@
-use super::helpers::{assert_timely_eq, assert_timely_msg, System};
+use super::helpers::{assert_timely_eq, assert_timely_msg, make_fake_channel, System};
 use rsnano_core::{Amount, BlockEnum, BlockHash, KeyPair, StateBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::ConfirmAck;
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeFlags},
     stats::{DetailType, Direction, StatType},
-    transport::Channel,
     wallets::WalletsExt,
 };
 use std::{sync::Arc, time::Duration};
@@ -36,10 +35,10 @@ fn one() {
 
     let request = vec![(send1.hash(), send1.root())];
 
-    // Not yet in the ledger
-    let dummy_channel = Arc::new(Channel::new_null());
+    let channel = make_fake_channel(&node);
+
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), channel.channel_id());
     assert_timely_msg(
         Duration::from_secs(3),
         || node.request_aggregator.is_empty(),
@@ -63,9 +62,10 @@ fn one() {
         .unwrap();
     node.confirm(send1.hash());
 
+    let channel = make_fake_channel(&node);
     // In the ledger but no vote generated yet
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), channel.channel_id());
     assert_timely_msg(
         Duration::from_secs(3),
         || node.request_aggregator.is_empty(),
@@ -85,7 +85,9 @@ fn one() {
 
     // Already cached
     // TODO: This is outdated, aggregator should not be using cache
-    node.request_aggregator.request(request, dummy_channel);
+    let dummy_channel = make_fake_channel(&node);
+    node.request_aggregator
+        .request(request, dummy_channel.channel_id());
     assert_timely_msg(
         Duration::from_secs(3),
         || node.request_aggregator.is_empty(),
@@ -200,16 +202,16 @@ fn one_update() {
     node.process(receive1.clone()).unwrap();
     node.confirm(receive1.hash());
 
-    let dummy_channel = Arc::new(Channel::new_null());
+    let dummy_channel = make_fake_channel(&node);
 
     let request1 = vec![(send2.hash(), send2.root())];
     node.request_aggregator
-        .request(request1, dummy_channel.clone());
+        .request(request1, dummy_channel.channel_id());
 
     // Update the pool of requests with another hash
     let request2 = vec![(receive1.hash(), receive1.root())];
     node.request_aggregator
-        .request(request2, dummy_channel.clone());
+        .request(request2, dummy_channel.channel_id());
 
     // In the ledger but no vote generated yet
     assert_timely_msg(
@@ -348,11 +350,11 @@ fn two() {
         (send2.hash(), send2.root()),
         (receive1.hash(), receive1.root()),
     ];
-    let dummy_channel = Arc::new(Channel::new_null());
+    let dummy_channel = make_fake_channel(&node);
 
     // Process both blocks
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), dummy_channel.channel_id());
     // One vote should be generated for both blocks
     assert_timely_msg(
         Duration::from_secs(3),
@@ -372,7 +374,7 @@ fn two() {
     );
     // The same request should now send the cached vote
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), dummy_channel.channel_id());
     assert_timely_msg(
         Duration::from_secs(3),
         || node.request_aggregator.is_empty(),
@@ -486,8 +488,9 @@ fn split() {
     node.confirm(blocks.last().unwrap().hash());
     assert_eq!(node.ledger.cemented_count(), MAX_VBH as u64 + 2);
     assert_eq!(MAX_VBH + 1, request.len());
-    let dummy_channel = Arc::new(Channel::new_null());
-    node.request_aggregator.request(request, dummy_channel);
+    let dummy_channel = make_fake_channel(&node);
+    node.request_aggregator
+        .request(request, dummy_channel.channel_id());
     // In the ledger but no vote generated yet
     assert_timely_eq(
         Duration::from_secs(3),
@@ -569,11 +572,11 @@ fn channel_max_queue() {
     node.process(send1.clone()).unwrap();
 
     let request = vec![(send1.hash(), send1.root())];
-    let channel = Arc::new(Channel::new_null());
+    let channel = make_fake_channel(&node);
     node.request_aggregator
-        .request(request.clone(), channel.clone());
+        .request(request.clone(), channel.channel_id());
     node.request_aggregator
-        .request(request.clone(), channel.clone());
+        .request(request.clone(), channel.channel_id());
 
     assert!(
         node.stats.count(
@@ -629,9 +632,9 @@ fn cannot_vote() {
 
     // correct + incorrect
     let request = vec![(send2.hash(), send2.root()), (1.into(), send2.root())];
-    let dummy_channel = Arc::new(Channel::new_null());
+    let dummy_channel = make_fake_channel(&node);
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), dummy_channel.channel_id());
 
     assert_timely_msg(
         Duration::from_secs(3),
@@ -691,7 +694,7 @@ fn cannot_vote() {
     );
 
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), dummy_channel.channel_id());
 
     assert_timely_msg(
         Duration::from_secs(3),
@@ -747,7 +750,7 @@ fn cannot_vote() {
     node.confirm(send2.hash());
 
     node.request_aggregator
-        .request(request.clone(), dummy_channel.clone());
+        .request(request.clone(), dummy_channel.channel_id());
 
     assert_timely_msg(
         Duration::from_secs(3),

@@ -6,7 +6,9 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{AcceptResult, ChannelDirection, ChannelMode, Network, TcpStreamFactory},
+    transport::{
+        AcceptResult, ChannelDirection, ChannelMode, MessagePublisher, Network, TcpStreamFactory,
+    },
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
 use ordered_float::OrderedFloat;
@@ -42,6 +44,7 @@ pub struct BootstrapConnections {
     block_processor: Arc<BlockProcessor>,
     bootstrap_initiator: Mutex<Option<Weak<BootstrapInitiator>>>,
     pulls_cache: Arc<Mutex<PullsCache>>,
+    message_publisher: MessagePublisher,
 }
 
 impl BootstrapConnections {
@@ -54,6 +57,7 @@ impl BootstrapConnections {
         stats: Arc<Stats>,
         block_processor: Arc<BlockProcessor>,
         pulls_cache: Arc<Mutex<PullsCache>>,
+        message_publisher: MessagePublisher,
     ) -> Self {
         Self {
             condition: Condvar::new(),
@@ -75,6 +79,7 @@ impl BootstrapConnections {
             block_processor,
             pulls_cache,
             bootstrap_initiator: Mutex::new(None),
+            message_publisher,
         }
     }
 
@@ -95,6 +100,7 @@ impl BootstrapConnections {
             block_processor: Arc::new(BlockProcessor::new_null()),
             bootstrap_initiator: Mutex::new(None),
             pulls_cache: Arc::new(Mutex::new(PullsCache::new())),
+            message_publisher: MessagePublisher::new_null(),
         }
     }
 
@@ -572,7 +578,11 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
 
             channel.set_mode(ChannelMode::Bootstrap);
 
-            let client = Arc::new(BootstrapClient::new(&self_l, channel));
+            let client = Arc::new(BootstrapClient::new(
+                &self_l,
+                channel,
+                self_l.message_publisher.clone(),
+            ));
             self_l.connections_count.fetch_add(1, Ordering::SeqCst);
             self_l.network.remove_attempt(&peer_addr);
             self_l.pool_connection(client, true, push_front);

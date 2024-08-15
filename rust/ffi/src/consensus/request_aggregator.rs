@@ -26,7 +26,7 @@ pub extern "C" fn rsn_request_aggregator_add(
 ) -> bool {
     handle
         .0
-        .request(hashes_roots.0.clone(), Arc::clone(channel))
+        .request(hashes_roots.0.clone(), channel.channel_id())
 }
 
 #[no_mangle]

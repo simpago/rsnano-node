@@ -99,8 +99,8 @@ impl<'a> ConfirmationSolicitor<'a> {
             }
         }
         // Random flood for block propagation
-        self.network
-            .flood_message2(&winner, DropPolicy::CanDrop, 0.5);
+        self.message_publisher
+            .flood(&winner, DropPolicy::CanDrop, 0.5);
         Ok(())
     }
 
@@ -132,7 +132,10 @@ impl<'a> ConfirmationSolicitor<'a> {
             if !exists || !is_final || different {
                 let request_queue = self.requests.entry(rep.channel_id).or_default();
                 self.channels.insert(rep.channel_id);
-                if !self.network.max(rep.channel_id, TrafficType::Generic) {
+                if !self
+                    .network
+                    .is_queue_full(rep.channel_id, TrafficType::Generic)
+                {
                     request_queue.push((winner.hash(), winner.root()));
                     if !different {
                         count += 1;

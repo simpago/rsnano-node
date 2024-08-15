@@ -410,7 +410,7 @@ fn inactive_votes_cache_election_start() {
         .unwrap()
         .trended_weight_or_minimum_online_weight()
         / 100)
-        * node.config.hinted_scheduler.hinting_theshold_percent as u128)
+        * node.config.hinted_scheduler.hinting_threshold_percent as u128)
         / 2
         + Amount::nano(1_000_000);
 
@@ -557,6 +557,7 @@ fn republish_winner() {
 
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || node1.block_exists(&send1.hash()));
+
     assert_timely_eq(
         Duration::from_secs(3),
         || {
@@ -581,6 +582,7 @@ fn republish_winner() {
         node1.process_active(fork.clone());
         assert_timely(Duration::from_secs(5), || node1.active.active(&fork));
     }
+
     assert_timely(Duration::from_secs(3), || node1.active.len() > 0);
     assert_eq!(
         1,
@@ -603,13 +605,16 @@ fn republish_winner() {
     assert_timely(Duration::from_secs(5), || {
         node1.vote_router.active(&fork.hash())
     });
+
     let election = node1.active.election(&fork.qualified_root()).unwrap();
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![fork.hash()]));
     node1
         .vote_processor_queue
         .vote(vote, ChannelId::from(111), VoteSource::Live);
     assert_timely(Duration::from_secs(5), || node1.active.confirmed(&election));
+
     assert_eq!(fork.hash(), election.winner_hash().unwrap());
+
     assert_timely(Duration::from_secs(5), || {
         node2.block_confirmed(&fork.hash())
     });

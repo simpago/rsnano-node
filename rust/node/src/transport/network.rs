@@ -205,7 +205,7 @@ impl Network {
             self.get_next_channel_id(),
             stream,
             direction,
-            self.network_params.network.protocol_info(),
+            self.network_params.network.protocol_info().version_using,
             self.stats.clone(),
             self.limiter.clone(),
         )
@@ -294,13 +294,6 @@ impl Network {
         self.state.lock().unwrap().attempts.remove(&remote);
     }
 
-    pub fn find_channels_by_remote_addr(&self, endpoint: &SocketAddrV6) -> Vec<Arc<Channel>> {
-        self.state
-            .lock()
-            .unwrap()
-            .find_channels_by_remote_addr(endpoint)
-    }
-
     pub fn find_realtime_channel_by_remote_addr(
         &self,
         endpoint: &SocketAddrV6,
@@ -311,20 +304,10 @@ impl Network {
             .find_realtime_channel_by_remote_addr(endpoint)
     }
 
-    pub(crate) fn find_channels_by_peering_addr(
-        &self,
-        peering_addr: &SocketAddrV6,
-    ) -> Vec<Arc<Channel>> {
-        self.state
-            .lock()
-            .unwrap()
-            .find_channels_by_peering_addr(peering_addr)
-    }
-
     pub(crate) fn find_realtime_channel_by_peering_addr(
         &self,
         peering_addr: &SocketAddrV6,
-    ) -> Option<Arc<Channel>> {
+    ) -> Option<ChannelId> {
         self.state
             .lock()
             .unwrap()
@@ -361,13 +344,13 @@ impl Network {
             .random_realtime_channels(count, min_version)
     }
 
-    pub(crate) fn max(&self, channel_id: ChannelId, traffic_type: TrafficType) -> bool {
+    pub(crate) fn is_queue_full(&self, channel_id: ChannelId, traffic_type: TrafficType) -> bool {
         self.state
             .lock()
             .unwrap()
             .channels
             .get_by_id(channel_id)
-            .map(|c| c.max(traffic_type))
+            .map(|c| c.is_queue_full(traffic_type))
             .unwrap_or(true)
     }
 
@@ -385,17 +368,24 @@ impl Network {
         }
     }
 
-    pub(crate) fn flood_message2(&self, message: &Message, drop_policy: DropPolicy, scale: f32) {
-        let channels = self.random_fanout_realtime(scale);
-        for channel in channels {
-            channel.try_send(message, drop_policy, TrafficType::Generic)
-        }
-    }
+    pub async fn send_buffer(
+        &self,
+        channel_id: ChannelId,
+        buffer: &[u8],
+        traffic_type: TrafficType,
+    ) -> anyhow::Result<()> {
+        let channel = self
+            .state
+            .lock()
+            .unwrap()
+            .channels
+            .get_by_id(channel_id)
+            .cloned();
 
-    pub fn flood_message(&self, message: &Message, scale: f32) {
-        let channels = self.random_fanout_realtime(scale);
-        for channel in channels {
-            channel.try_send(message, DropPolicy::CanDrop, TrafficType::Generic)
+        if let Some(channel) = channel {
+            channel.send_buffer(buffer, traffic_type).await
+        } else {
+            Err(anyhow!("Channel not found"))
         }
     }
 
@@ -464,22 +454,20 @@ impl Network {
             return false;
         }
 
-        if mode != ChannelMode::Bootstrap {
-            // Don't connect to nodes that already sent us something
-            if state
-                .find_channels_by_remote_addr(peer)
-                .iter()
-                .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
-            {
-                return false;
-            }
-            if state
-                .find_channels_by_peering_addr(peer)
-                .iter()
-                .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
-            {
-                return false;
-            }
+        // Don't connect to nodes that already sent us something
+        if state
+            .find_channels_by_remote_addr(peer)
+            .iter()
+            .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
+        {
+            return false;
+        }
+        if state
+            .find_channels_by_peering_addr(peer)
+            .iter()
+            .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
+        {
+            return false;
         }
 
         if state.check_limits(peer, ChannelDirection::Outbound, self.clock.now())
@@ -665,7 +653,7 @@ impl State {
         let mut channel_id = None;
         for channel in self.channels.iter_by_last_bootstrap_attempt() {
             if channel.mode() == ChannelMode::Realtime
-                && channel.network_version() >= self.network_constants.protocol_version_min
+                && channel.protocol_version() >= self.network_constants.protocol_version_min
             {
                 if let Some(peering) = channel.peering_endpoint() {
                     channel_id = Some(channel.channel_id());
@@ -721,7 +709,7 @@ impl State {
         self.channels
             .iter()
             .filter(|c| {
-                c.network_version() >= min_version
+                c.protocol_version() >= min_version
                     && c.is_alive()
                     && c.mode() == ChannelMode::Realtime
             })
@@ -768,13 +756,13 @@ impl State {
     pub fn find_realtime_channel_by_peering_addr(
         &self,
         peering_addr: &SocketAddrV6,
-    ) -> Option<Arc<Channel>> {
+    ) -> Option<ChannelId> {
         self.channels
             .get_by_peering_addr(peering_addr)
             .drain(..)
             .filter(|c| c.mode() == ChannelMode::Realtime && c.is_alive())
             .next()
-            .cloned()
+            .map(|c| c.channel_id())
     }
 
     pub(crate) fn find_channels_by_peering_addr(

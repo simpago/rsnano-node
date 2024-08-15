@@ -1,4 +1,4 @@
-use rsnano_node::config::{HintedSchedulerConfig, OptimisticSchedulerConfig};
+use rsnano_node::consensus::{HintedSchedulerConfig, OptimisticSchedulerConfig};
 use std::time::Duration;
 
 #[repr(C)]
@@ -63,7 +63,7 @@ impl From<&HintedSchedulerConfig> for HintedSchedulerConfigDto {
             enabled: value.enabled,
             check_interval_ms: value.check_interval.as_millis() as u32,
             block_cooldown_ms: value.block_cooldown.as_millis() as u32,
-            hinting_threshold_percent: value.hinting_theshold_percent,
+            hinting_threshold_percent: value.hinting_threshold_percent,
             vacancy_threshold_percent: value.vacancy_threshold_percent,
         }
     }
@@ -75,7 +75,7 @@ impl From<&HintedSchedulerConfigDto> for HintedSchedulerConfig {
             enabled: value.enabled,
             check_interval: Duration::from_millis(value.check_interval_ms as u64),
             block_cooldown: Duration::from_millis(value.block_cooldown_ms as u64),
-            hinting_theshold_percent: value.hinting_threshold_percent,
+            hinting_threshold_percent: value.hinting_threshold_percent,
             vacancy_threshold_percent: value.vacancy_threshold_percent,
         }
     }

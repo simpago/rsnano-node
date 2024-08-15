@@ -34,7 +34,7 @@ impl From<&GlobalConfig> for BootstrapAscendingConfig {
             timeout: config.timeout,
             throttle_coefficient: config.throttle_coefficient,
             throttle_wait: config.throttle_wait,
-            account_sets: (&config.account_sets).into(),
+            account_sets: config.account_sets.clone(),
             block_wait_count: config.block_wait_count,
             min_protocol_version: value.network_params.network.bootstrap_protocol_version_min,
         }
@@ -42,23 +42,32 @@ impl From<&GlobalConfig> for BootstrapAscendingConfig {
 }
 
 impl From<&AccountSetsToml> for AccountSetsConfig {
-    fn from(value: &AccountSetsToml) -> Self {
-        Self {
-            consideration_count: value.consideration_count,
-            priorities_max: value.priorities_max,
-            blocking_max: value.blocking_max,
-            cooldown: value.cooldown,
+    fn from(toml: &AccountSetsToml) -> Self {
+        let mut config = AccountSetsConfig::default();
+
+        if let Some(blocking_max) = toml.blocking_max {
+            config.blocking_max = blocking_max;
         }
+        if let Some(consideration_count) = toml.consideration_count {
+            config.consideration_count = consideration_count;
+        }
+        if let Some(priorities_max) = toml.priorities_max {
+            config.priorities_max = priorities_max;
+        }
+        if let Some(cooldown) = &toml.cooldown {
+            config.cooldown = Duration::from_millis(*cooldown);
+        }
+        config
     }
 }
 
 impl From<&AccountSetsConfig> for AccountSetsToml {
     fn from(value: &AccountSetsConfig) -> Self {
         Self {
-            consideration_count: value.consideration_count,
-            priorities_max: value.priorities_max,
-            blocking_max: value.blocking_max,
-            cooldown: value.cooldown,
+            consideration_count: Some(value.consideration_count),
+            priorities_max: Some(value.priorities_max),
+            blocking_max: Some(value.blocking_max),
+            cooldown: Some(value.cooldown.as_millis() as u64),
         }
     }
 }

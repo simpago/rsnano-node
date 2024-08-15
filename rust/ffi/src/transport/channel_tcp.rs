@@ -10,5 +10,5 @@ pub unsafe extern "C" fn rsn_channel_tcp_remote_endpoint(
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_channel_tcp_network_version(handle: &ChannelHandle) -> u8 {
-    handle.network_version()
+    handle.protocol_version()
 }

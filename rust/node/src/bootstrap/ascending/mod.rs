@@ -24,7 +24,7 @@ use crate::{
 use num::integer::sqrt;
 use rand::{thread_rng, RngCore};
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, TomlWriter},
     Account, BlockEnum, HashOrAccount,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
@@ -605,7 +605,7 @@ fn compute_throttle_size(ledger: &Ledger, config: &BootstrapAscendingConfig) -> 
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapAscendingConfig {
     /// Maximum number of un-responded requests per channel
     pub requests_limit: usize,
@@ -633,5 +633,36 @@ impl Default for BootstrapAscendingConfig {
             block_wait_count: 1000,
             min_protocol_version: 0x14,
         }
+    }
+}
+
+impl BootstrapAscendingConfig {
+    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
+        toml.put_usize ("requests_limit", self.requests_limit, "Request limit to ascending bootstrap after which requests will be dropped.\nNote: changing to unlimited (0) is not recommended.\ntype:uint64")?;
+        toml.put_usize ("database_requests_limit", self.database_requests_limit, "Request limit for accounts from database after which requests will be dropped.\nNote: changing to unlimited (0) is not recommended as this operation competes for resources on querying the database.\ntype:uint64")?;
+        toml.put_usize(
+            "pull_count",
+            self.pull_count,
+            "Number of requested blocks for ascending bootstrap request.\ntype:uint64",
+        )?;
+        toml.put_u64 ("timeout", self.timeout.as_millis() as u64, "Timeout in milliseconds for incoming ascending bootstrap messages to be processed.\ntype:milliseconds")?;
+        toml.put_usize(
+            "throttle_coefficient",
+            self.throttle_coefficient,
+            "Scales the number of samples to track for bootstrap throttling.\ntype:uint64",
+        )?;
+        toml.put_u64(
+            "throttle_wait",
+            self.throttle_wait.as_millis() as u64,
+            "Length of time to wait between requests when throttled.\ntype:milliseconds",
+        )?;
+        toml.put_usize(
+            "block_wait_count",
+            self.block_wait_count,
+            "Ascending bootstrap will wait while block processor has more than this many blocks queued.\ntype:uint64",
+        )?;
+        toml.put_child("account_sets", &mut |child| {
+            self.account_sets.serialize_toml(child)
+        })
     }
 }

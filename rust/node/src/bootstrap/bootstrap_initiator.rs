@@ -8,7 +8,7 @@ use crate::{
     bootstrap::BootstrapAttemptWallet,
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::Network,
+    transport::{MessagePublisher, Network},
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
     websocket::WebsocketListener,
     NetworkParams,
@@ -117,6 +117,7 @@ impl BootstrapInitiator {
         block_processor: Arc<BlockProcessor>,
         websocket: Option<Arc<WebsocketListener>>,
         ledger: Arc<Ledger>,
+        message_publisher: MessagePublisher,
     ) -> Self {
         let attempts = Arc::new(Mutex::new(BootstrapAttempts::new()));
         let cache = Arc::new(Mutex::new(PullsCache::new()));
@@ -148,6 +149,7 @@ impl BootstrapInitiator {
                 stats,
                 block_processor,
                 cache,
+                message_publisher,
             )),
         }
     }

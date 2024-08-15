@@ -386,10 +386,10 @@ impl RepCrawler {
                     for address in addresses {
                         let endpoint = into_ipv6_socket_address(address);
                         match network.find_realtime_channel_by_peering_addr(&endpoint) {
-                            Some(channel) => {
+                            Some(channel_id) => {
                                 let keepalive = network.create_keepalive_message();
                                 publisher.lock().unwrap().try_send(
-                                    channel.channel_id(),
+                                    channel_id,
                                     &keepalive,
                                     DropPolicy::CanDrop,
                                     TrafficType::Generic,

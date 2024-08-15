@@ -1,7 +1,7 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient, BootstrapConnections};
 use crate::{
     bootstrap::{bootstrap_limits, BootstrapAttemptTrait, BootstrapConnectionsExt, PullInfo},
-    transport::{AsyncBufferReader, TrafficType},
+    transport::AsyncBufferReader,
     utils::{AsyncRuntime, ThreadPool},
 };
 use primitive_types::U256;
@@ -180,12 +180,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
         }
         let this_l = Arc::clone(self);
         self.runtime.tokio.spawn(async move {
-            match this_l
-                .connection
-                .get_channel()
-                .send(&request, TrafficType::Generic)
-                .await
-            {
+            match this_l.connection.send(&request).await {
                 Ok(()) => {
                     let workers = this_l.workers.clone();
                     workers.push_task(Box::new(move || {

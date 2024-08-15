@@ -28,10 +28,7 @@ pub unsafe extern "C" fn rsn_daemon_config_create(
         Ok(n) => n,
         Err(_) => return -1,
     };
-    let cfg = match DaemonConfig::new(&network_params, get_cpu_count()) {
-        Ok(d) => d,
-        Err(_) => return -1,
-    };
+    let cfg = DaemonConfig::new(&network_params, get_cpu_count());
     let dto = &mut (*dto);
     dto.rpc_enable = cfg.rpc_enable;
     fill_node_config_dto(&mut dto.node, &cfg.node);

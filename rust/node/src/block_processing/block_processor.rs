@@ -4,7 +4,7 @@ use crate::{
     transport::{ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue},
 };
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, TomlWriter},
     work::WorkThresholds,
     BlockEnum, BlockType, Epoch, HackyUnsafeMutBlock, HashOrAccount, UncheckedInfo,
 };
@@ -113,7 +113,7 @@ impl BlockProcessorWaiter {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
     // Maximum number of blocks to queue from network peers
     pub max_peer_queue: usize,
@@ -144,6 +144,27 @@ impl Default for BlockProcessorConfig {
             batch_size: 0,
             work_thresholds: WorkThresholds::default(),
         }
+    }
+}
+
+impl BlockProcessorConfig {
+    pub fn new(work_thresholds: WorkThresholds) -> Self {
+        Self {
+            work_thresholds,
+            ..Default::default()
+        }
+    }
+
+    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> anyhow::Result<()> {
+        toml.put_usize(
+            "max_peer_queue",
+            self.max_peer_queue,
+            "Maximum number of blocks to queue from network peers. \ntype:uint64",
+        )?;
+        toml.put_usize("max_system_queue", self.max_system_queue, "Maximum number of blocks to queue from system components (local RPC, bootstrap). \ntype:uint64")?;
+        toml.put_usize("priority_live", self.priority_live, "Priority for live network blocks. Higher priority gets processed more frequently. \ntype:uint64")?;
+        toml.put_usize("priority_bootstrap", self.priority_bootstrap, "Priority for bootstrap blocks. Higher priority gets processed more frequently. \ntype:uint64")?;
+        toml.put_usize("priority_local", self.priority_local, "Priority for local RPC blocks. Higher priority gets processed more frequently. \ntype:uint64")
     }
 }
 

@@ -70,8 +70,8 @@ mod kdf;
 pub use kdf::KeyDerivationFunction;
 use utils::{BufferWriter, Deserialize, Serialize, Stream};
 
-use std::num::ParseIntError;
-use std::{fmt::Write, str::FromStr};
+use std::{fmt::Write, str::FromStr, sync::Mutex};
+use std::{num::ParseIntError, sync::LazyLock};
 
 pub fn encode_hex(i: u128) -> String {
     let mut result = String::with_capacity(32);
@@ -336,6 +336,10 @@ impl FromStr for Networks {
         }
     }
 }
+//
+//todo: make configurable in builld script again!
+pub static ACTIVE_NETWORK: LazyLock<Mutex<Networks>> =
+    LazyLock::new(|| Mutex::new(Networks::NanoBetaNetwork));
 
 pub fn epoch_v1_link() -> Link {
     let mut link_bytes = [0u8; 32];

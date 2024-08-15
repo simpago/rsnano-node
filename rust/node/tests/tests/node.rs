@@ -804,7 +804,7 @@ fn rollback_vote_self() {
         let channel = make_fake_channel(&node);
 
         node.request_aggregator
-            .request(vec![(send2.hash(), send2.root())], channel);
+            .request(vec![(send2.hash(), send2.root())], channel.channel_id());
 
         assert_always_eq(
             Duration::from_secs(1),

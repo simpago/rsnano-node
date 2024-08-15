@@ -1,7 +1,9 @@
-use super::NetworkConstants;
+use crate::config::NetworkConstants;
+use anyhow::Result;
+use rsnano_core::utils::TomlWriter;
 use std::net::Ipv6Addr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WebsocketConfig {
     pub enabled: bool,
     pub port: u16,
@@ -15,6 +17,12 @@ impl WebsocketConfig {
             port: network.default_websocket_port,
             address: Ipv6Addr::LOCALHOST.to_string(),
         }
+    }
+}
+
+impl Default for WebsocketConfig {
+    fn default() -> Self {
+        Self::new(&NetworkConstants::default())
     }
 }
 

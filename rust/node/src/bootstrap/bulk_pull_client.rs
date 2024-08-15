@@ -14,7 +14,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::BootstrapMode,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{read_block, TrafficType},
+    transport::read_block,
     utils::{AsyncRuntime, ThreadPool},
 };
 use async_trait::async_trait;
@@ -157,8 +157,7 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
         self.runtime.tokio.spawn(async move {
             match self_clone
                 .connection
-                .get_channel()
-                .send(&Message::BulkPull(payload), TrafficType::Generic)
+                .send(&Message::BulkPull(payload))
                 .await
             {
                 Ok(()) => {

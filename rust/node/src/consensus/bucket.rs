@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PriorityBucketConfig {
     /// Maximum number of blocks to sort by priority per bucket.
     pub max_blocks: usize,

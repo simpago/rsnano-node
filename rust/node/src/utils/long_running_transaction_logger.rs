@@ -8,7 +8,7 @@ use std::{
 };
 use tracing::warn;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TxnTrackingConfig {
     /** If true, enable tracking for transaction read/writes held open longer than the min time variables */
     pub enable: bool,

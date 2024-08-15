@@ -5,7 +5,7 @@ use super::{
 use crate::{
     bootstrap::BootstrapAttemptTrait,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{AsyncBufferReader, TrafficType},
+    transport::AsyncBufferReader,
     utils::{AsyncRuntime, ThreadPool},
 };
 use async_trait::async_trait;
@@ -98,12 +98,7 @@ impl BulkPullAccountClientExt for Arc<BulkPullAccountClient> {
 
         let self_l = Arc::clone(self);
         self.runtime.tokio.spawn(async move {
-            match self_l
-                .connection
-                .get_channel()
-                .send(&req, TrafficType::Generic)
-                .await
-            {
+            match self_l.connection.send(&req).await {
                 Ok(()) => {
                     self_l.receive_pending().await;
                 }

@@ -36,7 +36,7 @@ impl ChannelContainer {
             .or_default()
             .push(id);
         self.by_network_version
-            .entry(channel.network_version())
+            .entry(channel.protocol_version())
             .or_default()
             .push(id);
         self.by_ip_address
@@ -86,7 +86,11 @@ impl ChannelContainer {
                 &channel.get_last_bootstrap_attempt(),
                 id,
             );
-            remove_from_btree(&mut self.by_network_version, &channel.network_version(), id);
+            remove_from_btree(
+                &mut self.by_network_version,
+                &channel.protocol_version(),
+                id,
+            );
             remove_from_hashmap(&mut self.by_endpoint, &channel.remote_addr(), id);
             remove_from_hashmap(
                 &mut self.by_ip_address,

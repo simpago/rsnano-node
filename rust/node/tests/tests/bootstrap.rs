@@ -27,8 +27,6 @@ mod bootstrap_processor {
         transport::{ChannelMode, PeerConnectorExt},
     };
 
-    use crate::tests::helpers::assert_timely;
-
     use super::*;
 
     #[test]
@@ -1397,7 +1395,7 @@ fn create_response_server(node: &Node) -> Arc<ResponseServer> {
         ChannelId::from(1),
         TcpStream::new_null(),
         ChannelDirection::Inbound,
-        node.network_params.network.protocol_info(),
+        node.network_params.network.protocol_info().version_using,
         node.stats.clone(),
         node.outbound_limiter.clone(),
     ));

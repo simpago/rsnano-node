@@ -1,5 +1,4 @@
 use super::{ChannelHandle, EndpointDto};
-use crate::messages::MessageHandle;
 use rsnano_core::{utils::system_time_from_nanoseconds, PublicKey};
 use rsnano_node::transport::{Channel, ChannelMode, Network};
 use std::{
@@ -117,15 +116,6 @@ pub extern "C" fn rsn_tcp_channels_random_fanout(
 ) -> *mut ChannelListHandle {
     let channels = handle.random_fanout_realtime(scale);
     Box::into_raw(Box::new(ChannelListHandle(channels)))
-}
-
-#[no_mangle]
-pub extern "C" fn rsn_tcp_channels_flood_message(
-    handle: &TcpChannelsHandle,
-    msg: &MessageHandle,
-    scale: f32,
-) {
-    handle.flood_message(&msg.message, scale)
 }
 
 pub struct ChannelListHandle(Vec<Arc<Channel>>);

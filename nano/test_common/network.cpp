@@ -1,3 +1,5 @@
+#include "nano/lib/rsnano.hpp"
+#include "nano/lib/rsnanoutils.hpp"
 #include <nano/node/node.hpp>
 #include <nano/test_common/network.hpp>
 #include <nano/test_common/system.hpp>
@@ -14,14 +16,15 @@ void nano::test::establish_tcp (nano::test::system & system, nano::node & node, 
 {
 	debug_assert (node.network->endpoint () != endpoint && "Establishing TCP to self is not allowed");
 
-	std::shared_ptr<nano::transport::channel_tcp> result;
+	bool found = false;
 	debug_assert (!node.flags.disable_tcp_realtime ());
 	node.connect (endpoint);
-	auto error = system.poll_until_true (2s, [&result, &node, &endpoint] {
-		result = node.network->tcp_channels->find_channel (nano::transport::map_endpoint_to_tcp (endpoint));
-		return result != nullptr;
+	auto error = system.poll_until_true (2s, [&found, &node, &endpoint] {
+		auto dto {rsnano::udp_endpoint_to_dto(endpoint)};
+		found = rsnano::rsn_node_is_connected_to(node.handle, &dto);
+		return found;
 	});
-	ASSERT_NE (nullptr, result);
+	ASSERT_TRUE (found);
 }
 
 // TODO: merge with make_disconnected_node

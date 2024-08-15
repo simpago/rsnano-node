@@ -21,7 +21,7 @@ use std::{
     thread::JoinHandle,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapServerConfig {
     pub max_queue: usize,
     pub threads: usize,
@@ -122,7 +122,7 @@ impl BootstrapServer {
 
         // If channel is full our response will be dropped anyway, so filter that early
         // TODO: Add per channel limits (this ideally should be done on the channel message processing side)
-        if channel.max(TrafficType::Bootstrap) {
+        if channel.is_queue_full(TrafficType::Bootstrap) {
             self.stats.inc_dir(
                 StatType::BootstrapServer,
                 DetailType::ChannelFull,
@@ -215,7 +215,7 @@ impl BootstrapServerImpl {
         for (_, (request, channel)) in batch {
             tx.refresh_if_needed();
 
-            if !channel.max(TrafficType::Bootstrap) {
+            if !channel.is_queue_full(TrafficType::Bootstrap) {
                 let response = self.process(&tx, request);
                 self.respond(response, channel);
             } else {

@@ -10,7 +10,6 @@ class node;
 namespace transport
 {
 	class channel;
-	class channel_tcp;
 }
 
 namespace test

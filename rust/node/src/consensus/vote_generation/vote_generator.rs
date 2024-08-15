@@ -2,7 +2,7 @@ use super::{LocalVoteHistory, VoteSpacing};
 use crate::{
     consensus::VoteBroadcaster,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{Channel, DropPolicy, MessagePublisher, TrafficType},
+    transport::{ChannelId, DropPolicy, MessagePublisher, TrafficType},
     utils::ProcessingQueue,
     wallets::Wallets,
 };
@@ -110,7 +110,7 @@ impl VoteGenerator {
     }
 
     /// Queue blocks for vote generation, returning the number of successful candidates.
-    pub(crate) fn generate(&self, blocks: &[Arc<BlockEnum>], channel: Arc<Channel>) -> usize {
+    pub(crate) fn generate(&self, blocks: &[Arc<BlockEnum>], channel_id: ChannelId) -> usize {
         let req_candidates = {
             let txn = self.ledger.read_txn();
             blocks
@@ -127,7 +127,7 @@ impl VoteGenerator {
 
         let result = req_candidates.len();
         let mut guard = self.shared_state.queues.lock().unwrap();
-        guard.requests.push_back((req_candidates, channel));
+        guard.requests.push_back((req_candidates, channel_id));
         while guard.requests.len() > Self::MAX_REQUESTS {
             // On a large queue of requests, erase the oldest one
             guard.requests.pop_front();
@@ -159,7 +159,7 @@ impl VoteGenerator {
                 ContainerInfoComponent::Leaf(ContainerInfo {
                     name: "requests".to_string(),
                     count: requests_count,
-                    sizeof_element: size_of::<Arc<Channel>>() + size_of::<Vec<(Root, BlockHash)>>(),
+                    sizeof_element: size_of::<ChannelId>() + size_of::<Vec<(Root, BlockHash)>>(),
                 }),
             ],
         )
@@ -297,7 +297,7 @@ impl SharedState {
         }
     }
 
-    fn reply(&self, request: (Vec<(Root, BlockHash)>, Arc<Channel>)) {
+    fn reply(&self, request: (Vec<(Root, BlockHash)>, ChannelId)) {
         let mut i = request.0.iter().peekable();
         while i.peek().is_some() && !self.stopped.load(Ordering::SeqCst) {
             let mut hashes = Vec::with_capacity(VoteGenerator::MAX_HASHES);
@@ -327,11 +327,11 @@ impl SharedState {
                     hashes.len() as u64,
                 );
                 self.vote(&hashes, &roots, |vote| {
-                    let channel = &request.1;
+                    let channel_id = &request.1;
                     let confirm =
                         Message::ConfirmAck(ConfirmAck::new_with_own_vote((*vote).clone()));
                     self.message_publisher.lock().unwrap().try_send(
-                        channel.channel_id(),
+                        *channel_id,
                         &confirm,
                         DropPolicy::CanDrop,
                         TrafficType::Generic,
@@ -419,5 +419,5 @@ impl SharedState {
 #[derive(Default)]
 struct Queues {
     candidates: VecDeque<(Root, BlockHash)>,
-    requests: VecDeque<(Vec<(Root, BlockHash)>, Arc<Channel>)>,
+    requests: VecDeque<(Vec<(Root, BlockHash)>, ChannelId)>,
 }

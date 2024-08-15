@@ -1,5 +1,6 @@
 use super::{Channel, ChannelId, InboundMessageQueue, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
+use rsnano_core::utils::{get_cpu_count, TomlWriter};
 use rsnano_messages::Message;
 use std::{
     cmp::{max, min},
@@ -13,7 +14,7 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MessageProcessorConfig {
     pub threads: usize,
     pub max_queue: usize,
@@ -21,6 +22,18 @@ pub struct MessageProcessorConfig {
 
 impl MessageProcessorConfig {
     pub fn new(parallelism: usize) -> Self {
+        Self {
+            threads: min(2, max(parallelism / 4, 1)),
+            max_queue: 64,
+        }
+    }
+}
+
+
+impl Default for MessageProcessorConfig {
+    fn default() -> Self {
+        let parallelism = get_cpu_count();
+
         Self {
             threads: min(2, max(parallelism / 4, 1)),
             max_queue: 64,

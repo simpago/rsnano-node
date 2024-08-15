@@ -27,11 +27,11 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     },
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 use tracing::{debug, info};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TcpConfig {
     pub max_inbound_connections: usize,
     pub max_outbound_connections: usize,
@@ -303,13 +303,23 @@ impl ResponseServerExt for Arc<ResponseServer> {
             self.channel.clone(),
         );
 
+        let mut first_message = true;
+
         loop {
             if self.is_stopped() {
                 break;
             }
 
             let result = match message_deserializer.read().await {
-                Ok(msg) => self.process_message(msg.message).await,
+                Ok(msg) => {
+                    if first_message {
+                        // TODO: if version using changes => peer misbehaved!
+                        self.channel
+                            .set_protocol_version(msg.protocol.version_using);
+                        first_message = false;
+                    }
+                    self.process_message(msg.message).await
+                }
                 Err(ParseMessageError::DuplicatePublishMessage) => {
                     // Avoid too much noise about `duplicate_publish_message` errors
                     self.stats.inc_dir(

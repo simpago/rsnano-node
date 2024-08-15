@@ -580,3 +580,12 @@ pub extern "C" fn rsn_node_fake_channel(handle: &NodeHandle) -> *mut ChannelHand
 
     ChannelHandle::new(channel)
 }
+
+#[no_mangle]
+pub extern "C" fn rsn_node_is_connected_to(handle: &NodeHandle, peer: &EndpointDto) -> bool {
+    handle
+        .0
+        .network
+        .find_realtime_channel_by_remote_addr(&peer.into())
+        .is_some()
+}

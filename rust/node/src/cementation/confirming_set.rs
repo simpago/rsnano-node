@@ -16,7 +16,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ConfirmingSetConfig {
     /// Maximum number of dependent blocks to be stored in memory during processing
     pub max_blocks: usize,

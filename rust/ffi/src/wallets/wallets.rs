@@ -12,13 +12,15 @@ use crate::{
     transport::TcpChannelsHandle,
     utils::{ContextWrapper, ThreadPoolHandle},
     work::{DistributedWorkFactoryHandle, WorkThresholdsDto},
-    NetworkParamsDto, NodeConfigDto, StringDto, VoidPointerCallback,
+    NetworkParamsDto, NodeConfigDto, StatHandle, StringDto, VoidPointerCallback,
 };
 use rsnano_core::{
     work::WorkThresholds, Account, Amount, BlockEnum, BlockHash, RawKey, Root, WalletId,
 };
 use rsnano_node::{
     config::NodeConfig,
+    representatives::OnlineReps,
+    transport::MessagePublisher,
     wallets::{Wallet, Wallets, WalletsError, WalletsExt},
     NetworkParams,
 };
@@ -28,7 +30,7 @@ use std::{
     ffi::{c_char, c_void, CStr},
     ops::Deref,
     path::PathBuf,
-    sync::{Arc, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 pub struct LmdbWalletsHandle(pub Arc<Wallets>);
@@ -56,6 +58,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
     representatives: &RepresentativeRegisterHandle,
     tcp_channels: &TcpChannelsHandle,
     confirming_set: &ConfirmingSetHandle,
+    stats: &StatHandle,
 ) -> *mut LmdbWalletsHandle {
     let node_config = NodeConfig::try_from(node_config).unwrap();
 
@@ -73,6 +76,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
     let lmdb = Arc::new(LmdbEnv::new_with_options(wallets_path, &options).unwrap());
 
     let network_params = NetworkParams::try_from(network_params).unwrap();
+    let protocol = network_params.network.protocol_info();
     let work = WorkThresholds::from(work_thresholds);
     let wallets = Arc::new(
         Wallets::new(
@@ -86,8 +90,13 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
             Arc::clone(workers),
             Arc::clone(block_processor),
             representatives.0.clone(),
-            Arc::clone(tcp_channels),
             Arc::clone(confirming_set),
+            MessagePublisher::new(
+                Arc::new(Mutex::new(OnlineReps::default())),
+                Arc::clone(tcp_channels),
+                Arc::clone(stats),
+                protocol,
+            ),
         )
         .expect("could not create wallet"),
     );

@@ -17,7 +17,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VoteCacheConfig {
     pub max_size: usize,
     pub max_voters: usize,

@@ -108,11 +108,6 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::transport::tcp_chann
 	return result;
 }
 
-void nano::transport::tcp_channels::flood_message (nano::message & msg, float scale)
-{
-	rsnano::rsn_tcp_channels_flood_message (handle, msg.handle, scale);
-}
-
 std::shared_ptr<nano::transport::channel_tcp> nano::transport::tcp_channels::find_channel (nano::tcp_endpoint const & endpoint_a) const
 {
 	std::shared_ptr<nano::transport::channel_tcp> result;

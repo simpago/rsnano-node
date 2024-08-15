@@ -42,7 +42,7 @@ pub type ElectionEndCallback = Box<
 
 pub type AccountBalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
     // Maximum number of simultaneous active elections (AEC size)
     pub size: usize,
@@ -70,8 +70,8 @@ impl Default for ActiveElectionsConfig {
 
 pub struct ActiveElections {
     steady_clock: Arc<SteadyClock>,
-    pub mutex: Mutex<ActiveElectionsState>,
-    pub condition: Condvar,
+    mutex: Mutex<ActiveElectionsState>,
+    condition: Condvar,
     network_params: NetworkParams,
     wallets: Arc<Wallets>,
     node_config: NodeConfig,
@@ -80,7 +80,7 @@ pub struct ActiveElections {
     confirming_set: Arc<ConfirmingSet>,
     pub recently_confirmed: Arc<RecentlyConfirmedCache>,
     /// Helper container for storing recently cemented elections (a block from election might be confirmed but not yet cemented by confirmation height processor)
-    pub recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
+    recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     block_processor: Arc<BlockProcessor>,
     vote_generators: Arc<VoteGenerators>,
     network: Arc<Network>,
@@ -98,7 +98,7 @@ pub struct ActiveElections {
     pub vote_applier: Arc<VoteApplier>,
     pub vote_router: Arc<VoteRouter>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
-    message_publisher: MessagePublisher,
+    message_publisher: Mutex<MessagePublisher>,
 }
 
 impl ActiveElections {
@@ -162,7 +162,7 @@ impl ActiveElections {
             vote_router,
             vote_cache_processor,
             steady_clock,
-            message_publisher,
+            message_publisher: Mutex::new(message_publisher),
         }
     }
 
@@ -325,7 +325,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn request_loop2<'a>(
+    fn request_loop2<'a>(
         &self,
         stamp: Instant,
         guard: MutexGuard<'a, ActiveElectionsState>,
@@ -472,7 +472,7 @@ impl ActiveElections {
         (replaced, election_guard)
     }
 
-    pub fn publish(&self, block: &Arc<BlockEnum>, election: &Election) -> bool {
+    fn publish(&self, block: &Arc<BlockEnum>, election: &Election) -> bool {
         let mut election_guard = election.mutex.lock().unwrap();
 
         // Do not insert new blocks if already confirmed
@@ -497,8 +497,8 @@ impl ActiveElections {
                 if election_guard.status.winner.as_ref().unwrap().hash() == block.hash() {
                     election_guard.status.winner = Some(Arc::clone(block));
                     let message = Message::Publish(Publish::new_forward(block.as_ref().clone()));
-                    self.network
-                        .flood_message2(&message, DropPolicy::ShouldNotDrop, 1.0);
+                    let mut publisher = self.message_publisher.lock().unwrap();
+                    publisher.flood(&message, DropPolicy::ShouldNotDrop, 1.0);
                 }
             } else {
                 election_guard
@@ -592,7 +592,7 @@ impl ActiveElections {
     }
 
     /// Erase all blocks from active and, if not confirmed, clear digests from network filters
-    pub fn cleanup_election<'a>(
+    fn cleanup_election<'a>(
         &self,
         mut guard: MutexGuard<'a, ActiveElectionsState>,
         election: &'a Arc<Election>,
@@ -764,7 +764,7 @@ impl ActiveElections {
         }
     }
 
-    pub fn request_confirm<'a>(
+    fn request_confirm<'a>(
         &'a self,
         guard: MutexGuard<'a, ActiveElectionsState>,
     ) -> MutexGuard<'a, ActiveElectionsState> {
@@ -775,7 +775,7 @@ impl ActiveElections {
         let mut solicitor = ConfirmationSolicitor::new(
             &self.network_params,
             &self.network,
-            self.message_publisher.clone(),
+            self.message_publisher.lock().unwrap().clone(),
         );
         solicitor.prepare(&self.online_reps.lock().unwrap().peered_principal_reps());
 
@@ -998,13 +998,13 @@ impl From<Amount> for TallyKey {
     }
 }
 
-pub struct ActiveElectionsState {
+struct ActiveElectionsState {
     roots: OrderedRoots,
-    pub stopped: bool,
-    pub manual_count: usize,
-    pub priority_count: usize,
-    pub hinted_count: usize,
-    pub optimistic_count: usize,
+    stopped: bool,
+    manual_count: usize,
+    priority_count: usize,
+    hinted_count: usize,
+    optimistic_count: usize,
 }
 
 impl ActiveElectionsState {

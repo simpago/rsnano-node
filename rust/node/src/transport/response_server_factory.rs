@@ -1,6 +1,6 @@
 use super::{
-    Channel, InboundMessageQueue, LatestKeepalives, Network, ResponseServer, ResponseServerExt,
-    SynCookies,
+    Channel, InboundMessageQueue, LatestKeepalives, MessagePublisher, Network, ResponseServer,
+    ResponseServerExt, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -59,6 +59,7 @@ impl ResponseServerFactory {
                 block_processor,
                 None,
                 ledger,
+                MessagePublisher::new_null(),
             )),
             network,
             inbound_queue: Arc::new(InboundMessageQueue::default()),

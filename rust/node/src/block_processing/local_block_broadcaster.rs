@@ -20,7 +20,7 @@ use std::{
 };
 use tracing::debug;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LocalBlockBroadcasterConfig {
     pub max_size: usize,
     pub rebroadcast_interval: Duration,

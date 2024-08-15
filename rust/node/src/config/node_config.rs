@@ -1,17 +1,15 @@
-use super::{
-    block_processor::BlockProcessorToml, BootstrapAscendingToml, DiagnosticsConfig,
-    HintedSchedulerConfig, Networks, OptimisticSchedulerConfig, WebsocketConfig,
-};
+use super::{DiagnosticsConfig, Networks};
 use crate::{
     block_processing::{BlockProcessorConfig, LocalBlockBroadcasterConfig},
-    bootstrap::{BootstrapInitiatorConfig, BootstrapServerConfig},
+    bootstrap::{BootstrapAscendingConfig, BootstrapInitiatorConfig, BootstrapServerConfig},
     cementation::ConfirmingSetConfig,
     consensus::{
-        ActiveElectionsConfig, PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig,
-        VoteProcessorConfig,
+        ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
+        PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
     },
     stats::StatsConfig,
     transport::{MessageProcessorConfig, TcpConfig},
+    websocket::WebsocketConfig,
     IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use once_cell::sync::Lazy;
@@ -21,10 +19,10 @@ use rsnano_core::{
     Account, Amount, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
-use std::{cmp::max, net::Ipv6Addr, time::Duration};
+use std::{cmp::max, fmt, net::Ipv6Addr, str::FromStr, time::Duration};
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
 pub enum FrontiersConfirmationMode {
     Always,    // Always confirm frontiers
     Automatic, // Always mode if node contains representative with at least 50% of principal weight, less frequest requests if not
@@ -32,7 +30,7 @@ pub enum FrontiersConfirmationMode {
     Invalid,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeConfig {
     pub peering_port: Option<u16>,
     pub optimistic_scheduler: OptimisticSchedulerConfig,
@@ -70,7 +68,7 @@ pub struct NodeConfig {
     pub use_memory_pools: bool,
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
-    pub bootstrap_ascending: BootstrapAscendingToml,
+    pub bootstrap_ascending: BootstrapAscendingConfig,
     pub bootstrap_server: BootstrapServerConfig,
     pub bootstrap_bandwidth_limit: usize,
     pub bootstrap_bandwidth_burst_ratio: f64,
@@ -102,7 +100,7 @@ pub struct NodeConfig {
     pub backlog_scan_frequency: u32,
     pub vote_cache: VoteCacheConfig,
     pub rep_crawler_query_timeout: Duration,
-    pub block_processor: BlockProcessorToml,
+    pub block_processor: BlockProcessorConfig,
     pub active_elections: ActiveElectionsConfig,
     pub vote_processor: VoteProcessorConfig,
     pub tcp: TcpConfig,
@@ -114,10 +112,27 @@ pub struct NodeConfig {
     pub monitor: MonitorConfig,
 }
 
-#[derive(Clone)]
+impl Default for NodeConfig {
+    fn default() -> Self {
+        let network_params = &NetworkParams::default();
+        Self::new(
+            Some(network_params.network.default_node_port),
+            network_params,
+            get_cpu_count(),
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Peer {
     pub address: String,
     pub port: u16,
+}
+
+impl fmt::Display for Peer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.address, self.port)
+    }
 }
 
 impl Peer {
@@ -126,6 +141,24 @@ impl Peer {
             address: address.into(),
             port,
         }
+    }
+}
+
+impl FromStr for Peer {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Invalid format".into());
+        }
+
+        let address = parts[0].to_string();
+        let port = parts[1]
+            .parse::<u16>()
+            .map_err(|_| "Invalid port".to_string())?;
+
+        Ok(Peer { address, port })
     }
 }
 
@@ -323,7 +356,7 @@ impl NodeConfig {
             } else {
                 Duration::from_secs(60)
             },
-            block_processor: BlockProcessorToml::new(),
+            block_processor: BlockProcessorConfig::new(network_params.work.clone()),
             vote_processor: VoteProcessorConfig::new(parallelism),
             tcp: if network_params.network.is_dev_network() {
                 TcpConfig::for_dev_network()

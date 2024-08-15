@@ -2,7 +2,6 @@
 pub enum SyncStrategy {
     /** Always flush to disk on commit. This is default. */
     Always,
-
     /** Do not flush meta data eagerly. This may cause loss of transactions, but maintains integrity. */
     NosyncSafe,
 
@@ -20,7 +19,7 @@ pub enum SyncStrategy {
     NosyncUnsafeLargeMemory,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LmdbConfig {
     pub sync: SyncStrategy,
     pub max_databases: u32,

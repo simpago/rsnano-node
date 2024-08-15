@@ -1,6 +1,6 @@
 use crate::utils::TxnTrackingConfig;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DiagnosticsConfig {
     pub txn_tracking: TxnTrackingConfig,
 }

@@ -261,17 +261,17 @@ impl KeepaliveLoop {
         }
     }
 
-    fn flood_keepalive(&self, scale: f32) {
+    fn flood_keepalive(&mut self, scale: f32) {
         let mut keepalive = Keepalive::default();
         self.network.random_fill_realtime(&mut keepalive.peers);
-        self.network
-            .flood_message(&Message::Keepalive(keepalive), scale);
+        self.message_publisher
+            .flood(&Message::Keepalive(keepalive), DropPolicy::CanDrop, scale);
     }
 
-    fn flood_keepalive_self(&self, scale: f32) {
+    fn flood_keepalive_self(&mut self, scale: f32) {
         let keepalive = self.keepalive_factory.create_keepalive_self();
-        self.network
-            .flood_message(&Message::Keepalive(keepalive), scale);
+        self.message_publisher
+            .flood(&Message::Keepalive(keepalive), DropPolicy::CanDrop, scale);
     }
 }
 

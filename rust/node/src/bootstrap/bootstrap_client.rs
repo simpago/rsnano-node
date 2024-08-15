@@ -1,5 +1,6 @@
 use super::{bootstrap_limits, BootstrapConnections};
-use crate::transport::Channel;
+use crate::transport::{Channel, ChannelId, MessagePublisher, TrafficType};
+use rsnano_messages::Message;
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -12,6 +13,8 @@ use std::{
 pub struct BootstrapClient {
     observer: Weak<BootstrapConnections>,
     channel: Arc<Channel>,
+    channel_id: ChannelId,
+    pub message_publisher: MessagePublisher,
     block_count: AtomicU64,
     block_rate: AtomicU64,
     pending_stop: AtomicBool,
@@ -20,15 +23,21 @@ pub struct BootstrapClient {
 }
 
 impl BootstrapClient {
-    pub fn new(observer: &Arc<BootstrapConnections>, channel: Arc<Channel>) -> Self {
+    pub fn new(
+        observer: &Arc<BootstrapConnections>,
+        channel: Arc<Channel>,
+        message_publisher: MessagePublisher,
+    ) -> Self {
         Self {
             observer: Arc::downgrade(observer),
+            channel_id: channel.channel_id(),
             channel,
             block_count: AtomicU64::new(0),
             block_rate: AtomicU64::new(0f64.to_bits()),
             pending_stop: AtomicBool::new(false),
             hard_stop: AtomicBool::new(false),
             start_time: Mutex::new(Instant::now()),
+            message_publisher,
         }
     }
 
@@ -58,6 +67,13 @@ impl BootstrapClient {
 
     pub fn get_channel(&self) -> &Arc<Channel> {
         &self.channel
+    }
+
+    pub async fn send(&self, message: &Message) -> anyhow::Result<()> {
+        let mut publisher = self.message_publisher.clone();
+        publisher
+            .send(self.channel_id, message, TrafficType::Bootstrap)
+            .await
     }
 
     pub fn inc_block_count(&self) -> u64 {

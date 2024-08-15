@@ -300,15 +300,6 @@ pub unsafe extern "C" fn rsn_active_transactions_election(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsn_active_transactions_publish(
-    handle: &ActiveTransactionsHandle,
-    block: &BlockHandle,
-    election: &ElectionHandle,
-) -> bool {
-    handle.publish(block, election)
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn rsn_active_transactions_vote(
     handle: &ActiveTransactionsHandle,
     vote: &VoteHandle,
