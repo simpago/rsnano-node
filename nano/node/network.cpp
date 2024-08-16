@@ -75,11 +75,6 @@ void nano::network::merge_peer (nano::endpoint const & peer_a)
 	rsnano::rsn_node_connect (node.handle, &peer_dto);
 }
 
-std::vector<std::shared_ptr<nano::transport::channel>> nano::network::random_channels (std::size_t count_a, uint8_t min_version_a) const
-{
-	return tcp_channels->random_channels (count_a, min_version_a);
-}
-
 std::shared_ptr<nano::transport::channel> nano::network::find_node_id (nano::account const & node_id_a)
 {
 	return tcp_channels->find_node_id (node_id_a);
