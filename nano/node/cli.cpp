@@ -650,11 +650,11 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 
 			if (vm.count ("use_defaults"))
 			{
-				std::cout << commented (toml_str) << std::endl;
+				std::cout << toml_str << std::endl;
 			}
 			else
 			{
-				std::cout << toml_str << std::endl;
+				std::cout << commented (toml_str) << std::endl;
 			}
 		}
 		else if (type == "rpc")
