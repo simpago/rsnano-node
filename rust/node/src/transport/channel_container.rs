@@ -135,6 +135,21 @@ impl ChannelContainer {
             .next()
     }
 
+    pub fn set_protocol_version(&mut self, channel_id: ChannelId, protocol_version: u8) {
+        if let Some(channel) = self.by_channel_id.get(&channel_id) {
+            let old_version = channel.protocol_version();
+            channel.set_protocol_version(protocol_version);
+            if old_version == protocol_version {
+                return;
+            }
+            remove_from_btree(&mut self.by_network_version, &old_version, channel_id);
+            self.by_network_version
+                .entry(protocol_version)
+                .or_default()
+                .push(channel_id);
+        }
+    }
+
     pub fn set_last_bootstrap_attempt(&mut self, channel_id: ChannelId, attempt_time: SystemTime) {
         if let Some(channel) = self.by_channel_id.get(&channel_id) {
             let old_time = channel.get_last_bootstrap_attempt();

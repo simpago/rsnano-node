@@ -314,8 +314,10 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 Ok(msg) => {
                     if first_message {
                         // TODO: if version using changes => peer misbehaved!
-                        self.channel
-                            .set_protocol_version(msg.protocol.version_using);
+                        self.network.set_protocol_version(
+                            self.channel.channel_id(),
+                            msg.protocol.version_using,
+                        );
                         first_message = false;
                     }
                     self.process_message(msg.message).await

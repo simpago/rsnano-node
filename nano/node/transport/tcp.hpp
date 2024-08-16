@@ -62,7 +62,6 @@ namespace transport
 		float size_sqrt () const;
 		// Desired fanout for a given scale
 		std::size_t fanout (float scale = 1.0f) const;
-		std::shared_ptr<nano::transport::channel_tcp> find_channel (nano::tcp_endpoint const &) const;
 		std::vector<std::shared_ptr<nano::transport::channel>> random_channels (std::size_t, uint8_t = 0) const;
 		std::shared_ptr<nano::transport::channel_tcp> find_node_id (nano::account const &);
 		bool not_a_peer (nano::endpoint const &, bool);

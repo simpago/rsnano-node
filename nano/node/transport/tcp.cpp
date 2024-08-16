@@ -108,18 +108,6 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::transport::tcp_chann
 	return result;
 }
 
-std::shared_ptr<nano::transport::channel_tcp> nano::transport::tcp_channels::find_channel (nano::tcp_endpoint const & endpoint_a) const
-{
-	std::shared_ptr<nano::transport::channel_tcp> result;
-	auto endpoint_dto{ rsnano::endpoint_to_dto (endpoint_a) };
-	auto channel_handle = rsnano::rsn_tcp_channels_find_channel (handle, &endpoint_dto);
-	if (channel_handle)
-	{
-		result = std::make_shared<nano::transport::channel_tcp> (channel_handle);
-	}
-	return result;
-}
-
 std::vector<std::shared_ptr<nano::transport::channel>> nano::transport::tcp_channels::random_channels (std::size_t count_a, uint8_t min_version) const
 {
 	auto list_handle = rsnano::rsn_tcp_channels_random_channels (handle, count_a, min_version);

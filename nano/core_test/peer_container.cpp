@@ -18,20 +18,6 @@ TEST (peer_container, empty_peers)
 	ASSERT_EQ (0, network.size ());
 }
 
-// Test a node cannot connect to its own endpoint.
-TEST (peer_container, no_self_incoming)
-{
-	nano::test::system system{ 1 };
-	auto & node = *system.nodes[0];
-	node.connect (node.network->endpoint ());
-	auto error = system.poll_until_true (2s, [&node] {
-		auto result = node.network->tcp_channels->find_channel (nano::transport::map_endpoint_to_tcp (node.network->endpoint ()));
-		return result != nullptr;
-	});
-	ASSERT_TRUE (error);
-	ASSERT_TRUE (system.nodes[0]->network->empty ());
-}
-
 // Tests the function network not_a_peer function used by the nano::transport::tcp_channels.insert ()
 TEST (peer_container, reserved_ip_is_not_a_peer)
 {

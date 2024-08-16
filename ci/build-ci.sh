@@ -2,7 +2,7 @@
 set -euo pipefail
 
 qt_dir=${1}
-build_target=${2:-build_tests slow_test}
+build_target=${2:-build_tests}
 
 OS=$(uname)
 

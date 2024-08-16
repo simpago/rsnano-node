@@ -5,6 +5,7 @@ mod election_scheduler;
 pub(crate) mod helpers;
 mod network;
 mod node;
+mod peer_container;
 mod rep_crawler;
 mod request_aggregator;
 mod telemetry;

@@ -137,10 +137,10 @@ impl Network {
         &self,
         peer_addr: &SocketAddrV6,
         direction: ChannelDirection,
-        mode: ChannelMode,
+        planned_mode: ChannelMode,
     ) -> AcceptResult {
         if direction == ChannelDirection::Outbound {
-            if self.can_add_outbound_connection(&peer_addr, mode) {
+            if self.can_add_outbound_connection(&peer_addr, planned_mode) {
                 AcceptResult::Accepted
             } else {
                 AcceptResult::Rejected
@@ -154,14 +154,14 @@ impl Network {
         &self,
         stream: TcpStream,
         direction: ChannelDirection,
-        mode: ChannelMode,
+        planned_mode: ChannelMode,
     ) -> anyhow::Result<Arc<Channel>> {
         let peer_addr = stream
             .peer_addr()
             .map(into_ipv6_socket_address)
             .unwrap_or(NULL_ENDPOINT);
 
-        let result = self.can_add_connection(&peer_addr, direction, mode);
+        let result = self.can_add_connection(&peer_addr, direction, planned_mode);
         if result != AcceptResult::Accepted {
             self.stats.inc_dir(
                 StatType::TcpListener,
@@ -175,7 +175,7 @@ impl Network {
                     Direction::Out,
                 );
             }
-            debug!(?peer_addr, ?direction, ?mode, "Rejected connection");
+            debug!(?peer_addr, ?direction, "Rejected connection");
             if direction == ChannelDirection::Inbound {
                 self.stats.inc_dir(
                     StatType::TcpListener,
@@ -212,7 +212,7 @@ impl Network {
         .await;
         self.state.lock().unwrap().channels.insert(channel.clone());
 
-        debug!(?peer_addr, ?direction, ?mode, "Accepted connection");
+        debug!(?peer_addr, ?direction, "Accepted connection");
 
         Ok(channel)
     }
@@ -434,7 +434,7 @@ impl Network {
         is_max
     }
 
-    fn can_add_outbound_connection(&self, peer: &SocketAddrV6, mode: ChannelMode) -> bool {
+    fn can_add_outbound_connection(&self, peer: &SocketAddrV6, planned_mode: ChannelMode) -> bool {
         if self.flags.disable_tcp_realtime {
             return false;
         }
@@ -458,14 +458,14 @@ impl Network {
         if state
             .find_channels_by_remote_addr(peer)
             .iter()
-            .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
+            .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
         {
             return false;
         }
         if state
             .find_channels_by_peering_addr(peer)
             .iter()
-            .any(|c| c.mode() == mode || c.mode() == ChannelMode::Undefined)
+            .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
         {
             return false;
         }
@@ -574,9 +574,17 @@ impl Network {
             .perma_ban(remote_addr);
     }
 
+    pub(crate) fn set_protocol_version(&self, channel_id: ChannelId, protocol_version: u8) {
+        self.state
+            .lock()
+            .unwrap()
+            .channels
+            .set_protocol_version(channel_id, protocol_version);
+    }
+
     pub(crate) fn upgrade_to_realtime_connection(
         &self,
-        channle_id: ChannelId,
+        channel_id: ChannelId,
         node_id: Account,
     ) -> bool {
         let (observers, channel) = {
@@ -586,7 +594,7 @@ impl Network {
                 return false;
             }
 
-            let Some(channel) = state.channels.get_by_id(channle_id) else {
+            let Some(channel) = state.channels.get_by_id(channel_id) else {
                 return false;
             };
 
@@ -956,4 +964,39 @@ pub(crate) struct ChannelsInfo {
     pub bootstrap: usize,
     pub inbound: usize,
     pub outbound: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn newly_added_channel_is_not_a_realtime_channel() {
+        let network = Network::new(NetworkOptions::new_test_instance());
+        network
+            .add(
+                TcpStream::new_null(),
+                ChannelDirection::Inbound,
+                ChannelMode::Realtime,
+            )
+            .await
+            .unwrap();
+        assert_eq!(network.list_realtime_channels(0).len(), 0);
+    }
+
+    #[tokio::test]
+    async fn upgrade_channel_to_realtime_channel() {
+        let network = Network::new(NetworkOptions::new_test_instance());
+        let channel = network
+            .add(
+                TcpStream::new_null(),
+                ChannelDirection::Inbound,
+                ChannelMode::Realtime,
+            )
+            .await
+            .unwrap();
+
+        assert!(network.upgrade_to_realtime_connection(channel.channel_id(), PublicKey::from(456)));
+        assert_eq!(network.list_realtime_channels(0).len(), 1);
+    }
 }

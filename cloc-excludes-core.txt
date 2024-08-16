@@ -6,4 +6,3 @@ nano/node/rsnano_callbacks.cpp
 nano/rpc_test
 nano/node/json_handler.cpp
 nano/core_test
-nano/slow_test
