@@ -80,7 +80,11 @@ pub extern "C" fn rsn_rpc_config_serialize_toml(dto: &RpcConfigDto, toml: *mut c
         Ok(c) => c,
         Err(_) => return -1,
     };
-    0
+    let mut toml = FfiToml::new(toml);
+    match cfg.serialize_toml(&mut toml) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
 }
 
 impl TryFrom<&RpcConfigDto> for RpcConfig {

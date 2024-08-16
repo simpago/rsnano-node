@@ -1,0 +1,53 @@
+# This is an example configuration file for Nano. Visit https://docs.nano.org/running-a-node/configuration/ for more information.
+#
+# Fields may need to be defined in the context of a [category] above them.
+# The desired configuration changes should be placed in config-rpc.toml in the node data path.
+# To change a value from its default, uncomment (erasing #) the corresponding field.
+# It is not recommended to uncomment every field, as the default value for important fields may change in the future. Only change what you need.
+# Additional information for notable configuration options is available in https://docs.nano.org/running-a-node/configuration/#notable-configuration-options
+
+	# Bind address for the RPC server.
+	# type:string,ip
+	# address = "::1"
+
+	# Enable or disable control-level requests.
+	# WARNING: Enabling this gives anyone with RPC access the ability to stop the node and access wallet funds.
+	# type:bool
+	# enable_control = false
+
+	# Maximum number of levels in JSON requests.
+	# type:uint8
+	# max_json_depth = 20
+
+	# Maximum number of bytes allowed in request bodies.
+	# type:uint64
+	# max_request_size = 33554432
+
+	# Listening port for the RPC server.
+	# type:uint16
+	# port = 45000
+
+[logging]
+
+	# Whether to log RPC calls.
+	# type:bool
+	# log_rpc = true
+
+[process]
+
+	# Number of threads used to serve IO.
+	# type:uint32
+	# io_threads = 8
+
+	# Address of IPC server.
+	# type:string,ip
+	# ipc_address = "::1"
+
+	# Listening port of IPC server.
+	# type:uint16
+	# ipc_port = 46000
+
+	# Number of IPC connections to establish.
+	# type:uint32
+	# num_ipc_connections = 1
+

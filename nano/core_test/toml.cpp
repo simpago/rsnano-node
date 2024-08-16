@@ -73,7 +73,7 @@ TEST (toml, daemon_config_update_array)
 	std::filesystem::path data_path (".");
 	nano::daemon_config c{ data_path, nano::dev::network_params };
 	c.node.preconfigured_peers.push_back ("dev-peer.org");
-	c.serialize_toml (t);
+	c.serialize_toml ();
 	c.deserialize_toml (t);
 	ASSERT_EQ (c.node.preconfigured_peers[0], "dev-peer.org");
 }
@@ -532,7 +532,7 @@ TEST (toml, daemon_config_deserialize_no_defaults)
 	pr_priority = 999
 	threads = 999
 	batch_size = 999
-	
+
 	[node.bootstrap_server]
 	max_queue = 999
 	threads = 999

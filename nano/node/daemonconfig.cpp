@@ -32,13 +32,18 @@ rsnano::DaemonConfigDto to_daemon_config_dto (nano::daemon_config const & config
 	return dto;
 }
 
-nano::error nano::daemon_config::serialize_toml (nano::tomlconfig & toml)
+std::string nano::daemon_config::serialize_toml ()
 {
 	auto dto{ to_daemon_config_dto (*this) };
-	if (rsnano::rsn_daemon_config_serialize_toml (&dto, &toml) < 0)
-		return nano::error ("could not TOML serialize daemon_config");
 
-	return toml.get_error ();
+	const size_t buffer_len = 10000;
+	std::vector<char> buffer (buffer_len);
+
+	rsnano::rsn_daemon_config_serialize_toml (&dto, buffer.data (), buffer_len);
+
+	std::string toml_str (buffer.data ());
+
+	return toml_str;
 }
 
 nano::error nano::daemon_config::deserialize_toml (nano::tomlconfig & toml)

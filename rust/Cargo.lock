@@ -1877,6 +1877,7 @@ dependencies = [
  "rsnano_node",
  "rsnano_store_lmdb",
  "tokio",
+ "toml 0.8.15",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1977,6 +1978,7 @@ dependencies = [
  "rsnano_messages",
  "rsnano_node",
  "rsnano_store_lmdb",
+ "toml 0.8.15",
  "tracing",
  "tracing-subscriber",
 ]

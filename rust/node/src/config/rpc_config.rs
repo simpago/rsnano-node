@@ -1,5 +1,6 @@
 use super::NetworkConstants;
-use rsnano_core::utils::get_cpu_count;
+use anyhow::Result;
+use rsnano_core::utils::{get_cpu_count, TomlWriter};
 use std::{
     net::Ipv6Addr,
     path::{Path, PathBuf},
@@ -54,6 +55,64 @@ impl RpcConfig {
             rpc_logging: RpcLoggingConfig::new(),
             rpc_process: RpcProcessConfig::new(network_constants, parallelism),
         }
+    }
+
+    pub fn serialize_toml(&self, toml: &mut dyn TomlWriter) -> Result<()> {
+        toml.put_str(
+            "address",
+            &self.address,
+            "Bind address for the RPC server.\ntype:string,ip",
+        )?;
+        toml.put_u16(
+            "port",
+            self.port,
+            "Listening port for the RPC server.\ntype:uint16",
+        )?;
+        toml.put_bool("enable_control", self.enable_control, "Enable or disable control-level requests.\nWARNING: Enabling this gives anyone with RPC access the ability to stop the node and access wallet funds.\ntype:bool")?;
+        toml.put_u16(
+            "max_json_depth",
+            self.max_json_depth as u16,
+            "Maximum number of levels in JSON requests.\ntype:uint8",
+        )?;
+        toml.put_u64(
+            "max_request_size",
+            self.max_request_size,
+            "Maximum number of bytes allowed in request bodies.\ntype:uint64",
+        )?;
+
+        toml.put_child("process", &mut |rpc_process| {
+            rpc_process.put_u32(
+                "io_threads",
+                self.rpc_process.io_threads,
+                "Number of threads used to serve IO.\ntype:uint32",
+            )?;
+            rpc_process.put_str(
+                "ipc_address",
+                &self.rpc_process.ipc_address,
+                "Address of IPC server.\ntype:string,ip",
+            )?;
+            rpc_process.put_u16(
+                "ipc_port",
+                self.rpc_process.ipc_port,
+                "Listening port of IPC server.\ntype:uint16",
+            )?;
+            rpc_process.put_u32(
+                "num_ipc_connections",
+                self.rpc_process.num_ipc_connections,
+                "Number of IPC connections to establish.\ntype:uint32",
+            )?;
+            Ok(())
+        })?;
+
+        toml.put_child("logging", &mut |rpc_logging| {
+            rpc_logging.put_bool(
+                "log_rpc",
+                self.rpc_logging.log_rpc,
+                "Whether to log RPC calls.\ntype:bool",
+            )?;
+            Ok(())
+        })?;
+        Ok(())
     }
 }
 
