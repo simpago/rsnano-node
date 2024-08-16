@@ -632,7 +632,6 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto type = vm["generate_config"].as<std::string> ();
 		nano::tomlconfig toml;
 		std::string toml_str;
-		bool valid_type = false;
 		if (type == "node")
 		{
 			// valid_type = true;
