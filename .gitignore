@@ -88,3 +88,8 @@ rust/target
 nano/lib/rsnano.hpp
 build/
 .cache/
+
+config-node.toml.sample
+config-rpc.toml.sample
+flatc
+nano/ipc_flatbuffers_lib/

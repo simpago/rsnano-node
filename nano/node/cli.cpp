@@ -630,10 +630,10 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 	else if (vm.count ("generate_config"))
 	{
 		auto type = vm["generate_config"].as<std::string> ();
-		nano::tomlconfig toml;
-		std::string toml_str;
 		if (type == "node")
 		{
+			std::string toml_str;
+
 			// valid_type = true;
 			nano::network_params network_params{ nano::network_constants::active_network () };
 			nano::daemon_config config{ data_path, network_params };
@@ -659,6 +659,7 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		}
 		else if (type == "rpc")
 		{
+			nano::tomlconfig toml;
 			nano::rpc_config config{ nano::dev::network_params.network };
 			config.serialize_toml (toml);
 
