@@ -1,4 +1,4 @@
-use crate::cli::{commands::read_toml, get_path, init_tracing};
+use crate::cli::{get_path, init_tracing};
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
 use rsnano_core::work::WorkPoolImpl;
@@ -9,6 +9,7 @@ use rsnano_node::{
     NetworkParams,
 };
 use std::{
+    fs,
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
@@ -127,7 +128,7 @@ impl RunDaemonArgs {
         let node_toml_config_path = get_node_toml_config_path(&path);
 
         let daemon_config = if node_toml_config_path.exists() {
-            let toml_str = read_toml(&node_toml_config_path)?;
+            let toml_str = fs::read_to_string(node_toml_config_path)?;
 
             let daemon_toml: DaemonToml = from_str(&toml_str)?;
 

@@ -32,18 +32,27 @@ rsnano::DaemonConfigDto to_daemon_config_dto (nano::daemon_config const & config
 	return dto;
 }
 
-std::string nano::daemon_config::serialize_toml ()
+void nano::daemon_config::serialize_toml ()
 {
 	auto dto{ to_daemon_config_dto (*this) };
 
-	const size_t buffer_len = 10000;
-	std::vector<char> buffer (buffer_len);
+	// Call the Rust function that returns a StringDto
+	auto string_dto = rsnano::rsn_daemon_config_serialize_toml (&dto);
 
-	rsnano::rsn_daemon_config_serialize_toml (&dto, buffer.data (), buffer_len);
+	// Check if string_dto is valid
+	if (string_dto.handle != nullptr && string_dto.value != nullptr)
+	{
+		// Convert the StringDto to a std::string and print it
+		std::string toml_str (string_dto.value);
+		std::cout << toml_str << std::endl;
 
-	std::string toml_str (buffer.data ());
-
-	return toml_str;
+		// Free the StringHandle using rsn_string_destroy
+		rsnano::rsn_string_destroy (string_dto.handle);
+	}
+	else
+	{
+		std::cerr << "Failed to serialize daemon config to TOML." << std::endl;
+	}
 }
 
 nano::error nano::daemon_config::deserialize_toml (nano::tomlconfig & toml)

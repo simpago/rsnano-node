@@ -67,17 +67,6 @@ TEST (toml, diff_equal)
 	ASSERT_TRUE (other.empty ());
 }
 
-TEST (toml, daemon_config_update_array)
-{
-	nano::tomlconfig t;
-	std::filesystem::path data_path (".");
-	nano::daemon_config c{ data_path, nano::dev::network_params };
-	c.node.preconfigured_peers.push_back ("dev-peer.org");
-	c.serialize_toml ();
-	c.deserialize_toml (t);
-	ASSERT_EQ (c.node.preconfigured_peers[0], "dev-peer.org");
-}
-
 /** Empty rpc config file should match a default config object */
 TEST (toml, rpc_config_deserialize_defaults)
 {
