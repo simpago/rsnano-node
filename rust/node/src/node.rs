@@ -1201,6 +1201,13 @@ impl Node {
         }
     }
 
+    pub fn insert_into_wallet(&self, keys: &KeyPair) {
+        let wallet_id = self.wallets.wallet_ids()[0];
+        self.wallets
+            .insert_adhoc2(&wallet_id, &keys.private_key(), true)
+            .unwrap();
+    }
+
     pub fn process_active(&self, block: BlockEnum) {
         self.block_processor.process_active(Arc::new(block));
     }
