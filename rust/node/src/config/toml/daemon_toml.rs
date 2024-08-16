@@ -1256,8 +1256,14 @@ mod tests {
             default_daemon_config.node.bootstrap_ascending.throttle_wait
         );
         assert_ne!(
-            deserialized_daemon_config.node.bootstrap_ascending.timeout,
-            default_daemon_config.node.bootstrap_ascending.timeout
+            deserialized_daemon_config
+                .node
+                .bootstrap_ascending
+                .request_timeout,
+            default_daemon_config
+                .node
+                .bootstrap_ascending
+                .request_timeout
         );
 
         // Bootstrap Ascending Account Sets section

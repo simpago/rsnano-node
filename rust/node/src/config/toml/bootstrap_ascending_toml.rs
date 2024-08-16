@@ -47,7 +47,7 @@ impl From<&BootstrapAscendingConfig> for BootstrapAscendingToml {
             requests_limit: Some(config.requests_limit),
             database_requests_limit: Some(config.database_requests_limit),
             pull_count: Some(config.pull_count),
-            timeout: Some(config.timeout.as_millis() as u64),
+            timeout: Some(config.request_timeout.as_millis() as u64),
             throttle_coefficient: Some(config.throttle_coefficient),
             throttle_wait: Some(config.throttle_wait.as_millis() as u64),
             account_sets: Some((&config.account_sets).into()),
@@ -76,7 +76,7 @@ impl From<&BootstrapAscendingToml> for BootstrapAscendingConfig {
             config.requests_limit = requests_limit;
         }
         if let Some(timeout) = &toml.timeout {
-            config.timeout = Duration::from_millis(*timeout);
+            config.request_timeout = Duration::from_millis(*timeout);
         }
         if let Some(throttle_wait) = &toml.throttle_wait {
             config.throttle_wait = Duration::from_millis(*throttle_wait);

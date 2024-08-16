@@ -562,7 +562,7 @@ pub unsafe extern "C" fn rsn_node_flood_block_many(
         blocks,
         Box::new(move || callback(ctx_wrapper.get_context())),
         Duration::from_millis(delay_ms),
-    )
+    );
 }
 
 #[no_mangle]

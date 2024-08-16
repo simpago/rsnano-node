@@ -27,7 +27,7 @@ impl From<&BootstrapAscendingConfig> for BootstrapAscendingConfigDto {
             requests_limit: value.requests_limit,
             database_requests_limit: value.database_requests_limit,
             pull_count: value.pull_count,
-            timeout_ms: value.timeout.as_millis() as u64,
+            timeout_ms: value.request_timeout.as_millis() as u64,
             throttle_coefficient: value.throttle_coefficient,
             throttle_wait_ms: value.throttle_wait.as_millis() as u64,
             account_sets: (&value.account_sets).into(),
@@ -42,7 +42,7 @@ impl From<&BootstrapAscendingConfigDto> for BootstrapAscendingConfig {
         config.requests_limit = value.requests_limit;
         config.database_requests_limit = value.database_requests_limit;
         config.pull_count = value.pull_count;
-        config.timeout = Duration::from_millis(value.timeout_ms);
+        config.request_timeout = Duration::from_millis(value.timeout_ms);
         config.throttle_coefficient = value.throttle_coefficient;
         config.throttle_wait = Duration::from_millis(value.throttle_wait_ms);
         config.account_sets = (&value.account_sets).into();

@@ -404,7 +404,9 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                 .insert(incremental_id, Arc::clone(&attempt));
             self.attempts.lock().unwrap().add(attempt);
             if !self.network.is_excluded(&remote_addr) {
-                self.connections.add_connection(remote_addr);
+                self.runtime
+                    .tokio
+                    .block_on(self.connections.add_connection(remote_addr));
             }
         }
         self.condition.notify_all();

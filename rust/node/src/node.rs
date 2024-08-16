@@ -586,6 +586,7 @@ impl Node {
             ledger.clone(),
             network.clone(),
         ));
+        dead_channel_cleanup.add(&request_aggregator);
 
         let backlog_population = Arc::new(BacklogPopulation::new(
             global_config.into(),

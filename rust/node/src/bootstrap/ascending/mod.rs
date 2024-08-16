@@ -190,7 +190,7 @@ impl BootstrapAscending {
         while !guard.stopped {
             let account = guard.available_account(&self.stats, &self.database_limiter);
             if !account.is_zero() {
-                guard.accounts.timestamp(&account, false);
+                guard.accounts.timestamp_set(&account);
                 return account;
             } else {
                 guard = self
@@ -219,7 +219,7 @@ impl BootstrapAscending {
         let tag = AsyncTag {
             id: thread_rng().next_u64(),
             account,
-            time: Instant::now(),
+            timestamp: Instant::now(),
             query_type,
             start,
         };
@@ -284,8 +284,9 @@ impl BootstrapAscending {
             guard
                 .throttle
                 .resize(compute_throttle_size(&self.ledger, &self.config));
+
             while let Some(front) = guard.tags.front() {
-                if front.time.elapsed() <= self.config.timeout {
+                if front.timestamp.elapsed() <= self.config.request_timeout {
                     break;
                 }
 
@@ -309,10 +310,11 @@ impl BootstrapAscending {
         if let Some(tag) = guard.tags.remove(message.id) {
             self.stats
                 .inc(StatType::BootstrapAscending, DetailType::Reply);
+
             self.stats.sample(
                 Sample::BootstrapTagDuration,
-                tag.time.elapsed().as_millis() as i64,
-                (0, self.config.timeout.as_millis() as i64),
+                tag.timestamp.elapsed().as_millis() as i64,
+                (0, self.config.request_timeout.as_millis() as i64),
             );
 
             guard.scoring.received_message(channel);
@@ -541,8 +543,7 @@ impl BootstrapAscendingImpl {
                 // If we've inserted any block in to an account, unmark it as blocked
                 self.accounts.unblock(account, None);
                 self.accounts.priority_up(&account);
-                self.accounts
-                    .timestamp(&account, /* reset timestamp */ true);
+                self.accounts.timestamp_reset(&account);
 
                 if block.is_send() {
                     let destination = block.destination().unwrap();
@@ -611,7 +612,7 @@ pub struct BootstrapAscendingConfig {
     pub requests_limit: usize,
     pub database_requests_limit: usize,
     pub pull_count: usize,
-    pub timeout: Duration,
+    pub request_timeout: Duration,
     pub throttle_coefficient: usize,
     pub throttle_wait: Duration,
     pub account_sets: AccountSetsConfig,
@@ -626,7 +627,7 @@ impl Default for BootstrapAscendingConfig {
             requests_limit: 64,
             database_requests_limit: 1024,
             pull_count: BlocksAckPayload::MAX_BLOCKS,
-            timeout: Duration::from_secs(3),
+            request_timeout: Duration::from_secs(3),
             throttle_coefficient: 16,
             throttle_wait: Duration::from_millis(100),
             account_sets: Default::default(),
@@ -645,7 +646,7 @@ impl BootstrapAscendingConfig {
             self.pull_count,
             "Number of requested blocks for ascending bootstrap request.\ntype:uint64",
         )?;
-        toml.put_u64 ("timeout", self.timeout.as_millis() as u64, "Timeout in milliseconds for incoming ascending bootstrap messages to be processed.\ntype:milliseconds")?;
+        toml.put_u64 ("timeout", self.request_timeout.as_millis() as u64, "Timeout in milliseconds for incoming ascending bootstrap messages to be processed.\ntype:milliseconds")?;
         toml.put_usize(
             "throttle_coefficient",
             self.throttle_coefficient,

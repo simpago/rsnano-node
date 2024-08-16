@@ -109,7 +109,7 @@ fn send_discarded_publish() {
         Amount::MAX,
         4.into(),
         &DEV_GENESIS_KEY,
-        node1.work_generate_dev(5.into()),
+        node1.work_generate_dev(2.into()),
     ));
 
     node1.message_publisher.lock().unwrap().flood(

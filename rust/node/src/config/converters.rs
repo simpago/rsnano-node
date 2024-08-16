@@ -31,7 +31,7 @@ impl From<&GlobalConfig> for BootstrapAscendingConfig {
             requests_limit: config.requests_limit,
             database_requests_limit: config.database_requests_limit,
             pull_count: config.pull_count,
-            timeout: config.timeout,
+            request_timeout: config.request_timeout,
             throttle_coefficient: config.throttle_coefficient,
             throttle_wait: config.throttle_wait,
             account_sets: config.account_sets.clone(),

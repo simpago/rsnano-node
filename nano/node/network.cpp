@@ -31,12 +31,18 @@ namespace
 {
 void callback_wrapper (void * context)
 {
+	if (context == nullptr)
+		return;
+
 	auto callback = static_cast<std::function<void ()> *> (context);
 	(*callback) ();
 }
 
 void drop_context (void * context)
 {
+	if (context == nullptr)
+		return;
+
 	auto callback = static_cast<std::function<void ()> *> (context);
 	delete callback;
 }
@@ -45,7 +51,7 @@ void drop_context (void * context)
 void nano::network::flood_block_many (std::deque<std::shared_ptr<nano::block>> blocks_a, std::function<void ()> callback_a, unsigned delay_a)
 {
 	rsnano::block_vec block_vec{ blocks_a };
-	auto context = new std::function<void ()> (callback_a);
+	auto context = callback_a != nullptr ? new std::function<void ()> (callback_a) : nullptr;
 	rsnano::rsn_node_flood_block_many (node.handle, block_vec.handle, delay_a, callback_wrapper, context, drop_context);
 }
 

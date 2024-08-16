@@ -4,7 +4,10 @@ use super::{
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelId, DeadChannelCleanupStep, FairQueue, Network, TrafficType},
+    transport::{
+        ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue, Network,
+        TrafficType,
+    },
 };
 use rsnano_core::{
     utils::{get_cpu_count, ContainerInfoComponent},
@@ -287,6 +290,14 @@ impl RequestAggregatorLoop {
         let mut aggregator = RequestAggregatorImpl::new(&self.ledger, &self.stats, tx);
         aggregator.add_votes(requests);
         aggregator.get_result()
+    }
+}
+
+impl DeadChannelCleanupTarget for Arc<RequestAggregator> {
+    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
+        Box::new(RequestAggregatorCleanup {
+            state: self.state.clone(),
+        })
     }
 }
 

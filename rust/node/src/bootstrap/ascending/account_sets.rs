@@ -192,11 +192,16 @@ impl AccountSets {
         );
     }
 
-    pub fn timestamp(&mut self, account: &Account, reset: bool) {
-        let tstamp = if reset { None } else { Some(Instant::now()) };
-        self.priorities.change_timestamp(account, tstamp);
+    pub fn timestamp_set(&mut self, account: &Account) {
+        let tstamp = Instant::now();
+        self.priorities.change_timestamp(account, Some(tstamp));
     }
 
+    pub fn timestamp_reset(&mut self, account: &Account) {
+        self.priorities.change_timestamp(account, None);
+    }
+
+    /// Returns false if the account is busy
     fn check_timestamp(&self, account: &Account) -> bool {
         if let Some(entry) = self.priorities.get(account) {
             if entry

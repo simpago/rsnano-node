@@ -23,7 +23,7 @@ public:
 	std::size_t consideration_count;
 	std::size_t priorities_max;
 	std::size_t blocking_max;
-	nano::millis_t cooldown;
+	std::chrono::milliseconds cooldown;
 };
 
 class bootstrap_ascending_config final
@@ -41,9 +41,9 @@ public:
 	std::size_t requests_limit;
 	std::size_t database_requests_limit;
 	std::size_t pull_count;
-	nano::millis_t timeout;
+	std::chrono::milliseconds request_timeout;
 	std::size_t throttle_coefficient;
-	nano::millis_t throttle_wait;
+	std::chrono::milliseconds throttle_wait;
 	std::size_t block_wait_count;
 
 	nano::account_sets_config account_sets;
