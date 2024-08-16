@@ -6,6 +6,7 @@
 #include <nano/node/nodeconfig.hpp>
 #include <nano/node/openclconfig.hpp>
 
+#include <string>
 #include <vector>
 
 namespace nano
@@ -17,7 +18,7 @@ public:
 	daemon_config () = default;
 	daemon_config (std::filesystem::path const & data_path, nano::network_params & network_params);
 	nano::error deserialize_toml (nano::tomlconfig &);
-	void serialize_toml ();
+	void serialize_toml (std::string &);
 	bool rpc_enable{ false };
 	nano::node_rpc_config rpc;
 	nano::node_config node;
