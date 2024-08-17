@@ -30,6 +30,7 @@
 #include <boost/property_tree/json_parser.hpp>
 
 #include <memory>
+#include <optional>
 
 /*
  * node
@@ -519,6 +520,20 @@ nano::ConfirmationQuorum nano::node::quorum () const
 	result.peers_weight = nano::amount::from_bytes (dto.peers_weight);
 	result.minimum_principal_weight = nano::amount::from_bytes (dto.minimum_principal_weight);
 	return result;
+}
+
+std::optional<nano::endpoint> nano::node::find_endpoint_for_node_id(nano::account const & node_id)
+{
+	rsnano::EndpointDto dto;
+	auto found = rsnano::rsn_node_find_endpoint_for_node_id(handle, node_id.bytes.data(), &dto);
+	if (found)
+	{
+		return rsnano::dto_to_udp_endpoint(dto);
+	} 
+	else
+	{
+		return std::nullopt;
+	}
 }
 
 std::vector<nano::account> nano::node::list_online_reps ()

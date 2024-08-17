@@ -121,6 +121,7 @@ public:
 	nano::amount get_rep_weight (nano::account const & account);
 	std::unordered_map<nano::account, nano::uint128_t> get_rep_weights () const;
 	nano::ConfirmationQuorum quorum () const;
+	std::optional<nano::endpoint> find_endpoint_for_node_id(nano::account const & node_id);
 
 public:
 	nano::keypair node_id;

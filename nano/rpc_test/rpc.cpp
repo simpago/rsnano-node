@@ -1707,11 +1707,11 @@ TEST (rpc, keepalive)
 	auto port (boost::str (boost::format ("%1%") % node1->network->endpoint ().port ()));
 	request.put ("address", address);
 	request.put ("port", port);
-	ASSERT_EQ (nullptr, node0->network->tcp_channels->find_node_id (node1->get_node_id ()));
+	ASSERT_FALSE (node0->find_endpoint_for_node_id (node1->get_node_id ()).has_value());
 	ASSERT_EQ (0, node0->network->size ());
 	auto response (wait_response (system, rpc_ctx, request));
 	system.deadline_set (10s);
-	while (node0->network->find_node_id (node1->get_node_id ()) == nullptr)
+	while (node0->find_endpoint_for_node_id (node1->get_node_id ()).has_value() == false)
 	{
 		ASSERT_EQ (0, node0->network->size ());
 		ASSERT_NO_ERROR (system.poll ());
@@ -6413,9 +6413,9 @@ TEST (rpc, telemetry_all)
 	// First need to set up the cached data
 	auto node = system.nodes.front ();
 
-	auto channel = node1->network->find_node_id (node->get_node_id ());
-	ASSERT_TRUE (channel);
-	ASSERT_TIMELY (10s, node1->telemetry->get_telemetry (channel->get_remote_endpoint ()));
+	auto endpoint = node1->find_endpoint_for_node_id(node->get_node_id());
+	ASSERT_TRUE (endpoint.has_value());
+	ASSERT_TIMELY (10s, node1->telemetry->get_telemetry (endpoint.value()));
 
 	boost::property_tree::ptree request;
 	request.put ("action", "telemetry");
@@ -6444,7 +6444,7 @@ TEST (rpc, telemetry_all)
 
 	ASSERT_EQ (node->network->endpoint ().address ().to_string (), metrics.get<std::string> ("address"));
 	ASSERT_EQ (node->network->endpoint ().port (), metrics.get<uint16_t> ("port"));
-	ASSERT_TRUE (node1->network->find_node_id (data.get_node_id ()));
+	ASSERT_TRUE (node1->find_endpoint_for_node_id (data.get_node_id ()).has_value());
 }
 
 // Also tests all forms of ipv4/ipv6

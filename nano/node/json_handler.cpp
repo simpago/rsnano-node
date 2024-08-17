@@ -2950,41 +2950,41 @@ void nano::json_handler::peers ()
 {
 	boost::property_tree::ptree peers_l;
 	bool const peer_details = request.get<bool> ("peer_details", false);
-	auto peers_list (node.network->tcp_channels->list (std::numeric_limits<std::size_t>::max ()));
-	std::sort (peers_list.begin (), peers_list.end (), [] (auto const & lhs, auto const & rhs) {
-		return lhs->get_remote_endpoint () < rhs->get_remote_endpoint ();
-	});
-	for (auto i (peers_list.begin ()), n (peers_list.end ()); i != n; ++i)
+	auto peers_handle = rsnano::rsn_node_get_peers(node.handle);
+	auto len = rsnano::rsn_peer_info_list_len(peers_handle);
+	for (auto i = 0; i < len; ++i) 
 	{
+		rsnano::PeerInfoDto dto;
+		rsnano::rsn_peer_info_list_get(peers_handle, i, &dto);
+		auto remote_addr = rsnano::dto_to_endpoint(dto.remote_endpoint); 
 		std::stringstream text;
-		auto channel (*i);
-		text << channel->to_string ();
+		text << remote_addr;
 		if (peer_details)
 		{
 			boost::property_tree::ptree pending_tree;
-			pending_tree.put ("protocol_version", std::to_string (channel->get_network_version ()));
-			auto node_id_l (channel->get_node_id_optional ());
-			if (node_id_l.is_initialized ())
+			pending_tree.put ("protocol_version", std::to_string (dto.protocol_version));
+			auto node_id_l { nano::public_key::from_bytes(&dto.node_id[0])};
+			if (dto.has_node_id)
 			{
-				pending_tree.put ("node_id", node_id_l.get ().to_node_id ());
+				pending_tree.put ("node_id", node_id_l.to_node_id ());
 			}
 			else
 			{
 				pending_tree.put ("node_id", "");
 			}
-			debug_assert (channel->get_type () == nano::transport::transport_type::tcp);
 			pending_tree.put ("type", "tcp");
 
-			auto peering_endpoint = channel->get_peering_endpoint ();
+			auto peering_endpoint = rsnano::dto_to_endpoint(dto.peering_endpoint);
 			pending_tree.put ("peering", boost::lexical_cast<std::string> (peering_endpoint));
 
 			peers_l.push_back (boost::property_tree::ptree::value_type (text.str (), pending_tree));
 		}
 		else
 		{
-			peers_l.push_back (boost::property_tree::ptree::value_type (text.str (), boost::property_tree::ptree (std::to_string (channel->get_network_version ()))));
+			peers_l.push_back (boost::property_tree::ptree::value_type (text.str (), boost::property_tree::ptree (std::to_string (dto.protocol_version))));
 		}
 	}
+	rsnano::rsn_peer_info_list_destroy(peers_handle);
 	response_l.add_child ("peers", peers_l);
 	response_errors ();
 }

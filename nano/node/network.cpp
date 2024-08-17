@@ -75,11 +75,6 @@ void nano::network::merge_peer (nano::endpoint const & peer_a)
 	rsnano::rsn_node_connect (node.handle, &peer_dto);
 }
 
-std::shared_ptr<nano::transport::channel> nano::network::find_node_id (nano::account const & node_id_a)
-{
-	return tcp_channels->find_node_id (node_id_a);
-}
-
 nano::endpoint nano::network::endpoint () const
 {
 	return nano::endpoint (boost::asio::ip::address_v6::loopback (), tcp_channels->port ());
