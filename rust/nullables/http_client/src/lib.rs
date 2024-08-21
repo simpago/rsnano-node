@@ -1,7 +1,10 @@
-use reqwest::{IntoUrl, Method, StatusCode, Url};
-use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
+use anyhow::anyhow;
+use reqwest::{IntoUrl, Method, StatusCode};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, sync::Arc};
+
+pub use reqwest::Url;
 
 pub struct HttpClient {
     strategy: HttpClientStrategy,

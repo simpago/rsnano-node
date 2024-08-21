@@ -10,8 +10,8 @@ use crate::{
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{DropPolicy, MessagePublisher, Network},
-    utils::{HardenedConstants, SteadyClock},
+    transport::{DropPolicy, MessagePublisher, NetworkFilter, NetworkInfo},
+    utils::HardenedConstants,
     wallets::Wallets,
     NetworkParams,
 };
@@ -22,13 +22,14 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::max,
     collections::{BTreeMap, HashMap},
     mem::size_of,
     ops::Deref,
-    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard},
+    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -83,7 +84,8 @@ pub struct ActiveElections {
     recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     block_processor: Arc<BlockProcessor>,
     vote_generators: Arc<VoteGenerators>,
-    network: Arc<Network>,
+    publish_filter: Arc<NetworkFilter>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     pub vacancy_update: Mutex<Box<dyn Fn() + Send + Sync>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
@@ -110,7 +112,8 @@ impl ActiveElections {
         confirming_set: Arc<ConfirmingSet>,
         block_processor: Arc<BlockProcessor>,
         vote_generators: Arc<VoteGenerators>,
-        network: Arc<Network>,
+        publish_filter: Arc<NetworkFilter>,
+        network_info: Arc<RwLock<NetworkInfo>>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         election_end: ElectionEndCallback,
@@ -146,7 +149,8 @@ impl ActiveElections {
             node_config,
             block_processor,
             vote_generators,
-            network,
+            publish_filter,
+            network_info,
             vacancy_update: Mutex::new(Box::new(|| {})),
             vote_cache,
             stats,
@@ -360,7 +364,7 @@ impl ActiveElections {
     fn clear_publish_filter(&self, block: &BlockEnum) {
         let mut buf = MemoryStream::new();
         block.serialize_without_block_type(&mut buf);
-        self.network.publish_filter.clear_bytes(buf.as_bytes());
+        self.publish_filter.clear_bytes(buf.as_bytes());
     }
 
     /// Maximum number of elections that should be present in this container
@@ -774,7 +778,7 @@ impl ActiveElections {
 
         let mut solicitor = ConfirmationSolicitor::new(
             &self.network_params,
-            &self.network,
+            &self.network_info,
             self.message_publisher.lock().unwrap().clone(),
         );
         solicitor.prepare(&self.online_reps.lock().unwrap().peered_principal_reps());

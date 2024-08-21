@@ -31,7 +31,7 @@ fn batches() {
 
     let mut solicitor = ConfirmationSolicitor::new(
         &DEV_NETWORK_PARAMS,
-        &node2.network,
+        &node2.network_info,
         node2.message_publisher.lock().unwrap().clone(),
     );
     solicitor.prepare(&representatives);
@@ -112,7 +112,7 @@ fn different_hashes() {
 
     let mut solicitor = ConfirmationSolicitor::new(
         &DEV_NETWORK_PARAMS,
-        &node2.network,
+        &node2.network_info,
         node2.message_publisher.lock().unwrap().clone(),
     );
     solicitor.prepare(&representatives);
@@ -169,7 +169,7 @@ fn bypass_max_requests_cap() {
 
     let mut solicitor = ConfirmationSolicitor::new(
         &DEV_NETWORK_PARAMS,
-        &node2.network,
+        &node2.network_info,
         node2.message_publisher.lock().unwrap().clone(),
     );
 

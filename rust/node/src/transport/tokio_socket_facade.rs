@@ -1,5 +1,5 @@
-use super::{TcpStream, TcpStreamFactory};
 use crate::utils::{AsyncRuntime, ErrorCode};
+use rsnano_nullable_tcp::{TcpStream, TcpStreamFactory};
 use std::{
     any::Any,
     net::{IpAddr, Ipv6Addr, SocketAddr},

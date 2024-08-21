@@ -1,4 +1,4 @@
-use super::{Channel, ChannelId, InboundMessageQueue, RealtimeMessageHandler};
+use super::{ChannelId, ChannelInfo, InboundMessageQueue, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
 use rsnano_core::utils::get_cpu_count;
 use rsnano_messages::Message;
@@ -119,7 +119,7 @@ impl State {
         }
     }
 
-    fn handle_batch(&self, batch: VecDeque<(ChannelId, (Message, Arc<Channel>))>) {
+    fn handle_batch(&self, batch: VecDeque<(ChannelId, (Message, Arc<ChannelInfo>))>) {
         let start = Instant::now();
         let batch_size = batch.len();
         for (_, (message, channel)) in batch {

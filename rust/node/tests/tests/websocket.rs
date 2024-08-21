@@ -61,7 +61,9 @@ fn started_election() {
             node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
-        node1.inbound_message_queue.put(publish1, channel1);
+        node1
+            .inbound_message_queue
+            .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
             node1.active.election(&send1.qualified_root()).is_some()
         });
@@ -127,7 +129,9 @@ fn stopped_election() {
             node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
-        node1.inbound_message_queue.put(publish1, channel1);
+        node1
+            .inbound_message_queue
+            .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
             node1.active.election(&send1.qualified_root()).is_some()
         });

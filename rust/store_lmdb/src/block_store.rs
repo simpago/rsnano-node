@@ -1,16 +1,17 @@
 use crate::{
-    nullable_lmdb::ConfiguredDatabase, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
-    LmdbWriteTransaction, Transaction, BLOCK_TEST_DATABASE,
+    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
+    BLOCK_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use num_traits::FromPrimitive;
-#[cfg(feature = "output_tracking")]
-use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
 use rsnano_core::{
     utils::{BufferReader, FixedSizeSerialize},
     Block, BlockEnum, BlockHash, BlockSideband, BlockType, BlockVisitor, BlockWithSideband,
     ChangeBlock, OpenBlock, ReceiveBlock, SendBlock, StateBlock,
 };
+use rsnano_nullable_lmdb::ConfiguredDatabase;
+#[cfg(feature = "output_tracking")]
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
 
 pub type BlockIterator<'txn> = BinaryDbIterator<'txn, BlockHash, BlockWithSideband>;

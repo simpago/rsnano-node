@@ -6,7 +6,8 @@ edition = "2021"
 [dependencies]
 rsnano_core = { path = "../../core" }
 rsnano_node = { path = "../../node", features = ["output_tracking"] }
-mock_instant = "0.2.1"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-axum = "0.7.5"
-tracing-test = "0.2.4"
+rsnano_nullable_tcp = { path = "../../nullables/tcp" }
+mock_instant = "0"
+tracing-subscriber = { version = "0", features = ["env-filter"] }
+axum = "0"
+tracing-test = "0"

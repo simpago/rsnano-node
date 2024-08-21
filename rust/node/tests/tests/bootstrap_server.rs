@@ -38,7 +38,8 @@ fn serve_account_blocks() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -81,7 +82,8 @@ fn serve_hash() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -124,7 +126,8 @@ fn serve_hash_one() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -162,7 +165,8 @@ fn serve_end_of_chain() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -202,7 +206,8 @@ fn serve_missing() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -242,7 +247,8 @@ fn serve_multiple() {
             next_id += 1;
 
             let channel = make_fake_channel(&node);
-            node.inbound_message_queue.put(request, channel);
+            node.inbound_message_queue
+                .put(request, channel.info.clone());
         }
     }
 
@@ -290,7 +296,8 @@ fn serve_account_info() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -335,7 +342,8 @@ fn serve_account_info_missing() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -377,7 +385,8 @@ fn serve_frontiers() {
     });
 
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(request, channel);
+    node.inbound_message_queue
+        .put(request, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
 
@@ -425,7 +434,8 @@ fn serve_frontiers_invalid_count() {
         });
 
         let channel = make_fake_channel(&node);
-        node.inbound_message_queue.put(request, channel);
+        node.inbound_message_queue
+            .put(request, channel.info.clone());
     }
 
     assert_timely_eq(
@@ -451,7 +461,8 @@ fn serve_frontiers_invalid_count() {
         });
 
         let channel = make_fake_channel(&node);
-        node.inbound_message_queue.put(request, channel);
+        node.inbound_message_queue
+            .put(request, channel.info.clone());
     }
 
     assert_timely_eq(
@@ -477,7 +488,8 @@ fn serve_frontiers_invalid_count() {
         });
 
         let channel = make_fake_channel(&node);
-        node.inbound_message_queue.put(request, channel);
+        node.inbound_message_queue
+            .put(request, channel.info.clone());
     }
 
     assert_timely_eq(

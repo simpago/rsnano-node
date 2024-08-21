@@ -19,7 +19,8 @@ fn invalid_signature() {
 
     let channel = make_fake_channel(&node);
     channel.set_node_id(node_id);
-    node.inbound_message_queue.put(message, channel);
+    node.inbound_message_queue
+        .put(message, channel.info.clone());
 
     assert_timely(Duration::from_secs(5), || {
         node.stats.count(
@@ -49,9 +50,12 @@ fn basic() {
 
     // Request telemetry metrics
     let channel = node_client
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node_server.get_node_id())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     assert_timely(Duration::from_secs(5), || {
         node_client
@@ -102,9 +106,12 @@ fn disconnected() {
 
     // Request telemetry metrics
     let channel = node_client
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node_server.get_node_id())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     // Ensure telemetry is available before disconnecting
     assert_timely(Duration::from_secs(5), || {
@@ -138,9 +145,12 @@ fn disable_metrics() {
 
     // Try and request metrics from a node which is turned off but a channel is not closed yet
     let channel = node_client
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node_server.get_node_id())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     node_client.telemetry.trigger();
 
@@ -153,9 +163,12 @@ fn disable_metrics() {
 
     // It should still be able to receive metrics though
     let channel1 = node_server
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node_client.get_node_id())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     assert_timely(Duration::from_secs(5), || {
         node_server
@@ -174,7 +187,8 @@ fn mismatched_node_id() {
 
     let message = Message::TelemetryAck(TelemetryAck(Some(telemetry)));
     let channel = make_fake_channel(&node);
-    node.inbound_message_queue.put(message, channel);
+    node.inbound_message_queue
+        .put(message, channel.info.clone());
 
     assert_timely(Duration::from_secs(5), || {
         node.stats.count(

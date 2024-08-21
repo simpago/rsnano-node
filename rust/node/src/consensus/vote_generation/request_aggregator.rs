@@ -5,7 +5,7 @@ use super::{
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     transport::{
-        ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue, Network,
+        ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue, NetworkInfo,
         TrafficType,
     },
 };
@@ -17,7 +17,7 @@ use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::{max, min},
-    sync::{Arc, Condvar, Mutex, MutexGuard},
+    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
 };
 
@@ -60,7 +60,7 @@ pub struct RequestAggregator {
     state: Arc<Mutex<RequestAggregatorState>>,
     condition: Arc<Condvar>,
     threads: Mutex<Vec<JoinHandle<()>>>,
-    network: Arc<Network>,
+    network: Arc<RwLock<NetworkInfo>>,
 }
 
 impl RequestAggregator {
@@ -69,7 +69,7 @@ impl RequestAggregator {
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
         ledger: Arc<Ledger>,
-        network: Arc<Network>,
+        network: Arc<RwLock<NetworkInfo>>,
     ) -> Self {
         let max_queue = config.max_queue;
         Self {
@@ -201,7 +201,7 @@ struct RequestAggregatorLoop {
     config: RequestAggregatorConfig,
     ledger: Arc<Ledger>,
     vote_generators: Arc<VoteGenerators>,
-    network: Arc<Network>,
+    network: Arc<RwLock<NetworkInfo>>,
 }
 
 impl RequestAggregatorLoop {
@@ -233,6 +233,8 @@ impl RequestAggregatorLoop {
 
             if !self
                 .network
+                .read()
+                .unwrap()
                 .is_queue_full(*channel_id, TrafficType::Generic)
             {
                 self.process(&tx, request, *channel_id);

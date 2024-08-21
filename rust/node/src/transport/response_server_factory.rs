@@ -1,6 +1,6 @@
 use super::{
-    Channel, InboundMessageQueue, LatestKeepalives, MessagePublisher, Network, ResponseServer,
-    ResponseServerExt, SynCookies,
+    Channel, InboundMessageQueue, LatestKeepalives, MessagePublisher, Network, NetworkFilter,
+    NetworkInfo, ResponseServer, ResponseServerExt, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -12,7 +12,8 @@ use crate::{
 };
 use rsnano_core::KeyPair;
 use rsnano_ledger::Ledger;
-use std::sync::{Arc, Mutex};
+use rsnano_nullable_clock::SteadyClock;
+use std::sync::{Arc, Mutex, RwLock};
 
 pub(crate) struct ResponseServerFactory {
     pub(crate) runtime: Arc<AsyncRuntime>,
@@ -22,7 +23,8 @@ pub(crate) struct ResponseServerFactory {
     pub(crate) workers: Arc<dyn ThreadPool>,
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) bootstrap_initiator: Arc<BootstrapInitiator>,
-    pub(crate) network: Arc<Network>,
+    pub(crate) network: Arc<RwLock<NetworkInfo>>,
+    pub(crate) publish_filter: Arc<NetworkFilter>,
     pub(crate) inbound_queue: Arc<InboundMessageQueue>,
     pub(crate) node_flags: NodeFlags,
     pub(crate) network_params: NetworkParams,
@@ -36,11 +38,14 @@ impl ResponseServerFactory {
         let ledger = Arc::new(Ledger::new_null());
         let flags = NodeFlags::default();
         let network = Arc::new(Network::new_null());
+        let publish_filter = Arc::new(NetworkFilter::default());
+        let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
         let runtime = Arc::new(AsyncRuntime::default());
         let workers = Arc::new(ThreadPoolImpl::new_test_instance());
         let network_params = NetworkParams::new(rsnano_core::Networks::NanoDevNetwork);
         let stats = Arc::new(Stats::default());
         let block_processor = Arc::new(BlockProcessor::new_test_instance(ledger.clone()));
+        let clock = Arc::new(SteadyClock::new_null());
         Self {
             runtime: runtime.clone(),
             stats: stats.clone(),
@@ -52,6 +57,7 @@ impl ResponseServerFactory {
                 BootstrapInitiatorConfig::default(),
                 flags.clone(),
                 network.clone(),
+                network_info.clone(),
                 runtime,
                 workers,
                 network_params.clone(),
@@ -60,13 +66,15 @@ impl ResponseServerFactory {
                 None,
                 ledger,
                 MessagePublisher::new_null(),
+                clock,
             )),
-            network,
+            network: network_info,
             inbound_queue: Arc::new(InboundMessageQueue::default()),
             node_flags: flags,
             network_params,
             syn_cookies: Arc::new(SynCookies::new(1)),
             latest_keepalives: Arc::new(Mutex::new(LatestKeepalives::default())),
+            publish_filter,
         }
     }
 
@@ -75,7 +83,7 @@ impl ResponseServerFactory {
             self.network.clone(),
             self.inbound_queue.clone(),
             channel,
-            Arc::clone(&self.network.publish_filter),
+            self.publish_filter.clone(),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),
             true,

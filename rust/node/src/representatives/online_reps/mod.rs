@@ -4,7 +4,7 @@ mod online_container;
 mod peered_container;
 mod peered_rep;
 
-use crate::{transport::ChannelId, utils::Timestamp};
+use crate::transport::ChannelId;
 pub use builder::{OnlineRepsBuilder, DEFAULT_ONLINE_WEIGHT_MINIMUM};
 pub use peered_container::InsertResult;
 pub use peered_rep::PeeredRep;
@@ -14,6 +14,7 @@ use rsnano_core::{
     Account, Amount,
 };
 use rsnano_ledger::RepWeightCache;
+use rsnano_nullable_clock::Timestamp;
 use std::{cmp::max, sync::Arc, time::Duration};
 use {online_container::OnlineContainer, peered_container::PeeredContainer};
 
@@ -236,9 +237,8 @@ impl Default for OnlineReps {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::SteadyClock;
-
     use super::*;
+    use rsnano_nullable_clock::SteadyClock;
     use std::time::Duration;
 
     #[test]

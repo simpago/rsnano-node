@@ -25,33 +25,31 @@ use crate::{
     stats::{DetailType, Direction, LedgerStats, StatType, Stats},
     transport::{
         ChannelId, DeadChannelCleanup, DropPolicy, InboundMessageQueue, KeepaliveFactory,
-        LatestKeepalives, MessageProcessor, MessagePublisher, Network, NetworkFilter,
+        LatestKeepalives, MessageProcessor, MessagePublisher, Network, NetworkFilter, NetworkInfo,
         NetworkOptions, NetworkThreads, OutboundBandwidthLimiter, PeerCacheConnector,
         PeerCacheUpdater, PeerConnector, RealtimeMessageHandler, ResponseServerFactory, SynCookies,
         TcpListener, TcpListenerExt, TrafficType,
     },
     utils::{
-        AsyncRuntime, LongRunningTransactionLogger, SteadyClock, ThreadPool, ThreadPoolImpl,
-        TimerThread, TxnTrackingConfig,
+        AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread,
+        TxnTrackingConfig,
     },
     wallets::{Wallets, WalletsExt},
     websocket::{create_websocket_server, WebsocketListenerExt},
-    work::{DistributedWorkFactory, HttpClient},
+    work::DistributedWorkFactory,
     NetworkParams, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry, BUILD_INFO,
     VERSION_STRING,
 };
-use reqwest::Url;
 use rsnano_core::{
-    utils::{
-        as_nano_json, system_time_as_nanoseconds, ContainerInfoComponent, SerdePropertyTree,
-        SystemTimeFactory,
-    },
+    utils::{as_nano_json, system_time_as_nanoseconds, ContainerInfoComponent, SerdePropertyTree},
     work::{WorkPool, WorkPoolImpl},
     Account, Amount, BlockEnum, BlockHash, BlockType, KeyPair, PublicKey, Root, Vote, VoteCode,
     VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, Message, Publish};
+use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
+use rsnano_nullable_http_client::{HttpClient, Url};
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
@@ -63,7 +61,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, RwLock,
     },
     time::{Duration, SystemTime},
 };
@@ -89,6 +87,7 @@ pub struct Node {
     pub ledger: Arc<Ledger>,
     pub outbound_limiter: Arc<OutboundBandwidthLimiter>,
     pub syn_cookies: Arc<SynCookies>,
+    pub network_info: Arc<RwLock<NetworkInfo>>,
     pub network: Arc<Network>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
@@ -229,22 +228,32 @@ impl Node {
             config.bootstrap_serving_threads as usize,
             "Bootstrap work",
         ));
+
+        let network_info = Arc::new(RwLock::new(NetworkInfo::new(
+            global_config.into(),
+            stats.clone(),
+        )));
+
+        let mut dead_channel_cleanup = DeadChannelCleanup::new(
+            steady_clock.clone(),
+            network_info.clone(),
+            network_params.network.cleanup_cutoff(),
+        );
+
+        let publish_filter = Arc::new(NetworkFilter::new(256 * 1024));
+
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
         let network = Arc::new(Network::new(NetworkOptions {
-            allow_local_peers: config.allow_local_peers,
-            tcp_config: config.tcp.clone(),
-            publish_filter: Arc::new(NetworkFilter::new(256 * 1024)),
+            publish_filter: publish_filter.clone(),
             network_params: network_params.clone(),
             stats: stats.clone(),
-            port: config.peering_port.unwrap_or(0),
-            flags: flags.clone(),
             limiter: outbound_limiter.clone(),
             clock: steady_clock.clone(),
+            network_info: network_info.clone(),
         }));
 
-        let mut dead_channel_cleanup =
-            DeadChannelCleanup::new(network.clone(), network_params.network.cleanup_cutoff());
+        dead_channel_cleanup.add(&network);
 
         let inbound_message_queue = Arc::new(InboundMessageQueue::new(
             config.message_processor.max_queue,
@@ -292,9 +301,10 @@ impl Node {
             ledger.clone(),
             unchecked.clone(),
             network_params.clone(),
-            network.clone(),
+            network_info.clone(),
             message_publisher.clone(),
             node_id.clone(),
+            steady_clock.clone(),
         ));
 
         let bootstrap_server = Arc::new(BootstrapServer::new(
@@ -437,7 +447,8 @@ impl Node {
             confirming_set.clone(),
             block_processor.clone(),
             vote_generators.clone(),
-            network.clone(),
+            publish_filter.clone(),
+            network_info.clone(),
             vote_cache.clone(),
             stats.clone(),
             election_end,
@@ -466,6 +477,7 @@ impl Node {
             global_config.into(),
             flags.clone(),
             network.clone(),
+            network_info.clone(),
             async_rt.clone(),
             bootstrap_workers.clone(),
             network_params.clone(),
@@ -480,6 +492,7 @@ impl Node {
                 network_params.network.protocol_info(),
                 512,
             ),
+            steady_clock.clone(),
         ));
         bootstrap_initiator.initialize();
         bootstrap_initiator.start();
@@ -495,12 +508,13 @@ impl Node {
             workers: workers.clone(),
             block_processor: block_processor.clone(),
             bootstrap_initiator: bootstrap_initiator.clone(),
-            network: network.clone(),
+            network: network_info.clone(),
             inbound_queue: inbound_message_queue.clone(),
             node_flags: flags.clone(),
             network_params: network_params.clone(),
             syn_cookies: syn_cookies.clone(),
             latest_keepalives: latest_keepalives.clone(),
+            publish_filter: publish_filter.clone(),
         });
 
         let peer_connector = Arc::new(PeerConnector::new(
@@ -509,6 +523,7 @@ impl Node {
             stats.clone(),
             async_rt.clone(),
             response_server_factory.clone(),
+            steady_clock.clone(),
         ));
 
         let rep_crawler = Arc::new(RepCrawler::new(
@@ -517,7 +532,7 @@ impl Node {
             config.rep_crawler_query_timeout,
             config.clone(),
             network_params.clone(),
-            network.clone(),
+            network_info.clone(),
             async_rt.clone(),
             ledger.clone(),
             active_elections.clone(),
@@ -534,7 +549,7 @@ impl Node {
         //         the latter would inherit the port from the former (if TCP is active, otherwise `network` picks first)
         //
         let tcp_listener = Arc::new(TcpListener::new(
-            network.port(),
+            network_info.read().unwrap().listening_port(),
             network.clone(),
             async_rt.clone(),
             stats.clone(),
@@ -584,7 +599,7 @@ impl Node {
             stats.clone(),
             vote_generators.clone(),
             ledger.clone(),
-            network.clone(),
+            network_info.clone(),
         ));
         dead_channel_cleanup.add(&request_aggregator);
 
@@ -600,7 +615,7 @@ impl Node {
             block_processor.clone(),
             ledger.clone(),
             stats.clone(),
-            network.clone(),
+            network_info.clone(),
             message_publisher.clone(),
             global_config.into(),
         ));
@@ -624,7 +639,8 @@ impl Node {
 
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(
             stats.clone(),
-            network.clone(),
+            network_info.clone(),
+            publish_filter.clone(),
             block_processor.clone(),
             config.clone(),
             flags.clone(),
@@ -638,12 +654,12 @@ impl Node {
         ));
 
         let keepalive_factory = Arc::new(KeepaliveFactory {
-            network: network.clone(),
+            network: network_info.clone(),
             config: config.clone(),
         });
 
         let network_threads = Arc::new(Mutex::new(NetworkThreads::new(
-            network.clone(),
+            network_info.clone(),
             peer_connector.clone(),
             flags.clone(),
             network_params.clone(),
@@ -653,6 +669,7 @@ impl Node {
             latest_keepalives.clone(),
             dead_channel_cleanup,
             message_publisher.clone(),
+            steady_clock.clone(),
         )));
 
         let message_processor = Mutex::new(MessageProcessor::new(
@@ -665,7 +682,7 @@ impl Node {
         let ongoing_bootstrap = Arc::new(OngoingBootstrap::new(
             network_params.clone(),
             bootstrap_initiator.clone(),
-            network.clone(),
+            network_info.clone(),
             flags.clone(),
             ledger.clone(),
             stats.clone(),
@@ -683,11 +700,14 @@ impl Node {
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         if !flags.disable_rep_crawler {
-            network.on_new_realtime_channel(Arc::new(move |channel| {
-                if let Some(crawler) = rep_crawler_w.upgrade() {
-                    crawler.query_channel(channel);
-                }
-            }));
+            network_info
+                .write()
+                .unwrap()
+                .on_new_realtime_channel(Arc::new(move |channel| {
+                    if let Some(crawler) = rep_crawler_w.upgrade() {
+                        crawler.query_channel(channel);
+                    }
+                }));
         }
 
         let block_processor_w = Arc::downgrade(&block_processor);
@@ -788,22 +808,25 @@ impl Node {
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
         let message_publisher_l = Arc::new(Mutex::new(message_publisher.clone()));
         let message_publisher_w = Arc::downgrade(&message_publisher_l);
-        network.on_new_realtime_channel(Arc::new(move |channel| {
-            let Some(factory) = keepalive_factory_w.upgrade() else {
-                return;
-            };
-            let Some(publisher) = message_publisher_w.upgrade() else {
-                return;
-            };
-            let keepalive = factory.create_keepalive_self();
-            let msg = Message::Keepalive(keepalive);
-            publisher.lock().unwrap().try_send(
-                channel.channel_id(),
-                &msg,
-                DropPolicy::CanDrop,
-                TrafficType::Generic,
-            );
-        }));
+        network_info
+            .write()
+            .unwrap()
+            .on_new_realtime_channel(Arc::new(move |channel| {
+                let Some(factory) = keepalive_factory_w.upgrade() else {
+                    return;
+                };
+                let Some(publisher) = message_publisher_w.upgrade() else {
+                    return;
+                };
+                let keepalive = factory.create_keepalive_self();
+                let msg = Message::Keepalive(keepalive);
+                publisher.lock().unwrap().try_send(
+                    channel.channel_id(),
+                    &msg,
+                    DropPolicy::CanDrop,
+                    TrafficType::Generic,
+                );
+            }));
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         let reps_w = Arc::downgrade(&online_reps);
@@ -990,7 +1013,7 @@ impl Node {
         let time_factory = SystemTimeFactory::default();
 
         let peer_cache_updater = PeerCacheUpdater::new(
-            network.clone(),
+            network_info.clone(),
             ledger.clone(),
             time_factory,
             stats.clone(),
@@ -1019,7 +1042,7 @@ impl Node {
             "Monitor",
             Monitor::new(
                 ledger.clone(),
-                network.clone(),
+                network_info.clone(),
                 online_reps.clone(),
                 active_elections.clone(),
             ),
@@ -1045,6 +1068,7 @@ impl Node {
             outbound_limiter,
             syn_cookies,
             network,
+            network_info,
             ledger,
             store,
             stats,
@@ -1104,7 +1128,10 @@ impl Node {
                 ContainerInfoComponent::Composite(
                     "network".to_string(),
                     vec![
-                        self.network.collect_container_info("tcp_channels"),
+                        self.network_info
+                            .read()
+                            .unwrap()
+                            .collect_container_info("tcp_channels"),
                         self.syn_cookies.collect_container_info("syn_cookies"),
                     ],
                 ),

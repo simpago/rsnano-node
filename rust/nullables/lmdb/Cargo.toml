@@ -1,0 +1,8 @@
+[package]
+name = "rsnano_nullable_lmdb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lmdb-rkv = "0"
+lmdb-rkv-sys = "0"

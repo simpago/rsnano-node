@@ -1,4 +1,4 @@
-use super::{Channel, ChannelId, DropPolicy, Network, TrafficType};
+use super::{ChannelId, ChannelInfo, DropPolicy, Network, TrafficType};
 use crate::{
     representatives::OnlineReps,
     stats::{Direction, StatType, Stats},
@@ -102,13 +102,19 @@ impl MessagePublisher {
             self.try_send(rep.channel_id, &message, drop_policy, traffic_type);
         }
 
-        for peer in self.list_no_pr(self.network.fanout(scale)) {
+        let peers = self.list_no_pr(self.network.info.read().unwrap().fanout(scale));
+        for peer in peers {
             self.try_send(peer.channel_id(), &message, drop_policy, traffic_type);
         }
     }
 
-    fn list_no_pr(&self, count: usize) -> Vec<Arc<Channel>> {
-        let mut channels = self.network.random_list_realtime(usize::MAX, 0);
+    fn list_no_pr(&self, count: usize) -> Vec<Arc<ChannelInfo>> {
+        let mut channels = self
+            .network
+            .info
+            .read()
+            .unwrap()
+            .random_list_realtime(usize::MAX, 0);
         {
             let reps = self.online_reps.lock().unwrap();
             channels.retain(|c| !reps.is_pr(c.channel_id()));
@@ -119,7 +125,13 @@ impl MessagePublisher {
 
     pub fn flood(&mut self, message: &Message, drop_policy: DropPolicy, scale: f32) {
         let buffer = self.message_serializer.serialize(message);
-        let channels = self.network.random_fanout_realtime(scale);
+        let channels = self
+            .network
+            .info
+            .read()
+            .unwrap()
+            .random_fanout_realtime(scale);
+
         for channel in channels {
             try_send_serialized_message(
                 &self.network,

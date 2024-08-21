@@ -88,7 +88,13 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_router.vote(&vote1, VoteSource::Live);
 
-    let channel = node1.network.find_node_id(&node2.get_node_id()).unwrap();
+    let channel = node1
+        .network_info
+        .read()
+        .unwrap()
+        .find_node_id(&node2.get_node_id())
+        .unwrap()
+        .clone();
 
     let vote2 = Arc::new(Vote::new_final(&key1, vec![send1.hash()]));
     node1

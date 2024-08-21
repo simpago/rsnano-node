@@ -12,18 +12,24 @@ fn ignore_rebroadcast() {
     let node2 = system.make_node();
 
     let channel1to2 = node1
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node2.node_id.public_key())
-        .expect("channel not found 1 to 2");
+        .expect("channel not found 1 to 2")
+        .channel_id();
 
     let channel2to1 = node2
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node1.node_id.public_key())
-        .expect("channel not found 2 to 1");
+        .expect("channel not found 2 to 1")
+        .channel_id();
 
     node1
         .rep_crawler
-        .force_query(*DEV_GENESIS_HASH, channel1to2.channel_id());
+        .force_query(*DEV_GENESIS_HASH, channel1to2);
 
     assert_always_eq(
         Duration::from_millis(100),
@@ -35,12 +41,12 @@ fn ignore_rebroadcast() {
     let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
     node1
         .rep_crawler
-        .force_query(*DEV_GENESIS_HASH, channel1to2.channel_id());
+        .force_query(*DEV_GENESIS_HASH, channel1to2);
 
     let tick = || {
         let msg = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(vote.clone()));
         node2.message_publisher.lock().unwrap().try_send(
-            channel2to1.channel_id(),
+            channel2to1,
             &msg,
             DropPolicy::ShouldNotDrop,
             TrafficType::Generic,
@@ -126,21 +132,40 @@ fn rep_weight() {
 
     assert_timely_eq(
         Duration::from_secs(5),
-        || node.network.count_by_mode(ChannelMode::Realtime),
+        || {
+            node.network_info
+                .read()
+                .unwrap()
+                .count_by_mode(ChannelMode::Realtime)
+        },
         3,
     );
 
-    let channel1 = node.network.find_node_id(&node1.get_node_id()).unwrap();
-    let channel2 = node.network.find_node_id(&node2.get_node_id()).unwrap();
-    let channel3 = node.network.find_node_id(&node3.get_node_id()).unwrap();
+    let (channel1, channel2, channel3) = {
+        let network = node.network_info.read().unwrap();
+        (
+            network
+                .find_node_id(&node1.get_node_id())
+                .unwrap()
+                .channel_id(),
+            network
+                .find_node_id(&node2.get_node_id())
+                .unwrap()
+                .channel_id(),
+            network
+                .find_node_id(&node3.get_node_id())
+                .unwrap()
+                .channel_id(),
+        )
+    };
 
     let vote0 = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]));
     let vote1 = Arc::new(Vote::new(&keypair1, 0, 0, vec![*DEV_GENESIS_HASH]));
     let vote2 = Arc::new(Vote::new(&keypair2, 0, 0, vec![*DEV_GENESIS_HASH]));
 
-    node.rep_crawler.force_process(vote0, channel1.channel_id());
-    node.rep_crawler.force_process(vote1, channel2.channel_id());
-    node.rep_crawler.force_process(vote2, channel3.channel_id());
+    node.rep_crawler.force_process(vote0, channel1);
+    node.rep_crawler.force_process(vote1, channel2);
+    node.rep_crawler.force_process(vote2, channel3);
 
     assert_timely_eq(
         Duration::from_secs(5),
@@ -153,28 +178,10 @@ fn rep_weight() {
         node.balance(&DEV_GENESIS_ACCOUNT),
         node.ledger.weight(&rep.account)
     );
-    assert_eq!(channel1.channel_id(), rep.channel_id);
-    assert_eq!(
-        node.online_reps
-            .lock()
-            .unwrap()
-            .is_pr(channel1.channel_id()),
-        true
-    );
-    assert_eq!(
-        node.online_reps
-            .lock()
-            .unwrap()
-            .is_pr(channel2.channel_id()),
-        false
-    );
-    assert_eq!(
-        node.online_reps
-            .lock()
-            .unwrap()
-            .is_pr(channel3.channel_id()),
-        true
-    );
+    assert_eq!(channel1, rep.channel_id);
+    assert_eq!(node.online_reps.lock().unwrap().is_pr(channel1), true);
+    assert_eq!(node.online_reps.lock().unwrap().is_pr(channel2), false);
+    assert_eq!(node.online_reps.lock().unwrap().is_pr(channel3), true);
 }
 
 // This test checks that if a block is in the recently_confirmed list then the repcrawler will not send a request for it.
@@ -189,7 +196,13 @@ fn recently_confirmed() {
 
     let node2 = system.make_node();
     node2.insert_into_wallet(&DEV_GENESIS_KEY);
-    let channel = node1.network.find_node_id(&node2.get_node_id()).unwrap();
+    let channel = node1
+        .network_info
+        .read()
+        .unwrap()
+        .find_node_id(&node2.get_node_id())
+        .unwrap()
+        .clone();
     node1.rep_crawler.query_channel(channel); // this query should be dropped due to the recently_confirmed entry
     assert_always_eq(
         Duration::from_millis(500),

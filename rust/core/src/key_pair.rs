@@ -1,7 +1,7 @@
-use anyhow::Context;
-
 use super::{PublicKey, RawKey, Signature};
-use crate::{utils::NullableRng, Block, StateBlock};
+use crate::{Block, StateBlock};
+use anyhow::Context;
+use rsnano_nullable_random::NullableRng;
 
 pub struct KeyPair {
     keypair: ed25519_dalek_blake2b::Keypair,

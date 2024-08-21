@@ -1,12 +1,14 @@
 use std::{
     cmp::min,
-    net::{SocketAddr, SocketAddrV6},
+    net::{Ipv6Addr, SocketAddr, SocketAddrV6},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 use async_trait::async_trait;
-use rsnano_core::utils::TEST_ENDPOINT_1;
 use tokio::io::{AsyncWriteExt, ErrorKind};
+
+pub const TEST_ENDPOINT_1: SocketAddrV6 =
+    SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0xffff, 0x10, 0, 0, 1), 1111, 0, 0);
 
 pub struct TcpStream {
     stream: Box<dyn InternalTcpStream>,
@@ -180,9 +182,8 @@ impl InternalTcpStream for TcpStreamStub {
 
 #[cfg(test)]
 mod tests {
-    use crate::transport::TcpStreamFactory;
-
     use super::*;
+    use crate::TcpStreamFactory;
     use std::{
         io::ErrorKind,
         net::{IpAddr, Ipv4Addr, SocketAddr},

@@ -104,15 +104,15 @@ impl BootstrapClient {
     }
 
     pub fn close(&self) {
-        self.channel.close();
+        self.channel.info.close();
     }
 
     pub fn set_timeout(&self, timeout: Duration) {
-        self.channel.set_timeout(timeout);
+        self.channel.info.set_timeout(timeout);
     }
 
     pub fn remote_addr(&self) -> SocketAddrV6 {
-        self.channel.peer_addr()
+        self.channel.info.peer_addr()
     }
 
     pub fn channel_string(&self) -> String {

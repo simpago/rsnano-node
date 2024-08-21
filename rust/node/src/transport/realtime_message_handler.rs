@@ -1,4 +1,4 @@
-use super::{Channel, MessagePublisher, Network};
+use super::{ChannelInfo, MessagePublisher, NetworkFilter, NetworkInfo};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapAscending, BootstrapServer},
@@ -13,14 +13,15 @@ use rsnano_core::VoteSource;
 use rsnano_messages::{Message, TelemetryAck};
 use std::{
     net::SocketAddrV6,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 use tracing::trace;
 
 /// Handle realtime messages (as opposed to bootstrap messages)
 pub struct RealtimeMessageHandler {
     stats: Arc<Stats>,
-    network: Arc<Network>,
+    publish_filter: Arc<NetworkFilter>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     block_processor: Arc<BlockProcessor>,
     config: NodeConfig,
     flags: NodeFlags,
@@ -36,7 +37,8 @@ pub struct RealtimeMessageHandler {
 impl RealtimeMessageHandler {
     pub(crate) fn new(
         stats: Arc<Stats>,
-        network: Arc<Network>,
+        network_info: Arc<RwLock<NetworkInfo>>,
+        publish_filter: Arc<NetworkFilter>,
         block_processor: Arc<BlockProcessor>,
         config: NodeConfig,
         flags: NodeFlags,
@@ -50,7 +52,8 @@ impl RealtimeMessageHandler {
     ) -> Self {
         Self {
             stats,
-            network,
+            network_info,
+            publish_filter,
             block_processor,
             config,
             flags,
@@ -64,7 +67,7 @@ impl RealtimeMessageHandler {
         }
     }
 
-    pub fn process(&self, message: Message, channel: &Arc<Channel>) {
+    pub fn process(&self, message: Message, channel: &Arc<ChannelInfo>) {
         self.stats.inc_dir(
             StatType::Message,
             message.message_type().into(),
@@ -82,7 +85,9 @@ impl RealtimeMessageHandler {
                         SocketAddrV6::new(*channel.peer_addr().ip(), peer0.port(), 0, 0);
 
                     // Remember this for future forwarding to other peers
-                    self.network
+                    self.network_info
+                        .read()
+                        .unwrap()
                         .set_peering_addr(channel.channel_id(), peering_addr);
                 }
             }
@@ -98,7 +103,7 @@ impl RealtimeMessageHandler {
                     self.block_processor
                         .add(Arc::new(publish.block), source, channel.channel_id());
                 if !added {
-                    self.network.publish_filter.clear(publish.digest);
+                    self.publish_filter.clear(publish.digest);
                     self.stats
                         .inc_dir(StatType::Drop, DetailType::Publish, Direction::In);
                 }
@@ -151,9 +156,9 @@ impl RealtimeMessageHandler {
             }
             Message::TelemetryAck(ack) => self.telemetry.process(&ack, channel),
             Message::AscPullReq(req) => {
-                self.bootstrap_server.request(req, Arc::clone(channel));
+                self.bootstrap_server.request(req, channel.clone());
             }
-            Message::AscPullAck(ack) => self.ascend_boot.process(&ack, channel),
+            Message::AscPullAck(ack) => self.ascend_boot.process(&ack, channel.channel_id()),
             Message::FrontierReq(_)
             | Message::BulkPush
             | Message::BulkPull(_)

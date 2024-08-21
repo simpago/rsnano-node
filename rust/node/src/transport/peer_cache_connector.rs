@@ -72,9 +72,8 @@ impl Runnable for PeerCacheConnector {
 mod tests {
     use super::*;
     use crate::stats::Direction;
-    use rsnano_core::utils::{
-        parse_endpoint, OutputTrackerMt, TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3,
-    };
+    use rsnano_core::utils::{parse_endpoint, TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3};
+    use rsnano_output_tracker::OutputTrackerMt;
     use std::time::UNIX_EPOCH;
     use tracing_test::traced_test;
 

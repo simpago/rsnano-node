@@ -8,7 +8,7 @@ use crate::{
     bootstrap::BootstrapAttemptWallet,
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{MessagePublisher, Network},
+    transport::{MessagePublisher, Network, NetworkInfo},
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
     websocket::WebsocketListener,
     NetworkParams,
@@ -20,12 +20,13 @@ use rsnano_core::{
 };
 use rsnano_ledger::Ledger;
 use rsnano_messages::ProtocolInfo;
+use rsnano_nullable_clock::SteadyClock;
 use std::{
     collections::{HashMap, VecDeque},
     net::SocketAddrV6,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Condvar, Mutex,
+        Arc, Condvar, Mutex, RwLock,
     },
     thread::JoinHandle,
     time::Duration,
@@ -106,9 +107,10 @@ pub struct BootstrapInitiator {
     ledger: Arc<Ledger>,
     network_params: NetworkParams,
     flags: NodeFlags,
-    network: Arc<Network>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     workers: Arc<dyn ThreadPool>,
     runtime: Arc<AsyncRuntime>,
+    clock: Arc<SteadyClock>,
 }
 
 impl BootstrapInitiator {
@@ -116,6 +118,7 @@ impl BootstrapInitiator {
         config: BootstrapInitiatorConfig,
         flags: NodeFlags,
         network: Arc<Network>,
+        network_info: Arc<RwLock<NetworkInfo>>,
         runtime: Arc<AsyncRuntime>,
         workers: Arc<dyn ThreadPool>,
         network_params: NetworkParams,
@@ -124,6 +127,7 @@ impl BootstrapInitiator {
         websocket: Option<Arc<WebsocketListener>>,
         ledger: Arc<Ledger>,
         message_publisher: MessagePublisher,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         let attempts = Arc::new(Mutex::new(BootstrapAttempts::new()));
         let cache = Arc::new(Mutex::new(PullsCache::new()));
@@ -143,19 +147,22 @@ impl BootstrapInitiator {
             ledger,
             network_params: network_params.clone(),
             flags: flags.clone(),
-            network: Arc::clone(&network),
+            network_info: network_info.clone(),
             workers: Arc::clone(&workers),
             runtime: runtime.clone(),
+            clock: clock.clone(),
             connections: Arc::new(BootstrapConnections::new(
                 attempts,
                 config,
                 network,
+                network_info,
                 runtime,
                 workers,
                 stats,
                 block_processor,
                 cache,
                 message_publisher,
+                clock,
             )),
         }
     }
@@ -178,9 +185,10 @@ impl BootstrapInitiator {
             ledger: Arc::new(Ledger::new_null()),
             network_params: NetworkParams::new(Networks::NanoDevNetwork),
             flags: NodeFlags::default(),
-            network: Arc::new(Network::new_null()),
+            network_info: Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             workers: Arc::new(ThreadPoolImpl::new_test_instance()),
             runtime: Arc::new(AsyncRuntime::default()),
+            clock: Arc::new(SteadyClock::new_null()),
         }
     }
 
@@ -409,7 +417,12 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                 .attempts_list
                 .insert(incremental_id, Arc::clone(&attempt));
             self.attempts.lock().unwrap().add(attempt);
-            if !self.network.is_excluded(&remote_addr) {
+            if !self
+                .network_info
+                .write()
+                .unwrap()
+                .is_excluded(&remote_addr, self.clock.now())
+            {
                 self.runtime
                     .tokio
                     .block_on(self.connections.add_connection(remote_addr));

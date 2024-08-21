@@ -1,22 +1,35 @@
 @startuml "Split crates"
 
+[nullables]
 [core]
-[store_traits]
 [ledger]
+[store_lmdb]
+[messages]
 [node]
+[main]
+[rpc]
 [ffi]
+[C++ node]
 
-folder "adapters"{
-    folder "outbound"{
-            [store_lmdb]
-    }
+folder "nullables"{
+[fs]
+[clock]
+[random]
+[tcp]
+[lmdb]
+[http_client]
+[output_tracker]
 }
 
-[store_traits] --> [core]
-[store_lmdb] --> [store_traits]
+[C++ node] --> [ffi]
+[main] --> [node]
+[main] --> [rpc]
+[rpc] --> [node]
 [node] --> [ledger]
-[ledger] -> [store_traits]
-[ffi] --> [store_lmdb]
+[node] --> [messages]
+[messages] --> [core]
+[ledger] --> [store_lmdb]
+[store_lmdb] --> [core]
 [ffi] --> [node]
 
 @enduml

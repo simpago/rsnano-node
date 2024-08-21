@@ -2,7 +2,7 @@ use super::{BootstrapInitiator, BootstrapInitiatorExt};
 use crate::{
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelMode, Network},
+    transport::{ChannelMode, NetworkInfo},
     utils::ThreadPool,
     NetworkParams,
 };
@@ -11,7 +11,7 @@ use rsnano_ledger::Ledger;
 use std::{
     sync::{
         atomic::{AtomicU32, Ordering},
-        Arc,
+        Arc, RwLock,
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -20,7 +20,7 @@ pub struct OngoingBootstrap {
     network_params: NetworkParams,
     warmed_up: AtomicU32,
     bootstrap_initiator: Arc<BootstrapInitiator>,
-    network: Arc<Network>,
+    network: Arc<RwLock<NetworkInfo>>,
     flags: NodeFlags,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
@@ -31,7 +31,7 @@ impl OngoingBootstrap {
     pub fn new(
         network_params: NetworkParams,
         bootstrap_initiator: Arc<BootstrapInitiator>,
-        network: Arc<Network>,
+        network: Arc<RwLock<NetworkInfo>>,
         flags: NodeFlags,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
@@ -62,7 +62,12 @@ impl OngoingBootstrapExt for Arc<OngoingBootstrap> {
             // Re-attempt bootstrapping more aggressively on startup
             next_wakeup = Duration::from_secs(5);
             if !self.bootstrap_initiator.in_progress()
-                && !self.network.count_by_mode(ChannelMode::Realtime) == 0
+                && !self
+                    .network
+                    .read()
+                    .unwrap()
+                    .count_by_mode(ChannelMode::Realtime)
+                    == 0
             {
                 self.warmed_up.fetch_add(1, Ordering::SeqCst);
             }

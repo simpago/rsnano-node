@@ -1,5 +1,5 @@
-use crate::utils::Timestamp;
 use rsnano_core::utils::{ContainerInfo, ContainerInfoComponent};
+use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     mem::size_of,

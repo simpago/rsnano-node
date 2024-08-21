@@ -1,5 +1,6 @@
-use crate::{transport::ChannelId, utils::Timestamp};
+use crate::transport::ChannelId;
 use rsnano_core::Account;
+use rsnano_nullable_clock::Timestamp;
 
 /// A representative to which we have a direct connection
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -80,7 +80,14 @@ fn local_block_broadcast() {
         .connect_to(node2.tcp_listener.local_address());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node1.network.find_node_id(&node2.get_node_id()).is_some(),
+        || {
+            node1
+                .network_info
+                .read()
+                .unwrap()
+                .find_node_id(&node2.get_node_id())
+                .is_some()
+        },
         "node2 not connected",
     );
     assert_timely_msg(
@@ -183,9 +190,12 @@ fn fork_no_vote_quorum() {
     let vote = Vote::new(&KeyPair::new(), 0, 0, vec![send2.hash()]);
     let confirm = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
     let channel = node2
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node3.node_id.public_key())
-        .unwrap();
+        .unwrap()
+        .clone();
     node2.message_publisher.lock().unwrap().try_send(
         channel.channel_id(),
         &confirm,
@@ -231,7 +241,7 @@ fn fork_open() {
 
     node.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send1.clone())),
-        channel.clone(),
+        channel.info.clone(),
     );
 
     assert_timely_msg(
@@ -261,7 +271,7 @@ fn fork_open() {
     ));
     node.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(open1.clone())),
-        channel.clone(),
+        channel.info.clone(),
     );
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
 
@@ -278,7 +288,7 @@ fn fork_open() {
     ));
     node.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(open2.clone())),
-        channel.clone(),
+        channel.info.clone(),
     );
     assert_timely_msg(
         Duration::from_secs(5),
@@ -607,7 +617,7 @@ fn fork_election_invalid_block_signature() {
     let channel = make_fake_channel(&node1);
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send1.clone())),
-        channel.clone(),
+        channel.info.clone(),
     );
     assert_timely_msg(
         Duration::from_secs(5),
@@ -619,11 +629,11 @@ fn fork_election_invalid_block_signature() {
 
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send3)),
-        channel.clone(),
+        channel.info.clone(),
     );
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send2.clone())),
-        channel.clone(),
+        channel.info.clone(),
     );
     assert_timely_msg(
         Duration::from_secs(3),
@@ -941,7 +951,7 @@ fn rep_crawler_rep_remove() {
     assert_eq!(channel_rep1.channel_id(), reps[0].channel_id);
 
     // When rep1 disconnects then rep1 should not be found anymore
-    channel_rep1.close();
+    channel_rep1.info.close();
     assert_timely_eq(
         Duration::from_secs(5),
         || {
@@ -962,9 +972,12 @@ fn rep_crawler_rep_remove() {
         .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
         .unwrap();
     let channel_genesis_rep = searching_node
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node_genesis_rep.get_node_id())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     // genesis_rep should be found as principal representative after receiving a vote from it
     let vote_genesis_rep = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]));
@@ -992,16 +1005,21 @@ fn rep_crawler_rep_remove() {
         Duration::from_secs(10),
         || {
             searching_node
-                .network
+                .network_info
+                .read()
+                .unwrap()
                 .find_node_id(&node_rep2.get_node_id())
                 .is_some()
         },
         "channel to rep2 not found",
     );
     let channel_rep2 = searching_node
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node_rep2.get_node_id())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     // Rep2 should be found as a principal representative after receiving a vote from it
     let vote_rep2 = Arc::new(Vote::new(&keys_rep2, 0, 0, vec![*DEV_GENESIS_HASH]));

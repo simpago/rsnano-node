@@ -1,6 +1,13 @@
 [workspace]
 members = [
     "core",
+    "nullables/output_tracker",
+    "nullables/fs",
+    "nullables/tcp",
+    "nullables/lmdb",
+    "nullables/http_client",
+    "nullables/clock",
+    "nullables/random",
     "messages",
     "store_lmdb",
     "ledger",
@@ -9,7 +16,6 @@ members = [
     "main",
     "tools/load_test",
     "tools/xtask",
-    "tools/test_helpers",
-    "rpc",
+    "tools/test_helpers", "nullables/http_client", "nullables/clock", "nullables/random", 
 ]
 resolver = "2"

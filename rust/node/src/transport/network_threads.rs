@@ -1,5 +1,5 @@
 use super::{
-    DeadChannelCleanup, DropPolicy, LatestKeepalives, MessagePublisher, Network, PeerConnector,
+    DeadChannelCleanup, DropPolicy, LatestKeepalives, MessagePublisher, NetworkInfo, PeerConnector,
     PeerConnectorExt, SynCookies, TrafficType,
 };
 use crate::{
@@ -7,12 +7,14 @@ use crate::{
     stats::{DetailType, StatType, Stats},
     NetworkParams,
 };
+use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_messages::{Keepalive, Message};
+use rsnano_nullable_clock::SteadyClock;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 pub(crate) struct NetworkThreads {
@@ -20,7 +22,7 @@ pub(crate) struct NetworkThreads {
     keepalive_thread: Option<JoinHandle<()>>,
     reachout_thread: Option<JoinHandle<()>>,
     stopped: Arc<(Condvar, Mutex<bool>)>,
-    network: Arc<Network>,
+    network: Arc<RwLock<NetworkInfo>>,
     peer_connector: Arc<PeerConnector>,
     flags: NodeFlags,
     network_params: NetworkParams,
@@ -30,11 +32,12 @@ pub(crate) struct NetworkThreads {
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     dead_channel_cleanup: Option<DeadChannelCleanup>,
     message_publisher: MessagePublisher,
+    clock: Arc<SteadyClock>,
 }
 
 impl NetworkThreads {
     pub fn new(
-        network: Arc<Network>,
+        network: Arc<RwLock<NetworkInfo>>,
         peer_connector: Arc<PeerConnector>,
         flags: NodeFlags,
         network_params: NetworkParams,
@@ -44,6 +47,7 @@ impl NetworkThreads {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         dead_channel_cleanup: DeadChannelCleanup,
         message_publisher: MessagePublisher,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             cleanup_thread: None,
@@ -60,6 +64,7 @@ impl NetworkThreads {
             latest_keepalives,
             dead_channel_cleanup: Some(dead_channel_cleanup),
             message_publisher,
+            clock,
         }
     }
 
@@ -81,11 +86,12 @@ impl NetworkThreads {
 
         let mut keepalive = KeepaliveLoop {
             stopped: self.stopped.clone(),
-            network: Arc::clone(&self.network),
-            network_params: self.network_params.clone(),
+            network: self.network.clone(),
+            keepalive_period: self.network_params.network.keepalive_period,
             stats: Arc::clone(&self.stats),
             keepalive_factory: Arc::clone(&self.keepalive_factory),
             message_publisher: self.message_publisher.clone(),
+            clock: self.clock.clone(),
         };
 
         self.keepalive_thread = Some(
@@ -115,7 +121,7 @@ impl NetworkThreads {
     pub fn stop(&mut self) {
         *self.stopped.1.lock().unwrap() = true;
         self.stopped.0.notify_all();
-        self.network.stop();
+        self.network.write().unwrap().stop();
         if let Some(t) = self.keepalive_thread.take() {
             t.join().unwrap();
         }
@@ -173,15 +179,15 @@ impl CleanupLoop {
 }
 
 pub struct KeepaliveFactory {
-    pub network: Arc<Network>,
+    pub network: Arc<RwLock<NetworkInfo>>,
     pub config: NodeConfig,
 }
 
 impl KeepaliveFactory {
     pub fn create_keepalive_self(&self) -> Keepalive {
         let mut result = Keepalive::default();
-        self.network
-            .random_fill_peering_endpoints(&mut result.peers);
+        let network = self.network.read().unwrap();
+        network.random_fill_realtime(&mut result.peers);
         // We will clobber values in index 0 and 1 and if there are only 2 nodes in the system, these are the only positions occupied
         // Move these items to index 2 and 3 so they propagate
         result.peers[2] = result.peers[0];
@@ -203,11 +209,11 @@ impl KeepaliveFactory {
             let external_address = SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0);
             if !external_address.ip().is_unspecified() {
                 result.peers[0] =
-                    SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, self.network.port(), 0, 0);
+                    SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, network.listening_port(), 0, 0);
                 result.peers[1] = external_address;
             } else {
                 result.peers[0] =
-                    SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, self.network.port(), 0, 0);
+                    SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, network.listening_port(), 0, 0);
             }
         }
         result
@@ -216,11 +222,12 @@ impl KeepaliveFactory {
 
 struct KeepaliveLoop {
     stopped: Arc<(Condvar, Mutex<bool>)>,
-    network_params: NetworkParams,
     stats: Arc<Stats>,
-    network: Arc<Network>,
+    network: Arc<RwLock<NetworkInfo>>,
     keepalive_factory: Arc<KeepaliveFactory>,
     message_publisher: MessagePublisher,
+    clock: Arc<SteadyClock>,
+    keepalive_period: Duration,
 }
 
 impl KeepaliveLoop {
@@ -230,7 +237,7 @@ impl KeepaliveLoop {
             stopped = self
                 .stopped
                 .0
-                .wait_timeout(stopped, self.network_params.network.keepalive_period)
+                .wait_timeout(stopped, self.keepalive_period)
                 .unwrap()
                 .0;
 
@@ -250,9 +257,16 @@ impl KeepaliveLoop {
     }
 
     fn keepalive(&mut self) {
-        let message = self.network.create_keepalive_message();
+        let (message, keepalive_list) = {
+            let network = self.network.read().unwrap();
+            let mut peers = [NULL_ENDPOINT; 8];
+            network.random_fill_realtime(&mut peers);
+            let message = Message::Keepalive(Keepalive { peers });
+            let list = network.idle_channels(self.keepalive_period, self.clock.now());
+            (message, list)
+        };
 
-        for channel_id in self.network.keepalive_list() {
+        for channel_id in keepalive_list {
             self.message_publisher.try_send(
                 channel_id,
                 &message,
@@ -265,7 +279,9 @@ impl KeepaliveLoop {
     fn flood_keepalive(&mut self, scale: f32) {
         let mut keepalive = Keepalive::default();
         self.network
-            .random_fill_peering_endpoints(&mut keepalive.peers);
+            .read()
+            .unwrap()
+            .random_fill_realtime(&mut keepalive.peers);
         self.message_publisher
             .flood(&Message::Keepalive(keepalive), DropPolicy::CanDrop, scale);
     }

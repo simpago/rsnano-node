@@ -11,7 +11,6 @@ output_tracking = []
 
 [dev-dependencies]
 mock_instant = "0.2.1"
-axum = "0.7.5"
 tracing-test = "0.2.4"
 test_helpers = { path = "../tools/test_helpers" }
 
@@ -19,11 +18,16 @@ test_helpers = { path = "../tools/test_helpers" }
 rsnano_core = { path = "../core" }
 rsnano_messages = { path = "../messages" }
 rsnano_store_lmdb = { path = "../store_lmdb" }
-lmdb-rkv = "0.14"
+rsnano_output_tracker = { path = "../nullables/output_tracker" }
+rsnano_nullable_fs = { path = "../nullables/fs" }
+rsnano_nullable_tcp = { path = "../nullables/tcp" }
+rsnano_nullable_lmdb = { path = "../nullables/lmdb" }
+rsnano_nullable_http_client = { path = "../nullables/http_client" }
+rsnano_nullable_clock = { path = "../nullables/clock" }
 rsnano_ledger = { path = "../ledger" }
-anyhow = "1.0.40"
-bitvec = "1.0.0"
-blake2 = "0.10.5"
+anyhow = "1"
+bitvec = "1"
+blake2 = "0"
 bounded-vec-deque = "0.1.1"
 chrono = "0.4.19"
 dirs = "4.0.0"
@@ -58,8 +62,7 @@ tracing = "0.1"
 ordered-float = "4.2.0"
 tokio-tungstenite = "0.21.0"
 futures-util = { version = "0.3.30", features = ["sink"] }
-reqwest = { version = "0.12.4", default-features = false, features = ["json"] }
-tokio-util = "0.7.11"
-toml = "0.8.15"
+tokio-util = "0"
+toml = "0"
 strum = "0"
 strum_macros = "0"

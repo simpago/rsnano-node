@@ -1,6 +1,7 @@
 use super::PeeredRep;
-use crate::{transport::ChannelId, utils::Timestamp};
+use crate::transport::ChannelId;
 use rsnano_core::Account;
+use rsnano_nullable_clock::Timestamp;
 use std::{collections::HashMap, mem::size_of};
 
 #[derive(Debug, PartialEq, Eq)]

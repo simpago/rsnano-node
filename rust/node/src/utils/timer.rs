@@ -2,7 +2,7 @@
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "output_tracking")]
-use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 
 pub trait TimerStrategy: Send {
     fn schedule_with_delay<F>(&self, delay: chrono::Duration, cb: F)

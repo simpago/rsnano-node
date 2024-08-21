@@ -1,4 +1,4 @@
-use rsnano_core::utils::{OutputListener, OutputTracker};
+use rsnano_output_tracker::{OutputListener, OutputTracker};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -39,7 +39,7 @@ pub enum EventType {
     Write,
 }
 
-pub(crate) struct NullableFilesystem {
+pub struct NullableFilesystem {
     fs: RefCell<FsStrategy>,
     listener: OutputListener<FsEvent>,
 }
@@ -127,7 +127,7 @@ impl Default for NullableFilesystem {
 }
 
 #[allow(dead_code)]
-pub(crate) struct NullableFilesystemBuilder {
+pub struct NullableFilesystemBuilder {
     stub: FilesystemStub,
 }
 

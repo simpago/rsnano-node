@@ -1,0 +1,17 @@
+[package]
+name = "rsnano_nullable_tcp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rsnano_output_tracker = { path = "../output_tracker" }
+async-trait = "0"
+tokio = { version = "1", features = [
+    "rt",
+    "rt-multi-thread",
+    "net",
+    "time",
+    "macros",
+    "sync",
+	"io-util"
+] }

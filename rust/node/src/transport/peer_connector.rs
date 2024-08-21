@@ -1,10 +1,12 @@
 use super::{AcceptResult, ChannelDirection, Network, ResponseServerFactory, TcpConfig};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelMode, TcpStream},
+    transport::ChannelMode,
     utils::AsyncRuntime,
 };
-use rsnano_core::utils::{OutputListenerMt, OutputTrackerMt};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_tcp::TcpStream;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{net::SocketAddrV6, sync::Arc};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -18,6 +20,7 @@ pub struct PeerConnector {
     cancel_token: CancellationToken,
     response_server_factory: Arc<ResponseServerFactory>,
     connect_listener: OutputListenerMt<SocketAddrV6>,
+    clock: Arc<SteadyClock>,
 }
 
 impl PeerConnector {
@@ -27,6 +30,7 @@ impl PeerConnector {
         stats: Arc<Stats>,
         runtime: Arc<AsyncRuntime>,
         response_server_factory: Arc<ResponseServerFactory>,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             config,
@@ -36,6 +40,7 @@ impl PeerConnector {
             cancel_token: CancellationToken::new(),
             response_server_factory,
             connect_listener: OutputListenerMt::new(),
+            clock,
         }
     }
 
@@ -49,6 +54,7 @@ impl PeerConnector {
             cancel_token: CancellationToken::new(),
             response_server_factory: Arc::new(ResponseServerFactory::new_null()),
             connect_listener: OutputListenerMt::new(),
+            clock: Arc::new(SteadyClock::new_null()),
         }
     }
 
@@ -91,17 +97,22 @@ impl PeerConnectorExt for Arc<PeerConnector> {
             return false;
         }
 
-        if !self.network.add_attempt(peer) {
-            return false;
-        }
-
-        if self
-            .network
-            .can_add_connection(&peer, ChannelDirection::Outbound, ChannelMode::Realtime)
-            != AcceptResult::Accepted
         {
-            self.network.remove_attempt(&peer);
-            return false;
+            let mut network = self.network.info.write().unwrap();
+
+            if !network.add_attempt(peer) {
+                return false;
+            }
+            if network.can_add_connection(
+                &peer,
+                ChannelDirection::Outbound,
+                ChannelMode::Realtime,
+                self.clock.now(),
+            ) != AcceptResult::Accepted
+            {
+                network.remove_attempt(&peer);
+                return false;
+            }
         }
 
         self.stats.inc(StatType::Network, DetailType::MergePeer);
@@ -138,7 +149,7 @@ impl PeerConnectorExt for Arc<PeerConnector> {
                 }
             }
 
-            self_l.network.remove_attempt(&peer);
+            self_l.network.info.write().unwrap().remove_attempt(&peer);
         });
 
         true

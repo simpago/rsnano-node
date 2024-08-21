@@ -1,7 +1,6 @@
-use std::net::{SocketAddr, ToSocketAddrs};
-
 use super::tcp_stream::TcpStream;
 use async_trait::async_trait;
+use std::net::{SocketAddr, ToSocketAddrs};
 
 pub struct TcpStreamFactory {
     inner: Box<dyn InternalTcpStreamFactory>,

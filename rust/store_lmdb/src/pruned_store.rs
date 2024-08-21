@@ -1,10 +1,11 @@
 use crate::{
-    nullable_lmdb::ConfiguredDatabase, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
-    LmdbWriteTransaction, Transaction, PRUNED_TEST_DATABASE,
+    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
+    PRUNED_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rand::{thread_rng, Rng};
 use rsnano_core::{BlockHash, NoValue};
+use rsnano_nullable_lmdb::ConfiguredDatabase;
 use std::sync::Arc;
 
 pub type PrunedIterator<'txn> = BinaryDbIterator<'txn, BlockHash, NoValue>;

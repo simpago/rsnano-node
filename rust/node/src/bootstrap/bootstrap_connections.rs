@@ -7,13 +7,15 @@ use crate::{
     block_processing::BlockProcessor,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{
-        AcceptResult, ChannelDirection, ChannelMode, MessagePublisher, Network, TcpStreamFactory,
+        AcceptResult, ChannelDirection, ChannelMode, MessagePublisher, Network, NetworkInfo,
     },
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
 use async_trait::async_trait;
 use ordered_float::OrderedFloat;
 use rsnano_core::{utils::PropertyTree, Account, BlockHash};
+use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_tcp::TcpStreamFactory;
 use std::{
     cmp::{max, min},
     collections::{BinaryHeap, HashSet, VecDeque},
@@ -21,7 +23,7 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
-        Arc, Condvar, Mutex, MutexGuard, Weak,
+        Arc, Condvar, Mutex, MutexGuard, RwLock, Weak,
     },
     time::Duration,
 };
@@ -39,6 +41,7 @@ pub struct BootstrapConnections {
     new_connections_empty: AtomicBool,
     stopped: AtomicBool,
     network: Arc<Network>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     workers: Arc<dyn ThreadPool>,
     runtime: Arc<AsyncRuntime>,
     stats: Arc<Stats>,
@@ -46,6 +49,7 @@ pub struct BootstrapConnections {
     bootstrap_initiator: Mutex<Option<Weak<BootstrapInitiator>>>,
     pulls_cache: Arc<Mutex<PullsCache>>,
     message_publisher: MessagePublisher,
+    clock: Arc<SteadyClock>,
 }
 
 impl BootstrapConnections {
@@ -53,12 +57,14 @@ impl BootstrapConnections {
         attempts: Arc<Mutex<BootstrapAttempts>>,
         config: BootstrapInitiatorConfig,
         network: Arc<Network>,
+        network_info: Arc<RwLock<NetworkInfo>>,
         async_rt: Arc<AsyncRuntime>,
         workers: Arc<dyn ThreadPool>,
         stats: Arc<Stats>,
         block_processor: Arc<BlockProcessor>,
         pulls_cache: Arc<Mutex<PullsCache>>,
         message_publisher: MessagePublisher,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             condition: Condvar::new(),
@@ -74,6 +80,7 @@ impl BootstrapConnections {
             new_connections_empty: AtomicBool::new(false),
             stopped: AtomicBool::new(false),
             network,
+            network_info,
             workers,
             runtime: async_rt,
             stats,
@@ -81,6 +88,7 @@ impl BootstrapConnections {
             pulls_cache,
             bootstrap_initiator: Mutex::new(None),
             message_publisher,
+            clock,
         }
     }
 
@@ -95,6 +103,7 @@ impl BootstrapConnections {
             new_connections_empty: AtomicBool::new(false),
             stopped: AtomicBool::new(false),
             network: Arc::new(Network::new_null()),
+            network_info: Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             workers: Arc::new(ThreadPoolImpl::new_null()),
             runtime: Arc::new(AsyncRuntime::default()),
             stats: Arc::new(Stats::default()),
@@ -102,6 +111,7 @@ impl BootstrapConnections {
             bootstrap_initiator: Mutex::new(None),
             pulls_cache: Arc::new(Mutex::new(PullsCache::new())),
             message_publisher: MessagePublisher::new_null(),
+            clock: Arc::new(SteadyClock::new_null()),
         }
     }
 
@@ -230,7 +240,11 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
         let mut guard = self.mutex.lock().unwrap();
         if !self.stopped.load(Ordering::SeqCst)
             && !client_a.pending_stop()
-            && !self.network.is_excluded(&client_a.remote_addr())
+            && !self
+                .network_info
+                .write()
+                .unwrap()
+                .is_excluded(&client_a.remote_addr(), self.clock.now())
         {
             client_a.set_timeout(self.config.idle_timeout);
             // Push into idle deque
@@ -486,11 +500,19 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             // TODO - tune this better
             // Not many peers respond, need to try to make more connections than we need.
             for _ in 0..delta {
-                let endpoint = self.network.bootstrap_peer(); // Legacy bootstrap is compatible with older version of protocol
+                let endpoint = self
+                    .network_info
+                    .write()
+                    .unwrap()
+                    .bootstrap_peer(self.clock.now()); // Legacy bootstrap is compatible with older version of protocol
                 if endpoint != SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)
                     && (self.config.allow_bootstrap_peers_duplicates
                         || !endpoints.contains(&endpoint))
-                    && !self.network.is_excluded(&endpoint)
+                    && !self
+                        .network_info
+                        .write()
+                        .unwrap()
+                        .is_excluded(&endpoint, self.clock.now())
                 {
                     let success = self
                         .runtime
@@ -528,21 +550,26 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
     }
 
     async fn connect_client(&self, peer_addr: SocketAddrV6, push_front: bool) -> bool {
-        if !self.network.add_attempt(peer_addr) {
-            return false;
-        }
-
-        if self.network.can_add_connection(
-            &peer_addr,
-            ChannelDirection::Outbound,
-            ChannelMode::Bootstrap,
-        ) != AcceptResult::Accepted
         {
-            debug!(
+            let mut network = self.network_info.write().unwrap();
+            if !network.add_attempt(peer_addr) {
+                return false;
+            }
+
+            if network.can_add_connection(
+                &peer_addr,
+                ChannelDirection::Outbound,
+                ChannelMode::Bootstrap,
+                self.clock.now(),
+            ) != AcceptResult::Accepted
+            {
+                network.remove_attempt(&peer_addr);
+                drop(network);
+                debug!(
                     "Could not create outbound bootstrap connection to {}, because of failed limit check",
                     peer_addr);
-            self.network.remove_attempt(&peer_addr);
-            return false;
+                return false;
+            }
         }
 
         let tcp_stream_factory = Arc::new(TcpStreamFactory::new());
@@ -582,7 +609,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
         };
         debug!("Bootstrap connection established to: {}", peer_addr);
 
-        channel.set_mode(ChannelMode::Bootstrap);
+        channel.info.set_mode(ChannelMode::Bootstrap);
 
         let client = Arc::new(BootstrapClient::new(
             &self,
@@ -590,7 +617,10 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             self.message_publisher.clone(),
         ));
         self.connections_count.fetch_add(1, Ordering::SeqCst);
-        self.network.remove_attempt(&peer_addr);
+        self.network_info
+            .write()
+            .unwrap()
+            .remove_attempt(&peer_addr);
         self.pool_connection(client, true, push_front);
 
         true

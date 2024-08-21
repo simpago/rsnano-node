@@ -10,7 +10,6 @@ use crate::{
     work::DistributedWorkFactory,
     NetworkParams,
 };
-use lmdb::{DatabaseFlags, WriteFlags};
 use rand::{thread_rng, Rng};
 use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo, ContainerInfoComponent},
@@ -21,9 +20,10 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{Message, Publish};
+use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
-    create_backup_file, BinaryDbIterator, KeyType, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
-    LmdbWalletStore, LmdbWriteTransaction, Transaction,
+    create_backup_file, BinaryDbIterator, KeyType, LmdbEnv, LmdbIteratorImpl, LmdbWalletStore,
+    LmdbWriteTransaction, Transaction,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -248,7 +248,7 @@ impl Wallets {
             Ok(bytes) => Ok(Some(
                 BlockHash::from_slice(bytes).ok_or_else(|| anyhow!("invalid block hash"))?,
             )),
-            Err(lmdb::Error::NotFound) => Ok(None),
+            Err(rsnano_nullable_lmdb::Error::NotFound) => Ok(None),
             Err(e) => Err(e.into()),
         }
     }

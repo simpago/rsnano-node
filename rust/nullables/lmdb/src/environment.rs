@@ -1,3 +1,5 @@
+use crate::ConfiguredDatabaseBuilder;
+
 use super::{ConfiguredDatabase, LmdbDatabase, RoTransaction, RwTransaction};
 use lmdb::{DatabaseFlags, EnvironmentFlags, Stat};
 use lmdb_sys::MDB_env;
@@ -32,6 +34,10 @@ impl LmdbEnvironment {
 
     pub fn new_null_with(databases: Vec<ConfiguredDatabase>) -> Self {
         Self(EnvironmentStrategy::Nulled(EnvironmentStub { databases }))
+    }
+
+    pub fn null_builder() -> EnvironmentStubBuilder {
+        EnvironmentStubBuilder::default()
     }
 
     pub fn begin_ro_txn(&self) -> lmdb::Result<RoTransaction> {
@@ -180,5 +186,36 @@ impl EnvironmentStub {
 
     fn stat(&self) -> lmdb::Result<Stat> {
         todo!()
+    }
+}
+
+#[derive(Default)]
+pub struct EnvironmentStubBuilder {
+    databases: Vec<ConfiguredDatabase>,
+}
+
+impl EnvironmentStubBuilder {
+    pub fn database(self, name: impl Into<String>, dbi: LmdbDatabase) -> ConfiguredDatabaseBuilder {
+        ConfiguredDatabaseBuilder::new(name, dbi, self)
+    }
+
+    pub fn configured_database(mut self, db: ConfiguredDatabase) -> Self {
+        if self
+            .databases
+            .iter()
+            .any(|x| x.dbi == db.dbi || x.db_name == db.db_name)
+        {
+            panic!(
+                "trying to duplicated database for {} / {}",
+                db.dbi.as_nulled(),
+                db.db_name
+            );
+        }
+        self.databases.push(db);
+        self
+    }
+
+    pub fn finish(self) -> LmdbEnvironment {
+        LmdbEnvironment::new_null_with(self.databases)
     }
 }

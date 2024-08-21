@@ -2,17 +2,20 @@
 
 This folder contains all the Rust code of RsNano. 
 
-RsNano is in the process of moving to a hexagonal architecture. All I/O will be replacable by test doubles. This is a high level overview of the plan:
+The Rust code is structured according to A-frame architecture and is built with nullable infrastructure. This design and testing approach is extensively documented here:
 
-![hexagon](doc/hexagon.svg)
+[http://www.jamesshore.com/v2/projects/nullables/testing-without-mocks]
 
 The following diagram shows how the crates are organized. The crates will be split up more when the codebase grows.
 
 ![crate diagram](http://www.plantuml.com/plantuml/proxy?cache=no&fmt=svg&src=https://raw.github.com/simpago/rsnano-node/develop/rust/doc/crates.puml)
 
-* `ffi`: Contains all the glue code to connect the C++ and the Rust part
+* `main`: Contains the pure Rust node executable
+* `ffi`: Contains all the glue code to connect the C++ and the Rust part (ffi = Foreign Function Interface)
 * `node`: Contains the node implementation
-* `ledger`: Contains the ledger implementation. It is responsible for the consinstency of the data stores.
-* `store_traits`: Contains traits for the data stores. These traits have to be implemented if you want to add a new type of data store.
+* `rpc`: Contains the implemenation of the RPC server
+* `ledger`: Contains the ledger implementation with. It is responsible for the consinstency of the data stores.
+* `store_lmdb`: LMDB implementation of the data stores
+* `messages`: Message types that nodes use for communication
 * `core`: Contains the basic types like `BlockHash`, `Account`, `KeyPair`,...
-* `store_lmdb`: Contains the LMDB data store implementation
+* `nullables`: Nullable wrappers for infrastructure libraries

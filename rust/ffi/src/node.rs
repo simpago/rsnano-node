@@ -427,8 +427,11 @@ pub extern "C" fn rsn_node_representative_details(handle: &NodeHandle) -> *mut R
     for rep in handle.0.online_reps.lock().unwrap().peered_reps() {
         let endpoint = handle
             .0
-            .network
-            .endpoint_for(rep.channel_id)
+            .network_info
+            .read()
+            .unwrap()
+            .get(rep.channel_id)
+            .map(|c| c.peer_addr())
             .unwrap_or(NULL_ENDPOINT);
 
         result.push((rep.account, endpoint, handle.0.ledger.weight(&rep.account)))
@@ -495,7 +498,9 @@ pub unsafe extern "C" fn rsn_node_flood_block_many(
 pub extern "C" fn rsn_node_is_connected_to(handle: &NodeHandle, peer: &EndpointDto) -> bool {
     handle
         .0
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_realtime_channel_by_remote_addr(&peer.into())
         .is_some()
 }
@@ -506,7 +511,8 @@ pub unsafe extern "C" fn rsn_node_find_endpoint_for_node_id(
     node_id: *const u8,
     result: &mut EndpointDto,
 ) -> bool {
-    match handle.0.network.find_node_id(&PublicKey::from_ptr(node_id)) {
+    let network = handle.0.network_info.read().unwrap();
+    match network.find_node_id(&PublicKey::from_ptr(node_id)) {
         Some(channel) => {
             *result = channel.peer_addr().into();
             true
@@ -531,15 +537,17 @@ pub struct PeerInfoListHandle(Vec<PeerInfoDto>);
 pub unsafe extern "C" fn rsn_node_get_peers(handle: &NodeHandle) -> *mut PeerInfoListHandle {
     let mut peers: Vec<_> = handle
         .0
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .random_realtime_channels(usize::MAX, 0)
         .iter()
-        .map(|c| PeerInfoDto {
-            has_node_id: c.get_node_id().is_some(),
-            node_id: *c.get_node_id().unwrap_or_default().as_bytes(),
-            protocol_version: c.protocol_version(),
-            remote_endpoint: c.peer_addr().into(),
-            peering_endpoint: c.peering_addr().unwrap_or_else(|| c.peer_addr()).into(),
+        .map(|channel| PeerInfoDto {
+            has_node_id: channel.node_id().is_some(),
+            node_id: *channel.node_id().unwrap_or_default().as_bytes(),
+            protocol_version: channel.protocol_version(),
+            remote_endpoint: channel.peer_addr().into(),
+            peering_endpoint: channel.peering_addr_or_peer_addr().into(),
         })
         .collect();
     peers.sort_by(|a, b| {

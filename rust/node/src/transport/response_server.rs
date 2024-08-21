@@ -1,6 +1,6 @@
 use super::{
     Channel, HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
-    MessageDeserializer, Network, NetworkFilter, SynCookies,
+    MessageDeserializer, NetworkFilter, NetworkInfo, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -15,17 +15,15 @@ use crate::{
     NetworkParams,
 };
 use async_trait::async_trait;
-use rsnano_core::{
-    utils::{OutputListenerMt, OutputTrackerMt},
-    Account, KeyPair,
-};
+use rsnano_core::{Account, KeyPair};
 use rsnano_ledger::Ledger;
 use rsnano_messages::*;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     net::SocketAddrV6,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc, Mutex, Weak,
+        Arc, Mutex, RwLock, Weak,
     },
     time::{Duration, Instant},
 };
@@ -78,7 +76,7 @@ pub struct ResponseServer {
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
     allow_bootstrap: bool,
-    network: Arc<Network>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
@@ -96,7 +94,7 @@ static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
 
 impl ResponseServer {
     pub fn new(
-        network: Arc<Network>,
+        network_info: Arc<RwLock<NetworkInfo>>,
         inbound_queue: Arc<InboundMessageQueue>,
         channel: Arc<Channel>,
         publish_filter: Arc<NetworkFilter>,
@@ -114,9 +112,9 @@ impl ResponseServer {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        let remote_endpoint = channel.peer_addr();
+        let remote_endpoint = channel.info.peer_addr();
         Self {
-            network,
+            network_info,
             inbound_queue,
             channel,
             disable_bootstrap_listener: false,
@@ -157,7 +155,7 @@ impl ResponseServer {
     }
 
     pub fn is_stopped(&self) -> bool {
-        !self.channel.is_alive()
+        !self.channel.info.is_alive()
     }
 
     pub fn remote_endpoint(&self) -> SocketAddrV6 {
@@ -179,7 +177,7 @@ impl ResponseServer {
             return false;
         }
 
-        if self.channel.mode() != ChannelMode::Undefined {
+        if self.channel.info.mode() != ChannelMode::Undefined {
             return false;
         }
 
@@ -187,11 +185,17 @@ impl ResponseServer {
             return false;
         }
 
-        if self.network.count_by_mode(ChannelMode::Bootstrap) >= self.connections_max {
+        if self
+            .network_info
+            .read()
+            .unwrap()
+            .count_by_mode(ChannelMode::Bootstrap)
+            >= self.connections_max
+        {
             return false;
         }
 
-        self.channel.set_mode(ChannelMode::Bootstrap);
+        self.channel.info.set_mode(ChannelMode::Bootstrap);
         debug!("Switched to bootstrap mode ({})", self.remote_endpoint());
         true
     }
@@ -206,19 +210,19 @@ impl ResponseServer {
     }
 
     fn is_undefined_connection(&self) -> bool {
-        self.channel.mode() == ChannelMode::Undefined
+        self.channel.info.mode() == ChannelMode::Undefined
     }
 
     fn is_bootstrap_connection(&self) -> bool {
-        self.channel.mode() == ChannelMode::Bootstrap
+        self.channel.info.mode() == ChannelMode::Bootstrap
     }
 
     fn is_realtime_connection(&self) -> bool {
-        self.channel.mode() == ChannelMode::Realtime
+        self.channel.info.mode() == ChannelMode::Realtime
     }
 
     fn queue_realtime(&self, message: Message) {
-        self.inbound_queue.put(message, self.channel.clone());
+        self.inbound_queue.put(message, self.channel.info.clone());
         // TODO: Throttle if not added
     }
 
@@ -237,7 +241,7 @@ impl ResponseServer {
             .await
             .is_err()
         {
-            self.channel.close();
+            self.channel.info.close();
         }
     }
 }
@@ -246,7 +250,7 @@ impl Drop for ResponseServer {
     fn drop(&mut self) {
         let remote_ep = { *self.remote_endpoint.lock().unwrap() };
         debug!("Exiting server: {}", remote_ep);
-        self.channel.close();
+        self.channel.info.close();
     }
 }
 
@@ -278,11 +282,13 @@ pub enum ProcessResult {
 #[async_trait]
 impl ResponseServerExt for Arc<ResponseServer> {
     fn to_realtime_connection(&self, node_id: &Account) -> bool {
-        if self.channel.mode() != ChannelMode::Undefined {
+        if self.channel.info.mode() != ChannelMode::Undefined {
             return false;
         }
 
-        self.network
+        self.network_info
+            .read()
+            .unwrap()
             .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id)
     }
 
@@ -291,7 +297,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
         {
             let mut guard = self.remote_endpoint.lock().unwrap();
             if guard.port() == 0 {
-                *guard = self.channel.peer_addr();
+                *guard = self.channel.info.peer_addr();
             }
             debug!("Starting response server for peer: {}", *guard);
         }
@@ -314,7 +320,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 Ok(msg) => {
                     if first_message {
                         // TODO: if version using changes => peer misbehaved!
-                        self.network.set_protocol_version(
+                        self.network_info.read().unwrap().set_protocol_version(
                             self.channel.channel_id(),
                             msg.protocol.version_using,
                         );
@@ -355,7 +361,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
 
             match result {
                 ProcessResult::Abort => {
-                    self.channel.close();
+                    self.channel.info.close();
                     break;
                 }
                 ProcessResult::Progress => {}
@@ -418,8 +424,8 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         self.remote_endpoint()
                     );
                     if matches!(result, HandshakeStatus::AbortOwnNodeId) {
-                        if let Some(peering_addr) = self.channel.peering_addr() {
-                            self.network.perma_ban(peering_addr);
+                        if let Some(peering_addr) = self.channel.info.peering_addr() {
+                            self.network_info.write().unwrap().perma_ban(peering_addr);
                         }
                     }
                     return ProcessResult::Abort;

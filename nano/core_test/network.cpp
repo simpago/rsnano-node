@@ -338,35 +338,6 @@ TEST (network, tcp_no_accept_excluded_peers)
 	// TODO reimplement in Rust
 }
 
-TEST (network, cleanup_purge)
-{
-	auto test_start = std::chrono::system_clock::now ();
-
-	nano::test::system system (1);
-	auto & node1 (*system.nodes[0]);
-
-	auto node2 (std::make_shared<nano::node> (system.async_rt, system.get_available_port (), nano::unique_path (), system.work));
-	node2->start ();
-	system.nodes.push_back (node2);
-
-	ASSERT_EQ (0, node1.network->size ());
-	node1.network->cleanup (test_start);
-	ASSERT_EQ (0, node1.network->size ());
-
-	node1.network->cleanup (std::chrono::system_clock::now ());
-	ASSERT_EQ (0, node1.network->size ());
-
-	std::weak_ptr<nano::node> node_w = node1.shared ();
-	node1.connect (node2->network->endpoint ());
-
-	ASSERT_TIMELY_EQ (3s, node1.network->size (), 1);
-	node1.network->cleanup (test_start);
-	ASSERT_EQ (1, node1.network->size ());
-
-	node1.network->cleanup (std::chrono::system_clock::now ());
-	ASSERT_TIMELY_EQ (5s, 0, node1.network->size ());
-}
-
 // Ensure the network filters messages with the incorrect magic number
 // Disabled, because there is currently no way to send messages with a given network id
 TEST (DISABLED_network, filter_invalid_network_bytes)

@@ -10,6 +10,10 @@ fn no_self_incoming() {
     node.peer_connector
         .connect_to(node.tcp_listener.local_address());
     assert_never(Duration::from_secs(2), || {
-        node.network.count_by_mode(ChannelMode::Realtime) > 0
+        node.network_info
+            .read()
+            .unwrap()
+            .count_by_mode(ChannelMode::Realtime)
+            > 0
     })
 }

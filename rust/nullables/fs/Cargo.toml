@@ -1,0 +1,7 @@
+[package]
+name = "rsnano_nullable_fs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rsnano_output_tracker = { path = "../output_tracker" }

@@ -130,7 +130,7 @@ impl<'a> Iterator for Iter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LmdbDatabase, LmdbEnv, LmdbEnvironment};
+    use crate::{LmdbDatabase, LmdbEnvironment};
     use lmdb::{DatabaseFlags, EnvironmentFlags, Transaction, WriteFlags};
     use std::path::Path;
 
@@ -165,8 +165,8 @@ mod tests {
         #[test]
         fn iter_from_start() {
             let env = nulled_env_with_foo_database();
-            let txn = env.tx_begin_read();
-            let mut cursor = txn.txn().open_ro_cursor(TEST_DATABASE).unwrap();
+            let txn = env.begin_ro_txn().unwrap();
+            let mut cursor = txn.open_ro_cursor(TEST_DATABASE).unwrap();
 
             let result: Vec<([u8; 3], [u8; 3])> = cursor
                 .iter_start()
@@ -187,12 +187,9 @@ mod tests {
         #[test]
         fn nulled_cursor_can_be_iterated_forwards() {
             let env = nulled_env_with_foo_database();
-            let txn = env.tx_begin_read();
+            let txn = env.begin_ro_txn().unwrap();
 
-            let cursor = txn
-                .txn()
-                .open_ro_cursor(LmdbDatabase::new_null(42))
-                .unwrap();
+            let cursor = txn.open_ro_cursor(LmdbDatabase::new_null(42)).unwrap();
 
             let (k, v) = cursor.get(None, None, MDB_FIRST).unwrap();
             assert_eq!(k, Some([1, 1, 1].as_slice()));
@@ -213,8 +210,8 @@ mod tests {
         #[test]
         fn nulled_cursor_can_be_iterated_backwards() {
             let env = nulled_env_with_foo_database();
-            let txn = env.tx_begin_read();
-            let cursor = txn.txn().open_ro_cursor(TEST_DATABASE).unwrap();
+            let txn = env.begin_ro_txn().unwrap();
+            let cursor = txn.open_ro_cursor(TEST_DATABASE).unwrap();
 
             let (k, v) = cursor.get(None, None, MDB_LAST).unwrap();
             assert_eq!(k, Some([3, 3, 3].as_slice()));
@@ -235,9 +232,9 @@ mod tests {
         #[test]
         fn nulled_cursor_can_start_at_specified_key() {
             let env = nulled_env_with_foo_database();
-            let txn = env.tx_begin_read();
+            let txn = env.begin_ro_txn().unwrap();
 
-            let cursor = txn.txn().open_ro_cursor(TEST_DATABASE).unwrap();
+            let cursor = txn.open_ro_cursor(TEST_DATABASE).unwrap();
             let (k, v) = cursor
                 .get(Some([2u8, 2, 2].as_slice()), None, MDB_SET_RANGE)
                 .unwrap();
@@ -251,14 +248,14 @@ mod tests {
             assert_eq!(v, [7, 7, 7].as_slice());
         }
 
-        fn nulled_env_with_foo_database() -> LmdbEnv {
-            LmdbEnv::new_null_with()
+        fn nulled_env_with_foo_database() -> LmdbEnvironment {
+            LmdbEnvironment::null_builder()
                 .database(TEST_DATABASE_NAME, TEST_DATABASE)
                 .entry(&[1, 1, 1], &[6, 6, 6])
                 .entry(&[2, 2, 2], &[7, 7, 7])
                 .entry(&[3, 3, 3], &[8, 8, 8])
-                .build()
-                .build()
+                .finish()
+                .finish()
         }
     }
 

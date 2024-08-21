@@ -4,12 +4,13 @@ use rsnano_core::{
 };
 use rsnano_ledger::Ledger;
 use rsnano_messages::{Message, TelemetryAck, TelemetryData, TelemetryMaker};
+use rsnano_nullable_clock::SteadyClock;
 use std::{
     cmp::min,
     collections::{HashMap, VecDeque},
     mem::size_of,
     net::SocketAddrV6,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant, SystemTime},
 };
@@ -19,7 +20,7 @@ use crate::{
     config::NodeConfig,
     stats::{DetailType, StatType, Stats},
     transport::{
-        Channel, ChannelId, ChannelMode, DropPolicy, MessagePublisher, Network, TrafficType,
+        ChannelId, ChannelInfo, ChannelMode, DropPolicy, MessagePublisher, NetworkInfo, TrafficType,
     },
     NetworkParams,
 };
@@ -43,12 +44,13 @@ pub struct Telemetry {
     condition: Condvar,
     mutex: Mutex<TelemetryImpl>,
     network_params: NetworkParams,
-    network: Arc<Network>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     message_publisher: Mutex<MessagePublisher>,
     node_id: KeyPair,
     startup_time: Instant,
     telemetry_processed_callbacks:
         Mutex<Vec<Box<dyn Fn(&TelemetryData, &SocketAddrV6) + Send + Sync>>>,
+    clock: Arc<SteadyClock>,
 }
 
 impl Telemetry {
@@ -61,9 +63,10 @@ impl Telemetry {
         ledger: Arc<Ledger>,
         unchecked: Arc<UncheckedMap>,
         network_params: NetworkParams,
-        network: Arc<Network>,
+        network_info: Arc<RwLock<NetworkInfo>>,
         message_publisher: MessagePublisher,
         node_id: KeyPair,
+        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             config,
@@ -72,7 +75,7 @@ impl Telemetry {
             ledger,
             unchecked,
             network_params,
-            network,
+            network_info,
             message_publisher: Mutex::new(message_publisher),
             thread: Mutex::new(None),
             condition: Condvar::new(),
@@ -86,6 +89,7 @@ impl Telemetry {
             telemetry_processed_callbacks: Mutex::new(Vec::new()),
             node_id,
             startup_time: Instant::now(),
+            clock,
         }
     }
 
@@ -104,7 +108,7 @@ impl Telemetry {
         self.telemetry_processed_callbacks.lock().unwrap().push(f);
     }
 
-    fn verify(&self, telemetry: &TelemetryAck, channel: &Arc<Channel>) -> bool {
+    fn verify(&self, telemetry: &TelemetryAck, channel: &ChannelInfo) -> bool {
         let Some(data) = &telemetry.0 else {
             self.stats
                 .inc(StatType::Telemetry, DetailType::EmptyPayload);
@@ -112,7 +116,7 @@ impl Telemetry {
         };
 
         // Check if telemetry node id matches channel node id
-        if Some(data.node_id) != channel.get_node_id() {
+        if Some(data.node_id) != channel.node_id() {
             self.stats
                 .inc(StatType::Telemetry, DetailType::NodeIdMismatch);
             return false;
@@ -126,7 +130,10 @@ impl Telemetry {
         }
 
         if data.genesis_block != self.network_params.ledger.genesis.hash() {
-            self.network.peer_misbehaved(channel.channel_id());
+            self.network_info
+                .write()
+                .unwrap()
+                .peer_misbehaved(channel.channel_id(), self.clock.now());
 
             self.stats
                 .inc(StatType::Telemetry, DetailType::GenesisMismatch);
@@ -137,14 +144,14 @@ impl Telemetry {
     }
 
     /// Process telemetry message from network
-    pub fn process(&self, telemetry: &TelemetryAck, channel: &Arc<Channel>) {
+    pub fn process(&self, telemetry: &TelemetryAck, channel: &ChannelInfo) {
         if !self.verify(telemetry, channel) {
             return;
         }
         let data = telemetry.0.as_ref().unwrap();
 
         let mut guard = self.mutex.lock().unwrap();
-        let peer_addr = channel.peering_addr().unwrap_or(channel.peer_addr());
+        let peer_addr = channel.peering_addr_or_peer_addr();
 
         if let Some(entry) = guard.telemetries.get_mut(&peer_addr) {
             self.stats.inc(StatType::Telemetry, DetailType::Update);
@@ -251,7 +258,7 @@ impl Telemetry {
     }
 
     fn run_requests(&self) {
-        let channel_ids = self.network.random_list_realtime_ids();
+        let channel_ids = self.network_info.read().unwrap().random_list_realtime_ids();
         for channel_id in channel_ids {
             self.request(channel_id);
         }
@@ -269,7 +276,7 @@ impl Telemetry {
 
     fn run_broadcasts(&self) {
         let telemetry = self.local_telemetry();
-        let channel_ids = self.network.random_list_realtime_ids();
+        let channel_ids = self.network_info.read().unwrap().random_list_realtime_ids();
         let message = Message::TelemetryAck(TelemetryAck(Some(telemetry)));
         for channel_id in channel_ids {
             self.broadcast(channel_id, &message);
@@ -348,7 +355,11 @@ impl Telemetry {
             uptime: self.startup_time.elapsed().as_secs(),
             unchecked_count: self.unchecked.len() as u64,
             genesis_block: self.network_params.ledger.genesis.hash(),
-            peer_count: self.network.count_by_mode(ChannelMode::Realtime) as u32,
+            peer_count: self
+                .network_info
+                .read()
+                .unwrap()
+                .count_by_mode(ChannelMode::Realtime) as u32,
             account_count: self.ledger.account_count(),
             major_version: MAJOR_VERSION,
             minor_version: MINOR_VERSION,

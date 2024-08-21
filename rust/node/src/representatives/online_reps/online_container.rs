@@ -1,12 +1,10 @@
+use rsnano_core::Account;
+use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::{BTreeMap, HashMap},
     mem::size_of,
     time::Duration,
 };
-
-use rsnano_core::Account;
-
-use crate::utils::Timestamp;
 
 /// Collection of all representatives that are currently online
 #[derive(Default)]

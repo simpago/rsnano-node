@@ -6,7 +6,7 @@ use std::{
 #[cfg(feature = "output_tracking")]
 use super::timer::TimerEvent;
 #[cfg(feature = "output_tracking")]
-use rsnano_core::utils::OutputTrackerMt;
+use rsnano_output_tracker::OutputTrackerMt;
 
 use super::{NullTimer, Timer, TimerStrategy, TimerWrapper};
 

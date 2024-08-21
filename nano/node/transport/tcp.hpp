@@ -27,15 +27,8 @@ namespace transport
 		~tcp_channels ();
 
 		std::size_t size () const;
-		float size_sqrt () const;
-		// Desired fanout for a given scale
-		std::size_t fanout (float scale = 1.0f) const;
-		bool not_a_peer (nano::endpoint const &, bool);
-		void purge (std::chrono::system_clock::time_point const & cutoff_deadline);
 
-		void random_fill (std::array<nano::endpoint, 8> &) const;
 		uint16_t port () const;
-		std::size_t get_next_channel_id ();
 
 		std::shared_ptr<nano::network_filter> publish_filter;
 

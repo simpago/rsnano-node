@@ -1,7 +1,7 @@
 use super::{RepTier, RepTiers, VoteProcessorConfig};
 use crate::{
     stats::{DetailType, StatType, Stats},
-    transport::{Channel, ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue},
+    transport::{ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue},
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -120,7 +120,7 @@ impl VoteProcessorQueue {
                 ContainerInfoComponent::Leaf(ContainerInfo {
                     name: "votes".to_string(),
                     count: guard.queue.len(),
-                    sizeof_element: size_of::<(Arc<Vote>, Arc<Channel>)>(),
+                    sizeof_element: size_of::<(Arc<Vote>, VoteSource)>(),
                 }),
                 guard.queue.collect_container_info("queue"),
             ],

@@ -1,7 +1,7 @@
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     transport::{
-        Channel, ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, DropPolicy,
+        ChannelId, ChannelInfo, DeadChannelCleanupStep, DeadChannelCleanupTarget, DropPolicy,
         FairQueue, MessagePublisher, TrafficType,
     },
 };
@@ -109,11 +109,11 @@ impl BootstrapServer {
         }
     }
 
-    pub fn set_response_callback(&self, cb: Box<dyn Fn(&AscPullAck, &Arc<Channel>) + Send + Sync>) {
+    pub fn set_response_callback(&self, cb: Box<dyn Fn(&AscPullAck, ChannelId) + Send + Sync>) {
         *self.server_impl.on_response.lock().unwrap() = Some(cb);
     }
 
-    pub fn request(&self, message: AscPullReq, channel: Arc<Channel>) -> bool {
+    pub fn request(&self, message: AscPullReq, channel: Arc<ChannelInfo>) -> bool {
         if !self.verify(&message) {
             self.stats
                 .inc(StatType::BootstrapServer, DetailType::Invalid);
@@ -178,10 +178,10 @@ impl DeadChannelCleanupTarget for Arc<BootstrapServer> {
 struct BootstrapServerImpl {
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
-    on_response: Arc<Mutex<Option<Box<dyn Fn(&AscPullAck, &Arc<Channel>) + Send + Sync>>>>,
+    on_response: Arc<Mutex<Option<Box<dyn Fn(&AscPullAck, ChannelId) + Send + Sync>>>>,
     stopped: AtomicBool,
     condition: Condvar,
-    queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
+    queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<ChannelInfo>)>>,
     batch_size: usize,
     message_publisher: Mutex<MessagePublisher>,
 }
@@ -206,8 +206,8 @@ impl BootstrapServerImpl {
 
     fn run_batch<'a>(
         &'a self,
-        mut queue: MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
-    ) -> MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>> {
+        mut queue: MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<ChannelInfo>)>>,
+    ) -> MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<ChannelInfo>)>> {
         let batch = queue.next_batch(self.batch_size);
         drop(queue);
 
@@ -217,7 +217,7 @@ impl BootstrapServerImpl {
 
             if !channel.is_queue_full(TrafficType::Bootstrap) {
                 let response = self.process(&tx, request);
-                self.respond(response, channel);
+                self.respond(response, channel.channel_id());
             } else {
                 self.stats.inc_dir(
                     StatType::BootstrapServer,
@@ -378,7 +378,7 @@ impl BootstrapServerImpl {
         result
     }
 
-    fn respond(&self, response: AscPullAck, channel: Arc<Channel>) {
+    fn respond(&self, response: AscPullAck, channel_id: ChannelId) {
         self.stats.inc_dir(
             StatType::BootstrapServer,
             DetailType::Response,
@@ -413,13 +413,13 @@ impl BootstrapServerImpl {
         {
             let callback = self.on_response.lock().unwrap();
             if let Some(cb) = &*callback {
-                (cb)(&response, &channel);
+                (cb)(&response, channel_id);
             }
         }
 
         let msg = Message::AscPullAck(response);
         self.message_publisher.lock().unwrap().try_send(
-            channel.channel_id(),
+            channel_id,
             &msg,
             DropPolicy::CanDrop,
             TrafficType::Bootstrap,

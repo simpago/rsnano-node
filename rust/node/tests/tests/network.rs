@@ -5,11 +5,7 @@ use rsnano_node::{
     stats::{DetailType, Direction, StatType},
     transport::{ChannelMode, DropPolicy, TrafficType},
 };
-use std::{
-    ops::Deref,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{ops::Deref, sync::Arc, time::Duration};
 use test_helpers::{
     assert_timely_eq, assert_timely_msg, establish_tcp, make_fake_channel, start_election, System,
 };
@@ -31,29 +27,38 @@ fn last_contacted() {
     let channel1 = establish_tcp(&node1, &node0);
     assert_timely_eq(
         Duration::from_secs(3),
-        || node0.network.count_by_mode(ChannelMode::Realtime),
+        || {
+            node0
+                .network_info
+                .read()
+                .unwrap()
+                .count_by_mode(ChannelMode::Realtime)
+        },
         1,
     );
 
     // channel0 is the other side of channel1, same connection different endpoint
     let channel0 = node0
-        .network
+        .network_info
+        .read()
+        .unwrap()
         .find_node_id(&node1.node_id.public_key())
-        .unwrap();
+        .unwrap()
+        .clone();
 
     // check that the endpoints are part of the same connection
     assert_eq!(channel0.local_addr(), channel1.peer_addr());
     assert_eq!(channel1.local_addr(), channel0.peer_addr());
 
     // capture the state before and ensure the clock ticks at least once
-    let timestamp_before_keepalive = channel0.get_last_packet_received();
+    let timestamp_before_keepalive = channel0.last_packet_received();
     let keepalive_count =
         node0
             .stats
             .count(StatType::Message, DetailType::Keepalive, Direction::In);
     assert_timely_msg(
         Duration::from_secs(3),
-        || SystemTime::now() > timestamp_before_keepalive,
+        || node0.steady_clock.now() > timestamp_before_keepalive,
         "clock did not advance",
     );
 
@@ -92,8 +97,15 @@ fn last_contacted() {
         },
         "keepalive count",
     );
-    assert_eq!(node0.network.count_by_mode(ChannelMode::Realtime), 1);
-    let timestamp_after_keepalive = channel0.get_last_packet_received();
+    assert_eq!(
+        node0
+            .network_info
+            .read()
+            .unwrap()
+            .count_by_mode(ChannelMode::Realtime),
+        1
+    );
+    let timestamp_after_keepalive = channel0.last_packet_received();
     assert!(timestamp_after_keepalive > timestamp_before_keepalive);
 }
 
@@ -160,7 +172,7 @@ fn receivable_processor_confirm_insufficient_pos() {
     ));
     assert_eq!(1, election.vote_count());
 
-    node1.inbound_message_queue.put(con1, channel);
+    node1.inbound_message_queue.put(con1, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
 }
@@ -189,7 +201,7 @@ fn receivable_processor_confirm_sufficient_pos() {
     ));
     assert_eq!(1, election.vote_count());
 
-    node1.inbound_message_queue.put(con1, channel);
+    node1.inbound_message_queue.put(con1, channel.info.clone());
 
     assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
 }

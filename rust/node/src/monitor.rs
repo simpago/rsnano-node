@@ -1,19 +1,19 @@
 use crate::{
     consensus::ActiveElections,
     representatives::OnlineReps,
-    transport::Network,
+    transport::NetworkInfo,
     utils::{CancellationToken, Runnable},
 };
 use rsnano_ledger::Ledger;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
     time::Instant,
 };
 use tracing::info;
 
 pub struct Monitor {
     ledger: Arc<Ledger>,
-    network: Arc<Network>,
+    network: Arc<RwLock<NetworkInfo>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     active: Arc<ActiveElections>,
     last_time: Option<Instant>,
@@ -24,7 +24,7 @@ pub struct Monitor {
 impl Monitor {
     pub fn new(
         ledger: Arc<Ledger>,
-        network: Arc<Network>,
+        network: Arc<RwLock<NetworkInfo>>,
         online_peers: Arc<Mutex<OnlineReps>>,
         active: Arc<ActiveElections>,
     ) -> Self {
@@ -57,7 +57,7 @@ impl Monitor {
             elapsed_secs, blocks_confirmed_rate, blocks_checked_rate
         );
 
-        let channels = self.network.channels_info();
+        let channels = self.network.read().unwrap().channels_info();
         info!("Peers: {} (realtime: {} | bootstrap: {} | inbound connections: {} | outbound connections: {})",
             channels.total, channels.realtime, channels.bootstrap, channels.inbound, channels.outbound);
 

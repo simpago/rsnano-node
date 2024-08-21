@@ -43,10 +43,6 @@ impl WriteQueue {
         }
     }
 
-    pub fn is_closed(&self) -> bool {
-        self.generic_queue.is_closed() || self.bootstrap_queue.is_closed()
-    }
-
     pub fn capacity(&self, traffic_type: TrafficType) -> usize {
         self.queue_for(traffic_type).capacity()
     }
@@ -69,15 +65,15 @@ impl WriteQueueReceiver {
         Self { generic, bootstrap }
     }
 
-    pub(crate) async fn pop(&mut self) -> Option<Entry> {
+    pub(crate) async fn pop(&mut self) -> Option<(Entry, TrafficType)> {
         // always prefer generic queue!
         if let Ok(result) = self.generic.try_recv() {
-            return Some(result);
+            return Some((result, TrafficType::Generic));
         }
 
         tokio::select! {
-            v = self.generic.recv() => v,
-            v = self.bootstrap.recv() => v,
+            v = self.generic.recv() => v.map(|i| (i, TrafficType::Generic)),
+            v = self.bootstrap.recv() => v.map(|i| (i, TrafficType::Bootstrap)),
         }
     }
 }

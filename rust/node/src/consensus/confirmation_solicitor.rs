@@ -1,7 +1,7 @@
 use super::{Election, ElectionData};
 use crate::{
     representatives::PeeredRep,
-    transport::{ChannelId, DropPolicy, MessagePublisher, Network, TrafficType},
+    transport::{ChannelId, DropPolicy, MessagePublisher, NetworkInfo, TrafficType},
     NetworkParams,
 };
 use rsnano_core::{BlockHash, Root};
@@ -10,12 +10,12 @@ use std::{
     cmp::max,
     collections::{HashMap, HashSet},
     ops::Deref,
-    sync::{atomic::Ordering, MutexGuard},
+    sync::{atomic::Ordering, MutexGuard, RwLock},
 };
 
 /// This struct accepts elections that need further votes before they can be confirmed and bundles them in to single confirm_req packets
 pub struct ConfirmationSolicitor<'a> {
-    network: &'a Network,
+    network_info: &'a RwLock<NetworkInfo>,
     /// Global maximum amount of block broadcasts
     max_block_broadcasts: usize,
     /// Maximum amount of requests to be sent per election, bypassed if an existing vote is for a different hash
@@ -34,18 +34,19 @@ pub struct ConfirmationSolicitor<'a> {
 impl<'a> ConfirmationSolicitor<'a> {
     pub fn new(
         network_params: &NetworkParams,
-        network: &'a Network,
+        network_info: &'a RwLock<NetworkInfo>,
         message_publisher: MessagePublisher,
     ) -> Self {
+        let max_election_broadcasts = max(network_info.read().unwrap().fanout(1.0) / 2, 1);
         Self {
-            network,
+            network_info,
             max_block_broadcasts: if network_params.network.is_dev_network() {
                 4
             } else {
                 30
             },
             max_election_requests: 50,
-            max_election_broadcasts: max(network.fanout(1.0) / 2, 1),
+            max_election_broadcasts,
             prepared: false,
             representative_requests: Vec::new(),
             representative_broadcasts: Vec::new(),
@@ -133,7 +134,9 @@ impl<'a> ConfirmationSolicitor<'a> {
                 let request_queue = self.requests.entry(rep.channel_id).or_default();
                 self.channels.insert(rep.channel_id);
                 if !self
-                    .network
+                    .network_info
+                    .read()
+                    .unwrap()
                     .is_queue_full(rep.channel_id, TrafficType::Generic)
                 {
                     request_queue.push((winner.hash(), winner.root()));

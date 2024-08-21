@@ -1,10 +1,10 @@
 use super::{ChannelDirection, ChannelMode, Network, ResponseServerFactory};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::TcpStream,
     utils::AsyncRuntime,
 };
 use async_trait::async_trait;
+use rsnano_nullable_tcp::TcpStream;
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6},
     sync::{
@@ -68,10 +68,6 @@ impl TcpListener {
         self.condition.notify_all();
     }
 
-    pub fn realtime_count(&self) -> usize {
-        self.network.count_by_mode(ChannelMode::Realtime)
-    }
-
     pub fn local_address(&self) -> SocketAddrV6 {
         let guard = self.data.lock().unwrap();
         if !guard.stopped {
@@ -113,7 +109,12 @@ impl TcpListenerExt for Arc<TcpListener> {
                 .unwrap_or(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0));
             debug!("Listening for incoming connections on: {}", addr);
 
-            self_l.network.set_port(addr.port());
+            self_l
+                .network
+                .info
+                .write()
+                .unwrap()
+                .set_listening_port(addr.port());
             self_l.data.lock().unwrap().local_addr =
                 SocketAddrV6::new(Ipv6Addr::LOCALHOST, addr.port(), 0, 0);
 

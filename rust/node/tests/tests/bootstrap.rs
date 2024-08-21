@@ -7,26 +7,25 @@ use rsnano_messages::BulkPull;
 use rsnano_node::{
     bootstrap::BulkPullServer,
     node::Node,
-    transport::{Channel, ChannelDirection, ChannelId, LatestKeepalives, ResponseServer},
+    transport::{Channel, ChannelInfo, LatestKeepalives, ResponseServer},
 };
 use rsnano_node::{
     bootstrap::{BootstrapAttemptTrait, BootstrapInitiatorExt, BootstrapStrategy},
     config::{FrontiersConfirmationMode, NodeFlags},
     node::NodeExt,
-    transport::TcpStream,
     wallets::WalletsExt,
 };
+use rsnano_nullable_tcp::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use test_helpers::{
-    assert_timely_eq, assert_timely_msg, establish_tcp, get_available_port, System,
-};
+use test_helpers::{assert_timely_eq, assert_timely_msg, get_available_port, System};
 
 mod bootstrap_processor {
     use rsnano_node::{
         config::NodeConfig,
         transport::{ChannelMode, PeerConnectorExt},
     };
+    use test_helpers::establish_tcp;
 
     use super::*;
 
@@ -669,7 +668,13 @@ mod bootstrap_processor {
             .connect_to(node2.tcp_listener.local_address());
         assert_timely_eq(
             Duration::from_secs(5),
-            || node2.network.count_by_mode(ChannelMode::Realtime),
+            || {
+                node2
+                    .network_info
+                    .read()
+                    .unwrap()
+                    .count_by_mode(ChannelMode::Realtime)
+            },
             1,
         );
         node1
@@ -1394,16 +1399,16 @@ mod bulk_pull_account {
 
 fn create_response_server(node: &Node) -> Arc<ResponseServer> {
     let channel = node.async_rt.tokio.block_on(Channel::create(
-        ChannelId::from(1),
+        Arc::new(ChannelInfo::new_test_instance()),
         TcpStream::new_null(),
-        ChannelDirection::Inbound,
-        node.network_params.network.protocol_info().version_using,
         node.stats.clone(),
         node.outbound_limiter.clone(),
+        node.network_info.clone(),
+        node.steady_clock.clone(),
     ));
 
     Arc::new(ResponseServer::new(
-        node.network.clone(),
+        node.network_info.clone(),
         node.inbound_message_queue.clone(),
         channel,
         node.network.publish_filter.clone(),

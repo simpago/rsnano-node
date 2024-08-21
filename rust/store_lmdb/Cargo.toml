@@ -13,6 +13,8 @@ rsnano_store_lmdb = { path = ".", features = ["output_tracking"] }
 
 [dependencies]
 rsnano_core = { path = "../core" }
+rsnano_output_tracker = { path = "../nullables/output_tracker" }
+rsnano_nullable_lmdb = { path = "../nullables/lmdb" }
 lmdb-rkv = "0.14"
 lmdb-rkv-sys = "0.11"
 primitive-types = "0"

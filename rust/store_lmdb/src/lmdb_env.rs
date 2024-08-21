@@ -1,4 +1,3 @@
-use crate::nullable_lmdb::{ConfiguredDatabase, EnvironmentOptions, LmdbDatabase, LmdbEnvironment};
 use crate::{
     LmdbConfig, LmdbReadTransaction, LmdbWriteTransaction, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
@@ -7,18 +6,18 @@ use anyhow::bail;
 use lmdb::EnvironmentFlags;
 use lmdb_sys::MDB_SUCCESS;
 use rsnano_core::utils::{memory_intensive_instrumentation, PropertyTree};
-use std::collections::BTreeMap;
-use std::ffi::OsStr;
-use std::ops::Deref;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicUsize;
+use rsnano_nullable_lmdb::{
+    ConfiguredDatabase, ConfiguredDatabaseBuilder, EnvironmentOptions, EnvironmentStubBuilder,
+    LmdbDatabase, LmdbEnvironment,
+};
 use std::{
-    ffi::{c_char, CStr},
+    ffi::{c_char, CStr, OsStr},
     fs::{create_dir_all, set_permissions, Permissions},
+    ops::Deref,
     os::unix::prelude::PermissionsExt,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -32,56 +31,41 @@ pub struct EnvOptions {
 }
 
 pub struct NullLmdbEnvBuilder {
-    databases: Vec<ConfiguredDatabase>,
+    env_builder: EnvironmentStubBuilder,
 }
 
 impl NullLmdbEnvBuilder {
     pub fn database(self, name: impl Into<String>, dbi: LmdbDatabase) -> NullDatabaseBuilder {
         NullDatabaseBuilder {
-            data: ConfiguredDatabase {
-                dbi,
-                db_name: name.into(),
-                entries: BTreeMap::new(),
-            },
-            env_builder: self,
+            db_builder: ConfiguredDatabaseBuilder::new(name, dbi, self.env_builder),
         }
     }
 
     pub fn configured_database(mut self, db: ConfiguredDatabase) -> Self {
-        if self
-            .databases
-            .iter()
-            .any(|x| x.dbi == db.dbi || x.db_name == db.db_name)
-        {
-            panic!(
-                "trying to duplicated database for {} / {}",
-                db.dbi.as_nulled(),
-                db.db_name
-            );
-        }
-        self.databases.push(db);
+        self.env_builder = self.env_builder.configured_database(db);
         self
     }
 
     pub fn build(self) -> LmdbEnv {
-        let env = LmdbEnvironment::new_null_with(self.databases);
+        let env = self.env_builder.finish();
         LmdbEnv::new_with_env(env)
     }
 }
 
 pub struct NullDatabaseBuilder {
-    env_builder: NullLmdbEnvBuilder,
-    data: ConfiguredDatabase,
+    db_builder: ConfiguredDatabaseBuilder,
 }
 
 impl NullDatabaseBuilder {
     pub fn entry(mut self, key: &[u8], value: &[u8]) -> Self {
-        self.data.entries.insert(key.to_vec(), value.to_vec());
+        self.db_builder = self.db_builder.entry(key, value);
         self
     }
-    pub fn build(mut self) -> NullLmdbEnvBuilder {
-        self.env_builder.databases.push(self.data);
-        self.env_builder
+
+    pub fn build(self) -> NullLmdbEnvBuilder {
+        NullLmdbEnvBuilder {
+            env_builder: self.db_builder.finish(),
+        }
     }
 }
 
@@ -102,7 +86,7 @@ impl LmdbEnv {
 
     pub fn new_null_with() -> NullLmdbEnvBuilder {
         NullLmdbEnvBuilder {
-            databases: Vec::new(),
+            env_builder: EnvironmentStubBuilder::default(),
         }
     }
 

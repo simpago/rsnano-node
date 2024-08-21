@@ -1,121 +1,61 @@
 use super::{
     write_queue::{WriteQueue, WriteQueueReceiver},
-    AsyncBufferReader, ChannelDirection, ChannelId, ChannelMode, DropPolicy,
-    OutboundBandwidthLimiter, TcpStream, TrafficType,
+    AsyncBufferReader, ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkInfo,
+    OutboundBandwidthLimiter, TrafficType,
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    utils::{into_ipv6_socket_address, ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
+    utils::into_ipv6_socket_address,
 };
 use async_trait::async_trait;
-use num::FromPrimitive;
 use rsnano_core::{
-    utils::{seconds_since_epoch, NULL_ENDPOINT},
+    utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2},
     Account,
 };
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_nullable_tcp::TcpStream;
 use std::{
     fmt::Display,
     net::{Ipv6Addr, SocketAddrV6},
-    sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering},
-        Arc, Mutex,
-    },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    sync::{Arc, RwLock},
+    time::Duration,
 };
 use tokio::time::sleep;
 use tracing::debug;
 
-pub struct ChannelData {
-    last_bootstrap_attempt: SystemTime,
-    last_packet_received: SystemTime,
-    last_packet_sent: SystemTime,
-    node_id: Option<Account>,
-    peering_addr: Option<SocketAddrV6>,
-}
-
-/// Default timeout in seconds
-const DEFAULT_TIMEOUT: u64 = 120;
-
 pub struct Channel {
     channel_id: ChannelId,
-    channel_mutex: Mutex<ChannelData>,
-    protocol_version: AtomicU8,
+    network_info: Arc<RwLock<NetworkInfo>>,
+    pub info: Arc<ChannelInfo>,
     limiter: Arc<OutboundBandwidthLimiter>,
     stats: Arc<Stats>,
-
-    /// The other end of the connection
-    peer_addr: SocketAddrV6,
-
-    /// the timestamp (in seconds since epoch) of the last time there was successful activity on the socket
-    last_activity: AtomicU64,
-
-    /// Duration in seconds of inactivity that causes a socket timeout
-    /// activity is any successful connect, send or receive event
-    timeout_seconds: AtomicU64,
-
-    direction: ChannelDirection,
-
-    /// Flag that is set when cleanup decides to close the socket due to timeout.
-    /// NOTE: Currently used by tcp_server::timeout() but I suspect that this and tcp_server::timeout() are not needed.
-    timed_out: AtomicBool,
-
-    /// Set by close() - completion handlers must check this. This is more reliable than checking
-    /// error codes as the OS may have already completed the async operation.
-    closed: AtomicBool,
-
-    socket_type: AtomicU8,
-
-    write_queue: WriteQueue,
+    write_queue: Arc<WriteQueue>,
     stream: Arc<TcpStream>,
-    ignore_closed_write_queue: bool,
+    clock: Arc<SteadyClock>,
 }
 
 impl Channel {
     const MAX_QUEUE_SIZE: usize = 128;
 
     fn new(
-        channel_id: ChannelId,
+        channel_info: Arc<ChannelInfo>,
+        network_info: Arc<RwLock<NetworkInfo>>,
         stream: Arc<TcpStream>,
-        direction: ChannelDirection,
-        protocol_version: u8,
         stats: Arc<Stats>,
         limiter: Arc<OutboundBandwidthLimiter>,
+        clock: Arc<SteadyClock>,
     ) -> (Self, WriteQueueReceiver) {
-        let peer_addr = stream
-            .peer_addr()
-            .map(into_ipv6_socket_address)
-            .unwrap_or(NULL_ENDPOINT);
-
         let (write_queue, receiver) = WriteQueue::new(Self::MAX_QUEUE_SIZE);
 
-        let peering_addr = match direction {
-            ChannelDirection::Inbound => None,
-            ChannelDirection::Outbound => Some(peer_addr),
-        };
-
-        let now = SystemTime::now();
         let channel = Self {
-            channel_id,
-            channel_mutex: Mutex::new(ChannelData {
-                last_bootstrap_attempt: UNIX_EPOCH,
-                last_packet_received: now,
-                last_packet_sent: now,
-                node_id: None,
-                peering_addr,
-            }),
-            protocol_version: AtomicU8::new(protocol_version),
+            channel_id: channel_info.channel_id(),
+            info: channel_info,
+            network_info,
             limiter,
             stats,
-            peer_addr,
-            last_activity: AtomicU64::new(seconds_since_epoch()),
-            timeout_seconds: AtomicU64::new(DEFAULT_TIMEOUT),
-            direction,
-            timed_out: AtomicBool::new(false),
-            closed: AtomicBool::new(false),
-            socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
-            write_queue,
+            write_queue: Arc::new(write_queue),
             stream,
-            ignore_closed_write_queue: false,
+            clock,
         };
 
         (channel, receiver)
@@ -126,41 +66,49 @@ impl Channel {
     }
 
     pub fn new_null_with_id(id: impl Into<ChannelId>) -> Self {
-        let (mut channel, _receiver) = Self::new(
-            id.into(),
+        let channel_id = id.into();
+        let (channel, _receiver) = Self::new(
+            Arc::new(ChannelInfo::new(
+                channel_id,
+                TEST_ENDPOINT_1,
+                TEST_ENDPOINT_2,
+                ChannelDirection::Outbound,
+                Timestamp::new_test_instance(),
+            )),
+            Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             Arc::new(TcpStream::new_null()),
-            ChannelDirection::Inbound,
-            200,
             Arc::new(Stats::default()),
             Arc::new(OutboundBandwidthLimiter::default()),
+            Arc::new(SteadyClock::new_null()),
         );
-        // We drop the write queue receiver, so the channel would be dead immediately.
-        channel.ignore_closed_write_queue = true;
         channel
     }
 
     pub async fn create(
-        channel_id: ChannelId,
+        channel_info: Arc<ChannelInfo>,
         stream: TcpStream,
-        direction: ChannelDirection,
-        protocol_version: u8,
         stats: Arc<Stats>,
         limiter: Arc<OutboundBandwidthLimiter>,
+        network_info: Arc<RwLock<NetworkInfo>>,
+        clock: Arc<SteadyClock>,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
         let stream_l = stream.clone();
-        let (channel, mut receiver) = Self::new(
-            channel_id,
-            stream,
-            direction,
-            protocol_version,
-            stats,
-            limiter,
-        );
-        //
+        let info = channel_info.clone();
+        let (channel, mut receiver) =
+            Self::new(channel_info, network_info, stream, stats, limiter, clock);
+
+        let write_queue = Arc::downgrade(&channel.write_queue);
+        info.set_queue_full_query(Box::new(move |traffic_type| {
+            let Some(queue) = write_queue.upgrade() else {
+                return true;
+            };
+            queue.capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
+        }));
+
         // process write queue:
         tokio::spawn(async move {
-            while let Some(entry) = receiver.pop().await {
+            while let Some((entry, _)) = receiver.pop().await {
                 let mut written = 0;
                 let buffer = &entry.buffer;
                 loop {
@@ -185,6 +133,7 @@ impl Channel {
                     }
                 }
             }
+            info.close();
         });
 
         let channel = Arc::new(channel);
@@ -193,63 +142,19 @@ impl Channel {
         channel
     }
 
-    pub(crate) fn set_peering_addr(&self, address: SocketAddrV6) {
-        let mut lock = self.channel_mutex.lock().unwrap();
-        lock.peering_addr = Some(address);
-    }
-
-    pub(crate) fn is_queue_full(&self, traffic_type: TrafficType) -> bool {
-        self.write_queue.capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
-    }
-
-    fn is_closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst)
-            || (!self.ignore_closed_write_queue && self.write_queue.is_closed())
-    }
-
     fn update_last_activity(&self) {
-        self.last_activity
-            .store(seconds_since_epoch(), Ordering::Relaxed);
+        self.info.set_last_activity(self.clock.now());
     }
 
     pub fn channel_id(&self) -> ChannelId {
         self.channel_id
     }
 
-    pub fn get_last_bootstrap_attempt(&self) -> SystemTime {
-        self.channel_mutex.lock().unwrap().last_bootstrap_attempt
-    }
-
-    pub fn set_last_bootstrap_attempt(&self, time: SystemTime) {
-        self.channel_mutex.lock().unwrap().last_bootstrap_attempt = time;
-    }
-
-    pub fn get_last_packet_received(&self) -> SystemTime {
-        self.channel_mutex.lock().unwrap().last_packet_received
-    }
-
-    pub fn set_last_packet_received(&self, instant: SystemTime) {
-        self.channel_mutex.lock().unwrap().last_packet_received = instant;
-    }
-
-    pub fn get_last_packet_sent(&self) -> SystemTime {
-        self.channel_mutex.lock().unwrap().last_packet_sent
-    }
-
-    pub fn set_last_packet_sent(&self, instant: SystemTime) {
-        self.channel_mutex.lock().unwrap().last_packet_sent = instant;
-    }
-
-    pub fn get_node_id(&self) -> Option<Account> {
-        self.channel_mutex.lock().unwrap().node_id
-    }
-
     pub fn set_node_id(&self, id: Account) {
-        self.channel_mutex.lock().unwrap().node_id = Some(id);
-    }
-
-    pub fn is_alive(&self) -> bool {
-        !self.is_closed()
+        self.network_info
+            .read()
+            .unwrap()
+            .set_node_id(self.channel_id, id);
     }
 
     pub fn local_addr(&self) -> SocketAddrV6 {
@@ -259,45 +164,12 @@ impl Channel {
             .unwrap_or(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0))
     }
 
-    pub fn peer_addr(&self) -> SocketAddrV6 {
-        self.peer_addr
-    }
-
-    pub fn peering_addr(&self) -> Option<SocketAddrV6> {
-        self.channel_mutex.lock().unwrap().peering_addr
-    }
-
-    pub fn protocol_version(&self) -> u8 {
-        self.protocol_version.load(Ordering::Relaxed)
-    }
-
-    pub fn set_protocol_version(&self, version: u8) {
-        self.protocol_version.store(version, Ordering::Relaxed);
-    }
-
-    pub fn direction(&self) -> ChannelDirection {
-        self.direction
-    }
-
-    pub fn mode(&self) -> ChannelMode {
-        FromPrimitive::from_u8(self.socket_type.load(Ordering::SeqCst)).unwrap()
-    }
-
-    pub fn set_mode(&self, mode: ChannelMode) {
-        self.socket_type.store(mode as u8, Ordering::SeqCst);
-    }
-
-    pub fn set_timeout(&self, timeout: Duration) {
-        self.timeout_seconds
-            .store(timeout.as_secs(), Ordering::SeqCst);
-    }
-
     pub async fn send_buffer(
         &self,
         buffer: &[u8],
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
-        while self.is_queue_full(traffic_type) {
+        while self.info.is_queue_full(traffic_type) {
             // TODO: better implementation
             sleep(Duration::from_millis(20)).await;
         }
@@ -307,7 +179,7 @@ impl Channel {
             sleep(Duration::from_millis(20)).await;
         }
 
-        if self.is_closed() {
+        if self.info.is_closed() {
             bail!("socket closed");
         }
 
@@ -326,17 +198,17 @@ impl Channel {
                 buf_size as u64,
             );
             self.update_last_activity();
-            self.set_last_packet_sent(SystemTime::now());
+            self.info.set_last_packet_sent(self.clock.now());
         } else {
             self.stats
                 .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-            debug!(channel_id = %self.channel_id(), remote_addr = ?self.peer_addr(), "Closing channel after write error");
-            self.close();
+            debug!(channel_id = %self.channel_id(), remote_addr = ?self.info.peer_addr(), "Closing channel after write error");
+            self.info.close();
         }
 
         result?;
 
-        self.channel_mutex.lock().unwrap().last_packet_sent = SystemTime::now();
+        self.info.set_last_packet_sent(self.clock.now());
         Ok(())
     }
 
@@ -346,11 +218,11 @@ impl Channel {
         drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
-        if self.is_closed() {
+        if self.info.is_closed() {
             return false;
         }
 
-        if drop_policy == DropPolicy::CanDrop && self.is_queue_full(traffic_type) {
+        if drop_policy == DropPolicy::CanDrop && self.info.is_queue_full(traffic_type) {
             return false;
         }
 
@@ -375,53 +247,37 @@ impl Channel {
                 buf_size as u64,
             );
             self.update_last_activity();
-            self.set_last_packet_sent(SystemTime::now());
+            self.info.set_last_packet_sent(self.clock.now());
         } else if write_error {
             self.stats
                 .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
-            self.close();
-            debug!(peer_addr = ?self.peer_addr, channel_id = %self.channel_id(), mode = ?self.mode(), "Closing socket after write error");
+            self.info.close();
+            debug!(peer_addr = ?self.info.peer_addr(), channel_id = %self.channel_id(), mode = ?self.info.mode(), "Closing socket after write error");
         }
         inserted
-    }
-
-    pub fn close(&self) {
-        if !self.closed.swap(true, Ordering::SeqCst) {
-            self.set_timeout(Duration::ZERO);
-        }
-    }
-
-    pub fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {
-        ipv4_address_or_ipv6_subnet(&self.peer_addr().ip())
-    }
-
-    pub fn subnetwork(&self) -> Ipv6Addr {
-        map_address_to_subnetwork(self.peer_addr().ip())
     }
 
     async fn ongoing_checkup(&self) {
         loop {
             sleep(Duration::from_secs(2)).await;
             // If the socket is already dead, close just in case, and stop doing checkups
-            if !self.is_alive() {
+            if !self.info.is_alive() {
                 debug!(
-                    remote_addr = ?self.peer_addr,
+                    peer_addr = ?self.info.peer_addr(),
                     "Stopping checkup for dead channel"
                 );
                 return;
             }
 
-            let now = seconds_since_epoch();
+            let now = self.clock.now();
             let mut condition_to_disconnect = false;
 
             // if there is no activity for timeout seconds then disconnect
-            if (now - self.last_activity.load(Ordering::Relaxed))
-                > self.timeout_seconds.load(Ordering::Relaxed)
-            {
+            if (now - self.info.last_activity()) > self.info.timeout() {
                 self.stats.inc_dir(
                     StatType::Tcp,
                     DetailType::TcpIoTimeoutDrop,
-                    if self.direction == ChannelDirection::Inbound {
+                    if self.info.direction() == ChannelDirection::Inbound {
                         Direction::In
                     } else {
                         Direction::Out
@@ -431,9 +287,9 @@ impl Channel {
             }
 
             if condition_to_disconnect {
-                debug!(channel_id = %self.channel_id(), remote_addr = ?self.peer_addr(), mode = ?self.mode(), direction = ?self.direction(), "Closing channel due to timeout");
-                self.timed_out.store(true, Ordering::SeqCst);
-                self.close();
+                debug!(channel_id = %self.channel_id(), remote_addr = ?self.info.peer_addr(), mode = ?self.info.mode(), direction = ?self.info.direction(), "Closing channel due to timeout");
+                self.info.set_timed_out(true);
+                self.info.close();
             }
         }
     }
@@ -441,13 +297,13 @@ impl Channel {
 
 impl Display for Channel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.peer_addr.fmt(f)
+        self.info.peer_addr().fmt(f)
     }
 }
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        self.close();
+        self.info.close();
     }
 }
 
@@ -458,7 +314,7 @@ impl AsyncBufferReader for Arc<Channel> {
             return Err(anyhow!("buffer is too small for read count"));
         }
 
-        if self.is_closed() {
+        if self.info.is_closed() {
             return Err(anyhow!("Tried to read from a closed TcpStream"));
         }
 
@@ -485,7 +341,7 @@ impl AsyncBufferReader for Arc<Channel> {
                                     count as u64,
                                 );
                                 self.update_last_activity();
-                                self.set_last_packet_received(SystemTime::now());
+                                self.info.set_last_packet_received(self.clock.now());
                                 return Ok(());
                             }
                         }
