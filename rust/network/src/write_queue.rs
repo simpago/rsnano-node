@@ -1,8 +1,8 @@
-use super::TrafficType;
+use crate::TrafficType;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self};
 
-pub(crate) struct WriteQueue {
+pub struct WriteQueue {
     generic_queue: mpsc::Sender<Entry>,
     bootstrap_queue: mpsc::Sender<Entry>,
 }
@@ -55,7 +55,7 @@ impl WriteQueue {
     }
 }
 
-pub(crate) struct WriteQueueReceiver {
+pub struct WriteQueueReceiver {
     generic: mpsc::Receiver<Entry>,
     bootstrap: mpsc::Receiver<Entry>,
 }
@@ -65,7 +65,7 @@ impl WriteQueueReceiver {
         Self { generic, bootstrap }
     }
 
-    pub(crate) async fn pop(&mut self) -> Option<(Entry, TrafficType)> {
+    pub async fn pop(&mut self) -> Option<(Entry, TrafficType)> {
         // always prefer generic queue!
         if let Ok(result) = self.generic.try_recv() {
             return Some((result, TrafficType::Generic));
@@ -78,6 +78,6 @@ impl WriteQueueReceiver {
     }
 }
 
-pub(crate) struct Entry {
+pub struct Entry {
     pub buffer: Arc<Vec<u8>>,
 }

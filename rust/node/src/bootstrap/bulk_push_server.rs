@@ -2,7 +2,7 @@ use super::BootstrapInitiator;
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{AsyncBufferReader, ResponseServer, ResponseServerExt},
+    transport::{ResponseServer, ResponseServerExt},
     utils::{AsyncRuntime, ErrorCode, ThreadPool},
 };
 use num_traits::FromPrimitive;
@@ -10,7 +10,9 @@ use rsnano_core::{
     utils::BufferReader, work::WorkThresholds, BlockEnum, BlockType, ChangeBlock, OpenBlock,
     ReceiveBlock, SendBlock, StateBlock,
 };
+use rsnano_network::AsyncBufferReader;
 use std::{
+    ops::Deref,
     sync::{Arc, Mutex, Weak},
     time::Duration,
 };
@@ -106,7 +108,7 @@ impl BulkPushServerImpl {
             let server_impl2 = Arc::clone(&server_impl);
             self.async_rt.tokio.spawn(async move {
                 let mut buf = [0; BUFFER_SIZE];
-                let result = channel.read(&mut buf, 1).await;
+                let result = channel.deref().read(&mut buf, 1).await;
                 buffer.lock().unwrap().copy_from_slice(&buf);
                 spawn_blocking(Box::new(move || {
                     let guard = server_impl.lock().unwrap();

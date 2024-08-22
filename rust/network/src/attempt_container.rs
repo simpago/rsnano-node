@@ -1,5 +1,7 @@
-use super::ChannelDirection;
-use crate::utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork};
+use crate::{
+    utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
+    ChannelDirection,
+};
 use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::HashMap,

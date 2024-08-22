@@ -1,9 +1,9 @@
-use super::{ChannelDirection, Network, NetworkStats, ResponseServerFactory, TcpConfig};
+use super::{Network, ResponseServerFactory, TcpConfig};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::ChannelMode,
     utils::AsyncRuntime,
 };
+use rsnano_network::{ChannelDirection, ChannelMode, NetworkObserver, NullNetworkObserver};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -15,7 +15,7 @@ use tracing::debug;
 pub struct PeerConnector {
     config: TcpConfig,
     network: Arc<Network>,
-    network_stats: Option<NetworkStats>,
+    network_observer: Arc<dyn NetworkObserver>,
     stats: Arc<Stats>,
     runtime: Arc<AsyncRuntime>,
     cancel_token: CancellationToken,
@@ -28,7 +28,7 @@ impl PeerConnector {
     pub(crate) fn new(
         config: TcpConfig,
         network: Arc<Network>,
-        network_stats: NetworkStats,
+        network_observer: Arc<dyn NetworkObserver>,
         stats: Arc<Stats>,
         runtime: Arc<AsyncRuntime>,
         response_server_factory: Arc<ResponseServerFactory>,
@@ -37,7 +37,7 @@ impl PeerConnector {
         Self {
             config,
             network,
-            network_stats: Some(network_stats),
+            network_observer,
             stats,
             runtime,
             cancel_token: CancellationToken::new(),
@@ -52,7 +52,7 @@ impl PeerConnector {
         Self {
             config: Default::default(),
             network: Arc::new(Network::new_null()),
-            network_stats: None,
+            network_observer: Arc::new(NullNetworkObserver::new()),
             stats: Arc::new(Default::default()),
             runtime: Arc::new(Default::default()),
             cancel_token: CancellationToken::new(),
@@ -107,16 +107,13 @@ impl PeerConnectorExt for Arc<PeerConnector> {
             if let Err(e) =
                 network.add_outbound_attempt(peer, ChannelMode::Realtime, self.clock.now())
             {
-                if let Some(stats) = &self.network_stats {
-                    stats.error(e, &peer, ChannelDirection::Outbound);
-                }
+                self.network_observer
+                    .error(e, &peer, ChannelDirection::Outbound);
 
                 return false;
             }
 
-            if let Some(stats) = &self.network_stats {
-                stats.connection_attempt(&peer);
-            }
+            self.network_observer.connection_attempt(&peer);
 
             if let Err(e) = network.validate_new_connection(
                 &peer,
@@ -125,9 +122,8 @@ impl PeerConnectorExt for Arc<PeerConnector> {
                 self.clock.now(),
             ) {
                 network.remove_attempt(&peer);
-                if let Some(stats) = &self.network_stats {
-                    stats.error(e, &peer, ChannelDirection::Outbound);
-                }
+                self.network_observer
+                    .error(e, &peer, ChannelDirection::Outbound);
                 return false;
             }
         }

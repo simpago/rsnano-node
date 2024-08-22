@@ -1,9 +1,6 @@
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{
-        ChannelId, ChannelInfo, DeadChannelCleanupStep, DeadChannelCleanupTarget, DropPolicy,
-        FairQueue, MessagePublisher, TrafficType,
-    },
+    transport::{FairQueue, MessagePublisher},
 };
 use rsnano_core::{BlockEnum, BlockHash, Frontier};
 use rsnano_ledger::Ledger;
@@ -11,6 +8,7 @@ use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
+use rsnano_network::{ChannelId, ChannelInfo, DeadChannelCleanupStep, DropPolicy, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::min,
@@ -45,7 +43,7 @@ pub struct BootstrapServer {
     config: BootstrapServerConfig,
     stats: Arc<Stats>,
     threads: Mutex<Vec<JoinHandle<()>>>,
-    server_impl: Arc<BootstrapServerImpl>,
+    pub(crate) server_impl: Arc<BootstrapServerImpl>,
 }
 
 impl BootstrapServer {
@@ -167,15 +165,7 @@ impl Drop for BootstrapServer {
     }
 }
 
-impl DeadChannelCleanupTarget for Arc<BootstrapServer> {
-    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
-        Box::new(BootstrapServerCleanup {
-            server: self.server_impl.clone(),
-        })
-    }
-}
-
-struct BootstrapServerImpl {
+pub(crate) struct BootstrapServerImpl {
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
     on_response: Arc<Mutex<Option<Box<dyn Fn(&AscPullAck, ChannelId) + Send + Sync>>>>,
@@ -447,13 +437,17 @@ impl From<&AscPullReqType> for DetailType {
     }
 }
 
-pub(crate) struct BootstrapServerCleanup {
-    server: Arc<BootstrapServerImpl>,
+pub(crate) struct BootstrapServerCleanup(Arc<BootstrapServerImpl>);
+
+impl BootstrapServerCleanup {
+    pub fn new(server: Arc<BootstrapServerImpl>) -> Self {
+        Self(server)
+    }
 }
 
 impl DeadChannelCleanupStep for BootstrapServerCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
-        let mut queue = self.server.queue.lock().unwrap();
+        let mut queue = self.0.queue.lock().unwrap();
         for channel_id in dead_channel_ids {
             queue.remove(channel_id);
         }

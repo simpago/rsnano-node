@@ -1,10 +1,10 @@
 use crate::{
     consensus::ActiveElections,
     representatives::OnlineReps,
-    transport::NetworkInfo,
     utils::{CancellationToken, Runnable},
 };
 use rsnano_ledger::Ledger;
+use rsnano_network::NetworkInfo;
 use std::{
     sync::{Arc, Mutex, RwLock},
     time::Instant,

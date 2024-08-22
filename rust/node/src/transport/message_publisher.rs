@@ -1,9 +1,10 @@
-use super::{ChannelId, ChannelInfo, DropPolicy, Network, TrafficType};
+use super::Network;
 use crate::{
     representatives::OnlineReps,
     stats::{Direction, StatType, Stats},
 };
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
+use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, TrafficType};
 use std::sync::{Arc, Mutex};
 use tracing::trace;
 

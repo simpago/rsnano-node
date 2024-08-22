@@ -1,17 +1,16 @@
+use crate::{
+    transport::{ResponseServer, ResponseServerExt},
+    utils::{AsyncRuntime, ThreadPool},
+};
+use rsnano_core::{utils::seconds_since_epoch, Account, BlockHash};
+use rsnano_ledger::Ledger;
+use rsnano_messages::FrontierReq;
+use rsnano_network::TrafficType;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, Weak},
 };
-
-use rsnano_core::{utils::seconds_since_epoch, Account, BlockHash};
-use rsnano_ledger::Ledger;
-use rsnano_messages::FrontierReq;
 use tracing::{debug, trace};
-
-use crate::{
-    transport::{ResponseServer, ResponseServerExt, TrafficType},
-    utils::{AsyncRuntime, ThreadPool},
-};
 
 /// Server side of a frontier request. Created when a tcp_server receives a frontier_req message and exited when end-of-list is reached.
 pub struct FrontierReqServer {

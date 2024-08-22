@@ -1,4 +1,4 @@
-use rsnano_node::transport::OutboundBandwidthLimiterConfig;
+use rsnano_network::bandwidth_limiter::OutboundBandwidthLimiterConfig;
 
 #[repr(C)]
 pub struct OutboundBandwidthLimiterConfigDto {

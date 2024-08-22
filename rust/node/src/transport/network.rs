@@ -1,13 +1,10 @@
-use super::{
-    Channel, ChannelDirection, ChannelId, ChannelMode, DeadChannelCleanupStep,
-    DeadChannelCleanupTarget, DropPolicy, NetworkFilter, NetworkInfo, OutboundBandwidthLimiter,
-    TrafficType,
-};
-use crate::{
-    stats::Stats, transport::NetworkStats, utils::into_ipv6_socket_address, NetworkParams,
-    DEV_NETWORK_PARAMS,
-};
 use rsnano_core::utils::NULL_ENDPOINT;
+use rsnano_network::{
+    bandwidth_limiter::{OutboundBandwidthLimiter, OutboundBandwidthLimiterConfig},
+    utils::into_ipv6_socket_address,
+    Channel, ChannelDirection, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy,
+    NetworkInfo, NetworkObserver, NullNetworkObserver, TrafficType,
+};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStream;
 use std::{
@@ -17,60 +14,36 @@ use std::{
 };
 use tracing::{debug, warn};
 
-pub struct NetworkOptions {
-    pub publish_filter: Arc<NetworkFilter>,
-    pub network_params: NetworkParams,
-    pub stats: Arc<Stats>,
-    pub limiter: Arc<OutboundBandwidthLimiter>,
-    pub clock: Arc<SteadyClock>,
-    pub network_info: Arc<RwLock<NetworkInfo>>,
-}
-
-impl NetworkOptions {
-    pub fn new_test_instance() -> Self {
-        NetworkOptions {
-            publish_filter: Arc::new(NetworkFilter::default()),
-            network_params: DEV_NETWORK_PARAMS.clone(),
-            stats: Arc::new(Default::default()),
-            limiter: Arc::new(OutboundBandwidthLimiter::default()),
-            clock: Arc::new(SteadyClock::new_null()),
-            network_info: Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
-        }
-    }
-}
-
 pub struct Network {
     channels: Mutex<HashMap<ChannelId, Arc<Channel>>>,
     pub info: Arc<RwLock<NetworkInfo>>,
-    stats: Arc<Stats>,
-    network_params: Arc<NetworkParams>,
     limiter: Arc<OutboundBandwidthLimiter>,
-    pub publish_filter: Arc<NetworkFilter>,
     clock: Arc<SteadyClock>,
+    observer: Arc<dyn NetworkObserver>,
 }
 
 impl Network {
-    pub fn new(options: NetworkOptions) -> Self {
-        let network = Arc::new(options.network_params);
-
+    pub fn new(
+        limiter_config: OutboundBandwidthLimiterConfig,
+        network_info: Arc<RwLock<NetworkInfo>>,
+        clock: Arc<SteadyClock>,
+    ) -> Self {
         Self {
             channels: Mutex::new(HashMap::new()),
-            stats: options.stats,
-            network_params: network,
-            limiter: options.limiter,
-            publish_filter: options.publish_filter,
-            clock: options.clock,
-            info: options.network_info,
+            limiter: Arc::new(OutboundBandwidthLimiter::new(limiter_config)),
+            clock,
+            info: network_info,
+            observer: Arc::new(NullNetworkObserver::new()),
         }
+    }
+
+    pub fn set_observer(&mut self, observer: Arc<dyn NetworkObserver>) {
+        self.observer = observer;
     }
 
     pub(crate) async fn wait_for_available_inbound_slot(&self) {
         let last_log = Instant::now();
-        let log_interval = if self.network_params.network.is_dev_network() {
-            Duration::from_secs(1)
-        } else {
-            Duration::from_secs(15)
-        };
+        let log_interval = Duration::from_secs(15);
         while {
             let info = self.info.read().unwrap();
             !info.is_inbound_slot_available() && !info.is_stopped()
@@ -107,14 +80,13 @@ impl Network {
             self.clock.now(),
         );
 
-        let network_stats = NetworkStats::new(self.stats.clone());
         let channel_info = match channel_info {
             Ok(c) => {
-                network_stats.accepted(&peer_addr, direction);
+                self.observer.accepted(&peer_addr, direction);
                 c
             }
             Err(e) => {
-                network_stats.error(e, &peer_addr, direction);
+                self.observer.error(e, &peer_addr, direction);
                 return Err(anyhow!("Could not add channel: {:?}", e));
             }
         };
@@ -122,10 +94,10 @@ impl Network {
         let channel = Channel::create(
             channel_info,
             stream,
-            self.stats.clone(),
             self.limiter.clone(),
             self.info.clone(),
             self.clock.clone(),
+            self.observer.clone(),
         )
         .await;
         self.channels
@@ -139,7 +111,11 @@ impl Network {
     }
 
     pub(crate) fn new_null() -> Self {
-        Self::new(NetworkOptions::new_test_instance())
+        Self::new(
+            Default::default(),
+            Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
+            Arc::new(SteadyClock::new_null()),
+        )
     }
 
     pub(crate) fn try_send_buffer(
@@ -176,13 +152,13 @@ impl Network {
     }
 }
 
-impl DeadChannelCleanupTarget for Arc<Network> {
-    fn dead_channel_cleanup_step(&self) -> Box<dyn super::DeadChannelCleanupStep> {
-        Box::new(NetworkCleanup(Arc::clone(self)))
+pub struct NetworkCleanup(Arc<Network>);
+
+impl NetworkCleanup {
+    pub fn new(network: Arc<Network>) -> Self {
+        Self(network)
     }
 }
-
-struct NetworkCleanup(Arc<Network>);
 
 impl DeadChannelCleanupStep for NetworkCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {

@@ -1,6 +1,6 @@
-use super::{ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget};
 use rand::{seq::IteratorRandom, thread_rng};
 use rsnano_messages::Keepalive;
+use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -58,12 +58,6 @@ impl LatestKeepalives {
 
     pub fn max_len(&self) -> usize {
         self.max_len
-    }
-}
-
-impl DeadChannelCleanupTarget for Arc<Mutex<LatestKeepalives>> {
-    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
-        Box::new(LatestKeepalivesCleanup::new(self.clone()))
     }
 }
 

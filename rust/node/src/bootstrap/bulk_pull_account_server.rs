@@ -1,10 +1,11 @@
 use crate::{
-    transport::{ResponseServer, ResponseServerExt, TrafficType},
+    transport::{ResponseServer, ResponseServerExt},
     utils::{AsyncRuntime, ThreadPool},
 };
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{BulkPullAccount, BulkPullAccountFlags};
+use rsnano_network::TrafficType;
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex, Weak},

@@ -1,6 +1,6 @@
 use super::{
-    Channel, HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
-    MessageDeserializer, NetworkFilter, NetworkInfo, SynCookies,
+    HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives, MessageDeserializer,
+    NetworkFilter, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -10,7 +10,6 @@ use crate::{
     },
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::ChannelMode,
     utils::{AsyncRuntime, ThreadPool},
     NetworkParams,
 };
@@ -18,6 +17,7 @@ use async_trait::async_trait;
 use rsnano_core::{KeyPair, PublicKey};
 use rsnano_ledger::Ledger;
 use rsnano_messages::*;
+use rsnano_network::{Channel, ChannelMode, ChannelReader, NetworkInfo};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     net::SocketAddrV6,
@@ -327,7 +327,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             self.network_params.network.protocol_info(),
             self.network_params.network.work.clone(),
             self.publish_filter.clone(),
-            self.channel.clone(),
+            ChannelReader::new(self.channel.clone()),
         );
 
         let mut first_message = true;

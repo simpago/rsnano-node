@@ -5,7 +5,7 @@ use crate::{
     config::{NetworkConstants, NodeConfig},
     representatives::OnlineReps,
     stats::Stats,
-    transport::{DropPolicy, MessagePublisher},
+    transport::MessagePublisher,
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
     work::DistributedWorkFactory,
     NetworkParams,
@@ -20,6 +20,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{Message, Publish};
+use rsnano_network::DropPolicy;
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
     create_backup_file, BinaryDbIterator, KeyType, LmdbEnv, LmdbIteratorImpl, LmdbWalletStore,

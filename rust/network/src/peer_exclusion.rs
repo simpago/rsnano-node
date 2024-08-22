@@ -9,7 +9,7 @@ use std::{
 
 /// Manages excluded peers.
 /// Peers are excluded for a while if they behave badly
-pub(crate) struct PeerExclusion {
+pub struct PeerExclusion {
     ordered_by_date: PeersOrderedByExclusionDate,
     by_ip: HashMap<Ipv6Addr, Peer>,
     max_size: usize,
@@ -17,12 +17,12 @@ pub(crate) struct PeerExclusion {
 }
 
 impl PeerExclusion {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::with_max_size(5000)
     }
 
     /// Max size is for misbehaving peers and does not include perma bans
-    pub(crate) fn with_max_size(max_size: usize) -> Self {
+    pub fn with_max_size(max_size: usize) -> Self {
         Self {
             ordered_by_date: PeersOrderedByExclusionDate::new(),
             by_ip: HashMap::new(),
@@ -34,7 +34,7 @@ impl PeerExclusion {
     /// Excludes the given `endpoint` for a while. If the endpoint was already
     /// excluded its exclusion duration gets increased.
     /// Returns the new score for the peer.
-    pub(crate) fn peer_misbehaved(&mut self, endpoint: &SocketAddrV6, now: Timestamp) -> u64 {
+    pub fn peer_misbehaved(&mut self, endpoint: &SocketAddrV6, now: Timestamp) -> u64 {
         if let Some(peer) = self.by_ip.get_mut(&endpoint.ip()) {
             let old_exclution_end = peer.exclude_until;
             peer.misbehaved(now);
@@ -52,17 +52,17 @@ impl PeerExclusion {
     }
 
     /// Perma bans are used for prohibiting a node to connect to itself.
-    pub(crate) fn perma_ban(&mut self, peer_addr: SocketAddrV6) {
+    pub fn perma_ban(&mut self, peer_addr: SocketAddrV6) {
         self.perma_bans.insert(peer_addr);
     }
 
     #[allow(dead_code)]
-    pub(crate) fn contains(&self, endpoint: &SocketAddrV6) -> bool {
+    pub fn contains(&self, endpoint: &SocketAddrV6) -> bool {
         self.by_ip.contains_key(&endpoint.ip()) || self.perma_bans.contains(endpoint)
     }
 
     #[allow(dead_code)]
-    pub(crate) fn excluded_until(&self, endpoint: &SocketAddrV6) -> Option<Timestamp> {
+    pub fn excluded_until(&self, endpoint: &SocketAddrV6) -> Option<Timestamp> {
         if self.perma_bans.contains(endpoint) {
             Some(Timestamp::MAX)
         } else {
@@ -73,7 +73,7 @@ impl PeerExclusion {
     }
 
     /// Checks if an endpoint is currently excluded.
-    pub(crate) fn is_excluded(&mut self, peer_addr: &SocketAddrV6, now: Timestamp) -> bool {
+    pub fn is_excluded(&mut self, peer_addr: &SocketAddrV6, now: Timestamp) -> bool {
         if self.perma_bans.contains(&peer_addr) {
             return true;
         }
@@ -96,7 +96,7 @@ impl PeerExclusion {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.by_ip.len() + self.perma_bans.len()
     }
 
@@ -113,7 +113,7 @@ impl PeerExclusion {
         self.by_ip.insert(*peer.address.ip(), peer.clone());
     }
 
-    pub(crate) fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
+    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
         ContainerInfoComponent::Composite(
             name.into(),
             vec![ContainerInfoComponent::Leaf(ContainerInfo {

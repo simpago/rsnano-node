@@ -20,6 +20,7 @@ use crate::{
 use async_trait::async_trait;
 use rsnano_core::{work::WorkThresholds, Account, BlockEnum, BlockHash};
 use rsnano_messages::{BulkPull, Message};
+use rsnano_network::ChannelReader;
 use tracing::{debug, trace};
 
 pub struct BulkPullClient {
@@ -182,7 +183,9 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
     async fn throttled_receive_block(&self) {
         debug_assert!(!self.network_error.load(Ordering::Relaxed));
         if self.block_processor.queue_len(BlockSource::BootstrapLegacy) < 1024 {
-            let Ok(block) = read_block(self.connection.get_channel()).await else {
+            let Ok(block) =
+                read_block(&ChannelReader::new(self.connection.get_channel().clone())).await
+            else {
                 self.network_error.store(true, Ordering::SeqCst);
                 return;
             };

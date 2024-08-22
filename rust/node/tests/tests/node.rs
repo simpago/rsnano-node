@@ -5,11 +5,12 @@ use rsnano_core::{
 };
 use rsnano_ledger::{Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{ConfirmAck, Message, Publish};
+use rsnano_network::{ChannelId, DropPolicy, TrafficType};
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, VoteApplierExt},
     stats::{DetailType, Direction, StatType},
-    transport::{ChannelId, DropPolicy, PeerConnectorExt, TrafficType},
+    transport::PeerConnectorExt,
     wallets::WalletsExt,
 };
 use std::{sync::Arc, thread::sleep, time::Duration};
@@ -550,7 +551,7 @@ fn vote_by_hash_republish() {
     );
 
     // give block send2 to node1 and wait until the block is received and processed by node1
-    node1.network.publish_filter.clear_all();
+    node1.publish_filter.clear_all();
     node1.process_active(send2.clone());
     assert_timely_msg(
         Duration::from_secs(5),

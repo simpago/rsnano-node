@@ -2,8 +2,8 @@ use super::{FrontiersConfirmationMode, GlobalConfig};
 use crate::{
     block_processing::{BacklogPopulationConfig, BlockProcessorConfig},
     bootstrap::{AccountSetsConfig, BootstrapAscendingConfig, BootstrapInitiatorConfig},
-    transport::NetworkConfig,
 };
+use rsnano_network::{bandwidth_limiter::OutboundBandwidthLimiterConfig, NetworkConfig};
 use std::time::Duration;
 
 impl From<&GlobalConfig> for BlockProcessorConfig {
@@ -95,7 +95,17 @@ impl From<&GlobalConfig> for NetworkConfig {
             disable_network: value.flags.disable_tcp_realtime,
             min_protocol_version: value.network_params.network.protocol_info().version_min,
             listening_port: value.node_config.peering_port.unwrap_or(0),
-            default_protocol_version: value.network_params.network.protocol_version,
+        }
+    }
+}
+
+impl From<&GlobalConfig> for OutboundBandwidthLimiterConfig {
+    fn from(value: &GlobalConfig) -> Self {
+        Self {
+            standard_limit: value.node_config.bandwidth_limit,
+            standard_burst_ratio: value.node_config.bandwidth_limit_burst_ratio,
+            bootstrap_limit: value.node_config.bootstrap_bandwidth_limit,
+            bootstrap_burst_ratio: value.node_config.bootstrap_bandwidth_burst_ratio,
         }
     }
 }

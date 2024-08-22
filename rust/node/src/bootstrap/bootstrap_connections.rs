@@ -6,14 +6,15 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{
-        ChannelDirection, ChannelMode, MessagePublisher, Network, NetworkInfo, NetworkStats,
-    },
+    transport::{MessagePublisher, Network},
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
 use async_trait::async_trait;
 use ordered_float::OrderedFloat;
 use rsnano_core::{utils::PropertyTree, Account, BlockHash};
+use rsnano_network::{
+    ChannelDirection, ChannelMode, NetworkInfo, NetworkObserver, NullNetworkObserver,
+};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStreamFactory;
 use std::{
@@ -42,7 +43,7 @@ pub struct BootstrapConnections {
     stopped: AtomicBool,
     network: Arc<Network>,
     network_info: Arc<RwLock<NetworkInfo>>,
-    network_stats: Option<NetworkStats>,
+    network_stats: Arc<dyn NetworkObserver>,
     workers: Arc<dyn ThreadPool>,
     runtime: Arc<AsyncRuntime>,
     stats: Arc<Stats>,
@@ -59,7 +60,7 @@ impl BootstrapConnections {
         config: BootstrapInitiatorConfig,
         network: Arc<Network>,
         network_info: Arc<RwLock<NetworkInfo>>,
-        network_stats: NetworkStats,
+        network_stats: Arc<dyn NetworkObserver>,
         async_rt: Arc<AsyncRuntime>,
         workers: Arc<dyn ThreadPool>,
         stats: Arc<Stats>,
@@ -83,7 +84,7 @@ impl BootstrapConnections {
             stopped: AtomicBool::new(false),
             network,
             network_info,
-            network_stats: Some(network_stats),
+            network_stats,
             workers,
             runtime: async_rt,
             stats,
@@ -107,7 +108,7 @@ impl BootstrapConnections {
             stopped: AtomicBool::new(false),
             network: Arc::new(Network::new_null()),
             network_info: Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
-            network_stats: None,
+            network_stats: Arc::new(NullNetworkObserver::new()),
             workers: Arc::new(ThreadPoolImpl::new_null()),
             runtime: Arc::new(AsyncRuntime::default()),
             stats: Arc::new(Stats::default()),
@@ -561,14 +562,11 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 ChannelMode::Bootstrap,
                 self.clock.now(),
             ) {
-                if let Some(network_stats) = &self.network_stats {
-                    network_stats.error(e, &peer_addr, ChannelDirection::Outbound);
-                }
+                self.network_stats
+                    .error(e, &peer_addr, ChannelDirection::Outbound);
                 return false;
             }
-            if let Some(network_stats) = &self.network_stats {
-                network_stats.connection_attempt(&peer_addr);
-            }
+            self.network_stats.connection_attempt(&peer_addr);
 
             if let Err(e) = network_info.validate_new_connection(
                 &peer_addr,
@@ -581,9 +579,8 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 debug!(
                     "Could not create outbound bootstrap connection to {}, because of failed limit check",
                     peer_addr);
-                if let Some(network_stats) = &self.network_stats {
-                    network_stats.error(e, &peer_addr, ChannelDirection::Outbound);
-                }
+                self.network_stats
+                    .error(e, &peer_addr, ChannelDirection::Outbound);
                 return false;
             }
         }

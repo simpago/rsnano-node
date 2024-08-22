@@ -1,13 +1,8 @@
 use super::NetworkFilter;
-use async_trait::async_trait;
 use rsnano_core::{utils::BufferReader, work::WorkThresholds};
 use rsnano_messages::*;
+use rsnano_network::AsyncBufferReader;
 use std::sync::Arc;
-
-#[async_trait]
-pub trait AsyncBufferReader {
-    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()>;
-}
 
 pub struct MessageDeserializer<T: AsyncBufferReader + Send> {
     network_filter: Arc<NetworkFilter>,

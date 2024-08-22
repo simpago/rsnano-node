@@ -17,6 +17,7 @@ test_helpers = { path = "../tools/test_helpers" }
 [dependencies]
 rsnano_core = { path = "../core" }
 rsnano_messages = { path = "../messages" }
+rsnano_network = { path = "../network" }
 rsnano_store_lmdb = { path = "../store_lmdb" }
 rsnano_output_tracker = { path = "../nullables/output_tracker" }
 rsnano_nullable_fs = { path = "../nullables/fs" }

@@ -1,20 +1,69 @@
-use super::{ChannelDirection, NetworkError};
 use crate::stats::{DetailType, Direction, StatType, Stats};
+use rsnano_network::{ChannelDirection, ChannelInfo, NetworkError, NetworkObserver};
 use std::{net::SocketAddrV6, sync::Arc};
 use tracing::debug;
 
 #[derive(Clone)]
-pub struct NetworkStats {
-    stats: Arc<Stats>,
-}
+pub struct NetworkStats(Arc<Stats>);
 
 impl NetworkStats {
     pub fn new(stats: Arc<Stats>) -> Self {
-        Self { stats }
+        Self(stats)
+    }
+}
+
+impl NetworkObserver for NetworkStats {
+    fn send_succeeded(&self, buf_size: usize) {
+        self.0.add_dir_aggregate(
+            StatType::TrafficTcp,
+            DetailType::All,
+            Direction::Out,
+            buf_size as u64,
+        );
     }
 
-    pub fn connection_attempt(&self, peer: &SocketAddrV6) {
-        self.stats.inc_dir(
+    fn send_failed(&self) {
+        self.0
+            .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+    }
+
+    fn channel_timed_out(&self, channel: &ChannelInfo) {
+        self.0.inc_dir(
+            StatType::Tcp,
+            DetailType::TcpIoTimeoutDrop,
+            if channel.direction() == ChannelDirection::Inbound {
+                Direction::In
+            } else {
+                Direction::Out
+            },
+        );
+        debug!(
+            channel_id = %channel.channel_id(), 
+            remote_addr = ?channel.peer_addr(), 
+            mode = ?channel.mode(), 
+            direction = ?channel.direction(), 
+            "Closing channel due to timeout");
+    }
+
+    fn read_succeeded(&self, count: usize) {
+        self.0.add_dir(
+            StatType::TrafficTcp,
+            DetailType::All,
+            Direction::In,
+            count as u64,
+        );
+    }
+
+    fn read_failed(&self) {
+        self.0.inc_dir(
+            StatType::Tcp,
+            DetailType::TcpReadError,
+            Direction::In,
+        );
+    }
+
+    fn connection_attempt(&self, peer: &SocketAddrV6) {
+        self.0.inc_dir(
             StatType::TcpListener,
             DetailType::ConnectInitiate,
             Direction::Out,
@@ -22,15 +71,15 @@ impl NetworkStats {
         debug!(?peer, "Initiate outgoing connection");
     }
 
-    pub fn accepted(&self, peer: &SocketAddrV6, direction: ChannelDirection) {
+    fn accepted(&self, peer: &SocketAddrV6, direction: ChannelDirection) {
         if direction == ChannelDirection::Outbound {
-            self.stats.inc_dir(
+            self.0.inc_dir(
                 StatType::TcpListener,
                 DetailType::ConnectSuccess,
                 direction.into(),
             );
         } else {
-            self.stats.inc_dir(
+            self.0.inc_dir(
                 StatType::TcpListener,
                 DetailType::AcceptSuccess,
                 direction.into(),
@@ -39,17 +88,17 @@ impl NetworkStats {
         debug!(%peer, ?direction, "New channel added");
     }
 
-    pub fn error(&self, error: NetworkError, peer: &SocketAddrV6, direction: ChannelDirection) {
+    fn error(&self, error: NetworkError, peer: &SocketAddrV6, direction: ChannelDirection) {
         match direction {
             ChannelDirection::Inbound => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListener,
                     DetailType::AcceptRejected,
                     Direction::In,
                 );
             }
             ChannelDirection::Outbound => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListener,
                     DetailType::ConnectRejected,
                     Direction::Out,
@@ -59,7 +108,7 @@ impl NetworkStats {
 
         match error {
             NetworkError::MaxConnections => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListenerRejected,
                     DetailType::MaxAttempts,
                     direction.into(),
@@ -71,7 +120,7 @@ impl NetworkStats {
                 );
             }
             NetworkError::PeerExcluded => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListenerRejected,
                     DetailType::Excluded,
                     direction.into(),
@@ -83,12 +132,12 @@ impl NetworkStats {
                 );
             }
             NetworkError::MaxConnectionsPerSubnetwork => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListenerRejected,
                     DetailType::MaxPerSubnetwork,
                     direction.into(),
                 );
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::Tcp,
                     DetailType::MaxPerSubnetwork,
                     direction.into(),
@@ -100,12 +149,12 @@ impl NetworkStats {
                 );
             }
             NetworkError::MaxConnectionsPerIp => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListenerRejected,
                     DetailType::MaxPerIp,
                     direction.into(),
                 );
-                self.stats
+                self.0
                     .inc_dir(StatType::Tcp, DetailType::MaxPerIp, direction.into());
                 debug!(
                     %peer,
@@ -113,7 +162,7 @@ impl NetworkStats {
                     "Max connections per IP reached, unable to open new connection");
             }
             NetworkError::InvalidIp => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListenerRejected,
                     DetailType::NotAPeer,
                     direction.into(),
@@ -124,7 +173,7 @@ impl NetworkStats {
                     "Invalid IP, unable to open new connection");
             }
             NetworkError::DuplicateConnection => {
-                self.stats.inc_dir(
+                self.0.inc_dir(
                     StatType::TcpListenerRejected,
                     DetailType::Duplicate,
                     direction.into(),
@@ -134,6 +183,15 @@ impl NetworkStats {
                     ?direction,
                     "Already connected to that peer, unable to open new connection");
             }
+        }
+    }
+}
+
+impl From<ChannelDirection> for Direction {
+    fn from(value: ChannelDirection) -> Self {
+        match value {
+            ChannelDirection::Inbound => Direction::In,
+            ChannelDirection::Outbound => Direction::Out,
         }
     }
 }

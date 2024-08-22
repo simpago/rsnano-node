@@ -1,7 +1,7 @@
 use rsnano_core::{Amount, BlockEnum, BlockHash, KeyPair, StateBlock, Vote, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{ConfirmAck, Message};
-use rsnano_node::transport::{ChannelId, ChannelMode, DropPolicy, TrafficType};
+use rsnano_network::{ChannelId, ChannelMode, DropPolicy, TrafficType};
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, System};
 

@@ -6,7 +6,6 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::PullInfo,
     config::NodeFlags,
-    transport::ChannelId,
     websocket::WebsocketListener,
     NetworkParams,
 };
@@ -15,6 +14,7 @@ use rsnano_core::{
     utils::PropertyTree, Account, Amount, BlockEnum, BlockHash, BlockType, HashOrAccount,
 };
 use rsnano_ledger::Ledger;
+use rsnano_network::ChannelId;
 use rsnano_store_lmdb::Transaction;
 use std::{
     cmp::max,

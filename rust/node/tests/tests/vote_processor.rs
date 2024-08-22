@@ -1,9 +1,9 @@
 use rsnano_core::{KeyPair, Signature, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_HASH;
+use rsnano_network::ChannelId;
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeFlags},
     stats::{DetailType, Direction, StatType},
-    transport::ChannelId,
 };
 use std::{
     sync::Arc,

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 rsnano_core = { path = "../../core" }
+rsnano_network = { path = "../../network" }
 rsnano_node = { path = "../../node", features = ["output_tracking"] }
 rsnano_nullable_tcp = { path = "../../nullables/tcp" }
 mock_instant = "0"

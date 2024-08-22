@@ -5,7 +5,6 @@ use super::{
 use crate::{
     bootstrap::BootstrapAttemptTrait,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::AsyncBufferReader,
     utils::{AsyncRuntime, ThreadPool},
 };
 use async_trait::async_trait;
@@ -15,6 +14,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::Ledger;
 use rsnano_messages::{BulkPullAccount, BulkPullAccountFlags, Message};
+use rsnano_network::AsyncBufferReader;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,

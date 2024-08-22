@@ -1,4 +1,5 @@
-use rsnano_node::transport::{ChannelMode, PeerConnectorExt};
+use rsnano_network::ChannelMode;
+use rsnano_node::transport::PeerConnectorExt;
 use std::time::Duration;
 use test_helpers::{assert_never, System};
 

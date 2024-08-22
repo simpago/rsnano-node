@@ -4,10 +4,13 @@ use rsnano_core::{
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::BulkPull;
+use rsnano_network::{
+    bandwidth_limiter::OutboundBandwidthLimiter, Channel, ChannelInfo, NullNetworkObserver,
+};
 use rsnano_node::{
     bootstrap::BulkPullServer,
     node::Node,
-    transport::{Channel, ChannelInfo, LatestKeepalives, ResponseServer},
+    transport::{LatestKeepalives, ResponseServer},
 };
 use rsnano_node::{
     bootstrap::{BootstrapAttemptTrait, BootstrapInitiatorExt, BootstrapStrategy},
@@ -21,14 +24,11 @@ use std::time::Duration;
 use test_helpers::{assert_timely_eq, assert_timely_msg, get_available_port, System};
 
 mod bootstrap_processor {
-    use rsnano_ledger::DEV_GENESIS_PUB_KEY;
-    use rsnano_node::{
-        config::NodeConfig,
-        transport::{ChannelMode, PeerConnectorExt},
-    };
-    use test_helpers::establish_tcp;
-
     use super::*;
+    use rsnano_ledger::DEV_GENESIS_PUB_KEY;
+    use rsnano_network::ChannelMode;
+    use rsnano_node::{config::NodeConfig, transport::PeerConnectorExt};
+    use test_helpers::establish_tcp;
 
     #[test]
     fn bootstrap_processor_lazy_hash() {
@@ -1388,17 +1388,17 @@ fn create_response_server(node: &Node) -> Arc<ResponseServer> {
     let channel = node.async_rt.tokio.block_on(Channel::create(
         Arc::new(ChannelInfo::new_test_instance()),
         TcpStream::new_null(),
-        node.stats.clone(),
-        node.outbound_limiter.clone(),
+        Arc::new(OutboundBandwidthLimiter::default()),
         node.network_info.clone(),
         node.steady_clock.clone(),
+        Arc::new(NullNetworkObserver::new()),
     ));
 
     Arc::new(ResponseServer::new(
         node.network_info.clone(),
         node.inbound_message_queue.clone(),
         channel,
-        node.network.publish_filter.clone(),
+        node.publish_filter.clone(),
         Arc::new(node.network_params.clone()),
         node.stats.clone(),
         true,

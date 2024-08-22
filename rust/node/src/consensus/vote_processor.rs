@@ -1,9 +1,7 @@
 use super::{VoteProcessorQueue, VoteRouter};
-use crate::{
-    stats::{DetailType, StatType, Stats},
-    transport::ChannelId,
-};
+use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{utils::get_cpu_count, Vote, VoteCode, VoteSource};
+use rsnano_network::ChannelId;
 use std::{
     cmp::{max, min},
     sync::{

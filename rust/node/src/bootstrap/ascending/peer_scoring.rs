@@ -1,5 +1,5 @@
 use super::BootstrapAscendingConfig;
-use crate::transport::{ChannelId, ChannelInfo, TrafficType};
+use rsnano_network::{ChannelId, ChannelInfo, TrafficType};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Weak},

@@ -1,9 +1,7 @@
 use crate::core::BlockHandle;
 use num_traits::FromPrimitive;
-use rsnano_node::{
-    block_processing::{BlockProcessor, BlockSource},
-    transport::ChannelId,
-};
+use rsnano_network::ChannelId;
+use rsnano_node::block_processing::{BlockProcessor, BlockSource};
 use std::{ops::Deref, sync::Arc};
 
 pub struct BlockProcessorHandle(pub Arc<BlockProcessor>);

@@ -1,11 +1,9 @@
-use super::{
+use crate::{
+    bandwidth_limiter::OutboundBandwidthLimiter,
+    utils::into_ipv6_socket_address,
     write_queue::{WriteQueue, WriteQueueReceiver},
     AsyncBufferReader, ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkInfo,
-    OutboundBandwidthLimiter, TrafficType,
-};
-use crate::{
-    stats::{DetailType, Direction, StatType, Stats},
-    utils::into_ipv6_socket_address,
+    NetworkObserver, NullNetworkObserver, TrafficType,
 };
 use async_trait::async_trait;
 use rsnano_core::{
@@ -28,10 +26,10 @@ pub struct Channel {
     network_info: Arc<RwLock<NetworkInfo>>,
     pub info: Arc<ChannelInfo>,
     limiter: Arc<OutboundBandwidthLimiter>,
-    stats: Arc<Stats>,
     write_queue: Arc<WriteQueue>,
     stream: Arc<TcpStream>,
     clock: Arc<SteadyClock>,
+    observer: Arc<dyn NetworkObserver>,
 }
 
 impl Channel {
@@ -41,9 +39,9 @@ impl Channel {
         channel_info: Arc<ChannelInfo>,
         network_info: Arc<RwLock<NetworkInfo>>,
         stream: Arc<TcpStream>,
-        stats: Arc<Stats>,
         limiter: Arc<OutboundBandwidthLimiter>,
         clock: Arc<SteadyClock>,
+        observer: Arc<dyn NetworkObserver>,
     ) -> (Self, WriteQueueReceiver) {
         let (write_queue, receiver) = WriteQueue::new(Self::MAX_QUEUE_SIZE);
 
@@ -52,10 +50,10 @@ impl Channel {
             info: channel_info,
             network_info,
             limiter,
-            stats,
             write_queue: Arc::new(write_queue),
             stream,
             clock,
+            observer,
         };
 
         (channel, receiver)
@@ -78,9 +76,9 @@ impl Channel {
             )),
             Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             Arc::new(TcpStream::new_null()),
-            Arc::new(Stats::default()),
             Arc::new(OutboundBandwidthLimiter::default()),
             Arc::new(SteadyClock::new_null()),
+            Arc::new(NullNetworkObserver::new()),
         );
         channel
     }
@@ -88,16 +86,16 @@ impl Channel {
     pub async fn create(
         channel_info: Arc<ChannelInfo>,
         stream: TcpStream,
-        stats: Arc<Stats>,
         limiter: Arc<OutboundBandwidthLimiter>,
         network_info: Arc<RwLock<NetworkInfo>>,
         clock: Arc<SteadyClock>,
+        observer: Arc<dyn NetworkObserver>,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
         let stream_l = stream.clone();
         let info = channel_info.clone();
         let (channel, mut receiver) =
-            Self::new(channel_info, network_info, stream, stats, limiter, clock);
+            Self::new(channel_info, network_info, stream, limiter, clock, observer);
 
         let write_queue = Arc::downgrade(&channel.write_queue);
         info.set_queue_full_query(Box::new(move |traffic_type| {
@@ -192,17 +190,11 @@ impl Channel {
             .await;
 
         if result.is_ok() {
-            self.stats.add_dir_aggregate(
-                StatType::TrafficTcp,
-                DetailType::All,
-                Direction::Out,
-                buf_size as u64,
-            );
+            self.observer.send_succeeded(buf_size);
             self.update_last_activity();
             self.info.set_last_packet_sent(self.clock.now());
         } else {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+            self.observer.send_failed();
             debug!(channel_id = %self.channel_id(), remote_addr = ?self.info.peer_addr(), "Closing channel after write error");
             self.info.close();
         }
@@ -241,17 +233,12 @@ impl Channel {
             .try_insert(Arc::new(buffer.to_vec()), traffic_type); // TODO don't copy into vec. Split into fixed size packets
 
         if inserted {
-            self.stats.add_dir_aggregate(
-                StatType::TrafficTcp,
-                DetailType::All,
-                Direction::Out,
-                buf_size as u64,
-            );
+            //TODO raise event when actually written to stream
+            self.observer.send_succeeded(buf_size);
             self.update_last_activity();
             self.info.set_last_packet_sent(self.clock.now());
         } else if write_error {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
+            self.observer.send_failed();
             self.info.close();
             debug!(peer_addr = ?self.info.peer_addr(), channel_id = %self.channel_id(), mode = ?self.info.mode(), "Closing socket after write error");
         }
@@ -263,32 +250,15 @@ impl Channel {
             sleep(Duration::from_secs(2)).await;
             // If the socket is already dead, close just in case, and stop doing checkups
             if !self.info.is_alive() {
-                debug!(
-                    peer_addr = ?self.info.peer_addr(),
-                    "Stopping checkup for dead channel"
-                );
                 return;
             }
 
             let now = self.clock.now();
-            let mut condition_to_disconnect = false;
 
             // if there is no activity for timeout seconds then disconnect
-            if (now - self.info.last_activity()) > self.info.timeout() {
-                self.stats.inc_dir(
-                    StatType::Tcp,
-                    DetailType::TcpIoTimeoutDrop,
-                    if self.info.direction() == ChannelDirection::Inbound {
-                        Direction::In
-                    } else {
-                        Direction::Out
-                    },
-                );
-                condition_to_disconnect = true;
-            }
-
-            if condition_to_disconnect {
-                debug!(channel_id = %self.channel_id(), remote_addr = ?self.info.peer_addr(), mode = ?self.info.mode(), direction = ?self.info.direction(), "Closing channel due to timeout");
+            let has_timed_out = (now - self.info.last_activity()) > self.info.timeout();
+            if has_timed_out {
+                self.observer.channel_timed_out(&self.info);
                 self.info.set_timed_out(true);
                 self.info.close();
             }
@@ -309,7 +279,7 @@ impl Drop for Channel {
 }
 
 #[async_trait]
-impl AsyncBufferReader for Arc<Channel> {
+impl AsyncBufferReader for Channel {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         if count > buffer.len() {
             return Err(anyhow!("buffer is too small for read count"));
@@ -325,22 +295,13 @@ impl AsyncBufferReader for Arc<Channel> {
                 Ok(_) => {
                     match self.stream.try_read(&mut buffer[read..count]) {
                         Ok(0) => {
-                            self.stats.inc_dir(
-                                StatType::Tcp,
-                                DetailType::TcpReadError,
-                                Direction::In,
-                            );
+                            self.observer.read_failed();
                             return Err(anyhow!("remote side closed the channel"));
                         }
                         Ok(n) => {
                             read += n;
                             if read >= count {
-                                self.stats.add_dir(
-                                    StatType::TrafficTcp,
-                                    DetailType::All,
-                                    Direction::In,
-                                    count as u64,
-                                );
+                                self.observer.read_succeeded(count);
                                 self.update_last_activity();
                                 self.info.set_last_packet_received(self.clock.now());
                                 return Ok(());
@@ -350,21 +311,31 @@ impl AsyncBufferReader for Arc<Channel> {
                             continue;
                         }
                         Err(e) => {
-                            self.stats.inc_dir(
-                                StatType::Tcp,
-                                DetailType::TcpReadError,
-                                Direction::In,
-                            );
+                            self.observer.read_failed();
                             return Err(e.into());
                         }
                     };
                 }
                 Err(e) => {
-                    self.stats
-                        .inc_dir(StatType::Tcp, DetailType::TcpReadError, Direction::In);
+                    self.observer.read_failed();
                     return Err(e.into());
                 }
             }
         }
+    }
+}
+
+pub struct ChannelReader(Arc<Channel>);
+
+impl ChannelReader {
+    pub fn new(channel: Arc<Channel>) -> Self {
+        Self(channel)
+    }
+}
+
+#[async_trait]
+impl AsyncBufferReader for ChannelReader {
+    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
+        self.0.read(buffer, count).await
     }
 }

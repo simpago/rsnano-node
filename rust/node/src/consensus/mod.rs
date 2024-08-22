@@ -39,5 +39,5 @@ pub use vote_cache::{CacheEntry, TopEntry, VoteCache, VoteCacheConfig, VoterEntr
 pub(crate) use vote_cache_processor::*;
 pub use vote_generation::*;
 pub use vote_processor::*;
-pub use vote_processor_queue::VoteProcessorQueue;
+pub use vote_processor_queue::*;
 pub use vote_router::*;

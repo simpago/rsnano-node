@@ -1,13 +1,13 @@
 use super::{bootstrap_limits, BootstrapInitiator, BootstrapMode};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
-    transport::ChannelId,
     utils::HardenedConstants,
     websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
 };
 use anyhow::Result;
 use rsnano_core::{encode_hex, utils::PropertyTree, Account, BlockEnum};
 use rsnano_ledger::Ledger;
+use rsnano_network::ChannelId;
 use serde::Serialize;
 use std::{
     sync::{

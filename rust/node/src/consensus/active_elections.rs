@@ -10,7 +10,7 @@ use crate::{
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{DropPolicy, MessagePublisher, NetworkFilter, NetworkInfo},
+    transport::{MessagePublisher, NetworkFilter},
     utils::HardenedConstants,
     wallets::Wallets,
     NetworkParams,
@@ -22,6 +22,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
+use rsnano_network::{DropPolicy, NetworkInfo};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{

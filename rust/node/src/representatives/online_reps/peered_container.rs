@@ -1,6 +1,6 @@
 use super::PeeredRep;
-use crate::transport::ChannelId;
 use rsnano_core::{Account, PublicKey};
+use rsnano_network::ChannelId;
 use rsnano_nullable_clock::Timestamp;
 use std::{collections::HashMap, mem::size_of};
 

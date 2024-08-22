@@ -1,11 +1,9 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient};
-use crate::{
-    transport::TrafficType,
-    utils::{AsyncRuntime, ThreadPool},
-};
+use crate::utils::{AsyncRuntime, ThreadPool};
 use rsnano_core::{utils::MemoryStream, BlockEnum, BlockHash, BlockType};
 use rsnano_ledger::Ledger;
 use rsnano_messages::Message;
+use rsnano_network::TrafficType;
 use std::{
     sync::{Arc, Mutex},
     sync::{Condvar, Weak},

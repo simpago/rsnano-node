@@ -1,4 +1,4 @@
-use super::{DetailType, Direction, StatType, Stats};
+use crate::stats::{DetailType, Direction, StatType, Stats};
 use rsnano_core::{BlockEnum, BlockSubType};
 use rsnano_ledger::LedgerObserver;
 use std::sync::Arc;

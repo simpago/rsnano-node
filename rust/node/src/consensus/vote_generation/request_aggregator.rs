@@ -4,16 +4,14 @@ use super::{
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{
-        ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget, FairQueue, NetworkInfo,
-        TrafficType,
-    },
+    transport::FairQueue,
 };
 use rsnano_core::{
     utils::{get_cpu_count, ContainerInfoComponent},
     BlockHash, Root,
 };
 use rsnano_ledger::Ledger;
+use rsnano_network::{ChannelId, DeadChannelCleanupStep, NetworkInfo, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::{max, min},
@@ -57,7 +55,7 @@ pub struct RequestAggregator {
     stats: Arc<Stats>,
     vote_generators: Arc<VoteGenerators>,
     ledger: Arc<Ledger>,
-    state: Arc<Mutex<RequestAggregatorState>>,
+    pub(crate) state: Arc<Mutex<RequestAggregatorState>>,
     condition: Arc<Condvar>,
     threads: Mutex<Vec<JoinHandle<()>>>,
     network: Arc<RwLock<NetworkInfo>>,
@@ -189,7 +187,7 @@ impl Drop for RequestAggregator {
 
 type RequestType = Vec<(BlockHash, Root)>;
 
-struct RequestAggregatorState {
+pub(crate) struct RequestAggregatorState {
     queue: FairQueue<ChannelId, RequestType>,
     stopped: bool,
 }
@@ -295,16 +293,14 @@ impl RequestAggregatorLoop {
     }
 }
 
-impl DeadChannelCleanupTarget for Arc<RequestAggregator> {
-    fn dead_channel_cleanup_step(&self) -> Box<dyn DeadChannelCleanupStep> {
-        Box::new(RequestAggregatorCleanup {
-            state: self.state.clone(),
-        })
-    }
-}
-
 pub(crate) struct RequestAggregatorCleanup {
     state: Arc<Mutex<RequestAggregatorState>>,
+}
+
+impl RequestAggregatorCleanup {
+    pub(crate) fn new(state: Arc<Mutex<RequestAggregatorState>>) -> Self {
+        Self { state }
+    }
 }
 
 impl DeadChannelCleanupStep for RequestAggregatorCleanup {

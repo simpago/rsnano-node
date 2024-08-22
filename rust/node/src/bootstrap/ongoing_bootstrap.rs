@@ -2,12 +2,12 @@ use super::{BootstrapInitiator, BootstrapInitiatorExt};
 use crate::{
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{ChannelMode, NetworkInfo},
     utils::ThreadPool,
     NetworkParams,
 };
 use rsnano_core::Account;
 use rsnano_ledger::Ledger;
+use rsnano_network::{ChannelMode, NetworkInfo};
 use std::{
     sync::{
         atomic::{AtomicU32, Ordering},

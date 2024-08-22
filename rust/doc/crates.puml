@@ -4,10 +4,14 @@
 [ledger]
 [store_lmdb]
 [messages]
+[network]
 [node]
 [main]
 [ffi]
 [C++ node]
+[rpc_messages]
+[rpc_server]
+[rpc_client]
 
 folder "nullables"{
 [fs]
@@ -19,12 +23,6 @@ folder "nullables"{
 [output_tracker]
 }
 
-folder "RPC"{
-    [rpc_messages]
-    [rpc_server]
-    [rpc_client]
-}
-
 [C++ node] --> [ffi]
 [main] --> [node]
 [main] --> [rpc_server]
@@ -34,7 +32,9 @@ folder "RPC"{
 [rpc_messages] --> [core]
 [node] --> [ledger]
 [node] --> [messages]
+[node] --> [network]
 [messages] --> [core]
+[network] --> [core]
 [ledger] --> [store_lmdb]
 [store_lmdb] --> [core]
 [ffi] --> [node]

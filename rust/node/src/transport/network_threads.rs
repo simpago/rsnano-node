@@ -1,7 +1,4 @@
-use super::{
-    DeadChannelCleanup, DropPolicy, LatestKeepalives, MessagePublisher, NetworkInfo, PeerConnector,
-    PeerConnectorExt, SynCookies, TrafficType,
-};
+use super::{LatestKeepalives, MessagePublisher, PeerConnector, PeerConnectorExt, SynCookies};
 use crate::{
     config::{NodeConfig, NodeFlags},
     stats::{DetailType, StatType, Stats},
@@ -9,6 +6,7 @@ use crate::{
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_messages::{Keepalive, Message};
+use rsnano_network::{DeadChannelCleanup, DropPolicy, NetworkInfo, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},

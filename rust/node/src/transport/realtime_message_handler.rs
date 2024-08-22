@@ -1,16 +1,16 @@
-use super::{ChannelInfo, MessagePublisher, NetworkFilter, NetworkInfo};
+use super::{MessagePublisher, NetworkFilter};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapAscending, BootstrapServer},
     config::{NodeConfig, NodeFlags},
     consensus::{RequestAggregator, VoteProcessorQueue},
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{DropPolicy, TrafficType},
     wallets::Wallets,
     Telemetry,
 };
 use rsnano_core::VoteSource;
 use rsnano_messages::{Message, TelemetryAck};
+use rsnano_network::{ChannelInfo, DropPolicy, NetworkInfo, TrafficType};
 use std::{
     net::SocketAddrV6,
     sync::{Arc, Mutex, RwLock},

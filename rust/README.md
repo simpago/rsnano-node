@@ -17,5 +17,7 @@ The following diagram shows how the crates are organized. The crates will be spl
 * `ledger`: Contains the ledger implementation with. It is responsible for the consinstency of the data stores.
 * `store_lmdb`: LMDB implementation of the data stores
 * `messages`: Message types that nodes use for communication
+* `network`: Manage outbound/inbound TCP channels to/from other nodes
 * `core`: Contains the basic types like `BlockHash`, `Account`, `KeyPair`,...
 * `nullables`: Nullable wrappers for infrastructure libraries
+

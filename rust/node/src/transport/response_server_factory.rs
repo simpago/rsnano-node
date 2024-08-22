@@ -1,6 +1,6 @@
 use super::{
-    Channel, InboundMessageQueue, LatestKeepalives, MessagePublisher, Network, NetworkFilter,
-    NetworkInfo, NetworkStats, ResponseServer, ResponseServerExt, SynCookies,
+    InboundMessageQueue, LatestKeepalives, MessagePublisher, Network, NetworkFilter,
+    ResponseServer, ResponseServerExt, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -12,6 +12,7 @@ use crate::{
 };
 use rsnano_core::KeyPair;
 use rsnano_ledger::Ledger;
+use rsnano_network::{Channel, NetworkInfo, NullNetworkObserver};
 use rsnano_nullable_clock::SteadyClock;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -58,7 +59,7 @@ impl ResponseServerFactory {
                 flags.clone(),
                 network.clone(),
                 network_info.clone(),
-                NetworkStats::new(stats.clone()),
+                Arc::new(NullNetworkObserver::new()),
                 runtime,
                 workers,
                 network_params.clone(),

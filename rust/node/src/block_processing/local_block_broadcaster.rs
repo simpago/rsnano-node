@@ -2,7 +2,7 @@ use super::{BlockProcessor, BlockSource};
 use crate::{
     cementation::ConfirmingSet,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{BandwidthLimiter, DropPolicy, MessagePublisher, TrafficType},
+    transport::MessagePublisher,
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -10,6 +10,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
+use rsnano_network::{bandwidth_limiter::BandwidthLimiter, DropPolicy, TrafficType};
 use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},

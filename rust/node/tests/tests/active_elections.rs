@@ -3,10 +3,10 @@ use rsnano_core::{
     DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_network::ChannelId;
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeFlags},
     stats::{DetailType, Direction, StatType},
-    transport::ChannelId,
     wallets::WalletsExt,
 };
 use std::{

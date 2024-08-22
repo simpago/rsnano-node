@@ -1,7 +1,6 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient, BootstrapConnections};
 use crate::{
     bootstrap::{bootstrap_limits, BootstrapAttemptTrait, BootstrapConnectionsExt, PullInfo},
-    transport::AsyncBufferReader,
     utils::{AsyncRuntime, ThreadPool},
 };
 use primitive_types::U256;
@@ -11,8 +10,10 @@ use rsnano_core::{
 };
 use rsnano_ledger::Ledger;
 use rsnano_messages::{FrontierReq, Message};
+use rsnano_network::AsyncBufferReader;
 use std::{
     collections::VecDeque,
+    ops::Deref,
     sync::{Arc, Condvar, Mutex, Weak},
     time::Instant,
 };
@@ -208,6 +209,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
             match this_l
                 .connection
                 .get_channel()
+                .deref()
                 .read(&mut buffer, SIZE_FRONTIER)
                 .await
             {

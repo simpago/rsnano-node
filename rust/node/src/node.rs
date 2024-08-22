@@ -1,11 +1,11 @@
 use crate::{
     block_processing::{
-        BacklogPopulation, BlockProcessor, BlockSource, LocalBlockBroadcaster,
-        LocalBlockBroadcasterExt, UncheckedMap,
+        BacklogPopulation, BlockProcessor, BlockProcessorCleanup, BlockSource,
+        LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{
         BootstrapAscending, BootstrapAscendingExt, BootstrapInitiator, BootstrapInitiatorExt,
-        BootstrapServer, OngoingBootstrap, OngoingBootstrapExt,
+        BootstrapServer, BootstrapServerCleanup, OngoingBootstrap, OngoingBootstrapExt,
     },
     cementation::ConfirmingSet,
     config::{GlobalConfig, NodeConfig, NodeFlags},
@@ -15,20 +15,23 @@ use crate::{
         HintedScheduler, HintedSchedulerExt, LocalVoteHistory, ManualScheduler, ManualSchedulerExt,
         OptimisticScheduler, OptimisticSchedulerExt, PriorityScheduler, PrioritySchedulerExt,
         ProcessLiveDispatcher, ProcessLiveDispatcherExt, RecentlyConfirmedCache, RepTiers,
-        RequestAggregator, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
-        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue, VoteRouter,
+        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
+        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        VoteProcessorQueueCleanup, VoteRouter,
     },
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
-    representatives::{OnlineReps, RepCrawler, RepCrawlerExt},
-    stats::{DetailType, Direction, LedgerStats, StatType, Stats},
+    representatives::{OnlineReps, OnlineRepsCleanup, RepCrawler, RepCrawlerExt},
+    stats::{
+        adapters::{LedgerStats, NetworkStats},
+        DetailType, Direction, StatType, Stats,
+    },
     transport::{
-        ChannelId, DeadChannelCleanup, DropPolicy, InboundMessageQueue, KeepaliveFactory,
-        LatestKeepalives, MessageProcessor, MessagePublisher, Network, NetworkFilter, NetworkInfo,
-        NetworkOptions, NetworkStats, NetworkThreads, OutboundBandwidthLimiter, PeerCacheConnector,
-        PeerCacheUpdater, PeerConnector, RealtimeMessageHandler, ResponseServerFactory, SynCookies,
-        TcpListener, TcpListenerExt, TrafficType,
+        InboundMessageQueue, InboundMessageQueueCleanup, KeepaliveFactory, LatestKeepalives,
+        LatestKeepalivesCleanup, MessageProcessor, MessagePublisher, Network, NetworkCleanup,
+        NetworkFilter, NetworkThreads, PeerCacheConnector, PeerCacheUpdater, PeerConnector,
+        RealtimeMessageHandler, ResponseServerFactory, SynCookies, TcpListener, TcpListenerExt,
     },
     utils::{
         AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread,
@@ -48,6 +51,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, Message, Publish};
+use rsnano_network::{ChannelId, DeadChannelCleanup, DropPolicy, NetworkInfo, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_nullable_http_client::{HttpClient, Url};
 use rsnano_store_lmdb::{
@@ -56,7 +60,6 @@ use rsnano_store_lmdb::{
 };
 use serde::Serialize;
 use std::{
-    borrow::Borrow,
     collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
     sync::{
@@ -85,7 +88,6 @@ pub struct Node {
     pub store: Arc<LmdbStore>,
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
-    pub outbound_limiter: Arc<OutboundBandwidthLimiter>,
     pub syn_cookies: Arc<SynCookies>,
     pub network_info: Arc<RwLock<NetworkInfo>>,
     pub network: Arc<Network>,
@@ -128,6 +130,7 @@ pub struct Node {
     pub inbound_message_queue: Arc<InboundMessageQueue>,
     monitor: TimerThread<Monitor>,
     stopped: AtomicBool,
+    pub publish_filter: Arc<NetworkFilter>,
     pub message_publisher: Arc<Mutex<MessagePublisher>>, // TODO remove this. It is needed right now
                                                          // to keep the weak pointer alive
 }
@@ -212,7 +215,6 @@ impl Node {
 
         log_bootstrap_weights(&ledger.rep_weights);
 
-        let outbound_limiter = Arc::new(OutboundBandwidthLimiter::new(config.borrow().into()));
         let syn_cookies = Arc::new(SynCookies::new(network_params.network.max_peers_per_ip));
 
         let workers: Arc<dyn ThreadPool> = Arc::new(ThreadPoolImpl::create(
@@ -231,7 +233,7 @@ impl Node {
 
         let network_info = Arc::new(RwLock::new(NetworkInfo::new(global_config.into())));
 
-        let network_stats = NetworkStats::new(stats.clone());
+        let network_observer = Arc::new(NetworkStats::new(stats.clone()));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
             steady_clock.clone(),
@@ -243,22 +245,23 @@ impl Node {
 
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
-        let network = Arc::new(Network::new(NetworkOptions {
-            publish_filter: publish_filter.clone(),
-            network_params: network_params.clone(),
-            stats: stats.clone(),
-            limiter: outbound_limiter.clone(),
-            clock: steady_clock.clone(),
-            network_info: network_info.clone(),
-        }));
+        let mut network = Network::new(
+            global_config.into(),
+            network_info.clone(),
+            steady_clock.clone(),
+        );
+        network.set_observer(network_observer.clone());
+        let network = Arc::new(network);
 
-        dead_channel_cleanup.add(&network);
+        dead_channel_cleanup.add_step(NetworkCleanup::new(network.clone()));
 
         let inbound_message_queue = Arc::new(InboundMessageQueue::new(
             config.message_processor.max_queue,
             stats.clone(),
         ));
-        dead_channel_cleanup.add(&inbound_message_queue);
+        dead_channel_cleanup.add_step(InboundMessageQueueCleanup::new(
+            inbound_message_queue.clone(),
+        ));
 
         let telemetry_config = TelementryConfig {
             enable_ongoing_requests: !flags.disable_ongoing_telemetry_requests,
@@ -284,7 +287,7 @@ impl Node {
                 .trended(online_weight_sampler.calculate_trend())
                 .finish(),
         ));
-        dead_channel_cleanup.add(&online_reps);
+        dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let message_publisher = MessagePublisher::new(
             online_reps.clone(),
@@ -312,7 +315,9 @@ impl Node {
             ledger.clone(),
             message_publisher.clone(),
         ));
-        dead_channel_cleanup.add(&bootstrap_server);
+        dead_channel_cleanup.add_step(BootstrapServerCleanup::new(
+            bootstrap_server.server_impl.clone(),
+        ));
 
         let rep_tiers = Arc::new(RepTiers::new(
             rep_weights.clone(),
@@ -326,7 +331,7 @@ impl Node {
             stats.clone(),
             rep_tiers.clone(),
         ));
-        dead_channel_cleanup.add(&vote_processor_queue);
+        dead_channel_cleanup.add_step(VoteProcessorQueueCleanup::new(vote_processor_queue.clone()));
 
         let history = Arc::new(LocalVoteHistory::new(network_params.voting.max_cache));
 
@@ -351,7 +356,9 @@ impl Node {
             unchecked.clone(),
             stats.clone(),
         ));
-        dead_channel_cleanup.add(&block_processor);
+        dead_channel_cleanup.add_step(BlockProcessorCleanup::new(
+            block_processor.processor_loop.clone(),
+        ));
 
         let distributed_work =
             Arc::new(DistributedWorkFactory::new(work.clone(), async_rt.clone()));
@@ -477,7 +484,7 @@ impl Node {
             flags.clone(),
             network.clone(),
             network_info.clone(),
-            network_stats.clone(),
+            network_observer.clone(),
             async_rt.clone(),
             bootstrap_workers.clone(),
             network_params.clone(),
@@ -498,7 +505,7 @@ impl Node {
         bootstrap_initiator.start();
 
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
-        dead_channel_cleanup.add(&latest_keepalives);
+        dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
 
         let response_server_factory = Arc::new(ResponseServerFactory {
             runtime: async_rt.clone(),
@@ -520,7 +527,7 @@ impl Node {
         let peer_connector = Arc::new(PeerConnector::new(
             config.tcp.clone(),
             network.clone(),
-            network_stats.clone(),
+            network_observer.clone(),
             stats.clone(),
             async_rt.clone(),
             response_server_factory.clone(),
@@ -602,7 +609,9 @@ impl Node {
             ledger.clone(),
             network_info.clone(),
         ));
-        dead_channel_cleanup.add(&request_aggregator);
+        dead_channel_cleanup.add_step(RequestAggregatorCleanup::new(
+            request_aggregator.state.clone(),
+        ));
 
         let backlog_population = Arc::new(BacklogPopulation::new(
             global_config.into(),
@@ -1066,7 +1075,6 @@ impl Node {
             distributed_work,
             unchecked,
             telemetry,
-            outbound_limiter,
             syn_cookies,
             network,
             network_info,
@@ -1113,6 +1121,7 @@ impl Node {
             inbound_message_queue,
             monitor,
             message_publisher: message_publisher_l,
+            publish_filter,
             stopped: AtomicBool::new(false),
         }
     }
