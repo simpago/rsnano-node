@@ -1,0 +1,13 @@
+[package]
+name = "rsnano_rpc_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.40"
+rsnano_node = { path = "../node" }
+rsnano_core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+toml = "0.8.15"

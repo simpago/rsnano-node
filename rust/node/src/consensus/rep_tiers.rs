@@ -5,7 +5,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    Account,
+    Account, PublicKey,
 };
 use rsnano_ledger::RepWeightCache;
 use std::{
@@ -101,7 +101,7 @@ impl RepTiers {
         }
     }
 
-    pub fn tier(&self, representative: &Account) -> RepTier {
+    pub fn tier(&self, representative: &PublicKey) -> RepTier {
         let tiers = self.rep_tiers_impl.tiers.lock().unwrap();
         if tiers.representatives_3.contains(representative) {
             RepTier::Tier3
@@ -149,11 +149,11 @@ impl Drop for RepTiers {
 #[derive(Default)]
 struct Tiers {
     /// 0.1% or above
-    representatives_1: HashSet<Account>,
+    representatives_1: HashSet<PublicKey>,
     /// 1% or above
-    representatives_2: HashSet<Account>,
+    representatives_2: HashSet<PublicKey>,
     /// 5% or above
-    representatives_3: HashSet<Account>,
+    representatives_3: HashSet<PublicKey>,
 }
 
 struct RepTiersImpl {

@@ -1,6 +1,6 @@
 use super::{iterator::LmdbIteratorHandle, TransactionHandle};
 use crate::{wallets::kdf::KdfHandle, StringDto};
-use rsnano_core::{Account, PublicKey, RawKey};
+use rsnano_core::{PublicKey, RawKey};
 use rsnano_store_lmdb::{LmdbWalletStore, WalletValue};
 use std::{
     ffi::{c_char, CStr},
@@ -51,7 +51,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_create(
 ) -> *mut LmdbWalletStoreHandle {
     let wallet = CStr::from_ptr(wallet).to_str().unwrap();
     let wallet = PathBuf::from(wallet);
-    let representative = Account::from_ptr(representative);
+    let representative = PublicKey::from_ptr(representative);
     if let Ok(store) = LmdbWalletStore::new(
         fanout,
         (*kdf).deref().clone(),
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_erase(
 ) {
     (*handle)
         .0
-        .erase((*txn).as_write_txn(), &Account::from_ptr(account));
+        .erase((*txn).as_write_txn(), &PublicKey::from_ptr(account));
 }
 
 #[no_mangle]
@@ -241,7 +241,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_find(
 ) -> *mut LmdbIteratorHandle {
     let iterator = (*handle)
         .0
-        .find((*txn).as_txn(), &Account::from_ptr(account));
+        .find((*txn).as_txn(), &PublicKey::from_ptr(account));
     LmdbIteratorHandle::new2(iterator)
 }
 
@@ -294,7 +294,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_representative_set(
 ) {
     (*handle)
         .0
-        .representative_set((*txn).as_write_txn(), &Account::from_ptr(representative));
+        .representative_set((*txn).as_write_txn(), &PublicKey::from_ptr(representative));
 }
 
 #[no_mangle]
@@ -318,7 +318,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_insert_watch(
 ) -> bool {
     (*handle)
         .0
-        .insert_watch((*txn).as_write_txn(), &Account::from_ptr(pub_key))
+        .insert_watch((*txn).as_write_txn(), &PublicKey::from_ptr(pub_key))
         .is_ok()
 }
 
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn rsn_lmdb_wallet_store_fetch(
 ) -> bool {
     match (*handle)
         .0
-        .fetch((*txn).as_txn(), &Account::from_ptr(pub_key))
+        .fetch((*txn).as_txn(), &PublicKey::from_ptr(pub_key))
     {
         Ok(prv) => {
             prv.copy_bytes(prv_key);

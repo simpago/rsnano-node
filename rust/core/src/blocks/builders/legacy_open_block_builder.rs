@@ -1,12 +1,12 @@
 use crate::{
     work::{WorkPool, STUB_WORK_POOL},
     Account, Amount, Block, BlockDetails, BlockEnum, BlockHash, BlockSideband, Epoch, KeyPair,
-    OpenBlock,
+    OpenBlock, PublicKey,
 };
 
 pub struct LegacyOpenBlockBuilder {
     account: Option<Account>,
-    representative: Option<Account>,
+    representative: Option<PublicKey>,
     source: Option<BlockHash>,
     keypair: Option<KeyPair>,
     work: Option<u64>,
@@ -37,7 +37,7 @@ impl LegacyOpenBlockBuilder {
         self
     }
 
-    pub fn representative(mut self, representative: Account) -> Self {
+    pub fn representative(mut self, representative: PublicKey) -> Self {
         self.representative = Some(representative);
         self
     }
@@ -65,8 +65,8 @@ impl LegacyOpenBlockBuilder {
     pub fn build(self) -> BlockEnum {
         let source = self.source.unwrap_or(BlockHash::from(1));
         let key_pair = self.keypair.unwrap_or_default();
-        let account = self.account.unwrap_or_else(|| key_pair.public_key());
-        let representative = self.representative.unwrap_or(Account::from(2));
+        let account = self.account.unwrap_or_else(|| key_pair.account());
+        let representative = self.representative.unwrap_or(PublicKey::from(2));
         let work = self
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(account.into()).unwrap());
@@ -116,7 +116,7 @@ mod tests {
             panic!("not an open block")
         };
         assert_eq!(open.hashables.source, BlockHash::from(1));
-        assert_eq!(open.hashables.representative, Account::from(2));
+        assert_eq!(open.hashables.representative, PublicKey::from(2));
         assert_ne!(open.account(), Account::zero());
         assert_eq!(WORK_THRESHOLDS_STUB.validate_entry_block(&block), false);
         assert_ne!(*open.block_signature(), Signature::new());

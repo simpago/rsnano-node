@@ -1,13 +1,9 @@
-use anyhow::bail;
-use anyhow::Result;
-use std::collections::HashMap;
-use std::time::Duration;
-use tokio::time::sleep;
-use tokio::time::Instant;
-
-use crate::AccountInfo;
-use crate::ProgramArgs;
-use crate::TestNode;
+use crate::{ProgramArgs, TestNode};
+use anyhow::{bail, Result};
+use rsnano_core::Account;
+use rsnano_rpc_messages::AccountInfoDto;
+use std::{collections::HashMap, time::Duration};
+use tokio::time::{sleep, Instant};
 
 pub struct LoadTest {
     args: ProgramArgs,
@@ -62,7 +58,7 @@ impl LoadTest {
         Ok(())
     }
 
-    async fn create_send_and_receive_blocks(&self) -> Result<HashMap<String, AccountInfo>> {
+    async fn create_send_and_receive_blocks(&self) -> Result<HashMap<Account, AccountInfoDto>> {
         println!("Beginning tests");
         self.primary_node()
             .create_send_and_receive_blocks(
@@ -75,14 +71,14 @@ impl LoadTest {
 
     async fn wait_for_nodes_to_catch_up(
         &self,
-        expected_account_info: &HashMap<String, AccountInfo>,
+        expected_account_info: &HashMap<Account, AccountInfoDto>,
     ) -> Result<()> {
         println!("Waiting for nodes to catch up...");
         let timer = Instant::now();
         for node in &self.nodes[1..] {
             for (account, info) in expected_account_info {
                 loop {
-                    if let Ok(other_account_info) = node.account_info(account).await {
+                    if let Ok(other_account_info) = node.account_info(*account).await {
                         if info == &other_account_info {
                             // Found the account in this node
                             break;

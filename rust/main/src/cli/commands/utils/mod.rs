@@ -44,7 +44,7 @@ impl UtilsCommand {
         let keypair = KeyPair::new();
         let private_key = keypair.private_key();
         let public_key = keypair.public_key();
-        let account = Account::encode_account(&public_key);
+        let account = Account::from(public_key).encode_account();
 
         println!("Private: {:?}", private_key);
         println!("Public: {:?}", public_key);

@@ -1,6 +1,7 @@
 use crate::utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream};
 use anyhow::Result;
 use once_cell::sync::Lazy;
+use serde::de::{Unexpected, Visitor};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Amount {
@@ -201,6 +202,45 @@ pub static MXRB_RATIO: Lazy<u128> =
 pub static GXRB_RATIO: Lazy<u128> =
     Lazy::new(|| str::parse("1000000000000000000000000000000000").unwrap()); // 10^33
 
+impl serde::Serialize for Amount {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string_dec())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Amount {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = deserializer.deserialize_str(AmountVisitor {})?;
+        Ok(Self::from(value))
+    }
+}
+
+struct AmountVisitor {}
+
+impl<'de> Visitor<'de> for AmountVisitor {
+    type Value = Amount;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("an 128 bit amount in decimal")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let value = u128::from_str_radix(v, 10).map_err(|_| {
+            serde::de::Error::invalid_value(Unexpected::Str(v), &"a 128bit decimal string")
+        })?;
+        Ok(Amount::from(value))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{KXRB_RATIO, XRB_RATIO};
@@ -298,5 +338,17 @@ mod tests {
             "123,456,789.12",
             Amount::raw(*MXRB_RATIO * 123456789 + *KXRB_RATIO * 123).format_balance(2)
         );
+    }
+
+    #[test]
+    fn serde_serialize() {
+        let serialized = serde_json::to_string_pretty(&Amount::MAX).unwrap();
+        assert_eq!(serialized, "\"340282366920938463463374607431768211455\"");
+    }
+
+    #[test]
+    fn serde_deserialize() {
+        let deserialized: Amount = serde_json::from_str("\"123\"").unwrap();
+        assert_eq!(deserialized, Amount::raw(123));
     }
 }

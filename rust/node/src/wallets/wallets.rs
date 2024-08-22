@@ -286,12 +286,12 @@ impl Wallets {
                 for (wallet_id, wallet) in lock.iter() {
                     let representatives_l = wallet.representatives.lock().unwrap().clone();
                     for account in representatives_l {
-                        if wallet.store.exists(&transaction_l, &account) {
+                        if wallet.store.exists(&transaction_l, &account.into()) {
                             if !self.ledger.weight_exact(&ledger_txn, account).is_zero() {
                                 if wallet.store.valid_password(&transaction_l) {
                                     let prv = wallet
                                         .store
-                                        .fetch(&transaction_l, &account)
+                                        .fetch(&transaction_l, &account.into())
                                         .expect("could not fetch account from wallet");
 
                                     action_accounts_l.push(prv.into());
@@ -320,27 +320,27 @@ impl Wallets {
     pub fn work_cache_blocking2(
         &self,
         wallet_id: &WalletId,
-        account: &Account,
+        pub_key: &PublicKey,
         root: &Root,
     ) -> Result<(), WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
-        self.work_cache_blocking(wallet, account, root);
+        self.work_cache_blocking(wallet, pub_key, root);
         Ok(())
     }
 
-    fn work_cache_blocking(&self, wallet: &Wallet, account: &Account, root: &Root) {
+    fn work_cache_blocking(&self, wallet: &Wallet, pub_key: &PublicKey, root: &Root) {
         if self.distributed_work.work_generation_enabled() {
             let difficulty = self.work_thresholds.threshold_base(WorkVersion::Work1);
             if let Some(work) = self.distributed_work.make_blocking(
                 WorkVersion::Work1,
                 *root,
                 difficulty,
-                Some(*account),
+                Some(pub_key.into()),
             ) {
                 let mut tx = self.env.tx_begin_write();
-                if wallet.live() && wallet.store.exists(&tx, account) {
-                    wallet.work_update(&mut tx, account, root, work);
+                if wallet.live() && wallet.store.exists(&tx, pub_key) {
+                    wallet.work_update(&mut tx, pub_key, root, work);
                 }
             } else {
                 warn!(
@@ -371,7 +371,7 @@ impl Wallets {
         }
 
         for account in accounts {
-            if wallet.store.insert_watch(&mut tx, account).is_err() {
+            if wallet.store.insert_watch(&mut tx, &account.into()).is_err() {
                 return Err(WalletsError::BadPublicKey);
             }
         }
@@ -439,9 +439,9 @@ impl Wallets {
         for (_, wallet) in wallets_guard.iter() {
             let mut representatives = HashSet::new();
             let mut it = wallet.store.begin(&tx);
-            while let Some((&account, _)) = it.current() {
-                if reps_guard.check_rep(account, half_principal_weight) {
-                    representatives.insert(account);
+            while let Some((&pub_key, _)) = it.current() {
+                if reps_guard.check_rep(pub_key, half_principal_weight) {
+                    representatives.insert(pub_key.into());
                 }
                 it.next();
             }
@@ -449,12 +449,12 @@ impl Wallets {
         }
     }
 
-    pub fn exists(&self, account: &Account) -> bool {
+    pub fn exists(&self, pub_key: &PublicKey) -> bool {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         guard
             .values()
-            .any(|wallet| wallet.store.exists(&tx, account))
+            .any(|wallet| wallet.store.exists(&tx, pub_key))
     }
 
     pub fn reload(&self) {
@@ -503,10 +503,10 @@ impl Wallets {
         wallet.store.destroy(&mut tx);
     }
 
-    pub fn remove_account(
+    pub fn remove_key(
         &self,
         wallet_id: &WalletId,
-        account: &Account,
+        pub_key: &PublicKey,
     ) -> Result<(), WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
@@ -514,26 +514,26 @@ impl Wallets {
         if !wallet.store.valid_password(&tx) {
             return Err(WalletsError::WalletLocked);
         }
-        if wallet.store.find(&tx, account).is_end() {
+        if wallet.store.find(&tx, pub_key).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
-        wallet.store.erase(&mut tx, account);
+        wallet.store.erase(&mut tx, pub_key);
         Ok(())
     }
 
     pub fn work_set(
         &self,
         wallet_id: &WalletId,
-        account: &Account,
+        pub_key: &PublicKey,
         work: u64,
     ) -> Result<(), WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
         let mut tx = self.env.tx_begin_write();
-        if wallet.store.find(&tx, account).is_end() {
+        if wallet.store.find(&tx, pub_key).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
-        wallet.store.work_put(&mut tx, account, work);
+        wallet.store.work_put(&mut tx, pub_key, work);
         Ok(())
     }
 
@@ -541,7 +541,7 @@ impl Wallets {
         &self,
         source_id: &WalletId,
         target_id: &WalletId,
-        accounts: &[Account],
+        accounts: &[PublicKey],
     ) -> anyhow::Result<()> {
         let guard = self.mutex.lock().unwrap();
         let source = guard
@@ -594,9 +594,12 @@ impl Wallets {
                 .unwrap_or_default();
             if !balance.is_zero() && balance >= amount {
                 let info = self.ledger.account_info(&block_tx, &source).unwrap();
-                let prv_key = wallet.store.fetch(tx, &source).unwrap();
+                let prv_key = wallet.store.fetch(tx, &source.into()).unwrap();
                 if work == 0 {
-                    work = wallet.store.work_get(tx, &source).unwrap_or_default();
+                    work = wallet
+                        .store
+                        .work_get(tx, &source.into())
+                        .unwrap_or_default();
                 }
                 let keys = KeyPair::from(prv_key);
                 let state_block = BlockEnum::State(StateBlock::new(
@@ -659,9 +662,12 @@ impl Wallets {
                     .unwrap_or_default();
                 if !balance.is_zero() && balance >= amount {
                     let info = self.ledger.account_info(&block_tx, &source).unwrap();
-                    let prv_key = wallet.store.fetch(tx, &source).unwrap();
+                    let prv_key = wallet.store.fetch(tx, &source.into()).unwrap();
                     if work == 0 {
-                        work = wallet.store.work_get(tx, &source).unwrap_or_default();
+                        work = wallet
+                            .store
+                            .work_get(tx, &source.into())
+                            .unwrap_or_default();
                     }
                     let keys = KeyPair::from(prv_key);
                     let state_block = BlockEnum::State(StateBlock::new(
@@ -686,23 +692,27 @@ impl Wallets {
         (block, error, cached_block, details)
     }
 
-    pub fn work_get(&self, wallet_id: &WalletId, account: &Account) -> u64 {
+    pub fn work_get(&self, wallet_id: &WalletId, pub_key: &PublicKey) -> u64 {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         let Some(wallet) = guard.get(&wallet_id) else {
             return 1;
         };
-        wallet.store.work_get(&tx, account).unwrap_or(1)
+        wallet.store.work_get(&tx, pub_key).unwrap_or(1)
     }
 
-    pub fn work_get2(&self, wallet_id: &WalletId, account: &Account) -> Result<u64, WalletsError> {
+    pub fn work_get2(
+        &self,
+        wallet_id: &WalletId,
+        pub_key: &PublicKey,
+    ) -> Result<u64, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
-        if wallet.store.find(&tx, account).is_end() {
+        if wallet.store.find(&tx, pub_key).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
-        Ok(wallet.store.work_get(&tx, account).unwrap_or(1))
+        Ok(wallet.store.work_get(&tx, pub_key).unwrap_or(1))
     }
 
     pub fn get_accounts(&self, max_results: usize) -> Vec<Account> {
@@ -715,7 +725,7 @@ impl Wallets {
                 if accounts.len() >= max_results {
                     break;
                 }
-                accounts.push(account);
+                accounts.push(account.into());
                 it.next();
             }
         }
@@ -732,25 +742,25 @@ impl Wallets {
         let mut it = wallet.store.begin(&tx);
         let mut accounts = Vec::new();
         while let Some((&account, _)) = it.current() {
-            accounts.push(account);
+            accounts.push(account.into());
             it.next();
         }
         Ok(accounts)
     }
 
-    pub fn fetch(&self, wallet_id: &WalletId, account: &Account) -> Result<RawKey, WalletsError> {
+    pub fn fetch(&self, wallet_id: &WalletId, pub_key: &PublicKey) -> Result<RawKey, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
         let tx = self.env.tx_begin_read();
         if !wallet.store.valid_password(&tx) {
             return Err(WalletsError::WalletLocked);
         }
-        if wallet.store.find(&tx, account).is_end() {
+        if wallet.store.find(&tx, pub_key).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
         wallet
             .store
-            .fetch(&tx, account)
+            .fetch(&tx, pub_key)
             .map_err(|_| WalletsError::Generic)
     }
 
@@ -808,25 +818,25 @@ impl Wallets {
         Ok(wallet.store.seed(&tx))
     }
 
-    pub fn key_type(&self, wallet_id: WalletId, account: Account) -> KeyType {
+    pub fn key_type(&self, wallet_id: WalletId, pub_key: &PublicKey) -> KeyType {
         let guard = self.mutex.lock().unwrap();
         match guard.get(&wallet_id) {
             Some(wallet) => {
                 let tx = self.env.tx_begin_read();
-                wallet.store.get_key_type(&tx, &account)
+                wallet.store.get_key_type(&tx, pub_key)
             }
             None => KeyType::Unknown,
         }
     }
 
-    pub fn get_representative(&self, wallet_id: WalletId) -> Result<Account, WalletsError> {
+    pub fn get_representative(&self, wallet_id: WalletId) -> Result<PublicKey, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, &wallet_id)?;
         let tx = self.env.tx_begin_read();
         Ok(wallet.store.representative(&tx))
     }
 
-    pub fn decrypt(&self, wallet_id: WalletId) -> Result<Vec<(Account, RawKey)>, WalletsError> {
+    pub fn decrypt(&self, wallet_id: WalletId) -> Result<Vec<(PublicKey, RawKey)>, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, &wallet_id)?;
         let tx = self.env.tx_begin_read();
@@ -909,14 +919,14 @@ pub trait WalletsExt {
         generate_work: bool,
     ) -> Result<PublicKey, WalletsError>;
 
-    fn insert_adhoc(&self, wallet: &Arc<Wallet>, key: &RawKey, generate_work: bool) -> Account;
+    fn insert_adhoc(&self, wallet: &Arc<Wallet>, key: &RawKey, generate_work: bool) -> PublicKey;
 
     fn insert_adhoc2(
         &self,
         wallet_id: &WalletId,
         key: &RawKey,
         generate_work: bool,
-    ) -> Result<Account, WalletsError>;
+    ) -> Result<PublicKey, WalletsError>;
 
     fn work_ensure(&self, wallet: &Arc<Wallet>, account: Account, root: Root);
 
@@ -972,7 +982,7 @@ pub trait WalletsExt {
         &self,
         wallet: &Arc<Wallet>,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
         work: u64,
         generate_work: bool,
     ) -> Option<BlockEnum>;
@@ -981,7 +991,7 @@ pub trait WalletsExt {
         &self,
         wallet: &Arc<Wallet>,
         send_hash: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
         account: Account,
         work: u64,
@@ -992,7 +1002,7 @@ pub trait WalletsExt {
         &self,
         wallet: Arc<Wallet>,
         hash: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
@@ -1004,7 +1014,7 @@ pub trait WalletsExt {
         &self,
         wallet_id: WalletId,
         hash: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
@@ -1016,7 +1026,7 @@ pub trait WalletsExt {
         &self,
         wallet: Arc<Wallet>,
         block: &BlockEnum,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
     ) -> Result<(), ()>;
 
@@ -1077,7 +1087,7 @@ pub trait WalletsExt {
         &self,
         wallet: Arc<Wallet>,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
         work: u64,
         generate_work: bool,
@@ -1087,14 +1097,14 @@ pub trait WalletsExt {
         &self,
         wallet: Arc<Wallet>,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
     ) -> Result<(), ()>;
 
     fn change_async(
         &self,
         wallet_id: WalletId,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
         work: u64,
         generate_work: bool,
@@ -1103,7 +1113,7 @@ pub trait WalletsExt {
     fn set_representative(
         &self,
         wallet_id: WalletId,
-        rep: Account,
+        rep: PublicKey,
         update_existing_accounts: bool,
     ) -> Result<(), WalletsError>;
 
@@ -1124,7 +1134,7 @@ impl WalletsExt for Arc<Wallets> {
         }
         let key = wallet.store.deterministic_insert(tx);
         if generate_work {
-            self.work_ensure(wallet, key, key.into());
+            self.work_ensure(wallet, key.into(), key.into());
         }
         let half_principal_weight = self.online_reps.lock().unwrap().minimum_principal_weight() / 2;
         let mut reps = self.representative_wallets.lock().unwrap();
@@ -1148,7 +1158,7 @@ impl WalletsExt for Arc<Wallets> {
         }
         let account = wallet.store.deterministic_insert_at(&mut tx, index);
         if generate_work {
-            self.work_ensure(wallet, account, account.into());
+            self.work_ensure(wallet, account.into(), account.into());
         }
         Ok(account)
     }
@@ -1167,7 +1177,7 @@ impl WalletsExt for Arc<Wallets> {
         Ok(self.deterministic_insert(wallet, &mut tx, generate_work))
     }
 
-    fn insert_adhoc(&self, wallet: &Arc<Wallet>, key: &RawKey, generate_work: bool) -> Account {
+    fn insert_adhoc(&self, wallet: &Arc<Wallet>, key: &RawKey, generate_work: bool) -> PublicKey {
         let mut tx = self.env.tx_begin_write();
         if !wallet.store.valid_password(&tx) {
             return PublicKey::zero();
@@ -1175,7 +1185,11 @@ impl WalletsExt for Arc<Wallets> {
         let key = wallet.store.insert_adhoc(&mut tx, key);
         let block_tx = self.ledger.read_txn();
         if generate_work {
-            self.work_ensure(wallet, key, self.ledger.latest_root(&block_tx, &key));
+            self.work_ensure(
+                wallet,
+                key.into(),
+                self.ledger.latest_root(&block_tx, &key.into()),
+            );
         }
         let half_principal_weight = self.online_reps.lock().unwrap().minimum_principal_weight() / 2;
         // Makes sure that the representatives container will
@@ -1193,7 +1207,7 @@ impl WalletsExt for Arc<Wallets> {
         wallet_id: &WalletId,
         key: &RawKey,
         generate_work: bool,
-    ) -> Result<Account, WalletsError> {
+    ) -> Result<PublicKey, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Wallets::get_wallet(&guard, wallet_id)?;
         let mut tx = self.env.tx_begin_read();
@@ -1225,7 +1239,7 @@ impl WalletsExt for Arc<Wallets> {
                             GENERATE_PRIORITY,
                             wallet,
                             Box::new(move |w| {
-                                self_clone_2.work_cache_blocking(&w, &account, &root);
+                                self_clone_2.work_cache_blocking(&w, &account.into(), &root);
                             }),
                         );
                     }
@@ -1330,7 +1344,7 @@ impl WalletsExt for Arc<Wallets> {
         }
         let first_account = self.change_seed_wallet(wallet, &mut tx, prv_key, count);
         let restored_count = wallet.store.deterministic_index_get(&tx);
-        Ok((restored_count, first_account))
+        Ok((restored_count, first_account.into()))
     }
 
     fn send_action2(
@@ -1399,7 +1413,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: &Arc<Wallet>,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
         mut work: u64,
         generate_work: bool,
     ) -> Option<BlockEnum> {
@@ -1412,14 +1426,14 @@ impl WalletsExt for Arc<Wallets> {
                 return None;
             }
 
-            let existing = wallet.store.find(&wallet_tx, &source);
+            let existing = wallet.store.find(&wallet_tx, &source.into());
             if !existing.is_end() && self.ledger.any().account_head(&block_tx, &source).is_some() {
                 let info = self.ledger.account_info(&block_tx, &source).unwrap();
-                let prv = wallet.store.fetch(&wallet_tx, &source).unwrap();
+                let prv = wallet.store.fetch(&wallet_tx, &source.into()).unwrap();
                 if work == 0 {
                     work = wallet
                         .store
-                        .work_get(&wallet_tx, &source)
+                        .work_get(&wallet_tx, &source.into())
                         .unwrap_or_default();
                 }
                 let keys = KeyPair::from(prv);
@@ -1464,7 +1478,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: &Arc<Wallet>,
         send_hash: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
         account: Account,
         mut work: u64,
@@ -1492,11 +1506,11 @@ impl WalletsExt for Arc<Wallets> {
                 .any()
                 .get_pending(&block_tx, &PendingKey::new(account, send_hash))
             {
-                if let Ok(prv) = wallet.store.fetch(&wallet_tx, &account) {
+                if let Ok(prv) = wallet.store.fetch(&wallet_tx, &account.into()) {
                     if work == 0 {
                         work = wallet
                             .store
-                            .work_get(&wallet_tx, &account)
+                            .work_get(&wallet_tx, &account.into())
                             .unwrap_or_default();
                     }
                     let keys = KeyPair::from(prv);
@@ -1561,7 +1575,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: Arc<Wallet>,
         hash: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
@@ -1591,7 +1605,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet_id: WalletId,
         hash: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
         account: Account,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
@@ -1605,7 +1619,7 @@ impl WalletsExt for Arc<Wallets> {
             return Err(WalletsError::WalletLocked);
         }
 
-        if wallet.store.find(&tx, &account).is_end() {
+        if wallet.store.find(&tx, &account.into()).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
 
@@ -1626,7 +1640,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: Arc<Wallet>,
         block: &BlockEnum,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
     ) -> Result<(), ()> {
         let result = Arc::new((Condvar::new(), Mutex::new((false, false)))); // done, result
@@ -1700,7 +1714,7 @@ impl WalletsExt for Arc<Wallets> {
         if !wallet.store.valid_password(&tx) {
             return Err(WalletsError::WalletLocked);
         }
-        if wallet.store.find(&tx, &source).is_end() {
+        if wallet.store.find(&tx, &source.into()).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
         self.send_async_wallet(
@@ -1771,7 +1785,7 @@ impl WalletsExt for Arc<Wallets> {
             if !wallet_value.key.is_zero() {
                 for (key, info) in self.ledger.any().account_receivable_upper_bound(
                     &block_tx,
-                    *account,
+                    account.into(),
                     BlockHash::zero(),
                 ) {
                     let hash = key.send_block_hash;
@@ -1794,7 +1808,7 @@ impl WalletsExt for Arc<Wallets> {
                                 hash,
                                 representative,
                                 amount,
-                                *account,
+                                account.into(),
                                 Box::new(|_| {}),
                                 0,
                                 true,
@@ -1828,7 +1842,7 @@ impl WalletsExt for Arc<Wallets> {
         };
 
         for (_id, wallet) in wallets {
-            if wallet.store.exists(&wallet_tx, &destination) {
+            if wallet.store.exists(&wallet_tx, &destination.into()) {
                 let representative = wallet.store.representative(&wallet_tx);
                 let pending = self
                     .ledger
@@ -1957,7 +1971,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: Arc<Wallet>,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
         work: u64,
         generate_work: bool,
@@ -1978,7 +1992,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet: Arc<Wallet>,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
     ) -> Result<(), ()> {
         let result = Arc::new((Condvar::new(), Mutex::new((false, false)))); // done, result
         let result_clone = Arc::clone(&result);
@@ -2006,7 +2020,7 @@ impl WalletsExt for Arc<Wallets> {
         &self,
         wallet_id: WalletId,
         source: Account,
-        representative: Account,
+        representative: PublicKey,
         action: Box<dyn Fn(Option<BlockEnum>) + Send + Sync>,
         work: u64,
         generate_work: bool,
@@ -2018,7 +2032,7 @@ impl WalletsExt for Arc<Wallets> {
             return Err(WalletsError::WalletLocked);
         }
 
-        if wallet.store.find(&tx, &source).is_end() {
+        if wallet.store.find(&tx, &source.into()).is_end() {
             return Err(WalletsError::AccountNotFound);
         }
 
@@ -2036,7 +2050,7 @@ impl WalletsExt for Arc<Wallets> {
     fn set_representative(
         &self,
         wallet_id: WalletId,
-        rep: Account,
+        rep: PublicKey,
         update_existing_accounts: bool,
     ) -> Result<(), WalletsError> {
         let mut accounts = Vec::new();
@@ -2059,7 +2073,7 @@ impl WalletsExt for Arc<Wallets> {
                 let block_tx = self.ledger.read_txn();
                 let mut i = wallet.store.begin(&tx);
                 while let Some((account, _)) = i.current() {
-                    if let Some(info) = self.ledger.account_info(&block_tx, account) {
+                    if let Some(info) = self.ledger.account_info(&block_tx, &account.into()) {
                         if info.representative != rep {
                             accounts.push(*account);
                         }
@@ -2070,7 +2084,7 @@ impl WalletsExt for Arc<Wallets> {
         }
 
         for account in accounts {
-            self.change_async(wallet_id, account, rep, Box::new(|_| {}), 0, false)?;
+            self.change_async(wallet_id, account.into(), rep, Box::new(|_| {}), 0, false)?;
         }
 
         Ok(())

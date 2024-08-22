@@ -16,7 +16,7 @@ use super::{
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    Account, Amount, BlockEnum, BlockHash, VoteCode, VoteSource,
+    Amount, BlockEnum, BlockHash, PublicKey, VoteCode, VoteSource,
 };
 use rsnano_ledger::Ledger;
 use std::{
@@ -185,7 +185,7 @@ pub trait VoteApplierExt {
     fn vote(
         &self,
         election: &Arc<Election>,
-        rep: &Account,
+        rep: &PublicKey,
         timestamp: u64,
         block_hash: &BlockHash,
         vote_source: VoteSource,
@@ -199,7 +199,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
     fn vote(
         &self,
         election: &Arc<Election>,
-        rep: &Account,
+        rep: &PublicKey,
         timestamp: u64,
         block_hash: &BlockHash,
         vote_source: VoteSource,

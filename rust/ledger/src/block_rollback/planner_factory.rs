@@ -2,7 +2,7 @@ use super::rollback_planner::RollbackPlanner;
 use crate::Ledger;
 use rsnano_core::{
     utils::seconds_since_epoch, Account, AccountInfo, BlockEnum, BlockHash, ConfirmationHeightInfo,
-    PendingInfo, PendingKey,
+    PendingInfo, PendingKey, PublicKey,
 };
 use rsnano_store_lmdb::Transaction;
 
@@ -103,7 +103,7 @@ impl<'a> RollbackPlannerFactory<'a> {
             .ok_or_else(|| anyhow!("block not found"))
     }
 
-    fn get_previous_representative(&self) -> anyhow::Result<Option<Account>> {
+    fn get_previous_representative(&self) -> anyhow::Result<Option<PublicKey>> {
         let previous = self.head_block.previous();
         let rep_block_hash = if !previous.is_zero() {
             self.ledger.representative_block_hash(self.txn, &previous)

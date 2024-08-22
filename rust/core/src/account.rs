@@ -1,12 +1,14 @@
 use super::PublicKey;
+use crate::u256_struct;
 use anyhow::Result;
 use blake2::{
     digest::{Update, VariableOutput},
     Blake2bVar,
 };
 use primitive_types::U512;
+use serde::de::{Unexpected, Visitor};
 
-pub type Account = PublicKey;
+u256_struct!(Account);
 
 impl Account {
     pub fn encode_account(&self) -> String {
@@ -54,6 +56,38 @@ impl serde::Serialize for Account {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.encode_account())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Account {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = deserializer.deserialize_str(AccountVisitor {})?;
+        Ok(Self::from(value))
+    }
+}
+
+struct AccountVisitor {}
+
+impl<'de> Visitor<'de> for AccountVisitor {
+    type Value = Account;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("an account in the form \"nano_...\"")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Account::decode_account(v).map_err(|_| {
+            serde::de::Error::invalid_value(
+                Unexpected::Str(v),
+                &"an account in the form \"nano_...\"",
+            )
+        })
     }
 }
 
@@ -201,6 +235,30 @@ fn account_decode(value: u8) -> u8 {
     result
 }
 
+impl From<Account> for PublicKey {
+    fn from(value: Account) -> Self {
+        Self::from_bytes(*value.as_bytes())
+    }
+}
+
+impl From<&Account> for PublicKey {
+    fn from(value: &Account) -> Self {
+        Self::from_bytes(*value.as_bytes())
+    }
+}
+
+impl From<PublicKey> for Account {
+    fn from(value: PublicKey) -> Self {
+        Self::from_bytes(*value.as_bytes())
+    }
+}
+
+impl From<&PublicKey> for Account {
+    fn from(value: &PublicKey) -> Self {
+        Self::from_bytes(*value.as_bytes())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,5 +324,23 @@ mod tests {
                 0, 0, 0, 0xAA
             ]
         )
+    }
+
+    #[test]
+    fn serde_serialize() {
+        let serialized = serde_json::to_string_pretty(&Account::from(123)).unwrap();
+        assert_eq!(
+            serialized,
+            "\"nano_111111111111111111111111111111111111111111111111115uwdgas549\""
+        );
+    }
+
+    #[test]
+    fn serde_deserialize() {
+        let deserialized: Account = serde_json::from_str(
+            "\"nano_111111111111111111111111111111111111111111111111115uwdgas549\"",
+        )
+        .unwrap();
+        assert_eq!(deserialized, Account::from(123));
     }
 }

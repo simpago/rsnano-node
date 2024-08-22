@@ -31,7 +31,7 @@ impl SetWalletRepresentativeArgs {
     pub(crate) fn set_representative_wallet(&self) -> Result<()> {
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
-        let representative = Account::decode_account(&self.account)?;
+        let representative = Account::decode_account(&self.account)?.into();
 
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
 

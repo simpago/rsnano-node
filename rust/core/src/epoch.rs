@@ -88,14 +88,15 @@ impl Epochs {
         validate_message(
             &self
                 .epoch_signer(&block.link_field().unwrap_or_default())
-                .ok_or_else(|| anyhow!("not an epoch link!"))?,
+                .ok_or_else(|| anyhow!("not an epoch link!"))?
+                .into(),
             block.hash().as_bytes(),
             block.block_signature(),
         )
     }
 
     pub fn epoch_signer(&self, link: &Link) -> Option<Account> {
-        self.signer(self.epoch(link)?).cloned()
+        self.signer(self.epoch(link)?).map(|i| i.into())
     }
 }
 

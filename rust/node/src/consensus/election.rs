@@ -3,7 +3,7 @@ use crate::{
     stats::{DetailType, StatType},
     utils::HardenedConstants,
 };
-use rsnano_core::{Account, Amount, BlockEnum, BlockHash, QualifiedRoot, Root};
+use rsnano_core::{Amount, BlockEnum, BlockHash, PublicKey, QualifiedRoot, Root};
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -30,7 +30,7 @@ pub struct Election {
     pub behavior: ElectionBehavior,
     pub election_start: Instant,
     pub confirmation_action: Box<dyn Fn(Arc<BlockEnum>) + Send + Sync>,
-    pub live_vote_action: Box<dyn Fn(Account) + Send + Sync>,
+    pub live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
     height: u64,
 }
 
@@ -42,7 +42,7 @@ impl Election {
         block: Arc<BlockEnum>,
         behavior: ElectionBehavior,
         confirmation_action: Box<dyn Fn(Arc<BlockEnum>) + Send + Sync>,
-        live_vote_action: Box<dyn Fn(Account) + Send + Sync>,
+        live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
     ) -> Self {
         let root = block.root();
         let qualified_root = block.qualified_root();
@@ -57,7 +57,7 @@ impl Election {
                 ..Default::default()
             },
             last_votes: HashMap::from([(
-                HardenedConstants::get().not_an_account,
+                HardenedConstants::get().not_an_account_key,
                 VoteInfo::new(0, block.hash()),
             )]),
             last_blocks: HashMap::from([(block.hash(), block)]),
@@ -177,7 +177,7 @@ pub struct ElectionData {
     pub state: ElectionState,
     pub state_start: Instant,
     pub last_blocks: HashMap<BlockHash, Arc<BlockEnum>>,
-    pub last_votes: HashMap<Account, VoteInfo>,
+    pub last_votes: HashMap<PublicKey, VoteInfo>,
     pub final_weight: Amount,
     pub last_tally: HashMap<BlockHash, Amount>,
     /** The last time vote for this election was generated */

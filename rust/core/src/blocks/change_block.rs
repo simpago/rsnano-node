@@ -1,18 +1,16 @@
+use super::{Block, BlockVisitor};
 use crate::{
     sign_message, to_hex_string, u64_from_hex_str,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, PropertyTree, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, BlockSideband, BlockType, KeyPair, LazyBlockHash,
-    Link, PublicKey, RawKey, Root, Signature,
+    Account, Amount, BlockHash, BlockHashBuilder, BlockSideband, BlockType, JsonBlock, KeyPair,
+    LazyBlockHash, Link, PublicKey, RawKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
-use serde::ser::SerializeStruct;
-
-use super::{Block, BlockVisitor};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ChangeHashables {
     pub previous: BlockHash,
-    pub representative: Account,
+    pub representative: PublicKey,
 }
 
 impl ChangeHashables {
@@ -42,7 +40,7 @@ pub struct ChangeBlock {
 impl ChangeBlock {
     pub fn new(
         previous: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         prv_key: &RawKey,
         pub_key: &PublicKey,
         work: u64,
@@ -68,14 +66,14 @@ impl ChangeBlock {
         let key = KeyPair::from(42);
         Self::new(
             BlockHash::from(123),
-            Account::from(456),
+            PublicKey::from(456),
             &key.private_key(),
             &key.public_key(),
             69420,
         )
     }
 
-    pub fn mandatory_representative(&self) -> Account {
+    pub fn mandatory_representative(&self) -> PublicKey {
         self.hashables.representative
     }
 
@@ -88,7 +86,7 @@ impl ChangeBlock {
     pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let hashables = ChangeHashables {
             previous: BlockHash::deserialize(stream)?,
-            representative: Account::deserialize(stream)?,
+            representative: PublicKey::deserialize(stream)?,
         };
 
         let signature = Signature::deserialize(stream)?;
@@ -106,7 +104,7 @@ impl ChangeBlock {
 
     pub fn deserialize_json(reader: &impl PropertyTree) -> Result<Self> {
         let previous = BlockHash::decode_hex(reader.get_string("previous")?)?;
-        let representative = Account::decode_account(reader.get_string("representative")?)?;
+        let representative = Account::decode_account(reader.get_string("representative")?)?.into();
         let work = u64_from_hex_str(reader.get_string("work")?)?;
         let signature = Signature::decode_hex(reader.get_string("signature")?)?;
         Ok(Self {
@@ -199,7 +197,7 @@ impl Block for ChangeBlock {
         writer.put_string("previous", &self.hashables.previous.encode_hex())?;
         writer.put_string(
             "representative",
-            &self.hashables.representative.encode_account(),
+            &Account::from(self.hashables.representative).encode_account(),
         )?;
         writer.put_string("work", &to_hex_string(self.work))?;
         writer.put_string("signature", &self.signature.encode_hex())?;
@@ -222,7 +220,7 @@ impl Block for ChangeBlock {
         None
     }
 
-    fn representative_field(&self) -> Option<Account> {
+    fn representative_field(&self) -> Option<PublicKey> {
         Some(self.hashables.representative)
     }
 
@@ -237,23 +235,39 @@ impl Block for ChangeBlock {
     fn destination_field(&self) -> Option<Account> {
         None
     }
+
+    fn json_representation(&self) -> JsonBlock {
+        JsonBlock::Change(JsonChangeBlock {
+            previous: self.hashables.previous,
+            representative: self.hashables.representative.into(),
+            work: self.work.into(),
+            signature: self.signature.clone(),
+        })
+    }
 }
 
-impl serde::Serialize for ChangeBlock {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Block", 5)?;
-        state.serialize_field("type", "change")?;
-        state.serialize_field("previous", &self.hashables.previous)?;
-        state.serialize_field(
-            "representative",
-            &self.hashables.representative.encode_account(),
-        )?;
-        state.serialize_field("work", &to_hex_string(self.work))?;
-        state.serialize_field("signature", &self.signature)?;
-        state.end()
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct JsonChangeBlock {
+    pub previous: BlockHash,
+    pub representative: Account,
+    pub signature: Signature,
+    pub work: WorkNonce,
+}
+
+impl From<JsonChangeBlock> for ChangeBlock {
+    fn from(value: JsonChangeBlock) -> Self {
+        let hashables = ChangeHashables {
+            previous: value.previous,
+            representative: value.representative.into(),
+        };
+
+        Self {
+            work: value.work.into(),
+            signature: value.signature,
+            hashables,
+            hash: LazyBlockHash::new(),
+            sideband: None,
+        }
     }
 }
 
@@ -262,7 +276,7 @@ mod tests {
     use super::*;
     use crate::{
         utils::{MemoryStream, TestPropertyTree},
-        KeyPair,
+        BlockEnum, KeyPair,
     };
 
     #[test]
@@ -271,7 +285,7 @@ mod tests {
         let previous = BlockHash::from(1);
         let block = ChangeBlock::new(
             previous.clone(),
-            Account::from(2),
+            PublicKey::from(2),
             &key1.private_key(),
             &key1.public_key(),
             5,
@@ -286,7 +300,7 @@ mod tests {
         let key1 = KeyPair::new();
         let block1 = ChangeBlock::new(
             BlockHash::from(1),
-            Account::from(2),
+            PublicKey::from(2),
             &key1.private_key(),
             &key1.public_key(),
             5,
@@ -312,7 +326,7 @@ mod tests {
 
     #[test]
     fn serialize_serde() {
-        let block = ChangeBlock::new_test_instance();
+        let block = BlockEnum::LegacyChange(ChangeBlock::new_test_instance());
         let serialized = serde_json::to_string_pretty(&block).unwrap();
         assert_eq!(
             serialized,
@@ -320,8 +334,8 @@ mod tests {
   "type": "change",
   "previous": "000000000000000000000000000000000000000000000000000000000000007B",
   "representative": "nano_11111111111111111111111111111111111111111111111111gahteczqci",
-  "work": "0000000000010F2C",
-  "signature": "6F6E98FB9C3D0B91CBAF78C8613C7A7AE990AA627B9C1381D1D97AB7118C91D169381E3897A477286A4AFB68F7CD347F3FF16F8AB4C33241D8BF793CE29E730B"
+  "signature": "6F6E98FB9C3D0B91CBAF78C8613C7A7AE990AA627B9C1381D1D97AB7118C91D169381E3897A477286A4AFB68F7CD347F3FF16F8AB4C33241D8BF793CE29E730B",
+  "work": "0000000000010F2C"
 }"#
         );
     }

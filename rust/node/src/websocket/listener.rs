@@ -387,7 +387,7 @@ struct JsonVoteSummary {
 impl From<&VoteWithWeightInfo> for JsonVoteSummary {
     fn from(v: &VoteWithWeightInfo) -> Self {
         Self {
-            representative: v.representative.encode_account(),
+            representative: Account::from(v.representative).encode_account(),
             timestamp: v.timestamp.to_string(),
             hash: v.hash.to_string(),
             weight: v.weight.to_string_dec(),

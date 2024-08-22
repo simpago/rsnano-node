@@ -1,15 +1,15 @@
 use crate::{
     epoch_v1_link, epoch_v2_link, Account, AccountInfo, Amount, BlockBuilder, BlockDetails,
     BlockEnum, BlockHash, BlockSideband, Epoch, KeyPair, LegacyChangeBlockBuilder,
-    LegacyOpenBlockBuilder, LegacyReceiveBlockBuilder, LegacySendBlockBuilder, StateBlockBuilder,
-    DEV_GENESIS_KEY,
+    LegacyOpenBlockBuilder, LegacyReceiveBlockBuilder, LegacySendBlockBuilder, PublicKey,
+    StateBlockBuilder, DEV_GENESIS_KEY,
 };
 
 pub struct TestAccountChain {
     keypair: KeyPair,
     account: Account,
     balance: Amount,
-    representative: Account,
+    representative: PublicKey,
     blocks: Vec<BlockEnum>,
     epoch: Epoch,
 }
@@ -54,10 +54,10 @@ impl TestAccountChain {
 
     pub fn with_keys(keypair: KeyPair) -> Self {
         Self {
-            account: keypair.public_key(),
+            account: keypair.account(),
             balance: Amount::zero(),
             blocks: Vec::new(),
-            representative: Account::zero(),
+            representative: PublicKey::zero(),
             keypair,
             epoch: Epoch::Epoch0,
         }
@@ -98,7 +98,7 @@ impl TestAccountChain {
         self.blocks.last().unwrap()
     }
 
-    pub fn add_legacy_change(&mut self, representative: impl Into<Account>) -> &BlockEnum {
+    pub fn add_legacy_change(&mut self, representative: impl Into<PublicKey>) -> &BlockEnum {
         let block = self
             .new_legacy_change_block()
             .representative(representative.into())
@@ -213,7 +213,7 @@ impl TestAccountChain {
         BlockBuilder::legacy_open()
             .account(self.account)
             .source(BlockHash::from(123))
-            .representative(Account::from(456))
+            .representative(PublicKey::from(456))
             .sign(&self.keypair)
     }
 
@@ -281,7 +281,7 @@ impl TestAccountChain {
     pub fn new_legacy_change_block(&self) -> LegacyChangeBlockBuilder {
         BlockBuilder::legacy_change()
             .previous(self.frontier())
-            .representative(Account::from(42))
+            .representative(PublicKey::from(42))
             .sign(&self.keypair)
     }
 
@@ -355,7 +355,7 @@ impl TestAccountChain {
         self.blocks.last().unwrap()
     }
 
-    pub fn representative_at_height(&self, height: u64) -> Option<Account> {
+    pub fn representative_at_height(&self, height: u64) -> Option<PublicKey> {
         self.blocks[..height as usize]
             .iter()
             .rev()

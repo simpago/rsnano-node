@@ -1,13 +1,13 @@
 use super::BlockValidationTest;
 use crate::BlockStatus;
-use rsnano_core::{Account, BlockDetails, BlockHash, BlockSideband, Epoch};
+use rsnano_core::{Account, BlockDetails, BlockHash, BlockSideband, Epoch, PublicKey};
 
 #[test]
 fn valid_legacy_change_block() {
     let test = BlockValidationTest::for_epoch0_account().block_to_validate(|chain| {
         chain
             .new_legacy_change_block()
-            .representative(Account::from(112233))
+            .representative(PublicKey::from(112233))
             .build()
     });
 
@@ -28,7 +28,7 @@ fn valid_legacy_change_block() {
     );
     assert_eq!(
         instructions.set_account_info.representative,
-        Account::from(112233)
+        PublicKey::from(112233)
     );
     assert_eq!(
         instructions.set_account_info.balance,
@@ -42,14 +42,14 @@ fn allow_changing_representative_to_zero() {
         .block_to_validate(|chain| {
             chain
                 .new_legacy_change_block()
-                .representative(Account::zero())
+                .representative(PublicKey::zero())
                 .build()
         })
         .assert_is_valid();
 
     assert_eq!(
         instructions.set_account_info.representative,
-        Account::zero()
+        PublicKey::zero()
     );
 }
 
@@ -62,14 +62,14 @@ fn allow_changing_from_zero_rep_to_real_rep() {
         .block_to_validate(|chain| {
             chain
                 .new_legacy_change_block()
-                .representative(Account::from(42))
+                .representative(PublicKey::from(42))
                 .build()
         })
         .assert_is_valid();
 
     assert_eq!(
         instructions.set_account_info.representative,
-        Account::from(42)
+        PublicKey::from(42)
     );
 }
 

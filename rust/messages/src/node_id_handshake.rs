@@ -34,7 +34,7 @@ impl serde::Serialize for NodeIdHandshakeQuery {
 
 #[derive(Clone, PartialEq, Eq, Debug, serde::Serialize)]
 pub struct NodeIdHandshakeResponse {
-    pub node_id: Account,
+    pub node_id: PublicKey,
     pub signature: Signature,
     pub v2: Option<V2Payload>,
 }
@@ -90,7 +90,7 @@ impl NodeIdHandshakeResponse {
 
     pub fn deserialize(stream: &mut dyn Stream, extensions: BitArray<u16>) -> Result<Self> {
         if NodeIdHandshake::has_v2_flag(extensions) {
-            let node_id = Account::deserialize(stream)?;
+            let node_id = PublicKey::deserialize(stream)?;
             let mut salt = [0u8; 32];
             stream.read_bytes(&mut salt, 32)?;
             let genesis = BlockHash::deserialize(stream)?;
@@ -101,7 +101,7 @@ impl NodeIdHandshakeResponse {
                 v2: Some(V2Payload { salt, genesis }),
             })
         } else {
-            let node_id = Account::deserialize(stream)?;
+            let node_id = PublicKey::deserialize(stream)?;
             let signature = Signature::deserialize(stream)?;
             Ok(Self {
                 node_id,

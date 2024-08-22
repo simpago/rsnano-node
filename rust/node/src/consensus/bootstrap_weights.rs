@@ -1,12 +1,12 @@
 use rsnano_core::{
     utils::{BufferReader, Deserialize, StreamExt},
-    Account, Amount, Networks,
+    Account, Amount, Networks, PublicKey,
 };
 use rsnano_ledger::RepWeightCache;
 use std::collections::HashMap;
 use tracing::info;
 
-pub(crate) fn get_bootstrap_weights(network: Networks) -> (u64, HashMap<Account, Amount>) {
+pub(crate) fn get_bootstrap_weights(network: Networks) -> (u64, HashMap<PublicKey, Amount>) {
     let buffer = get_bootstrap_weights_bin(network);
     deserialize_bootstrap_weights(buffer)
 }
@@ -19,14 +19,14 @@ fn get_bootstrap_weights_bin(network: Networks) -> &'static [u8] {
     }
 }
 
-fn deserialize_bootstrap_weights(buffer: &[u8]) -> (u64, HashMap<Account, Amount>) {
+fn deserialize_bootstrap_weights(buffer: &[u8]) -> (u64, HashMap<PublicKey, Amount>) {
     let mut reader = BufferReader::new(buffer);
     let mut weights = HashMap::new();
     let mut max_blocks = 0;
     if let Ok(count) = reader.read_u128_be() {
         max_blocks = count as u64;
         loop {
-            let Ok(account) = Account::deserialize(&mut reader) else {
+            let Ok(account) = PublicKey::deserialize(&mut reader) else {
                 break;
             };
             let Ok(weight) = Amount::deserialize(&mut reader) else {
@@ -59,7 +59,7 @@ pub(crate) fn log_bootstrap_weights(weight_cache: &RepWeightCache) {
             for (rep, weight) in sorted_weights {
                 info!(
                     "Using bootstrap rep weight: {} -> {}",
-                    rep.encode_account(),
+                    Account::from(&rep).encode_account(),
                     weight.format_balance(0)
                 );
             }

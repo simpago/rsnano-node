@@ -11,7 +11,7 @@ pub use peered_rep::PeeredRep;
 use primitive_types::U256;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    Account, Amount,
+    Amount, PublicKey,
 };
 use rsnano_ledger::RepWeightCache;
 use rsnano_nullable_clock::Timestamp;
@@ -140,7 +140,7 @@ impl OnlineReps {
     }
 
     /// List of online representatives, both the currently sampling ones and the ones observed in the previous sampling period
-    pub fn online_reps(&self) -> impl Iterator<Item = &Account> {
+    pub fn online_reps(&self) -> impl Iterator<Item = &PublicKey> {
         self.online_reps.iter()
     }
 
@@ -173,7 +173,7 @@ impl OnlineReps {
 
     /// Add voting account rep_account to the set of online representatives
     /// This can happen for directly connected or indirectly connected reps
-    pub fn vote_observed(&mut self, rep_account: Account, now: Timestamp) {
+    pub fn vote_observed(&mut self, rep_account: PublicKey, now: Timestamp) {
         if self.rep_weights.weight(&rep_account) > Amount::zero() {
             let new_insert = self.online_reps.insert(rep_account, now);
             let trimmed = self
@@ -197,7 +197,7 @@ impl OnlineReps {
     /// Add rep_account to the set of peered representatives
     pub fn vote_observed_directly(
         &mut self,
-        rep_account: Account,
+        rep_account: PublicKey,
         channel_id: ChannelId,
         now: Timestamp,
     ) -> InsertResult {
@@ -206,7 +206,7 @@ impl OnlineReps {
             .update_or_insert(rep_account, channel_id, now)
     }
 
-    pub fn remove_peer(&mut self, channel_id: ChannelId) -> Vec<Account> {
+    pub fn remove_peer(&mut self, channel_id: ChannelId) -> Vec<PublicKey> {
         self.peered_reps.remove(channel_id)
     }
 
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn observe_vote() {
         let clock = SteadyClock::new_null();
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let weight = Amount::nano(100_000);
         let weights = Arc::new(RepWeightCache::new());
         weights.set(account, weight);
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn observe_direct_vote() {
         let clock = SteadyClock::new_null();
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let weight = Amount::nano(100_000);
         let weights = Arc::new(RepWeightCache::new());
         weights.set(account, weight);
@@ -333,7 +333,7 @@ mod tests {
         let clock = SteadyClock::new_null();
         let weights = Arc::new(RepWeightCache::new());
         let mut online_reps = OnlineReps::builder().rep_weights(weights.clone()).finish();
-        let rep_account = Account::from(42);
+        let rep_account = PublicKey::from(42);
         let channel_id = ChannelId::from(1);
         weights.set(rep_account, Amount::nano(50_000));
 
@@ -356,7 +356,7 @@ mod tests {
 
         assert_eq!(online_reps.quorum_delta(), Amount::nano(40_200_000));
 
-        let rep_account = Account::from(42);
+        let rep_account = PublicKey::from(42);
         weights.set(rep_account, Amount::nano(100_000_000));
         online_reps.vote_observed(rep_account, Timestamp::new_test_instance());
 
@@ -365,9 +365,9 @@ mod tests {
 
     #[test]
     fn discard_old_votes() {
-        let rep_a = Account::from(1);
-        let rep_b = Account::from(2);
-        let rep_c = Account::from(3);
+        let rep_a = PublicKey::from(1);
+        let rep_b = PublicKey::from(2);
+        let rep_c = PublicKey::from(3);
         let weights = Arc::new(RepWeightCache::new());
         weights.set(rep_a, Amount::nano(100_000));
         weights.set(rep_b, Amount::nano(200_000));

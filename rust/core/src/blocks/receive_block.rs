@@ -1,13 +1,11 @@
+use super::{Block, BlockSideband, BlockType, BlockVisitor};
 use crate::{
     sign_message, to_hex_string, u64_from_hex_str,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, PropertyTree, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, KeyPair, LazyBlockHash, Link, PublicKey, RawKey,
-    Root, Signature,
+    Account, Amount, BlockHash, BlockHashBuilder, JsonBlock, KeyPair, LazyBlockHash, Link,
+    PublicKey, RawKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
-use serde::ser::SerializeStruct;
-
-use super::{Block, BlockSideband, BlockType, BlockVisitor};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ReceiveHashables {
@@ -210,7 +208,7 @@ impl Block for ReceiveBlock {
         Some(self.hashables.source)
     }
 
-    fn representative_field(&self) -> Option<Account> {
+    fn representative_field(&self) -> Option<PublicKey> {
         None
     }
 
@@ -225,20 +223,40 @@ impl Block for ReceiveBlock {
     fn destination_field(&self) -> Option<Account> {
         None
     }
+
+    fn json_representation(&self) -> JsonBlock {
+        JsonBlock::Receive(JsonReceiveBlock {
+            previous: self.hashables.previous,
+            source: self.hashables.source,
+            work: self.work.into(),
+            signature: self.signature.clone(),
+        })
+    }
 }
 
-impl serde::Serialize for ReceiveBlock {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Block", 5)?;
-        state.serialize_field("type", "receive")?;
-        state.serialize_field("previous", &self.hashables.previous)?;
-        state.serialize_field("source", &self.hashables.source)?;
-        state.serialize_field("work", &to_hex_string(self.work))?;
-        state.serialize_field("signature", &self.signature)?;
-        state.end()
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct JsonReceiveBlock {
+    pub previous: BlockHash,
+    pub source: BlockHash,
+    pub signature: Signature,
+    pub work: WorkNonce,
+}
+
+impl From<JsonReceiveBlock> for ReceiveBlock {
+    fn from(value: JsonReceiveBlock) -> Self {
+        let hashables = ReceiveHashables {
+            previous: value.previous,
+            source: value.source,
+        };
+        let hash = LazyBlockHash::new();
+
+        Self {
+            work: value.work.into(),
+            signature: value.signature,
+            hashables,
+            hash,
+            sideband: None,
+        }
     }
 }
 
@@ -247,7 +265,7 @@ mod tests {
     use super::*;
     use crate::{
         utils::{MemoryStream, TestPropertyTree},
-        KeyPair,
+        BlockEnum, KeyPair,
     };
 
     #[test]
@@ -298,7 +316,7 @@ mod tests {
 
     #[test]
     fn serialize_serde() {
-        let block = ReceiveBlock::new_test_instance();
+        let block = BlockEnum::LegacyReceive(ReceiveBlock::new_test_instance());
         let serialized = serde_json::to_string_pretty(&block).unwrap();
         assert_eq!(
             serialized,
@@ -306,8 +324,8 @@ mod tests {
   "type": "receive",
   "previous": "000000000000000000000000000000000000000000000000000000000000007B",
   "source": "00000000000000000000000000000000000000000000000000000000000001C8",
-  "work": "0000000000010F2C",
-  "signature": "6F6E98FB9C3D0B91CBAF78C8613C7A7AE990AA627B9C1381D1D97AB7118C91D169381E3897A477286A4AFB68F7CD347F3FF16F8AB4C33241D8BF793CE29E730B"
+  "signature": "6F6E98FB9C3D0B91CBAF78C8613C7A7AE990AA627B9C1381D1D97AB7118C91D169381E3897A477286A4AFB68F7CD347F3FF16F8AB4C33241D8BF793CE29E730B",
+  "work": "0000000000010F2C"
 }"#
         );
     }

@@ -1,6 +1,6 @@
 use super::{create_message_handle2, message_handle_clone, MessageHandle};
 use crate::{NetworkConstantsDto, StringDto};
-use rsnano_core::{Account, BlockHash, KeyPair, Signature};
+use rsnano_core::{BlockHash, KeyPair, PublicKey, Signature};
 use rsnano_messages::{Message, TelemetryAck, TelemetryData};
 use std::{
     ops::Deref,
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn rsn_telemetry_data_set_node_id(
     handle: *mut TelemetryDataHandle,
     node_id: *const u8,
 ) {
-    (*handle).0.node_id = Account::from_ptr(node_id);
+    (*handle).0.node_id = PublicKey::from_ptr(node_id);
 }
 
 #[no_mangle]

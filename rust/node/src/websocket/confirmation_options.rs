@@ -140,7 +140,9 @@ impl ConfirmationOptions {
                     let source = Account::decode_account(source_text).unwrap_or_default();
                     let destination =
                         Account::decode_account(&destination_text).unwrap_or_default();
-                    if self.wallets.exists(&source) || self.wallets.exists(&destination) {
+                    if self.wallets.exists(&source.into())
+                        || self.wallets.exists(&destination.into())
+                    {
                         should_filter_account = false;
                     }
                 }

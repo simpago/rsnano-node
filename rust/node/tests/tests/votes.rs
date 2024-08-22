@@ -1,7 +1,7 @@
 use rsnano_core::{
     Amount, BlockEnum, KeyPair, Signature, StateBlock, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},
@@ -18,9 +18,9 @@ fn check_signature() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(100),
-        key1.public_key().into(),
+        key1.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -68,9 +68,9 @@ fn add_old() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::zero(),
-        key1.public_key().into(),
+        key1.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -94,9 +94,9 @@ fn add_old() {
     let send2 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::zero(),
-        key2.public_key().into(),
+        key2.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -112,15 +112,15 @@ fn add_old() {
         .lock()
         .unwrap()
         .last_votes
-        .get_mut(&DEV_GENESIS_ACCOUNT)
+        .get_mut(&DEV_GENESIS_PUB_KEY)
         .unwrap()
         .time = SystemTime::now() - Duration::from_secs(20);
     node.vote_processor
         .vote_blocking(&vote2, channel.channel_id(), VoteSource::Live);
     assert_eq!(2, election1.vote_count());
     let votes = election1.mutex.lock().unwrap().last_votes.clone();
-    assert!(votes.contains_key(&DEV_GENESIS_ACCOUNT));
-    assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_ACCOUNT).unwrap().hash);
+    assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
+    assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
     assert_eq!(send1.hash(), election1.winner_hash().unwrap());
 }
 
@@ -133,9 +133,9 @@ fn add_cooldown() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::zero(),
-        key1.public_key().into(),
+        key1.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -159,9 +159,9 @@ fn add_cooldown() {
     let send2 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::zero(),
-        key2.public_key().into(),
+        key2.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -176,7 +176,7 @@ fn add_cooldown() {
         .vote_blocking(&vote2, channel.channel_id(), VoteSource::Live);
     assert_eq!(2, election1.vote_count());
     let votes = election1.mutex.lock().unwrap().last_votes.clone();
-    assert!(votes.contains_key(&DEV_GENESIS_ACCOUNT));
-    assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_ACCOUNT).unwrap().hash);
+    assert!(votes.contains_key(&DEV_GENESIS_PUB_KEY));
+    assert_eq!(send1.hash(), votes.get(&DEV_GENESIS_PUB_KEY).unwrap().hash);
     assert_eq!(send1.hash(), election1.winner_hash().unwrap());
 }

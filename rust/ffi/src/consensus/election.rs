@@ -4,7 +4,7 @@ use crate::{
     VoidPointerCallback,
 };
 use num_traits::FromPrimitive;
-use rsnano_core::{utils::system_time_as_nanoseconds, Account, BlockEnum, BlockHash};
+use rsnano_core::{utils::system_time_as_nanoseconds, BlockEnum, BlockHash, PublicKey};
 use rsnano_node::consensus::{
     Election, ElectionBehavior, ElectionData, ElectionState, VoteInfo, NEXT_ELECTION_ID,
 };
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn rsn_election_lock_votes_insert(
         .as_mut()
         .unwrap()
         .last_votes
-        .insert(Account::from_ptr(account), vote.0.clone());
+        .insert(PublicKey::from_ptr(account), vote.0.clone());
 }
 
 #[no_mangle]
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn rsn_election_lock_votes_find(
         .as_ref()
         .unwrap()
         .last_votes
-        .get(&Account::from_ptr(account))
+        .get(&PublicKey::from_ptr(account))
     {
         Some(info) => VoteInfoHandle::new(info.clone()),
         None => std::ptr::null_mut(),
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn rsn_election_lock_votes(
     Box::into_raw(Box::new(VoteInfoCollectionHandle(votes)))
 }
 
-pub struct VoteInfoCollectionHandle(Vec<(Account, VoteInfo)>);
+pub struct VoteInfoCollectionHandle(Vec<(PublicKey, VoteInfo)>);
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_vote_info_collection_destroy(handle: *mut VoteInfoCollectionHandle) {

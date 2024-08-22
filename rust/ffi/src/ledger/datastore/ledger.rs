@@ -9,7 +9,7 @@ use crate::{
     StringDto,
 };
 use num_traits::FromPrimitive;
-use rsnano_core::{Account, BlockEnum, BlockHash, Epoch, Link};
+use rsnano_core::{Account, BlockEnum, BlockHash, Epoch, Link, PublicKey};
 use rsnano_ledger::{
     AnyReceivableIterator, BlockStatus, Ledger, LedgerSetAny, LedgerSetConfirmed, Writer,
 };
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn rsn_ledger_weight(
     account: *const u8,
     result: *mut u8,
 ) {
-    let weight = (*handle).0.weight(&Account::from_ptr(account));
+    let weight = (*handle).0.weight(&PublicKey::from_ptr(account));
     weight.copy_bytes(result);
 }
 
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn rsn_ledger_weight_exact(
 ) {
     let weight = (*handle)
         .0
-        .weight_exact(txn.as_txn(), Account::from_ptr(account));
+        .weight_exact(txn.as_txn(), PublicKey::from_ptr(account));
     weight.copy_bytes(result);
 }
 

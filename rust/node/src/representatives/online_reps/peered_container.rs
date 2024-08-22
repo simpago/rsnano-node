@@ -1,6 +1,6 @@
 use super::PeeredRep;
 use crate::transport::ChannelId;
-use rsnano_core::Account;
+use rsnano_core::{Account, PublicKey};
 use rsnano_nullable_clock::Timestamp;
 use std::{collections::HashMap, mem::size_of};
 
@@ -14,8 +14,8 @@ pub enum InsertResult {
 
 /// Collection of all representatives that we have a direct connection to
 pub(super) struct PeeredContainer {
-    by_account: HashMap<Account, PeeredRep>,
-    by_channel_id: HashMap<ChannelId, Vec<Account>>,
+    by_account: HashMap<PublicKey, PeeredRep>,
+    by_channel_id: HashMap<ChannelId, Vec<PublicKey>>,
 }
 
 impl PeeredContainer {
@@ -31,7 +31,7 @@ impl PeeredContainer {
 
     pub fn update_or_insert(
         &mut self,
-        account: Account,
+        account: PublicKey,
         channel_id: ChannelId,
         now: Timestamp,
     ) -> InsertResult {
@@ -60,7 +60,7 @@ impl PeeredContainer {
         }
     }
 
-    fn remove_channel_id(&mut self, account: &Account, channel_id: ChannelId) {
+    fn remove_channel_id(&mut self, account: &PublicKey, channel_id: ChannelId) {
         let accounts = self.by_channel_id.get_mut(&channel_id).unwrap();
 
         if accounts.len() == 1 {
@@ -79,11 +79,11 @@ impl PeeredContainer {
             .map(|account| self.by_account.get(account).unwrap())
     }
 
-    pub fn accounts_by_channel(&self, channel_id: ChannelId) -> impl Iterator<Item = &Account> {
+    pub fn accounts_by_channel(&self, channel_id: ChannelId) -> impl Iterator<Item = &PublicKey> {
         self.by_channel_id.get(&channel_id).into_iter().flatten()
     }
 
-    pub fn accounts(&self) -> impl Iterator<Item = &Account> {
+    pub fn accounts(&self) -> impl Iterator<Item = &PublicKey> {
         self.by_account.keys()
     }
 
@@ -103,7 +103,7 @@ impl PeeredContainer {
         self.by_account.len()
     }
 
-    pub fn remove(&mut self, channel_id: ChannelId) -> Vec<Account> {
+    pub fn remove(&mut self, channel_id: ChannelId) -> Vec<PublicKey> {
         let Some(accounts) = self.by_channel_id.remove(&channel_id) else {
             return Vec::new();
         };
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn insert_one() {
         let mut container = PeeredContainer::new();
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let channel_id = ChannelId::from(2);
         let now = Timestamp::new_test_instance();
         assert_eq!(
@@ -171,12 +171,12 @@ mod tests {
         let mut container = PeeredContainer::new();
         let now = Timestamp::new_test_instance();
         assert_eq!(
-            container.update_or_insert(Account::from(100), ChannelId::from(101), now,),
+            container.update_or_insert(PublicKey::from(100), ChannelId::from(101), now,),
             InsertResult::Inserted
         );
         assert_eq!(
             container.update_or_insert(
-                Account::from(200),
+                PublicKey::from(200),
                 ChannelId::from(201),
                 now + Duration::from_secs(1),
             ),
@@ -193,7 +193,7 @@ mod tests {
 
         let channel_id = ChannelId::from(101);
         let now = Timestamp::new_test_instance();
-        container.update_or_insert(Account::from(100), channel_id, now);
+        container.update_or_insert(PublicKey::from(100), channel_id, now);
 
         container.remove(channel_id);
         assert_eq!(container.len(), 0);
@@ -206,10 +206,14 @@ mod tests {
 
         let now = Timestamp::new_test_instance();
         let channel_id = ChannelId::from(1);
-        container.update_or_insert(Account::from(100), ChannelId::from(100), now);
-        container.update_or_insert(Account::from(200), channel_id, now + Duration::from_secs(1));
+        container.update_or_insert(PublicKey::from(100), ChannelId::from(100), now);
         container.update_or_insert(
-            Account::from(300),
+            PublicKey::from(200),
+            channel_id,
+            now + Duration::from_secs(1),
+        );
+        container.update_or_insert(
+            PublicKey::from(300),
             ChannelId::from(101),
             now + Duration::from_secs(2),
         );
@@ -225,8 +229,12 @@ mod tests {
         let now = Timestamp::new_test_instance();
 
         let channel_id = ChannelId::from(1);
-        container.update_or_insert(Account::from(100), ChannelId::from(100), now);
-        container.update_or_insert(Account::from(200), channel_id, now + Duration::from_secs(1));
+        container.update_or_insert(PublicKey::from(100), ChannelId::from(100), now);
+        container.update_or_insert(
+            PublicKey::from(200),
+            channel_id,
+            now + Duration::from_secs(1),
+        );
 
         let new_value = now + Duration::from_secs(1234);
         container.modify_by_channel(channel_id, |rep| {
@@ -247,7 +255,7 @@ mod tests {
         let mut container = PeeredContainer::new();
         let now = Timestamp::new_test_instance();
 
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let channel_id = ChannelId::from(2);
         container.update_or_insert(account, channel_id, now);
         assert_eq!(
@@ -262,7 +270,7 @@ mod tests {
         let mut container = PeeredContainer::new();
         let now = Timestamp::new_test_instance();
 
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let channel_a = ChannelId::from(2);
         let channel_b = ChannelId::from(3);
         container.update_or_insert(account, channel_a, now);
@@ -280,8 +288,8 @@ mod tests {
         let mut container = PeeredContainer::new();
         let now = Timestamp::new_test_instance();
 
-        let account_a = Account::from(1);
-        let account_b = Account::from(2);
+        let account_a = PublicKey::from(1);
+        let account_b = PublicKey::from(2);
         let channel = ChannelId::from(100);
         assert_eq!(
             container.update_or_insert(account_a, channel, now),

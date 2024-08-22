@@ -3,7 +3,7 @@ use rsnano_node::config::NetworkConstants;
 use std::net::Ipv6Addr;
 
 #[derive(Debug, PartialEq)]
-pub struct RpcConfig {
+pub struct RpcServerConfig {
     pub address: String,
     pub port: u16,
     pub enable_control: bool,
@@ -13,13 +13,13 @@ pub struct RpcConfig {
     pub rpc_process: RpcProcessConfig,
 }
 
-impl Default for RpcConfig {
+impl Default for RpcServerConfig {
     fn default() -> Self {
         Self::new(&NetworkConstants::default(), get_cpu_count())
     }
 }
 
-impl RpcConfig {
+impl RpcServerConfig {
     pub fn new(network_constants: &NetworkConstants, parallelism: usize) -> Self {
         Self::new2(
             network_constants,

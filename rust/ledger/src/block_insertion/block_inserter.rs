@@ -106,7 +106,7 @@ impl<'a> BlockInserter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{BlockBuilder, BlockHash};
+    use rsnano_core::{BlockBuilder, BlockHash, PublicKey};
 
     #[test]
     fn insert_open_state_block() {
@@ -158,8 +158,8 @@ mod tests {
 
     #[test]
     fn update_representative() {
-        let old_representative = Account::from(1111);
-        let new_representative = Account::from(2222);
+        let old_representative = PublicKey::from(1111);
+        let new_representative = PublicKey::from(2222);
         let mut open = BlockBuilder::legacy_open()
             .representative(old_representative)
             .build();

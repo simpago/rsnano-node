@@ -4,7 +4,7 @@ use crate::stats::{DetailType, StatType, Stats};
 use mock_instant::Instant;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    Account, Amount, BlockHash, Vote, VoteCode,
+    Amount, BlockHash, PublicKey, Vote, VoteCode,
 };
 #[cfg(not(test))]
 use std::time::Instant;
@@ -213,13 +213,13 @@ pub struct CacheEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VoterEntry {
-    pub representative: Account,
+    pub representative: PublicKey,
     pub weight: Amount,
     pub vote: Arc<Vote>,
 }
 
 impl VoterEntry {
-    pub fn new(representative: Account, weight: Amount, vote: Arc<Vote>) -> Self {
+    pub fn new(representative: PublicKey, weight: Amount, vote: Arc<Vote>) -> Self {
         Self {
             representative,
             weight,
@@ -441,8 +441,8 @@ impl CacheEntryCollection {
 
 #[derive(Default, Clone)]
 pub struct OrderedVoters {
-    by_representative: HashMap<Account, VoterEntry>,
-    by_weight: BTreeMap<Amount, Vec<Account>>,
+    by_representative: HashMap<PublicKey, VoterEntry>,
+    by_weight: BTreeMap<Amount, Vec<PublicKey>>,
 }
 
 impl OrderedVoters {
@@ -463,7 +463,7 @@ impl OrderedVoters {
         self.by_representative.values()
     }
 
-    pub fn find(&self, representative: &Account) -> Option<&VoterEntry> {
+    pub fn find(&self, representative: &PublicKey) -> Option<&VoterEntry> {
         self.by_representative.get(representative)
     }
 
@@ -474,7 +474,7 @@ impl OrderedVoters {
             .and_then(|rep| self.by_representative.get(rep))
     }
 
-    pub fn modify(&mut self, representative: &Account, vote: Arc<Vote>, new_weight: Amount) {
+    pub fn modify(&mut self, representative: &PublicKey, vote: Arc<Vote>, new_weight: Amount) {
         if let Some(entry) = self.by_representative.get_mut(representative) {
             let old_weight = entry.weight;
             entry.vote = vote;
@@ -508,7 +508,7 @@ impl OrderedVoters {
         self.by_representative.is_empty()
     }
 
-    fn remove_by_weight(&mut self, weight: &Amount, representative: &Account) {
+    fn remove_by_weight(&mut self, weight: &Amount, representative: &PublicKey) {
         if let Some(mut accounts) = self.by_weight.remove(weight) {
             if accounts.len() > 1 {
                 accounts.retain(|a| a != representative);
@@ -517,7 +517,7 @@ impl OrderedVoters {
         }
     }
 
-    fn add_by_weight(&mut self, weight: Amount, representative: Account) {
+    fn add_by_weight(&mut self, weight: Amount, representative: PublicKey) {
         self.by_weight
             .entry(weight)
             .or_default()

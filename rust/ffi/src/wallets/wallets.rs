@@ -15,7 +15,7 @@ use crate::{
     NetworkParamsDto, NodeConfigDto, StatHandle, StringDto, VoidPointerCallback,
 };
 use rsnano_core::{
-    work::WorkThresholds, Account, Amount, BlockEnum, BlockHash, RawKey, Root, WalletId,
+    work::WorkThresholds, Account, Amount, BlockEnum, BlockHash, PublicKey, RawKey, Root, WalletId,
 };
 use rsnano_node::{
     config::NodeConfig,
@@ -374,7 +374,7 @@ pub unsafe extern "C" fn rsn_wallets_exists(
     handle: &LmdbWalletsHandle,
     account: *const u8,
 ) -> bool {
-    handle.exists(&Account::from_ptr(account))
+    handle.exists(&PublicKey::from_ptr(account))
 }
 
 #[no_mangle]
@@ -388,7 +388,10 @@ pub unsafe extern "C" fn rsn_wallets_remove_account(
     wallet_id: *const u8,
     account: *const u8,
 ) -> u8 {
-    match handle.remove_account(&WalletId::from_ptr(wallet_id), &Account::from_ptr(account)) {
+    match handle.remove_key(
+        &WalletId::from_ptr(wallet_id),
+        &PublicKey::from_ptr(account),
+    ) {
         Ok(_) => WalletsError::None as u8,
         Err(e) => e as u8,
     }
@@ -403,7 +406,7 @@ pub unsafe extern "C" fn rsn_wallets_work_set(
 ) -> u8 {
     match handle.work_set(
         &WalletId::from_ptr(wallet_id),
-        &Account::from_ptr(account),
+        &PublicKey::from_ptr(account),
         work,
     ) {
         Ok(_) => WalletsError::None as u8,
@@ -421,7 +424,10 @@ pub unsafe extern "C" fn rsn_wallets_move_accounts(
     match handle.move_accounts(
         &WalletId::from_ptr(source_id),
         &WalletId::from_ptr(target_id),
-        accounts,
+        &accounts
+            .iter()
+            .map(|a| PublicKey::from(a))
+            .collect::<Vec<_>>(),
     ) {
         Ok(_) => 0,
         Err(_) => -1,
@@ -547,7 +553,7 @@ pub unsafe extern "C" fn rsn_wallets_change_action(
     let block = handle.change_action(
         wallet,
         Account::from_ptr(source),
-        Account::from_ptr(representative),
+        PublicKey::from_ptr(representative),
         work,
         generate_work,
     );
@@ -572,7 +578,7 @@ pub unsafe extern "C" fn rsn_wallets_receive_action(
     let block = handle.receive_action(
         wallet,
         BlockHash::from_ptr(send_hash),
-        Account::from_ptr(representative),
+        PublicKey::from_ptr(representative),
         Amount::from_ptr(amount),
         Account::from_ptr(account),
         work,
@@ -591,7 +597,10 @@ pub unsafe extern "C" fn rsn_wallets_work_get(
     wallet_id: *const u8,
     account: *const u8,
 ) -> u64 {
-    handle.work_get(&WalletId::from_ptr(wallet_id), &Account::from_ptr(account))
+    handle.work_get(
+        &WalletId::from_ptr(wallet_id),
+        &PublicKey::from_ptr(account),
+    )
 }
 
 #[no_mangle]
@@ -601,7 +610,10 @@ pub unsafe extern "C" fn rsn_wallets_work_get2(
     account: *const u8,
     work: *mut u64,
 ) -> u8 {
-    match handle.work_get2(&WalletId::from_ptr(wallet_id), &Account::from_ptr(account)) {
+    match handle.work_get2(
+        &WalletId::from_ptr(wallet_id),
+        &PublicKey::from_ptr(account),
+    ) {
         Ok(w) => {
             *work = w;
             WalletsError::None as u8
@@ -643,7 +655,10 @@ pub unsafe extern "C" fn rsn_wallets_fetch(
     account: *const u8,
     prv_key: *mut u8,
 ) -> u8 {
-    match handle.fetch(&WalletId::from_ptr(wallet_id), &Account::from_ptr(account)) {
+    match handle.fetch(
+        &WalletId::from_ptr(wallet_id),
+        &PublicKey::from_ptr(account),
+    ) {
         Ok(key) => {
             key.copy_bytes(prv_key);
             WalletsError::None as u8
@@ -664,7 +679,7 @@ pub unsafe extern "C" fn rsn_wallets_receive_sync(
         .receive_sync(
             Arc::clone(wallet),
             block,
-            Account::from_ptr(representative),
+            PublicKey::from_ptr(representative),
             Amount::from_ptr(amount),
         )
         .is_err()
@@ -754,7 +769,7 @@ pub unsafe extern "C" fn rsn_wallets_change_sync_wallet(
         .change_sync_wallet(
             Arc::clone(wallet),
             Account::from_ptr(source),
-            Account::from_ptr(representative),
+            PublicKey::from_ptr(representative),
         )
         .is_err()
 }
@@ -798,7 +813,7 @@ pub unsafe extern "C" fn rsn_wallets_set_representative(
 ) -> u8 {
     match handle.set_representative(
         WalletId::from_ptr(wallet_id),
-        Account::from_ptr(rep),
+        PublicKey::from_ptr(rep),
         update_existing_accounts,
     ) {
         Ok(()) => WalletsError::None as u8,
@@ -829,7 +844,7 @@ pub unsafe extern "C" fn rsn_wallets_change_async(
     match handle.change_async(
         WalletId::from_ptr(wallet_id),
         Account::from_ptr(source),
-        Account::from_ptr(representative),
+        PublicKey::from_ptr(representative),
         callback_wrapper,
         work,
         generate_work,
@@ -911,7 +926,7 @@ pub unsafe extern "C" fn rsn_wallets_receive_async(
     match handle.receive_async(
         WalletId::from_ptr(wallet_id),
         BlockHash::from_ptr(hash),
-        Account::from_ptr(representative),
+        PublicKey::from_ptr(representative),
         Amount::from_ptr(amount),
         Account::from_ptr(account),
         callback_wrapper,
@@ -989,7 +1004,7 @@ pub unsafe extern "C" fn rsn_wallets_key_type(
     wallet_id: *const u8,
     account: *const u8,
 ) -> u8 {
-    handle.key_type(WalletId::from_ptr(wallet_id), Account::from_ptr(account)) as u8
+    handle.key_type(WalletId::from_ptr(wallet_id), &PublicKey::from_ptr(account)) as u8
 }
 
 #[no_mangle]
@@ -1025,7 +1040,7 @@ pub unsafe extern "C" fn rsn_wallets_decrypt(
     }
 }
 
-pub struct DecryptResultHandle(Vec<(Account, RawKey)>);
+pub struct DecryptResultHandle(Vec<(PublicKey, RawKey)>);
 
 #[no_mangle]
 pub extern "C" fn rsn_decrypt_result_len(handle: &DecryptResultHandle) -> usize {
@@ -1073,7 +1088,7 @@ pub unsafe extern "C" fn rsn_wallets_work_cache_blocking(
     handle
         .work_cache_blocking2(
             &WalletId::from_ptr(wallet_id),
-            &Account::from_ptr(account),
+            &PublicKey::from_ptr(account),
             &Root::from_ptr(root),
         )
         .unwrap();

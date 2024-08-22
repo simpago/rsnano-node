@@ -15,7 +15,7 @@ use crate::{
     WebsocketConfigDto,
 };
 use num::FromPrimitive;
-use rsnano_core::{utils::get_cpu_count, Account, Amount};
+use rsnano_core::{utils::get_cpu_count, Amount, PublicKey};
 use rsnano_node::{
     block_processing::LocalBlockBroadcasterConfig,
     cementation::ConfirmingSetConfig,
@@ -362,8 +362,9 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
 
         let mut preconfigured_representatives = Vec::new();
         for i in 0..value.preconfigured_representatives_count {
-            preconfigured_representatives
-                .push(Account::from_bytes(value.preconfigured_representatives[i]));
+            preconfigured_representatives.push(PublicKey::from_bytes(
+                value.preconfigured_representatives[i],
+            ));
         }
 
         let cfg = NodeConfig {

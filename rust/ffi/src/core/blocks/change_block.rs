@@ -1,8 +1,7 @@
 use super::BlockHandle;
 use crate::utils::FfiStream;
 use rsnano_core::{
-    Account, BlockEnum, BlockHash, ChangeBlock, ChangeHashables, LazyBlockHash, PublicKey, RawKey,
-    Signature,
+    BlockEnum, BlockHash, ChangeBlock, ChangeHashables, LazyBlockHash, PublicKey, RawKey, Signature,
 };
 use std::ffi::c_void;
 use std::ops::Deref;
@@ -33,7 +32,7 @@ pub extern "C" fn rsn_change_block_create(dto: &ChangeBlockDto) -> *mut BlockHan
             signature: Signature::from_bytes(dto.signature),
             hashables: ChangeHashables {
                 previous: BlockHash::from_bytes(dto.previous),
-                representative: Account::from_bytes(dto.representative),
+                representative: PublicKey::from_bytes(dto.representative),
             },
             hash: LazyBlockHash::new(),
             sideband: None,
@@ -45,7 +44,7 @@ pub extern "C" fn rsn_change_block_create(dto: &ChangeBlockDto) -> *mut BlockHan
 pub extern "C" fn rsn_change_block_create2(dto: &ChangeBlockDto2) -> *mut BlockHandle {
     let block = ChangeBlock::new(
         BlockHash::from_bytes(dto.previous),
-        Account::from_bytes(dto.representative),
+        PublicKey::from_bytes(dto.representative),
         &RawKey::from_bytes(dto.priv_key),
         &PublicKey::from_bytes(dto.pub_key),
         dto.work,
@@ -98,7 +97,7 @@ pub unsafe extern "C" fn rsn_change_block_representative_set(
     representative: &[u8; 32],
 ) {
     write_change_block(handle, |b| {
-        b.hashables.representative = Account::from_bytes(*representative)
+        b.hashables.representative = PublicKey::from_bytes(*representative)
     });
 }
 

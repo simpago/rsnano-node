@@ -3,7 +3,10 @@ use super::{
     DeadChannelCleanupTarget, DropPolicy, NetworkFilter, NetworkInfo, OutboundBandwidthLimiter,
     TrafficType,
 };
-use crate::{stats::Stats, utils::into_ipv6_socket_address, NetworkParams, DEV_NETWORK_PARAMS};
+use crate::{
+    stats::Stats, transport::NetworkStats, utils::into_ipv6_socket_address, NetworkParams,
+    DEV_NETWORK_PARAMS,
+};
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStream;
@@ -102,7 +105,19 @@ impl Network {
             direction,
             planned_mode,
             self.clock.now(),
-        )?;
+        );
+
+        let network_stats = NetworkStats::new(self.stats.clone());
+        let channel_info = match channel_info {
+            Ok(c) => {
+                network_stats.accepted(&peer_addr, direction);
+                c
+            }
+            Err(e) => {
+                network_stats.error(e, &peer_addr, direction);
+                return Err(anyhow!("Could not add channel: {:?}", e));
+            }
+        };
 
         let channel = Channel::create(
             channel_info,
@@ -176,21 +191,4 @@ impl DeadChannelCleanupStep for NetworkCleanup {
             channels.remove(channel_id);
         }
     }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum AcceptResult {
-    Invalid,
-    Accepted,
-    Rejected,
-    Error,
-}
-
-#[derive(Default)]
-pub(crate) struct ChannelsInfo {
-    pub total: usize,
-    pub realtime: usize,
-    pub bootstrap: usize,
-    pub inbound: usize,
-    pub outbound: usize,
 }

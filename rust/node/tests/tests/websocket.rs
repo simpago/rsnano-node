@@ -1,6 +1,6 @@
 use futures_util::{SinkExt, StreamExt};
 use rsnano_core::{Amount, BlockEnum, KeyPair, StateBlock, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{Message, Publish};
 use rsnano_node::{
     config::NodeConfig,
@@ -54,9 +54,9 @@ fn started_election() {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::zero(),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
@@ -122,9 +122,9 @@ fn stopped_election() {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::zero(),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));

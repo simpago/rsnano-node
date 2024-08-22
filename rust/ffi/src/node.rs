@@ -23,8 +23,7 @@ use crate::{
     VoidPointerCallback,
 };
 use rsnano_core::{
-    utils::NULL_ENDPOINT, Account, Amount, BlockEnum, BlockHash, PublicKey, Root, Vote, VoteCode,
-    VoteSource,
+    utils::NULL_ENDPOINT, Amount, BlockEnum, BlockHash, PublicKey, Root, Vote, VoteCode, VoteSource,
 };
 use rsnano_node::{
     consensus::{AccountBalanceChangedCallback, ElectionEndCallback},
@@ -349,7 +348,7 @@ pub unsafe extern "C" fn rsn_node_get_rep_weight(
         .0
         .ledger
         .rep_weights
-        .weight(&Account::from_ptr(account));
+        .weight(&PublicKey::from_ptr(account));
     result.copy_bytes(weight);
 }
 
@@ -360,7 +359,7 @@ pub extern "C" fn rsn_node_get_rep_weights(handle: &NodeHandle) -> *mut RepWeigh
 }
 
 #[repr(C)]
-pub struct RepWeightsVecHandle(Vec<(Account, Amount)>);
+pub struct RepWeightsVecHandle(Vec<(PublicKey, Amount)>);
 
 #[no_mangle]
 pub unsafe extern "C" fn rsn_rep_weights_vec_destroy(handle: *mut RepWeightsVecHandle) {
@@ -419,7 +418,7 @@ pub struct ConfirmationQuorumDto {
     pub minimum_principal_weight: [u8; 16],
 }
 
-pub struct RepDetailsHandle(Vec<(Account, SocketAddrV6, Amount)>);
+pub struct RepDetailsHandle(Vec<(PublicKey, SocketAddrV6, Amount)>);
 
 #[no_mangle]
 pub extern "C" fn rsn_node_representative_details(handle: &NodeHandle) -> *mut RepDetailsHandle {

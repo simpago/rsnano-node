@@ -1,3 +1,5 @@
+use serde::de::{Unexpected, Visitor};
+
 use crate::utils::{BufferWriter, Serialize, Stream};
 use std::fmt::Write;
 
@@ -82,5 +84,35 @@ impl serde::Serialize for Signature {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.encode_hex())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Signature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = deserializer.deserialize_str(SignatureVisitor {})?;
+        Ok(value)
+    }
+}
+
+pub(crate) struct SignatureVisitor {}
+
+impl<'de> Visitor<'de> for SignatureVisitor {
+    type Value = Signature;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a hex string containing 64 bytes")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let signature = Signature::decode_hex(v).map_err(|_| {
+            serde::de::Error::invalid_value(Unexpected::Str(v), &"a hex string containing 64 bytes")
+        })?;
+        Ok(signature)
     }
 }

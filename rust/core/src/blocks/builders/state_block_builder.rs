@@ -2,14 +2,14 @@ use crate::work::WorkPool;
 use crate::{work::STUB_WORK_POOL, Block, StateBlock};
 use crate::{
     Account, Amount, BlockDetails, BlockEnum, BlockHash, BlockSideband, Epoch, KeyPair, Link,
-    Signature,
+    PublicKey, Signature,
 };
 use anyhow::Result;
 
 pub struct StateBlockBuilder {
     account: Account,
     previous: BlockHash,
-    representative: Account,
+    representative: PublicKey,
     balance: Amount,
     link: Link,
     key_pair: KeyPair,
@@ -25,7 +25,7 @@ impl StateBlockBuilder {
         Self {
             account: Account::from(1),
             previous: BlockHash::from(2),
-            representative: Account::from(3),
+            representative: PublicKey::from(3),
             balance: Amount::from(4),
             link: Link::from(5),
             key_pair: key,
@@ -70,7 +70,7 @@ impl StateBlockBuilder {
         Ok(self.previous(BlockHash::decode_hex(previous)?))
     }
 
-    pub fn representative(mut self, rep: impl Into<Account>) -> Self {
+    pub fn representative(mut self, rep: impl Into<PublicKey>) -> Self {
         self.representative = rep.into();
         self
     }
@@ -139,7 +139,7 @@ impl StateBlockBuilder {
     pub fn zero(mut self) -> Self {
         self.account = Account::zero();
         self.previous = BlockHash::zero();
-        self.representative = Account::zero();
+        self.representative = PublicKey::zero();
         self.balance = Amount::zero();
         self.link = Link::zero();
         self.signature = None;
@@ -315,7 +315,7 @@ mod tests {
         let block1 = StateBlock::new(
             Account::from(key1.public_key()),
             BlockHash::from(1),
-            Account::from(key2.public_key()),
+            key2.public_key(),
             Amount::raw(2),
             Link::from(4),
             &key1,

@@ -1,12 +1,12 @@
 use crate::RepWeightCache;
-use rsnano_core::{Account, Amount};
+use rsnano_core::{Amount, PublicKey};
 use rsnano_store_lmdb::{LmdbRepWeightStore, LmdbWriteTransaction};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 /// Updates the representative weights in the ledger and in the in-memory cache
 pub struct RepWeightsUpdater {
-    weight_cache: Arc<RwLock<HashMap<Account, Amount>>>,
+    weight_cache: Arc<RwLock<HashMap<PublicKey, Amount>>>,
     store: Arc<LmdbRepWeightStore>,
     min_weight: Amount,
 }
@@ -21,7 +21,7 @@ impl RepWeightsUpdater {
     }
 
     /// Only use this method when loading rep weights from the database table
-    pub fn copy_from(&self, other: &HashMap<Account, Amount>) {
+    pub fn copy_from(&self, other: &HashMap<PublicKey, Amount>) {
         let mut guard_this = self.weight_cache.write().unwrap();
         for (account, amount) in other {
             let prev_amount = self.get(&guard_this, account);
@@ -29,17 +29,17 @@ impl RepWeightsUpdater {
         }
     }
 
-    fn get(&self, weights: &HashMap<Account, Amount>, account: &Account) -> Amount {
+    fn get(&self, weights: &HashMap<PublicKey, Amount>, account: &PublicKey) -> Amount {
         weights.get(account).cloned().unwrap_or_default()
     }
 
     pub fn representation_add(
         &self,
         tx: &mut LmdbWriteTransaction,
-        representative: Account,
+        representative: PublicKey,
         amount: Amount,
     ) {
-        let previous_weight = self.store.get(tx, representative).unwrap_or_default();
+        let previous_weight = self.store.get(tx, &representative).unwrap_or_default();
         let new_weight = previous_weight.wrapping_add(amount);
         self.put_store(tx, representative, previous_weight, new_weight);
         let mut guard = self.weight_cache.write().unwrap();
@@ -48,8 +48,8 @@ impl RepWeightsUpdater {
 
     fn put_cache(
         &self,
-        weights: &mut HashMap<Account, Amount>,
-        representative: Account,
+        weights: &mut HashMap<PublicKey, Amount>,
+        representative: PublicKey,
         new_weight: Amount,
     ) {
         if new_weight < self.min_weight || new_weight.is_zero() {
@@ -62,13 +62,13 @@ impl RepWeightsUpdater {
     fn put_store(
         &self,
         tx: &mut LmdbWriteTransaction,
-        representative: Account,
+        representative: PublicKey,
         previous_weight: Amount,
         new_weight: Amount,
     ) {
         if new_weight.is_zero() {
             if !previous_weight.is_zero() {
-                self.store.del(tx, representative);
+                self.store.del(tx, &representative);
             }
         } else {
             self.store.put(tx, representative, new_weight);
@@ -76,7 +76,7 @@ impl RepWeightsUpdater {
     }
 
     /// Only use this method when loading rep weights from the database table!
-    pub fn representation_put(&self, representative: Account, weight: Amount) {
+    pub fn representation_put(&self, representative: PublicKey, weight: Amount) {
         let mut guard = self.weight_cache.write().unwrap();
         self.put_cache(&mut guard, representative, weight);
     }
@@ -84,14 +84,14 @@ impl RepWeightsUpdater {
     pub fn representation_add_dual(
         &self,
         tx: &mut LmdbWriteTransaction,
-        rep_1: Account,
+        rep_1: PublicKey,
         amount_1: Amount,
-        rep_2: Account,
+        rep_2: PublicKey,
         amount_2: Amount,
     ) {
         if rep_1 != rep_2 {
-            let previous_weight_1 = self.store.get(tx, rep_1).unwrap_or_default();
-            let previous_weight_2 = self.store.get(tx, rep_2).unwrap_or_default();
+            let previous_weight_1 = self.store.get(tx, &rep_1).unwrap_or_default();
+            let previous_weight_2 = self.store.get(tx, &rep_2).unwrap_or_default();
             let new_weight_1 = previous_weight_1.wrapping_add(amount_1);
             let new_weight_2 = previous_weight_2.wrapping_add(amount_2);
             self.put_store(tx, rep_1, previous_weight_1, new_weight_1);
@@ -114,7 +114,7 @@ mod tests {
     fn representation_changes() {
         let env = Arc::new(LmdbEnv::new_null());
         let store = Arc::new(LmdbRepWeightStore::new(env).unwrap());
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let rep_weights = RepWeightCache::new();
         let rep_weights_updater = RepWeightsUpdater::new(store, Amount::zero(), &rep_weights);
         assert_eq!(rep_weights.weight(&account), Amount::zero());
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn delete_rep_weight_of_zero() {
-        let representative = Account::from(1);
+        let representative = PublicKey::from(1);
         let weight = Amount::from(100);
 
         let env = Arc::new(
@@ -159,8 +159,8 @@ mod tests {
 
     #[test]
     fn delete_rep_weight_of_zero_dual() {
-        let rep1 = Account::from(1);
-        let rep2 = Account::from(2);
+        let rep1 = PublicKey::from(1);
+        let rep2 = PublicKey::from(2);
         let weight = Amount::from(100);
 
         let env = Arc::new(
@@ -198,7 +198,7 @@ mod tests {
         let store = Arc::new(LmdbRepWeightStore::new(Arc::clone(&env)).unwrap());
         let put_tracker = store.track_puts();
         let mut txn = env.tx_begin_write();
-        let representative = Account::from(1);
+        let representative = PublicKey::from(1);
         let min_weight = Amount::from(10);
         let rep_weight = Amount::from(9);
         let rep_weights = RepWeightCache::new();
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn fall_below_min_weight() {
-        let representative = Account::from(1);
+        let representative = PublicKey::from(1);
         let weight = Amount::from(11);
         let env = Arc::new(
             LmdbEnv::new_null_with()

@@ -95,6 +95,7 @@ impl From<&GlobalConfig> for NetworkConfig {
             disable_network: value.flags.disable_tcp_realtime,
             min_protocol_version: value.network_params.network.protocol_info().version_min,
             listening_port: value.node_config.peering_port.unwrap_or(0),
+            default_protocol_version: value.network_params.network.protocol_version,
         }
     }
 }

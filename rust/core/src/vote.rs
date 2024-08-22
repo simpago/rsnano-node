@@ -3,7 +3,7 @@ use super::{
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, Stream},
     validate_message, Account, BlockHash, BlockHashBuilder, FullHash, KeyPair, Signature,
 };
-use crate::{utils::Serialize, Amount};
+use crate::{utils::Serialize, Amount, PublicKey};
 use anyhow::Result;
 use std::time::{Duration, SystemTime};
 
@@ -41,7 +41,7 @@ pub struct Vote {
     pub timestamp: u64,
 
     // Account that's voting
-    pub voting_account: Account,
+    pub voting_account: PublicKey,
 
     // Signature of timestamp + block hashes
     pub signature: Signature,
@@ -57,7 +57,7 @@ impl Vote {
     pub fn null() -> Self {
         Self {
             timestamp: 0,
-            voting_account: Account::zero(),
+            voting_account: PublicKey::zero(),
             signature: Signature::new(),
             hashes: Vec::new(),
         }
@@ -78,7 +78,7 @@ impl Vote {
         };
         result.signature = sign_message(
             &keys.private_key(),
-            &result.voting_account,
+            &result.voting_account.into(),
             result.hash().as_bytes(),
         );
         result
@@ -135,7 +135,7 @@ impl Vote {
         let mut values = serde_json::Map::new();
         values.insert(
             "account".to_string(),
-            serde_json::Value::String(self.voting_account.encode_account()),
+            serde_json::Value::String(Account::from(self.voting_account).encode_account()),
         );
         values.insert(
             "signature".to_string(),
@@ -176,7 +176,7 @@ impl Vote {
     }
 
     pub fn deserialize(&mut self, stream: &mut impl Stream) -> Result<()> {
-        self.voting_account = Account::deserialize(stream)?;
+        self.voting_account = PublicKey::deserialize(stream)?;
         self.signature = Signature::deserialize(stream)?;
         let mut buffer = [0; 8];
         stream.read_bytes(&mut buffer, 8)?;
@@ -190,7 +190,7 @@ impl Vote {
 
     pub fn validate(&self) -> Result<()> {
         validate_message(
-            &self.voting_account,
+            &self.voting_account.into(),
             self.hash().as_bytes(),
             &self.signature,
         )
@@ -244,7 +244,7 @@ fn packed_timestamp(timestamp: u64, duration: u8) -> u64 {
 
 #[derive(Clone, Debug)]
 pub struct VoteWithWeightInfo {
-    pub representative: Account,
+    pub representative: PublicKey,
     pub time: SystemTime,
     pub timestamp: u64,
     pub hash: BlockHash,

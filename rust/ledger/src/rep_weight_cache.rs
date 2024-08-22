@@ -1,6 +1,6 @@
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
-    Account, Amount,
+    Account, Amount, PublicKey,
 };
 use rsnano_store_lmdb::LedgerCache;
 use std::{
@@ -16,8 +16,8 @@ use std::{
 /// If the weight is below the cache limit it returns 0.
 /// During bootstrap it returns the preconfigured bootstrap weights.
 pub struct RepWeightCache {
-    weights: Arc<RwLock<HashMap<Account, Amount>>>,
-    bootstrap_weights: RwLock<HashMap<Account, Amount>>,
+    weights: Arc<RwLock<HashMap<PublicKey, Amount>>>,
+    bootstrap_weights: RwLock<HashMap<PublicKey, Amount>>,
     max_blocks: u64,
     ledger_cache: Arc<LedgerCache>,
     check_bootstrap_weights: AtomicBool,
@@ -35,7 +35,7 @@ impl RepWeightCache {
     }
 
     pub fn with_bootstrap_weights(
-        bootstrap_weights: HashMap<Account, Amount>,
+        bootstrap_weights: HashMap<PublicKey, Amount>,
         max_blocks: u64,
         ledger_cache: Arc<LedgerCache>,
     ) -> Self {
@@ -48,7 +48,7 @@ impl RepWeightCache {
         }
     }
 
-    pub fn read(&self) -> RwLockReadGuard<HashMap<Account, Amount>> {
+    pub fn read(&self) -> RwLockReadGuard<HashMap<PublicKey, Amount>> {
         if self.use_bootstrap_weights() {
             self.bootstrap_weights.read().unwrap()
         } else {
@@ -67,7 +67,7 @@ impl RepWeightCache {
         false
     }
 
-    pub fn weight(&self, rep: &Account) -> Amount {
+    pub fn weight(&self, rep: &PublicKey) -> Amount {
         let weights = if self.use_bootstrap_weights() {
             &self.bootstrap_weights
         } else {
@@ -86,7 +86,7 @@ impl RepWeightCache {
         self.max_blocks
     }
 
-    pub fn bootstrap_weights(&self) -> HashMap<Account, Amount> {
+    pub fn bootstrap_weights(&self) -> HashMap<PublicKey, Amount> {
         self.bootstrap_weights.read().unwrap().clone()
     }
 
@@ -98,11 +98,11 @@ impl RepWeightCache {
         self.weights.read().unwrap().len()
     }
 
-    pub fn set(&self, account: Account, weight: Amount) {
+    pub fn set(&self, account: PublicKey, weight: Amount) {
         self.weights.write().unwrap().insert(account, weight);
     }
 
-    pub(super) fn inner(&self) -> Arc<RwLock<HashMap<Account, Amount>>> {
+    pub(super) fn inner(&self) -> Arc<RwLock<HashMap<PublicKey, Amount>>> {
         self.weights.clone()
     }
 

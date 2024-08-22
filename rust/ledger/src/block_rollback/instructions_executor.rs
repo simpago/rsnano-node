@@ -1,6 +1,6 @@
 use super::rollback_planner::RollbackInstructions;
 use crate::Ledger;
-use rsnano_core::{Account, Amount};
+use rsnano_core::{Amount, PublicKey};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::atomic::Ordering;
 
@@ -77,7 +77,7 @@ impl<'a> RollbackInstructionsExecutor<'a> {
         }
     }
 
-    fn roll_back_change_in_representative_cache(&mut self, previous_representative: &Account) {
+    fn roll_back_change_in_representative_cache(&mut self, previous_representative: &PublicKey) {
         self.ledger.rep_weights_updater.representation_add_dual(
             self.txn,
             self.instructions.old_account_info.representative,

@@ -1,5 +1,7 @@
 use crate::{ledger_constants::LEDGER_CONSTANTS_STUB, Ledger};
-use rsnano_core::{Account, AccountInfo, Amount, BlockHash, Epoch, KeyPair, Link, DEV_GENESIS_KEY};
+use rsnano_core::{
+    Account, AccountInfo, Amount, BlockHash, Epoch, KeyPair, Link, PublicKey, DEV_GENESIS_KEY,
+};
 
 use rsnano_core::{
     BlockBuilder, LegacyChangeBlockBuilder, LegacyOpenBlockBuilder, LegacyReceiveBlockBuilder,
@@ -28,6 +30,10 @@ impl<'a> AccountBlockFactory<'a> {
         }
     }
 
+    pub(crate) fn public_key(&self) -> PublicKey {
+        self.key.public_key()
+    }
+
     pub(crate) fn account(&self) -> Account {
         self.key.public_key().into()
     }
@@ -39,7 +45,7 @@ impl<'a> AccountBlockFactory<'a> {
     pub(crate) fn legacy_open(&self, source: BlockHash) -> LegacyOpenBlockBuilder {
         BlockBuilder::legacy_open()
             .source(source)
-            .representative(self.account())
+            .representative(self.public_key())
             .account(self.account())
             .sign(&self.key)
     }
@@ -69,7 +75,7 @@ impl<'a> AccountBlockFactory<'a> {
         let info = self.info(txn).unwrap();
         BlockBuilder::legacy_change()
             .previous(info.head)
-            .representative(Account::from(1))
+            .representative(PublicKey::from(1))
             .sign(&self.key)
     }
 

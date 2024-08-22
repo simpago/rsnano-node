@@ -61,7 +61,7 @@ pub extern "C" fn rsn_state_block_create(dto: &StateBlockDto) -> *mut BlockHandl
             hashables: StateHashables {
                 account: Account::from_bytes(dto.account),
                 previous: BlockHash::from_bytes(dto.previous),
-                representative: Account::from_bytes(dto.representative),
+                representative: PublicKey::from_bytes(dto.representative),
                 balance: Amount::from_be_bytes(dto.balance),
                 link: Link::from_bytes(dto.link),
             },
@@ -76,7 +76,7 @@ pub extern "C" fn rsn_state_block_create2(dto: &StateBlockDto2) -> *mut BlockHan
     let block = StateBlock::new_obsolete(
         Account::from_bytes(dto.account),
         BlockHash::from_bytes(dto.previous),
-        Account::from_bytes(dto.representative),
+        PublicKey::from_bytes(dto.representative),
         Amount::from_be_bytes(dto.balance),
         Link::from_bytes(dto.link),
         &RawKey::from_bytes(dto.priv_key),
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn rsn_state_block_representative_set(
     representative: &[u8; 32],
 ) {
     write_state_block(handle, |b| {
-        b.hashables.representative = Account::from_bytes(*representative);
+        b.hashables.representative = PublicKey::from_bytes(*representative);
         b.hash.clear();
     })
 }

@@ -1,5 +1,6 @@
 use super::OnlineReps;
 use crate::transport::{ChannelId, DeadChannelCleanupStep, DeadChannelCleanupTarget};
+use rsnano_core::Account;
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
@@ -20,7 +21,7 @@ impl DeadChannelCleanupStep for OnlineRepsCleanup {
             for rep in removed_reps {
                 info!(
                     "Evicting representative {} with dead channel",
-                    rep.encode_account(),
+                    Account::from(rep).encode_account(),
                 );
             }
         }

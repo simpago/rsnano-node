@@ -1,3 +1,5 @@
+use serde::de::{Unexpected, Visitor};
+
 #[macro_export]
 macro_rules! u256_struct {
     ($name:ident) => {
@@ -54,28 +56,9 @@ macro_rules! u256_struct {
             }
 
             pub fn decode_hex(s: impl AsRef<str>) -> anyhow::Result<Self> {
-                let s = s.as_ref();
-                if s.is_empty() || s.len() > 64 {
-                    bail!(
-                        "Invalid U256 string length. Expected <= 64 but was {}",
-                        s.len()
-                    );
-                }
-
-                let mut padded_string = String::new();
-                let sanitized = if s.len() < 64 {
-                    for _ in 0..(64 - s.len()) {
-                        padded_string.push('0');
-                    }
-                    padded_string.push_str(s);
-                    &padded_string
-                } else {
-                    s
-                };
-
-                let mut bytes = [0u8; 32];
-                hex::decode_to_slice(sanitized, &mut bytes)?;
-                Ok(Self::from_bytes(bytes))
+                Ok(Self::from_bytes(crate::u256_struct::decode_32_bytes_hex(
+                    s,
+                )?))
             }
 
             pub unsafe fn from_ptr(data: *const u8) -> Self {
@@ -148,6 +131,75 @@ macro_rules! u256_struct {
             }
         }
     };
+}
+
+pub fn decode_32_bytes_hex(s: impl AsRef<str>) -> anyhow::Result<[u8; 32]> {
+    let s = s.as_ref();
+    if s.is_empty() || s.len() > 64 {
+        bail!(
+            "Invalid U256 string length. Expected <= 64 but was {}",
+            s.len()
+        );
+    }
+
+    let mut padded_string = String::new();
+    let sanitized = if s.len() < 64 {
+        for _ in 0..(64 - s.len()) {
+            padded_string.push('0');
+        }
+        padded_string.push_str(s);
+        &padded_string
+    } else {
+        s
+    };
+
+    let mut bytes = [0u8; 32];
+    hex::decode_to_slice(sanitized, &mut bytes)?;
+    Ok(bytes)
+}
+
+#[macro_export]
+macro_rules! serialize_32_byte_string {
+    ($name:ident) => {
+        impl serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str(&self.encode_hex())
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value = deserializer.deserialize_str(crate::u256_struct::U256Visitor {})?;
+                Ok(Self::from_bytes(value))
+            }
+        }
+    };
+}
+
+pub(crate) struct U256Visitor {}
+
+impl<'de> Visitor<'de> for U256Visitor {
+    type Value = [u8; 32];
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a hex string containing 32 bytes")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let bytes = decode_32_bytes_hex(v).map_err(|_| {
+            serde::de::Error::invalid_value(Unexpected::Str(v), &"a hex string containing 32 bytes")
+        })?;
+        Ok(bytes)
+    }
 }
 
 #[cfg(test)]

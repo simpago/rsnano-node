@@ -35,7 +35,7 @@ pub extern "C" fn rsn_open_block_create(dto: &OpenBlockDto) -> *mut BlockHandle 
             signature: Signature::from_bytes(dto.signature),
             hashables: OpenHashables {
                 source: BlockHash::from_bytes(dto.source),
-                representative: Account::from_bytes(dto.representative),
+                representative: PublicKey::from_bytes(dto.representative),
                 account: Account::from_bytes(dto.account),
             },
             hash: LazyBlockHash::new(),
@@ -48,7 +48,7 @@ pub extern "C" fn rsn_open_block_create(dto: &OpenBlockDto) -> *mut BlockHandle 
 pub extern "C" fn rsn_open_block_create2(dto: &OpenBlockDto2) -> *mut BlockHandle {
     let block = OpenBlock::new(
         BlockHash::from_bytes(dto.source),
-        Account::from_bytes(dto.representative),
+        PublicKey::from_bytes(dto.representative),
         Account::from_bytes(dto.account),
         &RawKey::from_bytes(dto.priv_key),
         &PublicKey::from_bytes(dto.pub_key),
@@ -105,7 +105,7 @@ pub unsafe extern "C" fn rsn_open_block_representative_set(
     representative: &[u8; 32],
 ) {
     write_open_block(handle, |b| {
-        b.hashables.representative = Account::from_bytes(*representative)
+        b.hashables.representative = PublicKey::from_bytes(*representative)
     });
 }
 

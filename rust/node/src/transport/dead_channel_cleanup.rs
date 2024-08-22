@@ -1,9 +1,8 @@
-use rsnano_nullable_clock::SteadyClock;
-
 use super::{ChannelId, NetworkInfo};
+use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 pub(crate) trait DeadChannelCleanupTarget {
@@ -45,11 +44,11 @@ impl DeadChannelCleanup {
     }
 
     pub(crate) fn clean_up(&self) {
-        let channel_ids = self.network.write().unwrap().purge(
-            SystemTime::now() - self.cleanup_cutoff,
-            self.clock.now(),
-            self.cleanup_cutoff,
-        );
+        let channel_ids = self
+            .network
+            .write()
+            .unwrap()
+            .purge(self.clock.now(), self.cleanup_cutoff);
         for step in &self.cleanup_steps {
             step.clean_up_dead_channels(&channel_ids);
         }

@@ -1,5 +1,5 @@
 use rsnano_core::{
-    utils::system_time_from_nanoseconds, Account, Amount, BlockHash, VoteWithWeightInfo,
+    utils::system_time_from_nanoseconds, Amount, BlockHash, PublicKey, VoteWithWeightInfo,
 };
 use std::{ops::Deref, time::UNIX_EPOCH};
 
@@ -27,7 +27,7 @@ impl From<&VoteWithWeightInfo> for VoteWithWeightInfoDto {
 impl From<&VoteWithWeightInfoDto> for VoteWithWeightInfo {
     fn from(value: &VoteWithWeightInfoDto) -> Self {
         Self {
-            representative: Account::from_bytes(value.representative),
+            representative: PublicKey::from_bytes(value.representative),
             time: system_time_from_nanoseconds(value.time_ns),
             timestamp: value.timestamp,
             hash: BlockHash::from_bytes(value.hash),

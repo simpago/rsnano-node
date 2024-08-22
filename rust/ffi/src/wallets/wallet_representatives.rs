@@ -1,4 +1,4 @@
-use rsnano_core::{Account, Amount};
+use rsnano_core::{Account, Amount, PublicKey};
 use rsnano_node::wallets::WalletRepresentatives;
 use std::{
     ops::{Deref, DerefMut},
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn rsn_wallet_representatives_lock_check_rep(
     half_principal_weight: *const u8,
 ) -> bool {
     handle.check_rep(
-        Account::from_ptr(account),
+        PublicKey::from_ptr(account),
         Amount::from_ptr(half_principal_weight),
     )
 }

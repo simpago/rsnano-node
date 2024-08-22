@@ -82,7 +82,7 @@ pub enum KeyType {
     Deterministic,
 }
 
-pub type WalletIterator<'txn> = BinaryDbIterator<'txn, Account, WalletValue>;
+pub type WalletIterator<'txn> = BinaryDbIterator<'txn, PublicKey, WalletValue>;
 
 pub struct LmdbWalletStore {
     db_handle: Mutex<Option<LmdbDatabase>>,
@@ -96,7 +96,7 @@ impl LmdbWalletStore {
         fanout: usize,
         kdf: KeyDerivationFunction,
         txn: &mut LmdbWriteTransaction,
-        representative: &Account,
+        representative: &PublicKey,
         wallet: &Path,
     ) -> anyhow::Result<Self> {
         let store = Self {
@@ -174,7 +174,7 @@ impl LmdbWalletStore {
         if let serde_json::Value::Object(map) = json {
             for (k, v) in map.iter() {
                 if let serde_json::Value::String(v_str) = v {
-                    let key = Account::decode_hex(k)?;
+                    let key = PublicKey::decode_hex(k)?;
                     let value = RawKey::decode_hex(v_str)?;
                     store.entry_put_raw(txn, &key, &WalletValue::new(value, 0));
                 } else {
@@ -202,48 +202,48 @@ impl LmdbWalletStore {
         self.fans.lock().unwrap().password.value()
     }
 
-    fn ensure_key_exists(&self, txn: &dyn Transaction, key: &Account) -> anyhow::Result<()> {
+    fn ensure_key_exists(&self, txn: &dyn Transaction, key: &PublicKey) -> anyhow::Result<()> {
         txn.get(self.db_handle(), key.as_bytes())?;
         Ok(())
     }
 
     /// Wallet version number
-    pub fn version_special() -> Account {
-        Account::from(0)
+    pub fn version_special() -> PublicKey {
+        PublicKey::from(0)
     }
 
     /// Random number used to salt private key encryption
-    pub fn salt_special() -> Account {
-        Account::from(1)
+    pub fn salt_special() -> PublicKey {
+        PublicKey::from(1)
     }
 
     /// Key used to encrypt wallet keys, encrypted itself by the user password
-    pub fn wallet_key_special() -> Account {
-        Account::from(2)
+    pub fn wallet_key_special() -> PublicKey {
+        PublicKey::from(2)
     }
 
     /// Check value used to see if password is valid
-    pub fn check_special() -> Account {
-        Account::from(3)
+    pub fn check_special() -> PublicKey {
+        PublicKey::from(3)
     }
 
     /// Representative account to be used if we open a new account
-    pub fn representative_special() -> Account {
-        Account::from(4)
+    pub fn representative_special() -> PublicKey {
+        PublicKey::from(4)
     }
 
     /// Wallet seed for deterministic key generation
-    pub fn seed_special() -> Account {
-        Account::from(5)
+    pub fn seed_special() -> PublicKey {
+        PublicKey::from(5)
     }
 
     /// Current key index for deterministic keys
-    pub fn deterministic_index_special() -> Account {
-        Account::from(6)
+    pub fn deterministic_index_special() -> PublicKey {
+        PublicKey::from(6)
     }
 
-    pub fn special_count() -> Account {
-        Account::from(7)
+    pub fn special_count() -> PublicKey {
+        PublicKey::from(7)
     }
 
     pub fn initialize(&self, txn: &mut LmdbWriteTransaction, path: &Path) -> anyhow::Result<()> {
@@ -263,8 +263,8 @@ impl LmdbWalletStore {
         self.db_handle.lock().unwrap().unwrap().clone()
     }
 
-    pub fn entry_get_raw(&self, txn: &dyn Transaction, account: &Account) -> WalletValue {
-        match txn.get(self.db_handle(), account.as_bytes()) {
+    pub fn entry_get_raw(&self, txn: &dyn Transaction, pub_key: &PublicKey) -> WalletValue {
+        match txn.get(self.db_handle(), pub_key.as_bytes()) {
             Ok(bytes) => {
                 let mut stream = BufferReader::new(bytes);
                 WalletValue::deserialize(&mut stream).unwrap()
@@ -276,12 +276,12 @@ impl LmdbWalletStore {
     pub fn entry_put_raw(
         &self,
         txn: &mut LmdbWriteTransaction,
-        account: &Account,
+        pub_key: &PublicKey,
         entry: &WalletValue,
     ) {
         txn.put(
             self.db_handle(),
-            account.as_bytes(),
+            pub_key.as_bytes(),
             &entry.to_bytes(),
             WriteFlags::empty(),
         )
@@ -391,12 +391,12 @@ impl LmdbWalletStore {
         )
     }
 
-    pub fn begin_at_account<'txn>(
+    pub fn begin_at_key<'txn>(
         &self,
         txn: &'txn dyn Transaction,
-        key: &Account,
+        pub_key: &PublicKey,
     ) -> WalletIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.db_handle(), Some(key.as_bytes()), true)
+        LmdbIteratorImpl::new_iterator(txn, self.db_handle(), Some(pub_key.as_bytes()), true)
     }
 
     pub fn end(&self) -> WalletIterator<'static> {
@@ -406,11 +406,11 @@ impl LmdbWalletStore {
     pub fn find<'txn>(
         &self,
         txn: &'txn dyn Transaction,
-        account: &Account,
+        pub_key: &PublicKey,
     ) -> WalletIterator<'txn> {
-        let result = self.begin_at_account(txn, account);
+        let result = self.begin_at_key(txn, pub_key);
         if let Some((key, _)) = result.current() {
-            if key == account {
+            if key == pub_key {
                 return result;
             }
         }
@@ -418,13 +418,13 @@ impl LmdbWalletStore {
         self.end()
     }
 
-    pub fn erase(&self, txn: &mut LmdbWriteTransaction, account: &Account) {
-        txn.delete(self.db_handle(), account.as_bytes(), None)
+    pub fn erase(&self, txn: &mut LmdbWriteTransaction, pub_key: &PublicKey) {
+        txn.delete(self.db_handle(), pub_key.as_bytes(), None)
             .unwrap();
     }
 
-    pub fn get_key_type(&self, txn: &dyn Transaction, account: &Account) -> KeyType {
-        let value = self.entry_get_raw(txn, account);
+    pub fn get_key_type(&self, txn: &dyn Transaction, pub_key: &PublicKey) -> KeyType {
+        let value = self.entry_get_raw(txn, pub_key);
         Self::key_type(&value)
     }
 
@@ -447,7 +447,7 @@ impl LmdbWalletStore {
                     KeyType::Deterministic => {
                         drop(it);
                         self.erase(txn, &account);
-                        it = self.begin_at_account(txn, &account);
+                        it = self.begin_at_key(txn, &account);
                     }
                     _ => it.next(),
                 }
@@ -522,19 +522,19 @@ impl LmdbWalletStore {
         let mut result = Vec::new();
         let mut it = self.begin(txn);
         while let Some((k, _)) = it.current() {
-            result.push(*k);
+            result.push(k.into());
             it.next();
         }
 
         result
     }
 
-    pub fn representative(&self, txn: &dyn Transaction) -> Account {
+    pub fn representative(&self, txn: &dyn Transaction) -> PublicKey {
         let value = self.entry_get_raw(txn, &Self::representative_special());
-        Account::from_bytes(*value.key.as_bytes())
+        PublicKey::from_bytes(*value.key.as_bytes())
     }
 
-    pub fn representative_set(&self, txn: &mut LmdbWriteTransaction, representative: &Account) {
+    pub fn representative_set(&self, txn: &mut LmdbWriteTransaction, representative: &PublicKey) {
         let rep = RawKey::from_bytes(*representative.as_bytes());
         self.entry_put_raw(
             txn,
@@ -555,7 +555,7 @@ impl LmdbWalletStore {
     pub fn insert_watch(
         &self,
         txn: &mut LmdbWriteTransaction,
-        pub_key: &Account,
+        pub_key: &PublicKey,
     ) -> anyhow::Result<()> {
         if !self.valid_public_key(pub_key) {
             bail!("invalid public key");
@@ -565,7 +565,7 @@ impl LmdbWalletStore {
         Ok(())
     }
 
-    pub fn fetch(&self, txn: &dyn Transaction, pub_key: &Account) -> anyhow::Result<RawKey> {
+    pub fn fetch(&self, txn: &dyn Transaction, pub_key: &PublicKey) -> anyhow::Result<RawKey> {
         if !self.valid_password(txn) {
             bail!("invalid password");
         }

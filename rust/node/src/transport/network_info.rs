@@ -1,13 +1,10 @@
-use crate::{
-    stats::{DetailType, Direction, StatType, Stats},
-    utils::{
-        ipv4_address_or_ipv6_subnet, is_ipv4_mapped, map_address_to_subnetwork, reserved_address,
-    },
+use crate::utils::{
+    ipv4_address_or_ipv6_subnet, is_ipv4_mapped, map_address_to_subnetwork, reserved_address,
 };
 
 use super::{
-    attempt_container::AttemptContainer, AcceptResult, ChannelDirection, ChannelId, ChannelMode,
-    ChannelsInfo, PeerExclusion, TrafficType,
+    attempt_container::AttemptContainer, ChannelDirection, ChannelId, ChannelMode, PeerExclusion,
+    TrafficType,
 };
 use num::FromPrimitive;
 use rand::{seq::SliceRandom, thread_rng};
@@ -15,7 +12,6 @@ use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent, TEST_ENDPOINT_1, TEST_ENDPOINT_2},
     Networks, PublicKey,
 };
-use rsnano_messages::ProtocolInfo;
 use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::HashMap,
@@ -24,7 +20,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering},
         Arc, Mutex,
     },
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tracing::{debug, warn};
 
@@ -66,6 +62,7 @@ impl ChannelInfo {
         local_addr: SocketAddrV6,
         peer_addr: SocketAddrV6,
         direction: ChannelDirection,
+        protocol_version: u8,
         now: Timestamp,
     ) -> Self {
         Self {
@@ -73,7 +70,7 @@ impl ChannelInfo {
             local_addr,
             peer_addr,
             // TODO set protocol version to 0
-            protocol_version: AtomicU8::new(ProtocolInfo::default().version_using),
+            protocol_version: AtomicU8::new(protocol_version),
             direction,
             last_activity: AtomicU64::new(now.into()),
             last_bootstrap_attempt: AtomicU64::new(0),
@@ -101,6 +98,7 @@ impl ChannelInfo {
             TEST_ENDPOINT_1,
             TEST_ENDPOINT_2,
             ChannelDirection::Outbound,
+            u8::MAX,
             Timestamp::new_test_instance(),
         )
     }
@@ -275,6 +273,7 @@ pub struct NetworkConfig {
     pub disable_max_peers_per_subnetwork: bool, // For testing only
     pub disable_network: bool,
     pub listening_port: u16,
+    pub default_protocol_version: u8,
 }
 
 impl NetworkConfig {
@@ -293,7 +292,8 @@ impl NetworkConfig {
                 _ => 16,
             },
             max_attempts_per_ip: if is_dev { 128 } else { 1 },
-            min_protocol_version: ProtocolInfo::default_for(network).version_min,
+            min_protocol_version: 0x14,     //TODO don't hard code
+            default_protocol_version: 0x15, //TODO don't hard code
             disable_max_peers_per_ip: false,
             disable_max_peers_per_subnetwork: false,
             disable_network: false,
@@ -312,20 +312,30 @@ pub struct NetworkInfo {
     channels: HashMap<ChannelId, Arc<ChannelInfo>>,
     stopped: bool,
     new_realtime_channel_observers: Vec<Arc<dyn Fn(Arc<ChannelInfo>) + Send + Sync>>,
-    stats: Arc<Stats>,
     attempts: AttemptContainer,
     network_config: NetworkConfig,
     excluded_peers: PeerExclusion,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum NetworkError {
+    MaxConnections,
+    MaxConnectionsPerSubnetwork,
+    MaxConnectionsPerIp,
+    /// Peer is excluded due to bad behavior
+    PeerExcluded,
+    InvalidIp,
+    /// We are already connected to that peer and we tried to connect a second time
+    DuplicateConnection,
+}
+
 impl NetworkInfo {
-    pub fn new(network_config: NetworkConfig, stats: Arc<Stats>) -> Self {
+    pub fn new(network_config: NetworkConfig) -> Self {
         Self {
             next_channel_id: 1,
             channels: HashMap::new(),
             stopped: false,
             new_realtime_channel_observers: Vec::new(),
-            stats,
             attempts: Default::default(),
             network_config,
             excluded_peers: PeerExclusion::new(),
@@ -334,10 +344,7 @@ impl NetworkInfo {
 
     #[allow(dead_code)]
     pub(crate) fn new_test_instance() -> Self {
-        Self::new(
-            NetworkConfig::default_for(Networks::NanoDevNetwork),
-            Arc::new(Stats::default()),
-        )
+        Self::new(NetworkConfig::default_for(Networks::NanoDevNetwork))
     }
 
     pub(crate) fn on_new_realtime_channel(
@@ -367,19 +374,15 @@ impl NetworkInfo {
         self.excluded_peers.is_excluded(peer_addr, now)
     }
 
-    pub(crate) fn add_attempt(&mut self, remote: SocketAddrV6) -> bool {
-        let count = self.attempts.count_by_address(remote.ip());
-        if count >= self.network_config.max_attempts_per_ip {
-            self.stats.inc_dir(
-                StatType::TcpListenerRejected,
-                DetailType::MaxAttemptsPerIp,
-                Direction::Out,
-            );
-            debug!("Connection attempt already in progress ({}), unable to initiate new connection: {}", count, remote.ip());
-            return false; // Rejected
-        }
-
-        self.attempts.insert(remote, ChannelDirection::Outbound)
+    pub(crate) fn add_outbound_attempt(
+        &mut self,
+        peer: SocketAddrV6,
+        planned_mode: ChannelMode,
+        now: Timestamp,
+    ) -> Result<(), NetworkError> {
+        self.validate_new_connection(&peer, ChannelDirection::Outbound, planned_mode, now)?;
+        self.attempts.insert(peer, ChannelDirection::Outbound, now);
+        Ok(())
     }
 
     pub(crate) fn remove_attempt(&mut self, remote: &SocketAddrV6) {
@@ -393,50 +396,16 @@ impl NetworkInfo {
         direction: ChannelDirection,
         planned_mode: ChannelMode,
         now: Timestamp,
-    ) -> anyhow::Result<Arc<ChannelInfo>> {
-        let result = self.can_add_connection(&peer_addr, direction, planned_mode, now);
-        if result != AcceptResult::Accepted {
-            self.stats.inc_dir(
-                StatType::TcpListener,
-                DetailType::AcceptRejected,
-                direction.into(),
-            );
-            if direction == ChannelDirection::Outbound {
-                self.stats.inc_dir(
-                    StatType::TcpListener,
-                    DetailType::ConnectFailure,
-                    Direction::Out,
-                );
-            }
-            debug!(?peer_addr, ?direction, "Rejected connection");
-            if direction == ChannelDirection::Inbound {
-                self.stats.inc_dir(
-                    StatType::TcpListener,
-                    DetailType::AcceptFailure,
-                    Direction::In,
-                );
-                // Refusal reason should be logged earlier
-            }
-            return Err(anyhow!("check_limits failed"));
-        }
-
-        self.stats.inc_dir(
-            StatType::TcpListener,
-            DetailType::AcceptSuccess,
-            direction.into(),
-        );
-
-        if direction == ChannelDirection::Outbound {
-            self.stats.inc_dir(
-                StatType::TcpListener,
-                DetailType::ConnectSuccess,
-                Direction::Out,
-            );
-        }
-
+    ) -> Result<Arc<ChannelInfo>, NetworkError> {
+        self.validate_new_connection(&peer_addr, direction, planned_mode, now)?;
         let channel_id = self.get_next_channel_id();
         let channel_info = Arc::new(ChannelInfo::new(
-            channel_id, local_addr, peer_addr, direction, now,
+            channel_id,
+            local_addr,
+            peer_addr,
+            direction,
+            self.network_config.default_protocol_version,
+            now,
         ));
         self.channels.insert(channel_id, channel_info.clone());
         Ok(channel_info)
@@ -559,12 +528,7 @@ impl NetworkInfo {
     }
 
     /// Returns channel IDs of removed channels
-    pub fn purge(
-        &mut self,
-        cutoff: SystemTime,
-        now: Timestamp,
-        cutoff_period: Duration,
-    ) -> Vec<ChannelId> {
+    pub fn purge(&mut self, now: Timestamp, cutoff_period: Duration) -> Vec<ChannelId> {
         self.close_idle_channels(now, cutoff_period);
 
         // Check if any tcp channels belonging to old protocol versions which may still be alive due to async operations
@@ -574,7 +538,7 @@ impl NetworkInfo {
         let purged_channel_ids = self.remove_dead_channels();
 
         // Remove keepalive attempt tracking for attempts older than cutoff
-        self.attempts.purge(cutoff);
+        self.attempts.purge(now, cutoff_period);
         purged_channel_ids
     }
 
@@ -630,85 +594,6 @@ impl NetworkInfo {
     /// Simulating with sqrt_broadcast_simulate shows we only need to broadcast to sqrt(total_peers) random peers in order to successfully publish to everyone with high probability
     pub fn fanout(&self, scale: f32) -> usize {
         (self.len_sqrt() * scale).ceil() as usize
-    }
-
-    pub fn check_limits(
-        &mut self,
-        peer: &SocketAddrV6,
-        direction: ChannelDirection,
-    ) -> AcceptResult {
-        if !self.network_config.disable_max_peers_per_ip {
-            let count = self.count_by_ip(peer.ip());
-            if count >= self.network_config.max_peers_per_ip {
-                self.stats.inc_dir(
-                    StatType::TcpListenerRejected,
-                    DetailType::MaxPerIp,
-                    direction.into(),
-                );
-                debug!(
-                    "Max connections per IP reached ({}, count: {}), unable to open new connection",
-                    peer.ip(),
-                    count
-                );
-                return AcceptResult::Rejected;
-            }
-        }
-
-        // If the address is IPv4 we don't check for a network limit, since its address space isn't big as IPv6/64.
-        if !self.network_config.disable_max_peers_per_subnetwork && !is_ipv4_mapped(&peer.ip()) {
-            let subnet = map_address_to_subnetwork(&peer.ip());
-            let count = self.count_by_subnet(&subnet);
-            if count >= self.network_config.max_peers_per_subnetwork {
-                self.stats.inc_dir(
-                    StatType::TcpListenerRejected,
-                    DetailType::MaxPerSubnetwork,
-                    direction.into(),
-                );
-                debug!(
-                    "Max connections per subnetwork reached ({}), unable to open new connection",
-                    peer.ip()
-                );
-                return AcceptResult::Rejected;
-            }
-        }
-
-        match direction {
-            ChannelDirection::Inbound => {
-                let count = self.count_by_direction(ChannelDirection::Inbound);
-
-                if count >= self.network_config.max_inbound_connections {
-                    self.stats.inc_dir(
-                        StatType::TcpListenerRejected,
-                        DetailType::MaxAttempts,
-                        direction.into(),
-                    );
-                    debug!(
-                        "Max inbound connections reached ({}), unable to accept new connection: {}",
-                        count,
-                        peer.ip()
-                    );
-                    return AcceptResult::Rejected;
-                }
-            }
-            ChannelDirection::Outbound => {
-                let count = self.count_by_direction(ChannelDirection::Outbound);
-
-                if count >= self.network_config.max_outbound_connections {
-                    self.stats.inc_dir(
-                        StatType::TcpListenerRejected,
-                        DetailType::MaxAttempts,
-                        direction.into(),
-                    );
-                    debug!(
-                        "Max outbound connections reached ({}), unable to initiate new connection: {}",
-                        count, peer.ip()
-                    );
-                    return AcceptResult::Rejected;
-                }
-            }
-        }
-
-        AcceptResult::Accepted
     }
 
     fn count_by_ip(&self, ip: &Ipv6Addr) -> usize {
@@ -796,128 +681,99 @@ impl NetworkInfo {
             .collect()
     }
 
-    pub(crate) fn max_ip_connections(&self, endpoint: &SocketAddrV6) -> bool {
+    fn max_ip_connections(&self, endpoint: &SocketAddrV6) -> bool {
         if self.network_config.disable_max_peers_per_ip {
             return false;
         }
-        let mut result;
-        let address = ipv4_address_or_ipv6_subnet(endpoint.ip());
-        result = self.count_by_ip(&address) >= self.network_config.max_peers_per_ip;
-        if !result {
-            result =
-                self.attempts.count_by_address(&address) >= self.network_config.max_peers_per_ip;
-        }
-        if result {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::MaxPerIp, Direction::Out);
-        }
-        result
+        let count =
+            self.count_by_ip(&endpoint.ip()) + self.attempts.count_by_address(&endpoint.ip());
+        count >= self.network_config.max_peers_per_ip
     }
 
-    pub(crate) fn max_ip_or_subnetwork_connections(&self, endpoint: &SocketAddrV6) -> bool {
-        self.max_ip_connections(endpoint) || self.max_subnetwork_connections(endpoint)
-    }
-
-    pub(crate) fn max_subnetwork_connections(&self, endoint: &SocketAddrV6) -> bool {
+    fn max_subnetwork_connections(&self, peer: &SocketAddrV6) -> bool {
         if self.network_config.disable_max_peers_per_subnetwork {
             return false;
         }
 
-        let subnet = map_address_to_subnetwork(endoint.ip());
-        let is_max = {
-            self.count_by_subnet(&subnet) >= self.network_config.max_peers_per_subnetwork
-                || self.attempts.count_by_subnetwork(&subnet)
-                    >= self.network_config.max_peers_per_subnetwork
-        };
-
-        if is_max {
-            self.stats
-                .inc_dir(StatType::Tcp, DetailType::MaxPerSubnetwork, Direction::Out);
+        // If the address is IPv4 we don't check for a network limit, since its address space isn't big as IPv6/64.
+        if is_ipv4_mapped(&peer.ip()) {
+            return false;
         }
 
-        is_max
+        let subnet = map_address_to_subnetwork(peer.ip());
+        let subnet_count =
+            self.count_by_subnet(&subnet) + self.attempts.count_by_subnetwork(&subnet);
+
+        subnet_count >= self.network_config.max_peers_per_subnetwork
     }
 
-    pub fn can_add_connection(
+    pub fn validate_new_connection(
         &mut self,
-        peer_addr: &SocketAddrV6,
+        peer: &SocketAddrV6,
         direction: ChannelDirection,
         planned_mode: ChannelMode,
         now: Timestamp,
-    ) -> AcceptResult {
-        if self.excluded_peers.is_excluded(peer_addr, now) {
-            return AcceptResult::Rejected;
-        }
-        if direction == ChannelDirection::Outbound {
-            if self.can_add_outbound_connection(&peer_addr, planned_mode, now) {
-                AcceptResult::Accepted
-            } else {
-                AcceptResult::Rejected
-            }
-        } else {
-            self.check_limits(&peer_addr, direction)
-        }
-    }
-
-    pub(crate) fn can_add_outbound_connection(
-        &mut self,
-        peer: &SocketAddrV6,
-        planned_mode: ChannelMode,
-        now: Timestamp,
-    ) -> bool {
+    ) -> Result<(), NetworkError> {
         if self.network_config.disable_network {
-            return false;
+            return Err(NetworkError::MaxConnections);
+        }
+
+        let count = self.count_by_direction(direction);
+        if count >= self.max_connections(direction) {
+            return Err(NetworkError::MaxConnections);
+        }
+
+        if self.excluded_peers.is_excluded(peer, now) {
+            return Err(NetworkError::PeerExcluded);
+        }
+
+        if !self.network_config.disable_max_peers_per_ip {
+            let count = self.count_by_ip(peer.ip());
+            if count >= self.network_config.max_peers_per_ip {
+                return Err(NetworkError::MaxConnectionsPerIp);
+            }
+        }
+
+        // Don't overload single IP
+        if self.max_ip_connections(peer) {
+            return Err(NetworkError::MaxConnectionsPerIp);
+        }
+
+        if self.max_subnetwork_connections(peer) {
+            return Err(NetworkError::MaxConnectionsPerSubnetwork);
         }
 
         // Don't contact invalid IPs
         if self.not_a_peer(peer, self.network_config.allow_local_peers) {
-            return false;
+            return Err(NetworkError::InvalidIp);
         }
 
-        // Don't overload single IP
-        if self.max_ip_or_subnetwork_connections(peer) {
-            return false;
+        if direction == ChannelDirection::Outbound {
+            // Don't connect to nodes that already sent us something
+            if self
+                .find_channels_by_remote_addr(peer)
+                .iter()
+                .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
+            {
+                return Err(NetworkError::DuplicateConnection);
+            }
+            if self
+                .find_channels_by_peering_addr(peer)
+                .iter()
+                .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
+            {
+                return Err(NetworkError::DuplicateConnection);
+            }
         }
 
-        if self.excluded_peers.is_excluded(peer, now) {
-            return false;
+        Ok(())
+    }
+
+    fn max_connections(&self, direction: ChannelDirection) -> usize {
+        match direction {
+            ChannelDirection::Inbound => self.network_config.max_inbound_connections,
+            ChannelDirection::Outbound => self.network_config.max_outbound_connections,
         }
-
-        // Don't connect to nodes that already sent us something
-        if self
-            .find_channels_by_remote_addr(peer)
-            .iter()
-            .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
-        {
-            return false;
-        }
-        if self
-            .find_channels_by_peering_addr(peer)
-            .iter()
-            .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
-        {
-            return false;
-        }
-
-        if self.check_limits(peer, ChannelDirection::Outbound) != AcceptResult::Accepted {
-            self.stats.inc_dir(
-                StatType::TcpListener,
-                DetailType::ConnectRejected,
-                Direction::Out,
-            );
-            // Refusal reason should be logged earlier
-
-            return false; // Rejected
-        }
-
-        self.stats.inc_dir(
-            StatType::TcpListener,
-            DetailType::ConnectInitiate,
-            Direction::Out,
-        );
-        debug!("Initiate outgoing connection to: {}", peer);
-
-        true
     }
 
     pub(crate) fn set_peering_addr(&self, channel_id: ChannelId, peering_addr: SocketAddrV6) {
@@ -1004,13 +860,6 @@ impl NetworkInfo {
                 if other.ipv4_address_or_ipv6_subnet() == channel.ipv4_address_or_ipv6_subnet() {
                     // We already have a connection to that node. We allow duplicate node ids, but
                     // only if they come from different IP addresses
-                    let endpoint = channel.peer_addr();
-                    debug!(
-                        node_id = node_id.to_node_id(),
-                        remote = %endpoint,
-                        "Could not upgrade channel {} to realtime connection, because another channel for the same node ID was found",
-                        channel.channel_id(),
-                    );
                     return false;
                 }
             }
@@ -1022,15 +871,6 @@ impl NetworkInfo {
             let channel = channel.clone();
             (observers, channel)
         };
-
-        self.stats
-            .inc(StatType::TcpChannels, DetailType::ChannelAccepted);
-
-        debug!(
-            "Switched to realtime mode (addr: {}, node_id: {})",
-            channel.peer_addr(),
-            node_id.to_node_id()
-        );
 
         for observer in observers {
             observer(channel.clone());
@@ -1102,6 +942,15 @@ impl Drop for NetworkInfo {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+#[derive(Default)]
+pub(crate) struct ChannelsInfo {
+    pub total: usize,
+    pub realtime: usize,
+    pub bootstrap: usize,
+    pub inbound: usize,
+    pub outbound: usize,
 }
 
 #[cfg(test)]
@@ -1224,11 +1073,7 @@ mod tests {
         #[test]
         fn purge_empty() {
             let mut network = NetworkInfo::new_test_instance();
-            network.purge(
-                SystemTime::now(),
-                Timestamp::new_test_instance(),
-                Duration::from_secs(1),
-            );
+            network.purge(Timestamp::new_test_instance(), Duration::from_secs(1));
             assert_eq!(network.len(), 0);
         }
 
@@ -1245,7 +1090,7 @@ mod tests {
                     now,
                 )
                 .unwrap();
-            network.purge(SystemTime::now(), now, Duration::from_secs(1));
+            network.purge(now, Duration::from_secs(1));
             assert_eq!(network.len(), 1);
         }
 
@@ -1263,26 +1108,25 @@ mod tests {
                 )
                 .unwrap();
             channel.set_last_packet_sent(now - Duration::from_secs(300));
-            network.purge(SystemTime::now(), now, Duration::from_secs(1));
+            network.purge(now, Duration::from_secs(1));
             assert_eq!(network.len(), 0);
         }
 
         #[test]
         fn dont_purge_if_packet_sent_within_timeout() {
             let mut network = NetworkInfo::new_test_instance();
-            let now2 = Timestamp::new_test_instance();
+            let now = Timestamp::new_test_instance();
             let channel = network
                 .add(
                     TEST_ENDPOINT_1,
                     TEST_ENDPOINT_2,
                     ChannelDirection::Outbound,
                     ChannelMode::Realtime,
-                    now2,
+                    now,
                 )
                 .unwrap();
-            let now = SystemTime::now();
-            channel.set_last_packet_sent(now2);
-            network.purge(now, now2, Duration::from_secs(1));
+            channel.set_last_packet_sent(now);
+            network.purge(now, Duration::from_secs(1));
             assert_eq!(network.len(), 1);
         }
     }

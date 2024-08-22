@@ -1,13 +1,11 @@
+use super::{Block, BlockSideband, BlockType, BlockVisitor};
 use crate::{
     sign_message, to_hex_string, u64_from_hex_str,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, PropertyTree, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, KeyPair, LazyBlockHash, Link, PublicKey, RawKey,
-    Root, Signature,
+    Account, Amount, BlockHash, BlockHashBuilder, JsonBlock, KeyPair, LazyBlockHash, Link,
+    PublicKey, RawKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
-use serde::ser::SerializeStruct;
-
-use super::{Block, BlockSideband, BlockType, BlockVisitor};
 
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct StateHashables {
@@ -21,7 +19,7 @@ pub struct StateHashables {
     pub previous: BlockHash,
 
     // Representative of this account
-    pub representative: Account,
+    pub representative: PublicKey,
 
     // Current balance of this account
     // Allows lookup of account balance simply by looking at the head block
@@ -60,7 +58,7 @@ impl StateBlock {
     pub fn new(
         account: Account,
         previous: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         balance: Amount,
         link: Link,
         keys: &KeyPair,
@@ -82,7 +80,7 @@ impl StateBlock {
     pub fn new_obsolete(
         account: Account,
         previous: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         balance: Amount,
         link: Link,
         prv_key: &RawKey,
@@ -111,9 +109,9 @@ impl StateBlock {
 
     pub fn new_test_instance_with_key(key: KeyPair) -> Self {
         Self::new(
-            key.public_key(),
+            key.account(),
             BlockHash::from(456),
-            Account::from(789),
+            PublicKey::from(789),
             Amount::raw(420),
             Link::from(111),
             &key,
@@ -129,7 +127,7 @@ impl StateBlock {
     pub fn with_signature(
         account: Account,
         previous: BlockHash,
-        representative: Account,
+        representative: PublicKey,
         balance: Amount,
         link: Link,
         signature: Signature,
@@ -166,7 +164,7 @@ impl StateBlock {
         BlockHash::zero()
     }
 
-    pub fn mandatory_representative(&self) -> Account {
+    pub fn mandatory_representative(&self) -> PublicKey {
         self.hashables.representative
     }
 
@@ -187,7 +185,7 @@ impl StateBlock {
     pub fn deserialize(stream: &mut dyn Stream) -> Result<Self> {
         let account = Account::deserialize(stream)?;
         let previous = BlockHash::deserialize(stream)?;
-        let representative = Account::deserialize(stream)?;
+        let representative = PublicKey::deserialize(stream)?;
         let balance = Amount::deserialize(stream)?;
         let link = Link::deserialize(stream)?;
         let signature = Signature::deserialize(stream)?;
@@ -216,7 +214,7 @@ impl StateBlock {
         }
         let account = Account::decode_account(reader.get_string("account")?)?;
         let previous = BlockHash::decode_hex(reader.get_string("previous")?)?;
-        let representative = Account::decode_account(reader.get_string("representative")?)?;
+        let representative = Account::decode_account(reader.get_string("representative")?)?.into();
         let balance = Amount::decode_dec(reader.get_string("balance")?)?;
         let link = Link::decode_hex(reader.get_string("link")?)?;
         let work = u64_from_hex_str(reader.get_string("work")?)?;
@@ -308,7 +306,7 @@ impl Block for StateBlock {
         writer.put_string("previous", &self.hashables.previous.encode_hex())?;
         writer.put_string(
             "representative",
-            &self.hashables.representative.encode_account(),
+            &Account::from(self.hashables.representative).encode_account(),
         )?;
         writer.put_string("balance", &self.hashables.balance.to_string_dec())?;
         writer.put_string("link", &self.hashables.link.encode_hex())?;
@@ -341,7 +339,7 @@ impl Block for StateBlock {
         None
     }
 
-    fn representative_field(&self) -> Option<Account> {
+    fn representative_field(&self) -> Option<PublicKey> {
         Some(self.hashables.representative)
     }
 
@@ -356,25 +354,53 @@ impl Block for StateBlock {
     fn destination_field(&self) -> Option<Account> {
         None
     }
+
+    fn json_representation(&self) -> JsonBlock {
+        JsonBlock::State(JsonStateBlock {
+            account: self.hashables.account,
+            previous: self.hashables.previous,
+            representative: self.hashables.representative.into(),
+            balance: self.hashables.balance,
+            link: self.hashables.link,
+            link_as_account: Some(self.hashables.link.into()),
+            signature: self.signature.clone(),
+            work: self.work.into(),
+        })
+    }
 }
 
-impl serde::Serialize for StateBlock {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Block", 9)?;
-        state.serialize_field("type", "state")?;
-        state.serialize_field("account", &self.hashables.account)?;
-        state.serialize_field("previous", &self.hashables.previous)?;
-        state.serialize_field("representative", &self.hashables.representative)?;
-        state.serialize_field("balance", &self.hashables.balance.to_string_dec())?;
-        state.serialize_field("link", &self.hashables.link.encode_hex())?;
-        state.serialize_field("link_as_account", &Account::from(&self.hashables.link))?;
-        state.serialize_field("signature", &self.signature)?;
-        state.serialize_field("work", &to_hex_string(self.work))?;
-        state.end()
+impl From<JsonStateBlock> for StateBlock {
+    fn from(value: JsonStateBlock) -> Self {
+        let hashables = StateHashables {
+            account: value.account,
+            previous: value.previous,
+            representative: value.representative.into(),
+            balance: value.balance,
+            link: value.link,
+        };
+
+        let hash = LazyBlockHash::new();
+
+        Self {
+            work: value.work.into(),
+            signature: value.signature,
+            hashables,
+            hash,
+            sideband: None,
+        }
     }
+}
+
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct JsonStateBlock {
+    pub account: Account,
+    pub previous: BlockHash,
+    pub representative: Account,
+    pub balance: Amount,
+    pub link: Link,
+    pub link_as_account: Option<Account>,
+    pub signature: Signature,
+    pub work: WorkNonce,
 }
 
 #[cfg(test)]
@@ -432,7 +458,7 @@ mod tests {
 
     #[test]
     fn serialize_serde() {
-        let block = StateBlock::new_test_instance();
+        let block = BlockEnum::State(StateBlock::new_test_instance());
         let serialized = serde_json::to_string_pretty(&block).unwrap();
         assert_eq!(
             serialized,

@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use rsnano_core::{Account, Amount};
+use rsnano_core::{Account, Amount, PublicKey};
 use rsnano_ledger::Ledger;
 
 pub struct WalletRepresentatives {
@@ -42,8 +42,8 @@ impl WalletRepresentatives {
         self.accounts.clear();
     }
 
-    pub fn check_rep(&mut self, account: Account, half_principal_weight: Amount) -> bool {
-        let weight = self.ledger.weight(&account);
+    pub fn check_rep(&mut self, pub_key: PublicKey, half_principal_weight: Amount) -> bool {
+        let weight = self.ledger.weight(&pub_key);
 
         if weight < self.vote_minimum {
             return false; // account not a representative
@@ -53,7 +53,7 @@ impl WalletRepresentatives {
             self.half_principal = true;
         }
 
-        if !self.accounts.insert(account) {
+        if !self.accounts.insert(pub_key.into()) {
             return false; // account already exists
         }
 

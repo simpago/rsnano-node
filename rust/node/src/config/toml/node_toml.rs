@@ -192,7 +192,11 @@ impl From<&NodeToml> for NodeConfig {
         if let Some(preconfigured_representatives) = &toml.preconfigured_representatives {
             config.preconfigured_representatives = preconfigured_representatives
                 .iter()
-                .map(|string| Account::decode_account(&string).expect("Invalid representative"))
+                .map(|string| {
+                    Account::decode_account(&string)
+                        .expect("Invalid representative")
+                        .into()
+                })
                 .collect();
         }
         if let Some(receive_minimum) = &toml.receive_minimum {
@@ -365,7 +369,7 @@ impl From<&NodeConfig> for NodeToml {
                 config
                     .preconfigured_representatives
                     .iter()
-                    .map(|pk| pk.encode_account())
+                    .map(|pk| Account::from(pk).encode_account())
                     .collect(),
             ),
             receive_minimum: Some(config.receive_minimum.to_string_dec()),

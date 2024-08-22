@@ -10,7 +10,7 @@ use rand::{thread_rng, Rng};
 use rsnano_core::{
     utils::{seconds_since_epoch, ContainerInfoComponent},
     Account, AccountInfo, Amount, BlockEnum, BlockHash, BlockSubType, ConfirmationHeightInfo,
-    DependentBlocks, Epoch, Link, PendingInfo, PendingKey, Root,
+    DependentBlocks, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root,
 };
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
@@ -237,7 +237,7 @@ impl Ledger {
             self.store.account.for_each_par(&|_txn, mut i, n| {
                 let mut block_count = 0;
                 let mut account_count = 0;
-                let mut rep_weights: HashMap<Account, Amount> = HashMap::new();
+                let mut rep_weights: HashMap<PublicKey, Amount> = HashMap::new();
                 while !i.eq(&n) {
                     let info = i.current().unwrap().1;
                     block_count += info.block_count;
@@ -302,7 +302,7 @@ impl Ledger {
             &genesis_account,
             &AccountInfo {
                 head: genesis_hash,
-                representative: genesis_account,
+                representative: genesis_account.into(),
                 open_block: genesis_hash,
                 balance: u128::MAX.into(),
                 modified: seconds_since_epoch(),
@@ -310,7 +310,9 @@ impl Ledger {
                 epoch: Epoch::Epoch0,
             },
         );
-        self.store.rep_weight.put(txn, genesis_account, Amount::MAX);
+        self.store
+            .rep_weight
+            .put(txn, genesis_account.into(), Amount::MAX);
     }
 
     pub fn refresh_if_needed(
@@ -411,15 +413,15 @@ impl Ledger {
     /// Returns the cached vote weight for the given representative.
     /// If the weight is below the cache limit it returns 0.
     /// During bootstrap it returns the preconfigured bootstrap weights.
-    pub fn weight(&self, account: &Account) -> Amount {
-        self.rep_weights.weight(account)
+    pub fn weight(&self, rep: &PublicKey) -> Amount {
+        self.rep_weights.weight(rep)
     }
 
     /// Returns the exact vote weight for the given representative by doing a database lookup
-    pub fn weight_exact(&self, txn: &dyn Transaction, representative: Account) -> Amount {
+    pub fn weight_exact(&self, txn: &dyn Transaction, representative: PublicKey) -> Amount {
         self.store
             .rep_weight
-            .get(txn, representative)
+            .get(txn, &representative)
             .unwrap_or_default()
     }
 

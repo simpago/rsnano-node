@@ -1,5 +1,6 @@
 use crate::{
-    ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::LedgerContext, DEV_GENESIS_ACCOUNT,
+    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
+    ledger_tests::LedgerContext,
 };
 
 #[test]
@@ -19,7 +20,7 @@ fn rollback_dependent_blocks_too() {
     assert_eq!(ctx.ledger.any().get_block(&txn, &send.hash()), None);
 
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
 }

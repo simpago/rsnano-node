@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{core::BlockHandle, utils::ContextWrapper, VoidPointerCallback};
 use num_traits::FromPrimitive;
-use rsnano_core::{Account, Amount, BlockEnum, BlockHash, QualifiedRoot, VoteSource};
+use rsnano_core::{Amount, BlockEnum, BlockHash, PublicKey, QualifiedRoot, VoteSource};
 use rsnano_node::consensus::{
     ActiveElections, ActiveElectionsConfig, ActiveElectionsExt, Election, VoteApplierExt,
 };
@@ -322,7 +322,7 @@ pub unsafe extern "C" fn rsn_active_transactions_vote2(
 ) -> u8 {
     handle.vote_applier.vote(
         election,
-        &Account::from_ptr(rep),
+        &PublicKey::from_ptr(rep),
         timestamp,
         &BlockHash::from_ptr(block_hash),
         VoteSource::from_u8(vote_source).unwrap(),

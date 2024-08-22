@@ -7,7 +7,7 @@ use rsnano_core::{
     utils::{get_env_or_default_string, seconds_since_epoch, SerdePropertyTree},
     work::{WorkThresholds, WORK_THRESHOLDS_STUB},
     Account, Amount, BlockDetails, BlockEnum, BlockHash, BlockSideband, Epoch, Epochs, KeyPair,
-    Networks, DEV_GENESIS_KEY,
+    Networks, PublicKey, DEV_GENESIS_KEY,
 };
 
 static BETA_PUBLIC_KEY_DATA: &str =
@@ -67,6 +67,9 @@ pub static LEDGER_CONSTANTS_STUB: Lazy<LedgerConstants> =
 
 pub static DEV_GENESIS: Lazy<Arc<BlockEnum>> = Lazy::new(|| LEDGER_CONSTANTS_STUB.genesis.clone());
 pub static DEV_GENESIS_ACCOUNT: Lazy<Account> = Lazy::new(|| DEV_GENESIS.account_field().unwrap());
+#[allow(dead_code)]
+pub static DEV_GENESIS_PUB_KEY: Lazy<PublicKey> =
+    Lazy::new(|| DEV_GENESIS.account_field().unwrap().into());
 pub static DEV_GENESIS_HASH: Lazy<BlockHash> = Lazy::new(|| DEV_GENESIS.hash());
 
 fn parse_block_from_genesis_data(genesis_data: &str) -> Result<BlockEnum> {
@@ -180,7 +183,7 @@ impl LedgerConstants {
 
         let mut epochs = Epochs::new();
 
-        let epoch_1_signer = genesis_account;
+        let epoch_1_signer = PublicKey::from(genesis_account);
         let epoch_link_v1 = epoch_v1_link();
 
         let nano_live_epoch_v2_signer = Account::decode_account(
@@ -189,9 +192,9 @@ impl LedgerConstants {
         .unwrap();
         let epoch_2_signer = match network {
             Networks::NanoDevNetwork => DEV_GENESIS_KEY.public_key(),
-            Networks::NanoBetaNetwork => nano_beta_account,
-            Networks::NanoLiveNetwork => nano_live_epoch_v2_signer,
-            Networks::NanoTestNetwork => nano_test_account,
+            Networks::NanoBetaNetwork => nano_beta_account.into(),
+            Networks::NanoLiveNetwork => nano_live_epoch_v2_signer.into(),
+            Networks::NanoTestNetwork => nano_test_account.into(),
             _ => panic!("invalid network"),
         };
         let epoch_link_v2 = epoch_v2_link();

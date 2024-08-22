@@ -1,6 +1,6 @@
 use rsnano_core::{
-    Account, AccountInfo, Amount, Block, BlockDetails, BlockEnum, BlockHash, BlockSideband, Epoch,
-    PendingInfo, PendingKey, StateBlock,
+    AccountInfo, Amount, Block, BlockDetails, BlockEnum, BlockHash, BlockSideband, Epoch,
+    PendingInfo, PendingKey, PublicKey, StateBlock,
 };
 
 use super::BlockValidator;
@@ -152,13 +152,13 @@ impl<'a> BlockValidator<'a> {
         }
     }
 
-    pub(crate) fn new_representative(&self) -> Account {
+    pub(crate) fn new_representative(&self) -> PublicKey {
         self.block
             .representative_field()
             .unwrap_or(self.old_representative())
     }
 
-    fn old_representative(&self) -> Account {
+    fn old_representative(&self) -> PublicKey {
         self.old_account_info
             .as_ref()
             .map(|x| x.representative)

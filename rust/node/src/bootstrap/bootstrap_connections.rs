@@ -7,7 +7,7 @@ use crate::{
     block_processing::BlockProcessor,
     stats::{DetailType, Direction, StatType, Stats},
     transport::{
-        AcceptResult, ChannelDirection, ChannelMode, MessagePublisher, Network, NetworkInfo,
+        ChannelDirection, ChannelMode, MessagePublisher, Network, NetworkInfo, NetworkStats,
     },
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
@@ -42,6 +42,7 @@ pub struct BootstrapConnections {
     stopped: AtomicBool,
     network: Arc<Network>,
     network_info: Arc<RwLock<NetworkInfo>>,
+    network_stats: Option<NetworkStats>,
     workers: Arc<dyn ThreadPool>,
     runtime: Arc<AsyncRuntime>,
     stats: Arc<Stats>,
@@ -58,6 +59,7 @@ impl BootstrapConnections {
         config: BootstrapInitiatorConfig,
         network: Arc<Network>,
         network_info: Arc<RwLock<NetworkInfo>>,
+        network_stats: NetworkStats,
         async_rt: Arc<AsyncRuntime>,
         workers: Arc<dyn ThreadPool>,
         stats: Arc<Stats>,
@@ -81,6 +83,7 @@ impl BootstrapConnections {
             stopped: AtomicBool::new(false),
             network,
             network_info,
+            network_stats: Some(network_stats),
             workers,
             runtime: async_rt,
             stats,
@@ -104,6 +107,7 @@ impl BootstrapConnections {
             stopped: AtomicBool::new(false),
             network: Arc::new(Network::new_null()),
             network_info: Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
+            network_stats: None,
             workers: Arc::new(ThreadPoolImpl::new_null()),
             runtime: Arc::new(AsyncRuntime::default()),
             stats: Arc::new(Stats::default()),
@@ -551,23 +555,35 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
 
     async fn connect_client(&self, peer_addr: SocketAddrV6, push_front: bool) -> bool {
         {
-            let mut network = self.network_info.write().unwrap();
-            if !network.add_attempt(peer_addr) {
+            let mut network_info = self.network_info.write().unwrap();
+            if let Err(e) = network_info.add_outbound_attempt(
+                peer_addr,
+                ChannelMode::Bootstrap,
+                self.clock.now(),
+            ) {
+                if let Some(network_stats) = &self.network_stats {
+                    network_stats.error(e, &peer_addr, ChannelDirection::Outbound);
+                }
                 return false;
             }
+            if let Some(network_stats) = &self.network_stats {
+                network_stats.connection_attempt(&peer_addr);
+            }
 
-            if network.can_add_connection(
+            if let Err(e) = network_info.validate_new_connection(
                 &peer_addr,
                 ChannelDirection::Outbound,
                 ChannelMode::Bootstrap,
                 self.clock.now(),
-            ) != AcceptResult::Accepted
-            {
-                network.remove_attempt(&peer_addr);
-                drop(network);
+            ) {
+                network_info.remove_attempt(&peer_addr);
+                drop(network_info);
                 debug!(
                     "Could not create outbound bootstrap connection to {}, because of failed limit check",
                     peer_addr);
+                if let Some(network_stats) = &self.network_stats {
+                    network_stats.error(e, &peer_addr, ChannelDirection::Outbound);
+                }
                 return false;
             }
         }
@@ -586,11 +602,19 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                     peer_addr, e
                 );
                 self.connections_count.fetch_sub(1, Ordering::SeqCst);
+                self.network_info
+                    .write()
+                    .unwrap()
+                    .remove_attempt(&peer_addr);
                 return false;
             }
             Err(_) => {
                 debug!("Timeout connecting to: {}", peer_addr);
                 self.connections_count.fetch_sub(1, Ordering::SeqCst);
+                self.network_info
+                    .write()
+                    .unwrap()
+                    .remove_attempt(&peer_addr);
                 return false;
             }
         };
@@ -605,6 +629,10 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             .await
         else {
             debug!(remote_addr = ?peer_addr, "Bootstrap connection rejected");
+            self.network_info
+                .write()
+                .unwrap()
+                .remove_attempt(&peer_addr);
             return false;
         };
         debug!("Bootstrap connection established to: {}", peer_addr);

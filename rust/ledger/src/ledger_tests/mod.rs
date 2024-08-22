@@ -1,13 +1,13 @@
 use std::sync::{atomic::Ordering, Arc};
 pub mod helpers;
 use crate::{
-    ledger_constants::LEDGER_CONSTANTS_STUB,
+    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::helpers::{setup_legacy_open_block, setup_open_block, AccountBlockFactory},
     Ledger, LedgerContext, RepWeightCache, DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, TEST_ENDPOINT_1},
-    Account, Amount, BlockBuilder, BlockHash, QualifiedRoot, Root, TestAccountChain,
+    Account, Amount, BlockBuilder, BlockHash, PublicKey, QualifiedRoot, Root, TestAccountChain,
     DEV_GENESIS_KEY, GXRB_RATIO,
 };
 
@@ -108,9 +108,9 @@ fn send_open_receive_vote_weight() {
     let mut receive = receiver.legacy_receive(&txn, send2.hash()).build();
     ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.account()), Amount::raw(100));
+    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::raw(100));
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
     );
 }
@@ -141,7 +141,7 @@ fn send_open_receive_rollback() {
 
     let mut receive = receiver.legacy_receive(&txn, send2.hash()).build();
     ctx.ledger.process(&mut txn, &mut receive).unwrap();
-    let rep_account = Account::from(1);
+    let rep_account = PublicKey::from(1);
 
     let mut change = genesis
         .legacy_change(&txn)
@@ -151,8 +151,8 @@ fn send_open_receive_rollback() {
 
     ctx.ledger.rollback(&mut txn, &receive.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.account()), Amount::raw(50));
-    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_ACCOUNT), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::raw(50));
+    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
     assert_eq!(
         ctx.ledger.weight(&rep_account),
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
@@ -160,8 +160,8 @@ fn send_open_receive_rollback() {
 
     ctx.ledger.rollback(&mut txn, &open.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.account()), Amount::zero());
-    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_ACCOUNT), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&DEV_GENESIS_PUB_KEY), Amount::zero());
     assert_eq!(
         ctx.ledger.weight(&rep_account),
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
@@ -169,28 +169,28 @@ fn send_open_receive_rollback() {
 
     ctx.ledger.rollback(&mut txn, &change.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.account()), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(100)
     );
 
     ctx.ledger.rollback(&mut txn, &send2.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.account()), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - Amount::raw(50)
     );
 
     ctx.ledger.rollback(&mut txn, &send1.hash()).unwrap();
 
-    assert_eq!(ctx.ledger.weight(&receiver.account()), Amount::zero());
+    assert_eq!(ctx.ledger.weight(&receiver.public_key()), Amount::zero());
     assert_eq!(ctx.ledger.weight(&rep_account), Amount::zero());
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
 }

@@ -321,7 +321,7 @@ fn pruning_legacy_blocks() {
 
     let mut change1 = genesis
         .legacy_change(&txn)
-        .representative(destination.account())
+        .representative(destination.public_key())
         .build();
     ctx.ledger.process(&mut txn, &mut change1).unwrap();
 

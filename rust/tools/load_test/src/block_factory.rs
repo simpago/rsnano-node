@@ -1,7 +1,9 @@
-use crate::{Account, AccountInfo, RpcClient};
 use anyhow::Result;
 use rand::Rng;
-use rsnano_core::DEV_GENESIS_KEY;
+use rsnano_core::{Account, WalletId};
+use rsnano_ledger::DEV_GENESIS_ACCOUNT;
+use rsnano_rpc_client::NanoRpcClient;
+use rsnano_rpc_messages::{AccountInfoDto, KeyPairDto};
 use std::{
     collections::HashMap,
     io::Write,
@@ -16,10 +18,10 @@ use tokio::{spawn, sync::Semaphore, time::sleep};
 pub async fn create_send_and_receive_blocks(
     send_count: usize,
     simultaneous_process_calls: usize,
-    destination_accounts: Vec<Account>,
-    wallet: String,
-    node_client: Arc<RpcClient>,
-) -> Result<HashMap<String, AccountInfo>> {
+    destination_accounts: Vec<KeyPairDto>,
+    wallet: WalletId,
+    node_client: Arc<NanoRpcClient>,
+) -> Result<HashMap<Account, AccountInfoDto>> {
     let factory = Arc::new(BlockFactory {
         send_count,
         simultaneous_calls_semaphore: Arc::new(Semaphore::new(simultaneous_process_calls)),
@@ -59,9 +61,9 @@ struct BlockFactory {
     send_count: usize,
     simultaneous_calls_semaphore: Arc<Semaphore>,
     send_calls_remaining: AtomicUsize,
-    destination_accounts: Vec<Account>,
-    wallet: String,
-    node_client: Arc<RpcClient>,
+    destination_accounts: Vec<KeyPairDto>,
+    wallet: WalletId,
+    node_client: Arc<NanoRpcClient>,
 }
 
 impl BlockFactory {
@@ -77,7 +79,7 @@ impl BlockFactory {
         self.send_count - self.send_calls_remaining.load(Ordering::SeqCst)
     }
 
-    fn get_destination_account(&self, send_no: usize) -> &Account {
+    fn get_destination_account(&self, send_no: usize) -> &KeyPairDto {
         if send_no < self.destination_accounts.len() {
             &self.destination_accounts[send_no]
         } else {
@@ -92,14 +94,13 @@ impl BlockFactory {
             .acquire_owned()
             .await?;
         let destination_account = self.get_destination_account(send_no);
-        let genesis_account = DEV_GENESIS_KEY.public_key().encode_account();
 
         let res = self
             .node_client
             .send_receive(
-                &self.wallet,
-                &genesis_account,
-                &destination_account.as_string,
+                self.wallet,
+                *DEV_GENESIS_ACCOUNT,
+                destination_account.as_string,
             )
             .await;
         self.send_calls_remaining.fetch_sub(1, Ordering::SeqCst);
@@ -108,15 +109,13 @@ impl BlockFactory {
 }
 
 async fn get_account_info(
-    node_client: &RpcClient,
-    accounts: &[Account],
-) -> Result<HashMap<String, AccountInfo>> {
+    node_client: &NanoRpcClient,
+    accounts: &[KeyPairDto],
+) -> Result<HashMap<Account, AccountInfoDto>> {
     let mut account_info = HashMap::new();
     for account in accounts {
-        account_info.insert(
-            account.as_string.clone(),
-            node_client.account_info_rpc(&account.as_string).await?,
-        );
+        let account = account.as_string;
+        account_info.insert(account, node_client.account_info(account).await?);
     }
     Ok(account_info)
 }

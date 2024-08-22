@@ -1,6 +1,6 @@
 use crate::{utils::FfiStream, StringDto};
 use rsnano_core::{
-    utils::Serialize, Account, BlockHash, FullHash, KeyPair, RawKey, Signature, Vote,
+    utils::Serialize, BlockHash, FullHash, KeyPair, PublicKey, RawKey, Signature, Vote,
 };
 use std::{ffi::c_void, ops::Deref, sync::Arc};
 
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn rsn_vote_account(handle: &VoteHandle, result: *mut u8) 
 pub unsafe extern "C" fn rsn_vote_account_set(handle: &mut VoteHandle, account: *const u8) {
     let mut bytes = [0; 32];
     bytes.copy_from_slice(std::slice::from_raw_parts(account, 32));
-    handle.get_mut().voting_account = Account::from_bytes(bytes);
+    handle.get_mut().voting_account = PublicKey::from_bytes(bytes);
 }
 
 #[no_mangle]

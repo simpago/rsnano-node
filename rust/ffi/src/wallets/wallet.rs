@@ -1,5 +1,5 @@
 use crate::ledger::datastore::lmdb::LmdbWalletStoreHandle;
-use rsnano_core::Account;
+use rsnano_core::{Account, PublicKey};
 use rsnano_node::wallets::Wallet;
 use std::{
     collections::HashSet,
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn rsn_wallet_destroy(handle: *mut WalletHandle) {
     drop(Box::from_raw(handle))
 }
 
-pub struct RepresentativesLockHandle(MutexGuard<'static, HashSet<Account>>);
+pub struct RepresentativesLockHandle(MutexGuard<'static, HashSet<PublicKey>>);
 
 #[no_mangle]
 pub extern "C" fn rsn_representatives_lock_create(
@@ -43,7 +43,7 @@ pub extern "C" fn rsn_representatives_lock_create(
 ) -> *mut RepresentativesLockHandle {
     let guard = handle.0.representatives.lock().unwrap();
     let guard = unsafe {
-        std::mem::transmute::<MutexGuard<HashSet<Account>>, MutexGuard<'static, HashSet<Account>>>(
+        std::mem::transmute::<MutexGuard<HashSet<PublicKey>>, MutexGuard<'static, HashSet<PublicKey>>>(
             guard,
         )
     };
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn rsn_representatives_lock_insert(
     handle: &mut RepresentativesLockHandle,
     rep: *const u8,
 ) {
-    let rep = Account::from_ptr(rep);
+    let rep = PublicKey::from_ptr(rep);
     handle.0.insert(rep);
 }
 
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn rsn_representatives_lock_insert(
 pub unsafe extern "C" fn rsn_representatives_lock_get_all(
     handle: &mut RepresentativesLockHandle,
 ) -> *mut AccountVecHandle {
-    let accounts: Vec<_> = handle.0.iter().cloned().collect();
+    let accounts: Vec<_> = handle.0.iter().map(|i| Account::from(i)).collect();
     Box::into_raw(Box::new(AccountVecHandle(accounts)))
 }
 

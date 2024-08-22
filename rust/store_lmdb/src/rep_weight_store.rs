@@ -5,7 +5,7 @@ use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_NEXT};
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
-    Account, Amount,
+    Amount, PublicKey,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 #[cfg(feature = "output_tracking")]
@@ -16,9 +16,9 @@ pub struct LmdbRepWeightStore {
     _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
     #[cfg(feature = "output_tracking")]
-    delete_listener: OutputListenerMt<Account>,
+    delete_listener: OutputListenerMt<PublicKey>,
     #[cfg(feature = "output_tracking")]
-    put_listener: OutputListenerMt<(Account, Amount)>,
+    put_listener: OutputListenerMt<(PublicKey, Amount)>,
 }
 
 impl LmdbRepWeightStore {
@@ -37,17 +37,17 @@ impl LmdbRepWeightStore {
     }
 
     #[cfg(feature = "output_tracking")]
-    pub fn track_deletions(&self) -> Arc<OutputTrackerMt<Account>> {
+    pub fn track_deletions(&self) -> Arc<OutputTrackerMt<PublicKey>> {
         self.delete_listener.track()
     }
 
     #[cfg(feature = "output_tracking")]
-    pub fn track_puts(&self) -> Arc<OutputTrackerMt<(Account, Amount)>> {
+    pub fn track_puts(&self) -> Arc<OutputTrackerMt<(PublicKey, Amount)>> {
         self.put_listener.track()
     }
 
-    pub fn get(&self, txn: &dyn Transaction, account: Account) -> Option<Amount> {
-        match txn.get(self.database, account.as_bytes()) {
+    pub fn get(&self, txn: &dyn Transaction, pub_key: &PublicKey) -> Option<Amount> {
+        match txn.get(self.database, pub_key.as_bytes()) {
             Ok(bytes) => {
                 let mut stream = BufferReader::new(bytes);
                 Amount::deserialize(&mut stream).ok()
@@ -59,7 +59,7 @@ impl LmdbRepWeightStore {
         }
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, representative: Account, weight: Amount) {
+    pub fn put(&self, txn: &mut LmdbWriteTransaction, representative: PublicKey, weight: Amount) {
         #[cfg(feature = "output_tracking")]
         self.put_listener.emit((representative, weight));
 
@@ -72,9 +72,9 @@ impl LmdbRepWeightStore {
         .unwrap();
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, representative: Account) {
+    pub fn del(&self, txn: &mut LmdbWriteTransaction, representative: &PublicKey) {
         #[cfg(feature = "output_tracking")]
-        self.delete_listener.emit(representative);
+        self.delete_listener.emit(*representative);
 
         txn.delete(self.database, representative.as_bytes(), None)
             .unwrap();
@@ -99,7 +99,7 @@ pub struct RepWeightIterator<'txn> {
 }
 
 impl<'txn> Iterator for RepWeightIterator<'txn> {
-    type Item = (Account, Amount);
+    type Item = (PublicKey, Amount);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.cursor.get(None, None, self.operation) {
@@ -107,7 +107,7 @@ impl<'txn> Iterator for RepWeightIterator<'txn> {
             Ok((Some(k), v)) => {
                 self.operation = MDB_NEXT;
                 Some((
-                    Account::from_slice(k).unwrap(),
+                    PublicKey::from_slice(k).unwrap(),
                     Amount::from_be_bytes(v.try_into().unwrap()),
                 ))
             }
@@ -128,7 +128,7 @@ impl ConfiguredRepWeightDatabaseBuilder {
         }
     }
 
-    pub fn entry(mut self, account: Account, weight: Amount) -> Self {
+    pub fn entry(mut self, account: PublicKey, weight: Amount) -> Self {
         self.database
             .entries
             .insert(account.as_bytes().to_vec(), weight.to_be_bytes().to_vec());
@@ -139,7 +139,7 @@ impl ConfiguredRepWeightDatabaseBuilder {
         self.database
     }
 
-    pub fn create(hashes: Vec<(Account, Amount)>) -> ConfiguredDatabase {
+    pub fn create(hashes: Vec<(PublicKey, Amount)>) -> ConfiguredDatabase {
         let mut builder = Self::new();
         for (account, weight) in hashes {
             builder = builder.entry(account, weight);
@@ -169,7 +169,7 @@ mod tests {
         let fixture = Fixture::new();
         let mut txn = fixture.env.tx_begin_write();
         let put_tracker = txn.track_puts();
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let weight = Amount::from(42);
 
         fixture.store.put(&mut txn, account, weight);
@@ -187,12 +187,12 @@ mod tests {
 
     #[test]
     fn load_weight() {
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
         let weight = Amount::from(42);
         let fixture = Fixture::with_stored_data(vec![(account, weight)]);
         let txn = fixture.env.tx_begin_read();
 
-        let result = fixture.store.get(&txn, account);
+        let result = fixture.store.get(&txn, &account);
 
         assert_eq!(result, Some(weight));
     }
@@ -202,9 +202,9 @@ mod tests {
         let fixture = Fixture::new();
         let mut txn = fixture.env.tx_begin_write();
         let delete_tracker = txn.track_deletions();
-        let account = Account::from(1);
+        let account = PublicKey::from(1);
 
-        fixture.store.del(&mut txn, account);
+        fixture.store.del(&mut txn, &account);
 
         assert_eq!(
             delete_tracker.output(),
@@ -225,8 +225,8 @@ mod tests {
 
     #[test]
     fn iter() {
-        let account1 = Account::from(1);
-        let account2 = Account::from(2);
+        let account1 = PublicKey::from(1);
+        let account2 = PublicKey::from(2);
         let weight1 = Amount::from(100);
         let weight2 = Amount::from(200);
         let fixture = Fixture::with_stored_data(vec![(account1, weight1), (account2, weight2)]);
@@ -248,7 +248,7 @@ mod tests {
             Self::with_stored_data(Vec::new())
         }
 
-        pub fn with_stored_data(entries: Vec<(Account, Amount)>) -> Self {
+        pub fn with_stored_data(entries: Vec<(PublicKey, Amount)>) -> Self {
             let env = LmdbEnv::new_null_with()
                 .configured_database(ConfiguredRepWeightDatabaseBuilder::create(entries))
                 .build();

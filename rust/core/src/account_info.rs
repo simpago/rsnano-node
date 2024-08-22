@@ -5,7 +5,7 @@ use crate::{
         BufferWriter, Deserialize, FixedSizeSerialize, MutStreamAdapter, Serialize, Stream,
         StreamExt,
     },
-    Account, Amount,
+    Account, Amount, PublicKey,
 };
 use anyhow::Result;
 use num_traits::FromPrimitive;
@@ -16,7 +16,7 @@ use super::{BlockHash, Epoch};
 #[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub struct AccountInfo {
     pub head: BlockHash,
-    pub representative: Account,
+    pub representative: PublicKey,
     pub open_block: BlockHash,
     pub balance: Amount,
     /** Seconds since posix epoch */
@@ -36,7 +36,7 @@ impl AccountInfo {
     pub fn new_test_instance() -> Self {
         Self {
             head: BlockHash::from(1),
-            representative: Account::from(2),
+            representative: PublicKey::from(2),
             open_block: BlockHash::from(3),
             balance: Amount::raw(42),
             modified: 4,
@@ -75,7 +75,7 @@ impl Deserialize for AccountInfo {
     fn deserialize(stream: &mut dyn Stream) -> Result<AccountInfo> {
         Ok(Self {
             head: BlockHash::deserialize(stream)?,
-            representative: Account::deserialize(stream)?,
+            representative: PublicKey::deserialize(stream)?,
             open_block: BlockHash::deserialize(stream)?,
             balance: Amount::deserialize(stream)?,
             modified: stream.read_u64_ne()?,

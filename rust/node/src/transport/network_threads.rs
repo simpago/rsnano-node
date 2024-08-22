@@ -14,7 +14,7 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 pub(crate) struct NetworkThreads {

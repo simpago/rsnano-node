@@ -1,6 +1,6 @@
 use super::{
     Channel, InboundMessageQueue, LatestKeepalives, MessagePublisher, Network, NetworkFilter,
-    NetworkInfo, ResponseServer, ResponseServerExt, SynCookies,
+    NetworkInfo, NetworkStats, ResponseServer, ResponseServerExt, SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -58,6 +58,7 @@ impl ResponseServerFactory {
                 flags.clone(),
                 network.clone(),
                 network_info.clone(),
+                NetworkStats::new(stats.clone()),
                 runtime,
                 workers,
                 network_params.clone(),

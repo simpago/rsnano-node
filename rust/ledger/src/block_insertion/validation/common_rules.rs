@@ -16,7 +16,7 @@ impl<'a> BlockValidator<'a> {
             self.epochs.validate_epoch_signature(self.block)
         } else {
             validate_message(
-                &self.account,
+                &self.account.into(),
                 self.block.hash().as_bytes(),
                 self.block.block_signature(),
             )

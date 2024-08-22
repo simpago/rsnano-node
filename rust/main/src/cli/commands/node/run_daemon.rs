@@ -11,7 +11,7 @@ use rsnano_node::{
     utils::AsyncRuntime,
     NetworkParams,
 };
-use rsnano_rpc::{RpcConfig, RpcToml};
+use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::{
     fs::read_to_string,
     sync::{Arc, Condvar, Mutex},
@@ -145,14 +145,14 @@ impl RunDaemonArgs {
 
         let rpc_toml_config_path = get_rpc_toml_config_path(&path);
 
-        let rpc_config = if rpc_toml_config_path.exists() {
-            let rpc_toml_str = read_to_string(rpc_toml_config_path)?;
+        let rpc_server_config = if rpc_toml_config_path.exists() {
+            let rpc_server_toml_str = read_to_string(rpc_toml_config_path)?;
 
-            let rpc_toml: RpcToml = from_str(&rpc_toml_str)?;
+            let rpc_server_toml: RpcServerToml = from_str(&rpc_server_toml_str)?;
 
-            (&rpc_toml).into()
+            (&rpc_server_toml).into()
         } else {
-            RpcConfig::default()
+            RpcServerConfig::default()
         };
 
         let mut flags = NodeFlags::new();

@@ -2,7 +2,7 @@ use crate::utils::FfiStream;
 use num_traits::FromPrimitive;
 use rsnano_core::{
     utils::{Deserialize, FixedSizeSerialize},
-    Account, AccountInfo, Amount, BlockHash, Epoch,
+    AccountInfo, Amount, BlockHash, Epoch, PublicKey,
 };
 use std::{
     ffi::c_void,
@@ -37,7 +37,7 @@ pub unsafe extern "C" fn rsn_account_info_create(
 ) -> *mut AccountInfoHandle {
     Box::into_raw(Box::new(AccountInfoHandle(AccountInfo {
         head: BlockHash::from_ptr(head),
-        representative: Account::from_ptr(rep),
+        representative: PublicKey::from_ptr(rep),
         open_block: BlockHash::from_ptr(open_block),
         balance: Amount::from_ptr(balance),
         modified,

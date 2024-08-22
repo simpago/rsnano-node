@@ -1,5 +1,5 @@
-use rsnano_core::{Account, Amount, BlockEnum, StateBlock, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_core::{Account, Amount, BlockEnum, PublicKey, StateBlock, DEV_GENESIS_KEY};
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::ConfirmReq;
 use rsnano_node::{
     config::NodeFlags,
@@ -23,7 +23,7 @@ fn batches() {
     let channel1 = establish_tcp(&node2, &node1);
     // Solicitor will only solicit from this representative
     let representative = PeeredRep::new(
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         channel1.channel_id(),
         node2.steady_clock.now(),
     );
@@ -39,7 +39,7 @@ fn batches() {
     let send = Arc::new(BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(100),
         Account::from(123).into(),
         &DEV_GENESIS_KEY,
@@ -104,7 +104,7 @@ fn different_hashes() {
     let channel1 = establish_tcp(&node2, &node1);
     // Solicitor will only solicit from this representative
     let representative = PeeredRep::new(
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         channel1.channel_id(),
         node2.steady_clock.now(),
     );
@@ -120,7 +120,7 @@ fn different_hashes() {
     let send = Arc::new(BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(100),
         Account::from(123).into(),
         &DEV_GENESIS_KEY,
@@ -137,7 +137,7 @@ fn different_hashes() {
     let mut data = election.mutex.lock().unwrap();
     // Add a vote for something else, not the winner
     data.last_votes
-        .insert(*DEV_GENESIS_ACCOUNT, VoteInfo::new(1, 1.into()));
+        .insert(*DEV_GENESIS_PUB_KEY, VoteInfo::new(1, 1.into()));
     // Ensure the request and broadcast goes through
     assert_eq!(solicitor.add(&election, &data), false);
     solicitor.broadcast(&data).unwrap();
@@ -178,7 +178,7 @@ fn bypass_max_requests_cap() {
     for i in 0..=MAX_REPRESENTATIVES {
         // Make a temporary channel associated with node2
         let rep = PeeredRep::new(
-            Account::from(i as u64),
+            PublicKey::from(i as u64),
             ChannelId::from(i),
             node2.steady_clock.now(),
         );
@@ -190,7 +190,7 @@ fn bypass_max_requests_cap() {
     let send = Arc::new(BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(100),
         Account::from(123).into(),
         &DEV_GENESIS_KEY,

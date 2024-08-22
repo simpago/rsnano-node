@@ -1,7 +1,7 @@
 use rsnano_core::{
     Amount, BlockEnum, BlockHash, KeyPair, StateBlock, Vote, VoteSource, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeConfig},
     wallets::WalletsExt,
@@ -32,9 +32,9 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         amount,
-        key1.public_key().into(),
+        key1.account().into(),
         &DEV_GENESIS_KEY,
         node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -44,7 +44,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     });
 
     let open1 = BlockEnum::State(StateBlock::new(
-        key1.public_key(),
+        key1.account(),
         BlockHash::zero(),
         key1.public_key(),
         Amount::MAX - amount,
@@ -56,11 +56,11 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
 
     let key2 = KeyPair::new();
     let send2 = BlockEnum::State(StateBlock::new(
-        key1.public_key(),
+        key1.account(),
         open1.hash(),
         key1.public_key(),
         Amount::raw(3),
-        key2.public_key().into(),
+        key2.account().into(),
         &key1,
         node1.work_generate_dev(open1.hash().into()),
     ));

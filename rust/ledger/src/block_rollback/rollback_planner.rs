@@ -1,6 +1,6 @@
 use rsnano_core::{
     Account, AccountInfo, Amount, BlockEnum, BlockHash, BlockSubType, ConfirmationHeightInfo,
-    Epoch, Epochs, PendingInfo, PendingKey,
+    Epoch, Epochs, PendingInfo, PendingKey, PublicKey,
 };
 
 pub(crate) enum RollbackStep {
@@ -20,7 +20,7 @@ pub(crate) struct RollbackInstructions {
     pub old_account_info: AccountInfo,
     pub clear_successor: Option<BlockHash>,
     pub new_balance: Amount,
-    pub new_representative: Option<Account>,
+    pub new_representative: Option<PublicKey>,
 }
 
 /// Create RollbackInstructions for a given block
@@ -29,7 +29,7 @@ pub(crate) struct RollbackPlanner<'a> {
     pub head_block: &'a BlockEnum,
     pub account: Account,
     pub current_account_info: AccountInfo,
-    pub previous_representative: Option<Account>,
+    pub previous_representative: Option<PublicKey>,
     pub previous: Option<BlockEnum>,
     pub linked_account: Account,
     pub pending_receive: Option<PendingInfo>,
@@ -153,7 +153,7 @@ impl<'a> RollbackPlanner<'a> {
         }
     }
 
-    fn previous_representative(&self) -> Account {
+    fn previous_representative(&self) -> PublicKey {
         self.previous_representative
             .unwrap_or(self.current_account_info.representative)
     }

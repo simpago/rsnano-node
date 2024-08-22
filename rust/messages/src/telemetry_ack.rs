@@ -26,7 +26,7 @@ pub enum TelemetryMaker {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize)]
 pub struct TelemetryData {
     pub signature: Signature,
-    pub node_id: Account,
+    pub node_id: PublicKey,
     pub block_count: u64,
     pub cemented_count: u64,
     pub unchecked_count: u64,
@@ -53,7 +53,7 @@ impl TelemetryData {
     pub fn new() -> Self {
         Self {
             signature: Signature::new(),
-            node_id: Account::zero(),
+            node_id: PublicKey::zero(),
             block_count: 0,
             cemented_count: 0,
             unchecked_count: 0,
@@ -224,7 +224,7 @@ impl TelemetryAck {
 
         let mut result = TelemetryData {
             signature: Signature::deserialize(stream).ok()?,
-            node_id: Account::deserialize(stream).ok()?,
+            node_id: PublicKey::deserialize(stream).ok()?,
             block_count: stream.read_u64_be().ok()?,
             cemented_count: stream.read_u64_be().ok()?,
             unchecked_count: stream.read_u64_be().ok()?,

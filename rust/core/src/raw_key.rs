@@ -1,12 +1,12 @@
+use crate::{serialize_32_byte_string, u256_struct};
 use ctr::cipher::{KeyIvInit, StreamCipher};
 use rand::{thread_rng, Rng};
 use std::ops::BitXorAssign;
 
-use crate::u256_struct;
-
 type Aes256Ctr = ctr::Ctr64BE<aes::Aes256>;
 
 u256_struct!(RawKey);
+serialize_32_byte_string!(RawKey);
 
 impl RawKey {
     pub fn random() -> Self {

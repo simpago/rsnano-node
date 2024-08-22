@@ -1,5 +1,8 @@
 use super::LedgerContext;
-use crate::{ledger_constants::LEDGER_CONSTANTS_STUB, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use crate::{
+    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+};
 use rsnano_core::{utils::seconds_since_epoch, Account, BlockType};
 
 #[test]
@@ -89,7 +92,7 @@ fn genesis_representative() {
 fn genesis_vote_weight() {
     let ctx = LedgerContext::empty();
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
 }

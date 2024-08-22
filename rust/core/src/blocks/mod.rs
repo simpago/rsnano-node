@@ -5,31 +5,34 @@ mod block_sideband;
 pub use block_sideband::BlockSideband;
 
 mod change_block;
+use change_block::JsonChangeBlock;
 pub use change_block::{valid_change_block_predecessor, ChangeBlock, ChangeHashables};
 
 mod open_block;
 use once_cell::sync::Lazy;
+use open_block::JsonOpenBlock;
 pub use open_block::{OpenBlock, OpenHashables};
 
 mod receive_block;
+use receive_block::JsonReceiveBlock;
 pub use receive_block::{valid_receive_block_predecessor, ReceiveBlock, ReceiveHashables};
 
 mod send_block;
+use send_block::JsonSendBlock;
 pub use send_block::{valid_send_block_predecessor, SendBlock, SendHashables};
 
 mod state_block;
+use serde::{Deserialize, Serialize};
+use state_block::JsonStateBlock;
 pub use state_block::{StateBlock, StateHashables};
 
 mod builders;
 pub use builders::*;
 
 use crate::{
-    utils::{
-        BufferReader, BufferWriter, Deserialize, MemoryStream, PropertyTree, SerdePropertyTree,
-        Stream,
-    },
+    utils::{BufferReader, BufferWriter, MemoryStream, PropertyTree, SerdePropertyTree, Stream},
     Account, Amount, BlockHash, BlockHashBuilder, Epoch, Epochs, FullHash, KeyPair, Link,
-    QualifiedRoot, Root, Signature, WorkVersion,
+    PublicKey, QualifiedRoot, Root, Signature, WorkVersion,
 };
 use num::FromPrimitive;
 use std::{
@@ -123,6 +126,7 @@ pub trait Block: FullHash {
         self.serialize_json(&mut writer)?;
         Ok(writer.to_json())
     }
+    fn json_representation(&self) -> JsonBlock;
     fn work_version(&self) -> WorkVersion {
         WorkVersion::Work1
     }
@@ -132,7 +136,7 @@ pub trait Block: FullHash {
     fn balance_field(&self) -> Option<Amount>;
     /// Source block for open/receive blocks, zero otherwise.
     fn source_field(&self) -> Option<BlockHash>;
-    fn representative_field(&self) -> Option<Account>;
+    fn representative_field(&self) -> Option<PublicKey>;
     fn destination_field(&self) -> Option<Account>;
     fn qualified_root(&self) -> QualifiedRoot {
         QualifiedRoot::new(self.root(), self.previous())
@@ -470,13 +474,52 @@ impl serde::Serialize for BlockEnum {
     where
         S: serde::Serializer,
     {
-        match self {
-            BlockEnum::LegacySend(b) => b.serialize(serializer),
-            BlockEnum::LegacyReceive(b) => b.serialize(serializer),
-            BlockEnum::LegacyOpen(b) => b.serialize(serializer),
-            BlockEnum::LegacyChange(b) => b.serialize(serializer),
-            BlockEnum::State(b) => b.serialize(serializer),
+        let json = self.as_block().json_representation();
+        json.serialize(serializer)
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum JsonBlock {
+    Open(JsonOpenBlock),
+    Change(JsonChangeBlock),
+    Receive(JsonReceiveBlock),
+    Send(JsonSendBlock),
+    State(JsonStateBlock),
+}
+
+impl<'de> serde::Deserialize<'de> for BlockEnum {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let json_block = JsonBlock::deserialize(deserializer)?;
+        Ok(json_block.into())
+    }
+}
+
+impl From<JsonBlock> for BlockEnum {
+    fn from(value: JsonBlock) -> Self {
+        match value {
+            JsonBlock::Open(open) => BlockEnum::LegacyOpen(open.into()),
+            JsonBlock::Change(change) => BlockEnum::LegacyChange(change.into()),
+            JsonBlock::Receive(receive) => BlockEnum::LegacyReceive(receive.into()),
+            JsonBlock::Send(send) => BlockEnum::LegacySend(send.into()),
+            JsonBlock::State(state) => BlockEnum::State(state.into()),
         }
+    }
+}
+
+impl From<BlockEnum> for JsonBlock {
+    fn from(value: BlockEnum) -> Self {
+        value.as_block().json_representation()
+    }
+}
+
+impl From<&BlockEnum> for JsonBlock {
+    fn from(value: &BlockEnum) -> Self {
+        value.as_block().json_representation()
     }
 }
 
@@ -497,7 +540,7 @@ pub struct BlockWithSideband {
     pub sideband: BlockSideband,
 }
 
-impl Deserialize for BlockWithSideband {
+impl crate::utils::Deserialize for BlockWithSideband {
     type Target = Self;
     fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Self> {
         let mut block = BlockEnum::deserialize(stream)?;

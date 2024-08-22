@@ -1,5 +1,5 @@
 use super::{PublicKey, RawKey, Signature};
-use crate::{Block, StateBlock};
+use crate::{Account, Block, StateBlock};
 use anyhow::Context;
 use rsnano_nullable_random::NullableRng;
 
@@ -81,6 +81,10 @@ impl KeyPair {
         Self::from_priv_key_bytes(&bytes)
     }
 
+    pub fn account(&self) -> Account {
+        Account::from_bytes(self.keypair.public.to_bytes())
+    }
+
     pub fn public_key(&self) -> PublicKey {
         PublicKey::from_bytes(self.keypair.public.to_bytes())
     }
@@ -131,7 +135,7 @@ pub fn validate_message(
 
 pub fn validate_block_signature(block: &StateBlock) -> anyhow::Result<()> {
     validate_message(
-        &block.account(),
+        &block.account().into(),
         block.hash().as_bytes(),
         block.block_signature(),
     )

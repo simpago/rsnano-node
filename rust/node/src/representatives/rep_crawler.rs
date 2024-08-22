@@ -13,7 +13,7 @@ use crate::{
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent, NULL_ENDPOINT},
-    BlockHash, Root, Vote,
+    Account, BlockHash, Root, Vote,
 };
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmReq, Keepalive, Message};
@@ -287,7 +287,7 @@ impl RepCrawler {
             if rep_weight < minimum {
                 debug!(
                     "Ignoring vote from account: {} with too little voting weight: {}",
-                    vote.voting_account.encode_account(),
+                    Account::from(vote.voting_account).encode_account(),
                     rep_weight.to_string_dec()
                 );
                 continue;
@@ -303,14 +303,14 @@ impl RepCrawler {
                 InsertResult::Inserted => {
                     info!(
                         "Found representative: {} at channel: {}",
-                        vote.voting_account.encode_account(),
+                        Account::from(vote.voting_account).encode_account(),
                         channel_id
                     );
                 }
                 InsertResult::ChannelChanged(previous) => {
                     warn!(
                         "Updated representative: {} at channel: {} (was at: {})",
-                        vote.voting_account.encode_account(),
+                        Account::from(vote.voting_account).encode_account(),
                         channel_id,
                         previous
                     )

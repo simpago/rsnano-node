@@ -734,7 +734,7 @@ impl ActiveElections {
         let mut sorted_votes: BTreeMap<TallyKey, Vec<VoteWithWeightInfo>> = BTreeMap::new();
         let guard = election.mutex.lock().unwrap();
         for (&representative, info) in &guard.last_votes {
-            if representative == HardenedConstants::get().not_an_account {
+            if representative == HardenedConstants::get().not_an_account_key {
                 continue;
             }
             let weight = self.ledger.weight(&representative);

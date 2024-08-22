@@ -42,7 +42,7 @@ impl CreateAccountArgs {
             .deterministic_insert2(&wallet, false)
             .map_err(|e| anyhow!("Failed to insert wallet: {:?}", e))?;
 
-        println!("Account: {:?}", Account::encode_account(&public_key));
+        println!("Account: {:?}", Account::from(public_key).encode_account());
 
         Ok(())
     }

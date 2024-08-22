@@ -1,7 +1,7 @@
 use crate::cli::get_path;
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
-use rsnano_core::WalletId;
+use rsnano_core::{Account, WalletId};
 use rsnano_node::wallets::{Wallets, WalletsExt};
 use rsnano_store_lmdb::LmdbEnv;
 use std::sync::Arc;
@@ -43,7 +43,10 @@ impl GetWalletRepresentativeArgs {
             .get_representative(wallet_id)
             .map_err(|e| anyhow!("Failed to get wallet representative: {:?}", e))?;
 
-        println!("Representative: {:?}", &representative.encode_account());
+        println!(
+            "Representative: {:?}",
+            Account::from(representative).encode_account()
+        );
 
         Ok(())
     }

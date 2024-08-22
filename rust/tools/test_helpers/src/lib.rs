@@ -342,8 +342,8 @@ pub fn activate_hashes(node: &Node, hashes: &[BlockHash]) {
 }
 
 pub fn setup_chain(node: &Node, count: usize, target: &KeyPair, confirm: bool) -> Vec<BlockEnum> {
-    let mut latest = node.latest(&target.public_key());
-    let mut balance = node.balance(&target.public_key());
+    let mut latest = node.latest(&target.account());
+    let mut balance = node.balance(&target.account());
 
     let mut blocks = Vec::new();
 
@@ -351,11 +351,11 @@ pub fn setup_chain(node: &Node, count: usize, target: &KeyPair, confirm: bool) -
         let throwaway = KeyPair::new();
         balance = balance - Amount::raw(1);
         let send = BlockEnum::State(StateBlock::new(
-            target.public_key(),
+            target.account(),
             latest,
             target.public_key(),
             balance,
-            throwaway.public_key().into(),
+            throwaway.account().into(),
             &target,
             node.work_generate_dev(latest.into()),
         ));
@@ -384,8 +384,8 @@ pub fn setup_chains(
     source: &KeyPair,
     confirm: bool,
 ) -> Vec<(Account, Vec<BlockEnum>)> {
-    let mut latest = node.latest(&source.public_key());
-    let mut balance = node.balance(&source.public_key());
+    let mut latest = node.latest(&source.account());
+    let mut balance = node.balance(&source.account());
 
     let mut chains = Vec::new();
     for _ in 0..chain_count {
@@ -393,17 +393,17 @@ pub fn setup_chains(
         let amount_sent = Amount::raw(block_count as u128 * 2);
         balance = balance - amount_sent; // Send enough to later create `block_count` blocks
         let send = BlockEnum::State(StateBlock::new(
-            source.public_key(),
+            source.account(),
             latest,
             source.public_key(),
             balance,
-            key.public_key().into(),
+            key.account().into(),
             source,
             node.work_generate_dev(latest.into()),
         ));
 
         let open = BlockEnum::State(StateBlock::new(
-            key.public_key(),
+            key.account(),
             BlockHash::zero(),
             key.public_key(),
             amount_sent,
@@ -424,7 +424,7 @@ pub fn setup_chains(
         let mut blocks = setup_chain(node, block_count, &key, confirm);
         blocks.insert(0, open);
 
-        chains.push((key.public_key(), blocks));
+        chains.push((key.account(), blocks));
     }
 
     chains

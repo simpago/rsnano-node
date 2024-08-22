@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, BlockEnum, BlockHash, KeyPair, StateBlock, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::ConfirmAck;
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeFlags},
@@ -26,7 +26,7 @@ fn one() {
     let mut send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::nano(1000),
         (*DEV_GENESIS_ACCOUNT).into(),
         &DEV_GENESIS_KEY,
@@ -169,9 +169,9 @@ fn one_update() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::nano(1000),
-        key1.public_key().into(),
+        key1.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -181,7 +181,7 @@ fn one_update() {
     let send2 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         send1.hash(),
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::nano(2000),
         (*DEV_GENESIS_ACCOUNT).into(),
         &DEV_GENESIS_KEY,
@@ -191,9 +191,9 @@ fn one_update() {
     node.confirm(send2.hash());
 
     let receive1 = BlockEnum::State(StateBlock::new(
-        key1.public_key(),
+        key1.account(),
         BlockHash::zero(),
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::nano(1000),
         send1.hash().into(),
         &key1,
@@ -313,9 +313,9 @@ fn two() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(1),
-        key1.public_key().into(),
+        key1.account().into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
@@ -325,7 +325,7 @@ fn two() {
     let send2 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         send1.hash(),
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(2),
         (*DEV_GENESIS_ACCOUNT).into(),
         &DEV_GENESIS_KEY,
@@ -335,9 +335,9 @@ fn two() {
     node.confirm(send2.hash());
 
     let receive1 = BlockEnum::State(StateBlock::new(
-        key1.public_key(),
+        key1.account(),
         BlockHash::zero(),
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::raw(1),
         send1.hash().into(),
         &key1,
@@ -473,7 +473,7 @@ fn split() {
         let block = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             previous,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::raw(i as u128 + 1),
             (*DEV_GENESIS_ACCOUNT).into(),
             &DEV_GENESIS_KEY,
@@ -563,7 +563,7 @@ fn channel_max_queue() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::nano(1000),
         (*DEV_GENESIS_ACCOUNT).into(),
         &DEV_GENESIS_KEY,
@@ -597,7 +597,7 @@ fn cannot_vote() {
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(1),
         (*DEV_GENESIS_ACCOUNT).into(),
         &DEV_GENESIS_KEY,
@@ -607,7 +607,7 @@ fn cannot_vote() {
     let send2 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         send1.hash(),
-        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_PUB_KEY,
         Amount::MAX - Amount::raw(2),
         (*DEV_GENESIS_ACCOUNT).into(),
         &DEV_GENESIS_KEY,

@@ -1,4 +1,4 @@
-use super::{AcceptResult, ChannelDirection, Network, ResponseServerFactory, TcpConfig};
+use super::{ChannelDirection, Network, NetworkStats, ResponseServerFactory, TcpConfig};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     transport::ChannelMode,
@@ -15,6 +15,7 @@ use tracing::debug;
 pub struct PeerConnector {
     config: TcpConfig,
     network: Arc<Network>,
+    network_stats: Option<NetworkStats>,
     stats: Arc<Stats>,
     runtime: Arc<AsyncRuntime>,
     cancel_token: CancellationToken,
@@ -27,6 +28,7 @@ impl PeerConnector {
     pub(crate) fn new(
         config: TcpConfig,
         network: Arc<Network>,
+        network_stats: NetworkStats,
         stats: Arc<Stats>,
         runtime: Arc<AsyncRuntime>,
         response_server_factory: Arc<ResponseServerFactory>,
@@ -35,6 +37,7 @@ impl PeerConnector {
         Self {
             config,
             network,
+            network_stats: Some(network_stats),
             stats,
             runtime,
             cancel_token: CancellationToken::new(),
@@ -49,6 +52,7 @@ impl PeerConnector {
         Self {
             config: Default::default(),
             network: Arc::new(Network::new_null()),
+            network_stats: None,
             stats: Arc::new(Default::default()),
             runtime: Arc::new(Default::default()),
             cancel_token: CancellationToken::new(),
@@ -100,17 +104,30 @@ impl PeerConnectorExt for Arc<PeerConnector> {
         {
             let mut network = self.network.info.write().unwrap();
 
-            if !network.add_attempt(peer) {
+            if let Err(e) =
+                network.add_outbound_attempt(peer, ChannelMode::Realtime, self.clock.now())
+            {
+                if let Some(stats) = &self.network_stats {
+                    stats.error(e, &peer, ChannelDirection::Outbound);
+                }
+
                 return false;
             }
-            if network.can_add_connection(
+
+            if let Some(stats) = &self.network_stats {
+                stats.connection_attempt(&peer);
+            }
+
+            if let Err(e) = network.validate_new_connection(
                 &peer,
                 ChannelDirection::Outbound,
                 ChannelMode::Realtime,
                 self.clock.now(),
-            ) != AcceptResult::Accepted
-            {
+            ) {
                 network.remove_attempt(&peer);
+                if let Some(stats) = &self.network_stats {
+                    stats.error(e, &peer, ChannelDirection::Outbound);
+                }
                 return false;
             }
         }

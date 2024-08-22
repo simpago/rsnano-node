@@ -80,7 +80,7 @@ fn rollback_vote_weight() {
         .unwrap();
 
     assert_eq!(
-        ctx.ledger.weight(&receive.destination.account()),
+        ctx.ledger.weight(&receive.destination.public_key()),
         receive.expected_balance - receive.amount_received
     );
 }

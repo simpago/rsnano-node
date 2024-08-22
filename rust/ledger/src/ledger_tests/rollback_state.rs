@@ -1,10 +1,10 @@
+use super::LedgerContext;
 use crate::{
-    ledger_constants::LEDGER_CONSTANTS_STUB, ledger_tests::AccountBlockFactory,
+    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
+    ledger_tests::AccountBlockFactory,
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
-use rsnano_core::{Account, Amount, Epoch, PendingInfo, PendingKey};
-
-use super::LedgerContext;
+use rsnano_core::{Amount, Epoch, PendingInfo, PendingKey, PublicKey};
 
 #[test]
 fn rollback_send() {
@@ -23,7 +23,7 @@ fn rollback_send() {
         Some(LEDGER_CONSTANTS_STUB.genesis_amount)
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
@@ -63,7 +63,7 @@ fn rollback_receive() {
         Some(LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent)
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
     );
     assert_eq!(
@@ -107,7 +107,7 @@ fn rollback_received_send() {
         Some(LEDGER_CONSTANTS_STUB.genesis_amount)
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(
@@ -124,7 +124,7 @@ fn rollback_rep_change() {
     let ctx = LedgerContext::empty();
     let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
-    let representative = Account::from(1);
+    let representative = PublicKey::from(1);
 
     let mut change = genesis.change(&txn).representative(representative).build();
     ctx.ledger.process(&mut txn, &mut change).unwrap();
@@ -137,7 +137,7 @@ fn rollback_rep_change() {
         Some(LEDGER_CONSTANTS_STUB.genesis_amount)
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(ctx.ledger.weight(&representative), Amount::zero());
@@ -171,7 +171,7 @@ fn rollback_open() {
         None
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount - amount_sent
     );
     assert_eq!(
@@ -194,7 +194,7 @@ fn rollback_send_with_rep_change() {
     let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
-    let representative = Account::from(1);
+    let representative = PublicKey::from(1);
     let mut send = genesis.send(&txn).representative(representative).build();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
 
@@ -206,7 +206,7 @@ fn rollback_send_with_rep_change() {
         Some(LEDGER_CONSTANTS_STUB.genesis_amount)
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         LEDGER_CONSTANTS_STUB.genesis_amount
     );
     assert_eq!(ctx.ledger.weight(&representative), Amount::zero());
@@ -218,7 +218,7 @@ fn rollback_receive_with_rep_change() {
     let mut txn = ctx.ledger.rw_txn();
     let genesis = ctx.genesis_block_factory();
 
-    let representative = Account::from(1);
+    let representative = PublicKey::from(1);
     let mut send = genesis.send(&txn).link(genesis.account()).build();
     ctx.ledger.process(&mut txn, &mut send).unwrap();
 
@@ -236,7 +236,7 @@ fn rollback_receive_with_rep_change() {
         Some(send.balance_field().unwrap())
     );
     assert_eq!(
-        ctx.ledger.weight(&DEV_GENESIS_ACCOUNT),
+        ctx.ledger.weight(&DEV_GENESIS_PUB_KEY),
         send.balance_field().unwrap()
     );
     assert_eq!(ctx.ledger.weight(&representative), Amount::zero());

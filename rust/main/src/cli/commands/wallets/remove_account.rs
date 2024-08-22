@@ -41,10 +41,10 @@ impl RemoveAccountArgs {
 
         wallets.ensure_wallet_is_unlocked(wallet_id, &password);
 
-        let account = Account::decode_account(&self.account)?;
+        let account = Account::decode_account(&self.account)?.into();
 
         wallets
-            .remove_account(&wallet_id, &account)
+            .remove_key(&wallet_id, &account)
             .map_err(|e| anyhow!("Failed to remove account: {:?}", e))?;
 
         Ok(())

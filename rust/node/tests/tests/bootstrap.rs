@@ -21,6 +21,7 @@ use std::time::Duration;
 use test_helpers::{assert_timely_eq, assert_timely_msg, get_available_port, System};
 
 mod bootstrap_processor {
+    use rsnano_ledger::DEV_GENESIS_PUB_KEY;
     use rsnano_node::{
         config::NodeConfig,
         transport::{ChannelMode, PeerConnectorExt},
@@ -44,15 +45,15 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node0.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
 
         let receive1 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             BlockHash::zero(),
             key1.public_key(),
             Amount::nano(1000),
@@ -62,17 +63,17 @@ mod bootstrap_processor {
         ));
 
         let send2 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             receive1.hash(),
             key1.public_key(),
             Amount::zero(),
-            key2.public_key().into(),
+            key2.account().into(),
             &key1,
             node0.work_generate_dev(receive1.hash().into()),
         ));
 
         let receive2 = BlockEnum::State(StateBlock::new(
-            key2.public_key(),
+            key2.account(),
             BlockHash::zero(),
             key2.public_key(),
             Amount::nano(1000),
@@ -113,7 +114,7 @@ mod bootstrap_processor {
         // Check processed blocks
         assert_timely_eq(
             Duration::from_secs(10),
-            || node1.balance(&key2.public_key()),
+            || node1.balance(&key2.account()),
             Amount::nano(1000),
         );
     }
@@ -134,15 +135,15 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node0.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
 
         let receive1 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             BlockHash::zero(),
             key1.public_key(),
             Amount::nano(1000),
@@ -152,17 +153,17 @@ mod bootstrap_processor {
         ));
 
         let send2 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             receive1.hash(),
             key1.public_key(),
             Amount::zero(),
-            key2.public_key().into(),
+            key2.account().into(),
             &key1,
             node0.work_generate_dev(receive1.hash().into()),
         ));
 
         let receive2 = BlockEnum::State(StateBlock::new(
-            key2.public_key(),
+            key2.account(),
             BlockHash::zero(),
             key2.public_key(),
             Amount::nano(1000),
@@ -205,7 +206,7 @@ mod bootstrap_processor {
         // Check processed blocks
         assert_timely_eq(
             Duration::from_secs(10),
-            || node1.balance(&key2.public_key()),
+            || node1.balance(&key2.account()),
             Amount::nano(1000),
         );
     }
@@ -238,9 +239,9 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
@@ -249,16 +250,16 @@ mod bootstrap_processor {
         let send2 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             send1.hash(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(2000),
-            key2.public_key().into(),
+            key2.account().into(),
             &DEV_GENESIS_KEY,
             node1.work_generate_dev(send1.hash().into()),
         ));
 
         // open account key1
         let receive1 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             BlockHash::zero(),
             key1.public_key(),
             Amount::nano(1000),
@@ -269,7 +270,7 @@ mod bootstrap_processor {
 
         //  open account key2
         let receive2 = BlockEnum::State(StateBlock::new(
-            key2.public_key(),
+            key2.account(),
             BlockHash::zero(),
             key2.public_key(),
             Amount::nano(1000),
@@ -367,9 +368,9 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node0.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
@@ -412,15 +413,15 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node0.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
 
         let receive1 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             BlockHash::zero(),
             key1.public_key(),
             Amount::nano(1000),
@@ -430,17 +431,17 @@ mod bootstrap_processor {
         ));
 
         let send2 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             receive1.hash(),
             key1.public_key(),
             Amount::zero(),
-            key2.public_key().into(),
+            key2.account().into(),
             &key1,
             node0.work_generate_dev(receive1.hash().into()),
         ));
 
         let receive2 = BlockEnum::State(StateBlock::new(
-            key2.public_key(),
+            key2.account(),
             BlockHash::zero(),
             key2.public_key(),
             Amount::nano(1000),
@@ -485,7 +486,7 @@ mod bootstrap_processor {
         // Check processed blocks
         assert_timely_msg(
             Duration::from_secs(10),
-            || node1.balance(&key2.public_key()) > Amount::zero(),
+            || node1.balance(&key2.account()) > Amount::zero(),
             "balance not updated",
         );
 
@@ -516,15 +517,15 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node0.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
 
         let receive1 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             BlockHash::zero(),
             key1.public_key(),
             Amount::nano(1000),
@@ -534,17 +535,17 @@ mod bootstrap_processor {
         ));
 
         let send2 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             receive1.hash(),
             key1.public_key(),
             Amount::zero(),
-            key2.public_key().into(),
+            key2.account().into(),
             &key1,
             node0.work_generate_dev(receive1.hash().into()),
         ));
 
         let receive2 = BlockEnum::State(StateBlock::new(
-            key2.public_key(),
+            key2.account(),
             BlockHash::zero(),
             key2.public_key(),
             Amount::nano(1000),
@@ -607,9 +608,9 @@ mod bootstrap_processor {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::zero(),
-            key.public_key().into(),
+            key.account().into(),
             &DEV_GENESIS_KEY,
             node1.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
@@ -617,7 +618,7 @@ mod bootstrap_processor {
 
         // open key account receiving all balance of genesis
         let open = BlockEnum::State(StateBlock::new(
-            key.public_key(),
+            key.account(),
             BlockHash::zero(),
             key.public_key(),
             Amount::MAX,
@@ -629,7 +630,7 @@ mod bootstrap_processor {
 
         // send from key to genesis 100 raw
         let send2 = BlockEnum::State(StateBlock::new(
-            key.public_key(),
+            key.account(),
             open.hash(),
             key.public_key(),
             Amount::MAX - Amount::raw(100),
@@ -643,7 +644,7 @@ mod bootstrap_processor {
         let receive = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             send1.hash(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::raw(100),
             send2.hash().into(),
             &DEV_GENESIS_KEY,
@@ -689,6 +690,8 @@ mod bootstrap_processor {
 }
 
 mod bulk_pull {
+    use rsnano_ledger::DEV_GENESIS_PUB_KEY;
+
     use super::*;
 
     // If the account doesn't exist, current == end so there's no iteration
@@ -754,7 +757,7 @@ mod bulk_pull {
             .send_action2(
                 &wallet_id,
                 *DEV_GENESIS_ACCOUNT,
-                key2.public_key(),
+                key2.account(),
                 Amount::raw(100),
                 0,
                 true,
@@ -763,7 +766,7 @@ mod bulk_pull {
             .unwrap();
         let latest = node.latest(&DEV_GENESIS_ACCOUNT);
         let open = BlockEnum::State(StateBlock::new(
-            key2.public_key(),
+            key2.account(),
             BlockHash::zero(),
             key2.public_key(),
             Amount::raw(100),
@@ -773,7 +776,7 @@ mod bulk_pull {
         ));
         node.process(open).unwrap();
         let bulk_pull = BulkPull {
-            start: key2.public_key().into(),
+            start: key2.account().into(),
             end: *DEV_GENESIS_HASH,
             count: 0,
             ascending: false,
@@ -821,7 +824,7 @@ mod bulk_pull {
         let block1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::raw(100),
             (*DEV_GENESIS_ACCOUNT).into(),
             &DEV_GENESIS_KEY,
@@ -850,7 +853,7 @@ mod bulk_pull {
         let block1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::raw(100),
             (*DEV_GENESIS_ACCOUNT).into(),
             &DEV_GENESIS_KEY,
@@ -881,7 +884,7 @@ mod bulk_pull {
         let block1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::raw(100),
             (*DEV_GENESIS_ACCOUNT).into(),
             &DEV_GENESIS_KEY,
@@ -943,7 +946,7 @@ mod bulk_pull {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::raw(1),
             (*DEV_GENESIS_ACCOUNT).into(),
             &DEV_GENESIS_KEY,
@@ -954,7 +957,7 @@ mod bulk_pull {
         let receive1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             send1.hash(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX,
             send1.hash().into(),
             &DEV_GENESIS_KEY,
@@ -995,11 +998,10 @@ mod bulk_pull {
 }
 
 mod frontier_req {
-    use std::thread::sleep;
-
-    use rsnano_core::PublicKey;
+    use rsnano_ledger::DEV_GENESIS_PUB_KEY;
     use rsnano_messages::FrontierReq;
     use rsnano_node::bootstrap::FrontierReqServer;
+    use std::thread::sleep;
 
     use super::*;
 
@@ -1048,18 +1050,18 @@ mod frontier_req {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key1.public_key().into(),
+            key1.account().into(),
             &DEV_GENESIS_KEY,
             node.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
         node.process(send1.clone()).unwrap();
 
         let receive1 = BlockEnum::State(StateBlock::new(
-            key1.public_key(),
+            key1.account(),
             BlockHash::zero(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::nano(1000),
             send1.hash().into(),
             &key1,
@@ -1138,9 +1140,9 @@ mod frontier_req {
         let send1 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(1000),
-            key_before_genesis.public_key().into(),
+            key_before_genesis.account().into(),
             &DEV_GENESIS_KEY,
             node.work_generate_dev((*DEV_GENESIS_HASH).into()),
         ));
@@ -1149,18 +1151,18 @@ mod frontier_req {
         let send2 = BlockEnum::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             send1.hash(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::MAX - Amount::nano(2000),
-            key_after_genesis.public_key().into(),
+            key_after_genesis.account().into(),
             &DEV_GENESIS_KEY,
             node.work_generate_dev(send1.hash().into()),
         ));
         node.process(send2.clone()).unwrap();
 
         let receive1 = BlockEnum::State(StateBlock::new(
-            key_before_genesis.public_key(),
+            key_before_genesis.account(),
             BlockHash::zero(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::nano(1000),
             send1.hash().into(),
             &key_before_genesis,
@@ -1169,9 +1171,9 @@ mod frontier_req {
         node.process(receive1.clone()).unwrap();
 
         let receive2 = BlockEnum::State(StateBlock::new(
-            key_after_genesis.public_key(),
+            key_after_genesis.account(),
             BlockHash::zero(),
-            *DEV_GENESIS_ACCOUNT,
+            *DEV_GENESIS_PUB_KEY,
             Amount::nano(1000),
             send2.hash().into(),
             &key_after_genesis,
@@ -1192,7 +1194,7 @@ mod frontier_req {
 
         // Request starting with account before genesis (confirmed only)
         let request2 = FrontierReq {
-            start: key_before_genesis.public_key(),
+            start: key_before_genesis.account(),
             age: u32::MAX,
             count: u32::MAX,
             only_confirmed: true,
@@ -1203,7 +1205,7 @@ mod frontier_req {
 
         // Request starting with account after genesis (confirmed only)
         let request3 = FrontierReq {
-            start: key_after_genesis.public_key(),
+            start: key_after_genesis.account(),
             age: u32::MAX,
             count: u32::MAX,
             only_confirmed: true,
@@ -1214,60 +1216,48 @@ mod frontier_req {
 
         // Request for all accounts (unconfirmed blocks)
         let request4 = FrontierReq {
-            start: PublicKey::zero(),
+            start: Account::zero(),
             age: u32::MAX,
             count: u32::MAX,
             only_confirmed: false,
         };
         let frontier_req_server4 = create_frontier_req_server(&node, request4.clone());
-        assert_eq!(
-            key_before_genesis.public_key(),
-            frontier_req_server4.current()
-        );
+        assert_eq!(key_before_genesis.account(), frontier_req_server4.current());
         assert_eq!(receive1.hash(), frontier_req_server4.frontier());
 
         // Request starting with account after genesis (unconfirmed blocks)
         let request5 = FrontierReq {
-            start: key_after_genesis.public_key(),
+            start: key_after_genesis.account(),
             age: u32::MAX,
             count: u32::MAX,
             only_confirmed: false,
         };
         let frontier_req_server5 = create_frontier_req_server(&node, request5.clone());
-        assert_eq!(
-            key_after_genesis.public_key(),
-            frontier_req_server5.current()
-        );
+        assert_eq!(key_after_genesis.account(), frontier_req_server5.current());
         assert_eq!(receive2.hash(), frontier_req_server5.frontier());
 
         // Confirm account before genesis (confirmed only)
         node.confirm(receive1.hash());
         let request6 = FrontierReq {
-            start: key_before_genesis.public_key(),
+            start: key_before_genesis.account(),
             age: u32::MAX,
             count: u32::MAX,
             only_confirmed: true,
         };
         let frontier_req_server6 = create_frontier_req_server(&node, request6.clone());
-        assert_eq!(
-            key_before_genesis.public_key(),
-            frontier_req_server6.current()
-        );
+        assert_eq!(key_before_genesis.account(), frontier_req_server6.current());
         assert_eq!(receive1.hash(), frontier_req_server6.frontier());
 
         // Confirm account after genesis (confirmed only)
         node.confirm(receive2.hash());
         let request7 = FrontierReq {
-            start: key_after_genesis.public_key(),
+            start: key_after_genesis.account(),
             age: u32::MAX,
             count: u32::MAX,
             only_confirmed: true,
         };
         let frontier_req_server7 = create_frontier_req_server(&node, request7.clone());
-        assert_eq!(
-            key_after_genesis.public_key(),
-            frontier_req_server7.current()
-        );
+        assert_eq!(key_after_genesis.account(), frontier_req_server7.current());
         assert_eq!(receive2.hash(), frontier_req_server7.frontier());
     }
 
@@ -1307,7 +1297,7 @@ mod bulk_pull_account {
             .send_action2(
                 &wallet_id,
                 *DEV_GENESIS_ACCOUNT,
-                key1.public_key(),
+                key1.account(),
                 Amount::raw(25),
                 0,
                 true,
@@ -1319,7 +1309,7 @@ mod bulk_pull_account {
             .send_action2(
                 &wallet_id,
                 *DEV_GENESIS_ACCOUNT,
-                key1.public_key(),
+                key1.account(),
                 Amount::raw(10),
                 0,
                 true,
@@ -1331,7 +1321,7 @@ mod bulk_pull_account {
             .send_action2(
                 &wallet_id,
                 *DEV_GENESIS_ACCOUNT,
-                key1.public_key(),
+                key1.account(),
                 Amount::raw(2),
                 0,
                 true,
@@ -1340,13 +1330,13 @@ mod bulk_pull_account {
             .unwrap();
         assert_timely_eq(
             Duration::from_secs(5),
-            || node.balance(&key1.public_key()),
+            || node.balance(&key1.account()),
             Amount::raw(25),
         );
         let response_server = create_response_server(&node);
         {
             let payload = BulkPullAccount {
-                account: key1.public_key(),
+                account: key1.account(),
                 minimum_amount: Amount::raw(5),
                 flags: BulkPullAccountFlags::PendingHashAndAmount,
             };
@@ -1362,10 +1352,7 @@ mod bulk_pull_account {
             assert_eq!(pull_server.invalid_request(), false);
             assert_eq!(pull_server.pending_include_address(), false);
             assert_eq!(pull_server.pending_address_only(), false);
-            assert_eq!(
-                pull_server.current_key().receiving_account,
-                key1.public_key()
-            );
+            assert_eq!(pull_server.current_key().receiving_account, key1.account());
             assert_eq!(pull_server.current_key().send_block_hash, BlockHash::zero());
             let (key, info) = pull_server.get_next().unwrap();
             assert_eq!(key.send_block_hash, send2.hash());
@@ -1376,7 +1363,7 @@ mod bulk_pull_account {
 
         {
             let payload = BulkPullAccount {
-                account: key1.public_key(),
+                account: key1.account(),
                 minimum_amount: Amount::zero(),
                 flags: BulkPullAccountFlags::PendingAddressOnly,
             };

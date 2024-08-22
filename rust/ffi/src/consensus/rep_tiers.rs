@@ -1,4 +1,4 @@
-use rsnano_core::Account;
+use rsnano_core::PublicKey;
 use rsnano_node::consensus::RepTiers;
 use std::{ops::Deref, sync::Arc};
 
@@ -22,5 +22,5 @@ pub unsafe extern "C" fn rsn_rep_tiers_tier(
     handle: &RepTiersHandle,
     representative: *const u8,
 ) -> u8 {
-    handle.tier(&Account::from_ptr(representative)) as u8
+    handle.tier(&PublicKey::from_ptr(representative)) as u8
 }
