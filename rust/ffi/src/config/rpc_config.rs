@@ -2,7 +2,9 @@ use super::NetworkConstantsDto;
 use crate::StringDto;
 use rsnano_core::utils::get_cpu_count;
 use rsnano_node::config::NetworkConstants;
-use rsnano_rpc_server::{RpcLoggingConfig, RpcProcessConfig, RpcServerConfig, RpcServerToml};
+use rsnano_rpc_server::{
+    RpcServerConfig, RpcServerLoggingConfig, RpcServerProcessConfig, RpcServerToml,
+};
 use std::{convert::TryFrom, ptr};
 
 #[repr(C)]
@@ -111,10 +113,10 @@ impl TryFrom<&RpcConfigDto> for RpcServerConfig {
             enable_control: dto.enable_control,
             max_json_depth: dto.max_json_depth,
             max_request_size: dto.max_request_size,
-            rpc_logging: RpcLoggingConfig {
+            rpc_logging: RpcServerLoggingConfig {
                 log_rpc: dto.rpc_log,
             },
-            rpc_process: RpcProcessConfig {
+            rpc_process: RpcServerProcessConfig {
                 io_threads: dto.rpc_process.io_threads,
                 ipc_address: String::from_utf8_lossy(
                     &dto.rpc_process.ipc_address[..dto.rpc_process.ipc_address_len],

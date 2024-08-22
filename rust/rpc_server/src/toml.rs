@@ -1,80 +1,5 @@
-use super::config::{RpcLoggingConfig, RpcProcessConfig, RpcServerConfig};
+use super::config::{RpcServerConfig, RpcServerLoggingConfig, RpcServerProcessConfig};
 use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Serialize)]
-pub struct RpcLoggingToml {
-    pub log_rpc: Option<bool>,
-}
-
-impl Default for RpcLoggingToml {
-    fn default() -> Self {
-        let config = RpcLoggingConfig::new();
-        (&config).into()
-    }
-}
-
-impl From<&RpcLoggingConfig> for RpcLoggingToml {
-    fn from(config: &RpcLoggingConfig) -> Self {
-        Self {
-            log_rpc: Some(config.log_rpc),
-        }
-    }
-}
-
-impl From<&RpcLoggingToml> for RpcLoggingConfig {
-    fn from(toml: &RpcLoggingToml) -> Self {
-        let mut config = RpcLoggingConfig::new();
-        if let Some(log_rpc) = toml.log_rpc {
-            config.log_rpc = log_rpc;
-        }
-        config
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct RpcProcessToml {
-    pub io_threads: Option<u32>,
-    pub ipc_address: Option<String>,
-    pub ipc_port: Option<u16>,
-    pub num_ipc_connections: Option<u32>,
-}
-
-impl Default for RpcProcessToml {
-    fn default() -> Self {
-        let config = RpcProcessConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&RpcProcessConfig> for RpcProcessToml {
-    fn from(config: &RpcProcessConfig) -> Self {
-        Self {
-            io_threads: Some(config.io_threads),
-            ipc_address: Some(config.ipc_address.clone()),
-            ipc_port: Some(config.ipc_port),
-            num_ipc_connections: Some(config.num_ipc_connections),
-        }
-    }
-}
-
-impl From<&RpcProcessToml> for RpcProcessConfig {
-    fn from(toml: &RpcProcessToml) -> Self {
-        let mut config = RpcProcessConfig::default();
-        if let Some(io_threads) = toml.io_threads {
-            config.io_threads = io_threads;
-        }
-        if let Some(ipc_address) = &toml.ipc_address {
-            config.ipc_address = ipc_address.clone();
-        }
-        if let Some(ipc_port) = toml.ipc_port {
-            config.ipc_port = ipc_port;
-        }
-        if let Some(num_ipc_connections) = toml.num_ipc_connections {
-            config.num_ipc_connections = num_ipc_connections;
-        }
-        config
-    }
-}
 
 #[derive(Deserialize, Serialize)]
 pub struct RpcServerToml {
@@ -83,8 +8,29 @@ pub struct RpcServerToml {
     pub max_json_depth: Option<u8>,
     pub max_request_size: Option<u64>,
     pub port: Option<u16>,
-    pub logging: Option<RpcLoggingToml>,
-    pub process: Option<RpcProcessToml>,
+    pub logging: Option<RpcServerLoggingToml>,
+    pub process: Option<RpcServerProcessToml>,
+}
+
+impl Default for RpcServerToml {
+    fn default() -> Self {
+        let config = RpcServerConfig::default();
+        (&config).into()
+    }
+}
+
+impl From<&RpcServerConfig> for RpcServerToml {
+    fn from(config: &RpcServerConfig) -> Self {
+        Self {
+            address: Some(config.address.clone()),
+            port: Some(config.port),
+            enable_control: Some(config.enable_control),
+            max_json_depth: Some(config.max_json_depth),
+            max_request_size: Some(config.max_request_size),
+            logging: Some((&config.rpc_logging).into()),
+            process: Some((&config.rpc_process).into()),
+        }
+    }
 }
 
 impl From<&RpcServerToml> for RpcServerConfig {
@@ -115,24 +61,78 @@ impl From<&RpcServerToml> for RpcServerConfig {
     }
 }
 
-impl From<&RpcServerConfig> for RpcServerToml {
-    fn from(config: &RpcServerConfig) -> Self {
+#[derive(Deserialize, Serialize)]
+pub struct RpcServerLoggingToml {
+    pub log_rpc: Option<bool>,
+}
+
+impl Default for RpcServerLoggingToml {
+    fn default() -> Self {
+        let config = RpcServerLoggingConfig::default();
+        (&config).into()
+    }
+}
+
+impl From<&RpcServerLoggingConfig> for RpcServerLoggingToml {
+    fn from(config: &RpcServerLoggingConfig) -> Self {
         Self {
-            address: Some(config.address.clone()),
-            port: Some(config.port),
-            enable_control: Some(config.enable_control),
-            max_json_depth: Some(config.max_json_depth),
-            max_request_size: Some(config.max_request_size),
-            logging: Some((&config.rpc_logging).into()),
-            process: Some((&config.rpc_process).into()),
+            log_rpc: Some(config.log_rpc),
         }
     }
 }
 
-impl Default for RpcServerToml {
+impl From<&RpcServerLoggingToml> for RpcServerLoggingConfig {
+    fn from(toml: &RpcServerLoggingToml) -> Self {
+        let mut config = RpcServerLoggingConfig::default();
+        if let Some(log_rpc) = toml.log_rpc {
+            config.log_rpc = log_rpc;
+        }
+        config
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct RpcServerProcessToml {
+    pub io_threads: Option<u32>,
+    pub ipc_address: Option<String>,
+    pub ipc_port: Option<u16>,
+    pub num_ipc_connections: Option<u32>,
+}
+
+impl Default for RpcServerProcessToml {
     fn default() -> Self {
-        let config = RpcServerConfig::default();
+        let config = RpcServerProcessConfig::default();
         (&config).into()
+    }
+}
+
+impl From<&RpcServerProcessConfig> for RpcServerProcessToml {
+    fn from(config: &RpcServerProcessConfig) -> Self {
+        Self {
+            io_threads: Some(config.io_threads),
+            ipc_address: Some(config.ipc_address.clone()),
+            ipc_port: Some(config.ipc_port),
+            num_ipc_connections: Some(config.num_ipc_connections),
+        }
+    }
+}
+
+impl From<&RpcServerProcessToml> for RpcServerProcessConfig {
+    fn from(toml: &RpcServerProcessToml) -> Self {
+        let mut config = RpcServerProcessConfig::default();
+        if let Some(io_threads) = toml.io_threads {
+            config.io_threads = io_threads;
+        }
+        if let Some(ipc_address) = &toml.ipc_address {
+            config.ipc_address = ipc_address.clone();
+        }
+        if let Some(ipc_port) = toml.ipc_port {
+            config.ipc_port = ipc_port;
+        }
+        if let Some(num_ipc_connections) = toml.num_ipc_connections {
+            config.num_ipc_connections = num_ipc_connections;
+        }
+        config
     }
 }
 
