@@ -420,18 +420,6 @@ void rsnano::set_rsnano_callbacks ()
 	rsnano::rsn_callback_string_chars (string_chars);
 	rsnano::rsn_callback_string_delete (string_delete);
 
-	rsnano::rsn_callback_toml_put_u64 (toml_put_u64);
-	rsnano::rsn_callback_toml_put_i64 (toml_put_i64);
-	rsnano::rsn_callback_toml_put_str (toml_put_str);
-	rsnano::rsn_callback_toml_put_bool (toml_put_bool);
-	rsnano::rsn_callback_toml_put_f64 (toml_put_f64);
-	rsnano::rsn_callback_toml_create_array (toml_create_array);
-	rsnano::rsn_callback_toml_array_put_str (toml_array_put_str);
-	rsnano::rsn_callback_toml_create_config (toml_create_config);
-	rsnano::rsn_callback_toml_drop_config (toml_drop_config);
-	rsnano::rsn_callback_toml_put_child (toml_put_child);
-	rsnano::rsn_callback_toml_drop_array (toml_drop_array);
-
 	rsnano::rsn_callback_memory_intensive_instrumentation (nano::memory_intensive_instrumentation);
 	rsnano::rsn_callback_is_sanitizer_build (nano::is_sanitizer_build);
 
