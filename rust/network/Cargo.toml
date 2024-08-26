@@ -9,6 +9,7 @@ mock_instant = "0.2.1"
 [dependencies]
 rsnano_nullable_clock = { path = "../nullables/clock" }
 rsnano_nullable_tcp = { path = "../nullables/tcp" }
+rsnano_output_tracker = { path = "../nullables/output_tracker" }
 rsnano_core = { path = "../core" }
 num-traits = "0"
 num-derive = "0"
@@ -16,6 +17,7 @@ rand = { version = "0" }
 async-trait = "0"
 tracing = "0.1"
 anyhow = "1"
+tokio-util = "0"
 tokio = { version = "1", features = [
     "net",
 ] }

@@ -1,5 +1,5 @@
 use crate::transport::EndpointDto;
-use rsnano_node::transport::TcpListener;
+use rsnano_network::TcpListener;
 use std::{ops::Deref, sync::Arc};
 use tracing::debug;
 

@@ -36,11 +36,14 @@ impl DeadChannelCleanup {
     }
 
     pub fn clean_up(&self) {
-        let channel_ids = self
+        let removed_channels = self
             .network
             .write()
             .unwrap()
             .purge(self.clock.now(), self.cleanup_cutoff);
+
+        let channel_ids: Vec<_> = removed_channels.iter().map(|c| c.channel_id()).collect();
+
         for step in &self.cleanup_steps {
             step.clean_up_dead_channels(&channel_ids);
         }

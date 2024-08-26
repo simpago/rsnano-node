@@ -15,7 +15,7 @@ use crate::{
     bootstrap::BootstrapMode,
     stats::{DetailType, Direction, StatType, Stats},
     transport::read_block,
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
 };
 use async_trait::async_trait;
 use rsnano_core::{work::WorkThresholds, Account, BlockEnum, BlockHash};
@@ -31,7 +31,7 @@ pub struct BulkPullClient {
     connection: Arc<BootstrapClient>,
     attempt: Arc<BootstrapStrategy>,
     stats: Arc<Stats>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     network_error: AtomicBool,
     block_processor: Arc<BlockProcessor>,
     workers: Arc<dyn ThreadPool>,
@@ -63,7 +63,7 @@ impl BulkPullClient {
         connection: Arc<BootstrapClient>,
         attempt: Arc<BootstrapStrategy>,
         workers: Arc<dyn ThreadPool>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         connections: Arc<BootstrapConnections>,
         bootstrap_initiator: Arc<BootstrapInitiator>,
         pull: PullInfo,
@@ -76,7 +76,7 @@ impl BulkPullClient {
             stats,
             network_error: AtomicBool::new(false),
             block_processor,
-            runtime,
+            tokio,
             workers,
             pull_blocks: AtomicU64::new(0),
             connections,
@@ -155,7 +155,7 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
         }
 
         let self_clone = Arc::clone(self);
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             match self_clone
                 .connection
                 .send(&Message::BulkPull(payload))
@@ -198,8 +198,8 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
                 Duration::from_secs(1),
                 Box::new(move || {
                     if !self_clone.connection.pending_stop() && !self_clone.attempt.stopped() {
-                        let runtime = self_clone.runtime.clone();
-                        runtime.tokio.spawn(async move {
+                        let runtime = self_clone.tokio.clone();
+                        runtime.spawn(async move {
                             self_clone.throttled_receive_block().await;
                         });
                     }
@@ -278,7 +278,7 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
                 || self.unexpected_count.load(Ordering::SeqCst) < 16384
             {
                 let self_l = Arc::clone(self);
-                self.runtime.tokio.spawn(async move {
+                self.tokio.spawn(async move {
                     self_l.throttled_receive_block().await;
                 });
             }

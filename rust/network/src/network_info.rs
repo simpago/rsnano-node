@@ -285,23 +285,23 @@ impl NetworkInfo {
     }
 
     /// Returns channel IDs of removed channels
-    pub fn purge(&mut self, now: Timestamp, cutoff_period: Duration) -> Vec<ChannelId> {
+    pub fn purge(&mut self, now: Timestamp, cutoff_period: Duration) -> Vec<Arc<ChannelInfo>> {
         self.close_idle_channels(now, cutoff_period);
 
         // Check if any tcp channels belonging to old protocol versions which may still be alive due to async operations
         self.close_old_protocol_versions(self.network_config.min_protocol_version);
 
         // Remove channels with dead underlying sockets
-        let purged_channel_ids = self.remove_dead_channels();
+        let purged_channels = self.remove_dead_channels();
 
         // Remove keepalive attempt tracking for attempts older than cutoff
         self.attempts.purge(now, cutoff_period);
-        purged_channel_ids
+        purged_channels
     }
 
     fn close_idle_channels(&mut self, now: Timestamp, cutoff_period: Duration) {
         for entry in self.channels.values() {
-            if now - entry.last_packet_sent() >= cutoff_period {
+            if now - entry.last_activity() >= cutoff_period {
                 debug!(remote_addr = ?entry.peer_addr(), channel_id = %entry.channel_id(), mode = ?entry.mode(), "Closing idle channel");
                 entry.close();
             }
@@ -320,7 +320,7 @@ impl NetworkInfo {
     }
 
     /// Removes dead channels and returns their channel ids
-    fn remove_dead_channels(&mut self) -> Vec<ChannelId> {
+    fn remove_dead_channels(&mut self) -> Vec<Arc<ChannelInfo>> {
         let dead_channels: Vec<_> = self
             .channels
             .values()
@@ -333,7 +333,7 @@ impl NetworkInfo {
             self.channels.remove(&channel.channel_id());
         }
 
-        dead_channels.iter().map(|c| c.channel_id()).collect()
+        dead_channels
     }
 
     pub fn is_queue_full(&self, channel_id: ChannelId, traffic_type: TrafficType) -> bool {
@@ -640,7 +640,7 @@ impl NetworkInfo {
         let mut result = Vec::new();
         for channel in self.channels.values() {
             if channel.mode() == ChannelMode::Realtime
-                && now - channel.last_packet_sent() >= min_idle_time
+                && now - channel.last_activity() >= min_idle_time
             {
                 result.push(channel.channel_id());
             }
@@ -851,7 +851,7 @@ mod tests {
         }
 
         #[test]
-        fn purge_if_last_packet_sent_is_above_timeout() {
+        fn purge_if_last_activitiy_is_above_timeout() {
             let mut network = NetworkInfo::new_test_instance();
             let now = Timestamp::new_test_instance();
             let channel = network
@@ -863,7 +863,7 @@ mod tests {
                     now,
                 )
                 .unwrap();
-            channel.set_last_packet_sent(now - Duration::from_secs(300));
+            channel.set_last_activity(now - Duration::from_secs(300));
             network.purge(now, Duration::from_secs(1));
             assert_eq!(network.len(), 0);
         }
@@ -881,7 +881,7 @@ mod tests {
                     now,
                 )
                 .unwrap();
-            channel.set_last_packet_sent(now);
+            channel.set_last_activity(now);
             network.purge(now, Duration::from_secs(1));
             assert_eq!(network.len(), 1);
         }

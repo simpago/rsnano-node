@@ -27,7 +27,7 @@ mod bootstrap_processor {
     use super::*;
     use rsnano_ledger::DEV_GENESIS_PUB_KEY;
     use rsnano_network::ChannelMode;
-    use rsnano_node::{config::NodeConfig, transport::PeerConnectorExt};
+    use rsnano_node::config::NodeConfig;
     use test_helpers::establish_tcp;
 
     #[test]
@@ -992,7 +992,7 @@ mod bulk_pull {
             response_server,
             node.ledger.clone(),
             node.workers.clone(),
-            node.async_rt.clone(),
+            node.async_rt.tokio.handle().clone(),
         )
     }
 }
@@ -1268,7 +1268,7 @@ mod frontier_req {
             request,
             node.workers.clone(),
             node.ledger.clone(),
-            node.async_rt.clone(),
+            node.async_rt.tokio.handle().clone(),
         )
     }
 }
@@ -1346,7 +1346,7 @@ mod bulk_pull_account {
                 payload,
                 node.workers.clone(),
                 node.ledger.clone(),
-                node.async_rt.clone(),
+                node.async_rt.tokio.handle().clone(),
             );
 
             assert_eq!(pull_server.invalid_request(), false);
@@ -1373,7 +1373,7 @@ mod bulk_pull_account {
                 payload,
                 node.workers.clone(),
                 node.ledger.clone(),
-                node.async_rt.clone(),
+                node.async_rt.tokio.handle().clone(),
             );
 
             assert_eq!(pull_server.pending_address_only(), true);
@@ -1385,14 +1385,15 @@ mod bulk_pull_account {
 }
 
 fn create_response_server(node: &Node) -> Arc<ResponseServer> {
-    let channel = node.async_rt.tokio.block_on(Channel::create(
+    let channel = Channel::create(
         Arc::new(ChannelInfo::new_test_instance()),
         TcpStream::new_null(),
         Arc::new(OutboundBandwidthLimiter::default()),
         node.network_info.clone(),
         node.steady_clock.clone(),
         Arc::new(NullNetworkObserver::new()),
-    ));
+        node.async_rt.tokio.handle(),
+    );
 
     Arc::new(ResponseServer::new(
         node.network_info.clone(),
@@ -1404,7 +1405,7 @@ fn create_response_server(node: &Node) -> Arc<ResponseServer> {
         true,
         node.syn_cookies.clone(),
         node.node_id.clone(),
-        node.async_rt.clone(),
+        node.async_rt.tokio.handle().clone(),
         node.ledger.clone(),
         node.workers.clone(),
         node.block_processor.clone(),

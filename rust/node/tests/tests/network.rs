@@ -49,7 +49,7 @@ fn last_contacted() {
     assert_eq!(channel1.local_addr(), channel0.peer_addr());
 
     // capture the state before and ensure the clock ticks at least once
-    let timestamp_before_keepalive = channel0.last_packet_received();
+    let timestamp_before_keepalive = channel0.last_activity();
     let keepalive_count =
         node0
             .stats
@@ -103,7 +103,7 @@ fn last_contacted() {
             .count_by_mode(ChannelMode::Realtime),
         1
     );
-    let timestamp_after_keepalive = channel0.last_packet_received();
+    let timestamp_after_keepalive = channel0.last_activity();
     assert!(timestamp_after_keepalive > timestamp_before_keepalive);
 }
 

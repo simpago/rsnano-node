@@ -1,10 +1,5 @@
-use super::{Network, ResponseServerFactory};
-use crate::{
-    stats::{DetailType, Direction, StatType, Stats},
-    utils::AsyncRuntime,
-};
+use crate::{ChannelDirection, ChannelMode, Network, NetworkObserver, ResponseServerSpawner};
 use async_trait::async_trait;
-use rsnano_network::{ChannelDirection, ChannelMode};
 use rsnano_nullable_tcp::TcpStream;
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6},
@@ -14,6 +9,7 @@ use std::{
     },
     time::Duration,
 };
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, warn};
 
@@ -21,12 +17,12 @@ use tracing::{debug, error, warn};
 pub struct TcpListener {
     port: AtomicU16,
     network: Arc<Network>,
-    stats: Arc<Stats>,
-    runtime: Arc<AsyncRuntime>,
+    network_observer: Arc<dyn NetworkObserver>,
+    tokio: tokio::runtime::Handle,
     data: Mutex<TcpListenerData>,
     condition: Condvar,
     cancel_token: CancellationToken,
-    response_server_factory: Arc<ResponseServerFactory>,
+    response_server_spawner: Arc<dyn ResponseServerSpawner>,
 }
 
 impl Drop for TcpListener {
@@ -41,25 +37,25 @@ struct TcpListenerData {
 }
 
 impl TcpListener {
-    pub(crate) fn new(
+    pub fn new(
         port: u16,
         network: Arc<Network>,
-        runtime: Arc<AsyncRuntime>,
-        stats: Arc<Stats>,
-        response_server_factory: Arc<ResponseServerFactory>,
+        network_observer: Arc<dyn NetworkObserver>,
+        tokio: tokio::runtime::Handle,
+        response_server_spawner: Arc<dyn ResponseServerSpawner>,
     ) -> Self {
         Self {
             port: AtomicU16::new(port),
             network,
+            network_observer,
             data: Mutex::new(TcpListenerData {
                 stopped: false,
                 local_addr: SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0),
             }),
-            runtime: Arc::clone(&runtime),
-            stats,
+            tokio,
             condition: Condvar::new(),
             cancel_token: CancellationToken::new(),
-            response_server_factory,
+            response_server_spawner,
         }
     }
 
@@ -89,7 +85,7 @@ pub trait TcpListenerExt {
 impl TcpListenerExt for Arc<TcpListener> {
     fn start(&self) {
         let self_l = Arc::clone(self);
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             let port = self_l.port.load(Ordering::SeqCst);
             let Ok(listener) = tokio::net::TcpListener::bind(SocketAddr::new(
                 IpAddr::V6(Ipv6Addr::UNSPECIFIED),
@@ -129,26 +125,19 @@ impl TcpListenerExt for Arc<TcpListener> {
                 self.network.wait_for_available_inbound_slot().await;
 
                 let Ok((stream, _)) = listener.accept().await else {
-                    self.stats.inc_dir(
-                        StatType::TcpListener,
-                        DetailType::AcceptFailure,
-                        Direction::In,
-                    );
+                    warn!("Could not accept incoming connection");
+                    self.network_observer.accept_failure();
                     continue;
                 };
 
                 let tcp_stream = TcpStream::new(stream);
-                match self
-                    .network
-                    .add(
-                        tcp_stream,
-                        ChannelDirection::Inbound,
-                        ChannelMode::Undefined,
-                    )
-                    .await
-                {
+                match self.network.add(
+                    tcp_stream,
+                    ChannelDirection::Inbound,
+                    ChannelMode::Undefined,
+                ) {
                     Ok(channel) => {
-                        self.response_server_factory.start_response_server(channel);
+                        self.response_server_spawner.spawn(channel);
                     }
                     Err(e) => {
                         warn!("Could not accept incoming connection: {:?}", e);
@@ -156,7 +145,7 @@ impl TcpListenerExt for Arc<TcpListener> {
                 };
 
                 // Sleep for a while to prevent busy loop
-                tokio::time::sleep(Duration::from_millis(10)).await;
+                sleep(Duration::from_millis(10)).await;
             }
         };
 

@@ -10,7 +10,6 @@ use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, VoteApplierExt},
     stats::{DetailType, Direction, StatType},
-    transport::PeerConnectorExt,
     wallets::WalletsExt,
 };
 use std::{sync::Arc, thread::sleep, time::Duration};

@@ -1,6 +1,6 @@
 use crate::{
     transport::{ResponseServer, ResponseServerExt},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
 };
 use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey};
 use rsnano_ledger::Ledger;
@@ -22,7 +22,7 @@ struct BulkPullAccountServerImpl {
     pending_address_only: bool,
     pending_include_address: bool,
     invalid_request: bool,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
 }
 
 impl BulkPullAccountServerImpl {
@@ -91,7 +91,7 @@ impl BulkPullAccountServerImpl {
             let connection_l = self.connection.clone();
             let workers = self.thread_pool.clone();
             // Send the buffer to the requestor
-            self.runtime.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 if connection_l
                     .channel()
                     .send_buffer(&send_buffer, TrafficType::Bootstrap)
@@ -138,7 +138,7 @@ impl BulkPullAccountServerImpl {
 
             let connection = self.connection.clone();
             let workers = self.thread_pool.clone();
-            self.runtime.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 if connection
                     .channel()
                     .send_buffer(&send_buffer, TrafficType::Bootstrap)
@@ -164,7 +164,7 @@ impl BulkPullAccountServerImpl {
             let conn = self.connection.clone();
             let pending_address_only = self.pending_address_only;
             let pending_include_address = self.pending_include_address;
-            self.runtime.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 send_finished(&conn, pending_address_only, pending_include_address).await;
             });
         }
@@ -275,7 +275,7 @@ impl BulkPullAccountServer {
         request: BulkPullAccount,
         thread_pool: Arc<dyn ThreadPool>,
         ledger: Arc<Ledger>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
     ) -> Self {
         let mut server = BulkPullAccountServerImpl {
             connection,
@@ -287,7 +287,7 @@ impl BulkPullAccountServer {
             pending_address_only: false,
             pending_include_address: false,
             invalid_request: false,
-            runtime,
+            tokio,
         };
         /*
          * Setup the streaming response for the first call to "send_frontier" and  "send_next_block"

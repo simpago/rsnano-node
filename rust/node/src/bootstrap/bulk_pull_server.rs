@@ -1,6 +1,6 @@
 use crate::{
     transport::{ResponseServer, ResponseServerExt},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
 };
 use rsnano_core::{utils::MemoryStream, Account, BlockEnum, BlockHash, BlockType};
 use rsnano_ledger::Ledger;
@@ -34,7 +34,7 @@ impl BulkPullServer {
         connection: Arc<ResponseServer>,
         ledger: Arc<Ledger>,
         thread_pool: Arc<dyn ThreadPool>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
     ) -> Self {
         let mut server_impl = BulkPullServerImpl {
             include_start: false,
@@ -45,7 +45,7 @@ impl BulkPullServer {
             connection,
             ledger,
             thread_pool: Arc::downgrade(&thread_pool),
-            runtime,
+            tokio,
         };
 
         server_impl.set_current_end();
@@ -103,7 +103,7 @@ impl BulkPullServer {
 struct BulkPullServerImpl {
     ledger: Arc<Ledger>,
     connection: Arc<ResponseServer>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     thread_pool: Weak<dyn ThreadPool>,
     include_start: bool,
     sent_count: u32,
@@ -264,7 +264,7 @@ impl BulkPullServerImpl {
         debug!("Bulk sending finished");
 
         let conn = self.connection.clone();
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             match conn
                 .channel()
                 .send_buffer(&send_buffer, TrafficType::Bootstrap)
@@ -273,10 +273,7 @@ impl BulkPullServerImpl {
                 Ok(()) => {
                     let guard = server_impl.lock().unwrap();
                     let connection = guard.connection.clone();
-                    guard
-                        .runtime
-                        .tokio
-                        .spawn(async move { connection.run().await });
+                    guard.tokio.spawn(async move { connection.run().await });
                 }
                 Err(e) => debug!("Unable to send not-a-block ({:?})", e),
             }
@@ -291,7 +288,7 @@ impl BulkPullServerImpl {
             block.serialize(&mut stream);
             let send_buffer = Arc::new(stream.to_vec());
             let conn = self.connection.clone();
-            self.runtime.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 if conn
                     .channel()
                     .send_buffer(&send_buffer, TrafficType::Bootstrap)

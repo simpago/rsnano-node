@@ -1,10 +1,9 @@
-use super::Network;
 use crate::{
     representatives::OnlineReps,
     stats::{Direction, StatType, Stats},
 };
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
-use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, TrafficType};
+use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, Network, TrafficType};
 use std::sync::{Arc, Mutex};
 use tracing::trace;
 
@@ -47,10 +46,10 @@ impl MessagePublisher {
         }
     }
 
-    pub(crate) fn new_null() -> Self {
+    pub(crate) fn new_null(handle: tokio::runtime::Handle) -> Self {
         Self::new(
             Arc::new(Mutex::new(OnlineReps::default())),
-            Arc::new(Network::new_null()),
+            Arc::new(Network::new_null(handle)),
             Arc::new(Stats::default()),
             Default::default(),
         )

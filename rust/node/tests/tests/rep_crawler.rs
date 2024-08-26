@@ -2,6 +2,7 @@ use rsnano_core::{Amount, BlockEnum, BlockHash, KeyPair, StateBlock, Vote, DEV_G
 use rsnano_ledger::{DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelId, ChannelMode, DropPolicy, TrafficType};
+use rsnano_node::node::NodeExt;
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, System};
 
@@ -206,6 +207,46 @@ fn recently_confirmed() {
     node1.rep_crawler.query_channel(channel); // this query should be dropped due to the recently_confirmed entry
     assert_always_eq(
         Duration::from_millis(500),
+        || node1.online_reps.lock().unwrap().peered_reps_count(),
+        0,
+    );
+}
+
+// Test that nodes can track nodes that have rep weight for priority broadcasting
+#[test]
+fn rep_list() {
+    let mut system = System::new();
+    let node1 = system.make_node();
+    let node2 = system.make_node();
+    assert_eq!(0, node2.online_reps.lock().unwrap().peered_reps_count());
+    // Node #1 has a rep
+    node1.insert_into_wallet(&DEV_GENESIS_KEY);
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node2.online_reps.lock().unwrap().peered_reps_count(),
+        1,
+    );
+    assert_eq!(
+        *DEV_GENESIS_PUB_KEY,
+        node2.online_reps.lock().unwrap().peered_reps()[0].account
+    );
+}
+
+#[test]
+fn rep_connection_close() {
+    let mut system = System::new();
+    let node1 = system.make_node();
+    let node2 = system.make_node();
+    // Add working representative (node 2)
+    node2.insert_into_wallet(&DEV_GENESIS_KEY);
+    assert_timely_eq(
+        Duration::from_secs(10),
+        || node1.online_reps.lock().unwrap().peered_reps_count(),
+        1,
+    );
+    node2.stop();
+    assert_timely_eq(
+        Duration::from_secs(10),
         || node1.online_reps.lock().unwrap().peered_reps_count(),
         0,
     );

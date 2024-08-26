@@ -10,7 +10,7 @@ use crate::{
     },
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
     NetworkParams,
 };
 use async_trait::async_trait;
@@ -81,7 +81,7 @@ pub struct ResponseServer {
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
     publish_filter: Arc<NetworkFilter>,
-    runtime: Weak<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     ledger: Arc<Ledger>,
     workers: Arc<dyn ThreadPool>,
     block_processor: Arc<BlockProcessor>,
@@ -103,7 +103,7 @@ impl ResponseServer {
         allow_bootstrap: bool,
         syn_cookies: Arc<SynCookies>,
         node_id: KeyPair,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         ledger: Arc<Ledger>,
         workers: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,
@@ -136,7 +136,7 @@ impl ResponseServer {
             allow_bootstrap,
             initiate_handshake_listener: OutputListenerMt::new(),
             publish_filter,
-            runtime: Arc::downgrade(&runtime),
+            tokio,
             ledger,
             workers,
             block_processor,
@@ -538,9 +538,6 @@ impl ResponseServerExt for Arc<ResponseServer> {
     }
 
     fn process_bootstrap(&self, message: Message) -> ProcessResult {
-        let Some(runtime) = self.runtime.upgrade() else {
-            return ProcessResult::Abort;
-        };
         let Some(bootstrap_initiator) = self.bootstrap_initiator.upgrade() else {
             return ProcessResult::Abort;
         };
@@ -557,7 +554,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     Arc::clone(self),
                     self.ledger.clone(),
                     self.workers.clone(),
-                    runtime.clone(),
+                    self.tokio.clone(),
                 );
                 self.workers.push_task(Box::new(move || {
                     bulk_pull_server.send_next();
@@ -576,7 +573,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     payload.clone(),
                     self.workers.clone(),
                     self.ledger.clone(),
-                    runtime.clone(),
+                    self.tokio.clone(),
                 );
                 self.workers.push_task(Box::new(move || {
                     bulk_pull_account_server.send_frontier();
@@ -587,7 +584,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             Message::BulkPush => {
                 // original code TODO: Add completion callback to bulk pull server
                 let bulk_push_server = BulkPushServer::new(
-                    runtime.clone(),
+                    self.tokio.clone(),
                     Arc::clone(self),
                     self.workers.clone(),
                     self.block_processor.clone(),
@@ -609,7 +606,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     payload.clone(),
                     self.workers.clone(),
                     self.ledger.clone(),
-                    runtime.clone(),
+                    self.tokio.clone(),
                 );
                 self.workers.push_task(Box::new(move || {
                     response.send_next();

@@ -32,8 +32,6 @@ pub struct ChannelInfo {
     /// the timestamp (in seconds since epoch) of the last time there was successful activity on the socket
     last_activity: AtomicU64,
     last_bootstrap_attempt: AtomicU64,
-    last_packet_received: AtomicU64,
-    last_packet_sent: AtomicU64,
 
     /// Duration in seconds of inactivity that causes a socket timeout
     /// activity is any successful connect, send or receive event
@@ -68,15 +66,13 @@ impl ChannelInfo {
             direction,
             last_activity: AtomicU64::new(now.into()),
             last_bootstrap_attempt: AtomicU64::new(0),
-            last_packet_received: AtomicU64::new(now.into()),
-            last_packet_sent: AtomicU64::new(now.into()),
             timeout_seconds: AtomicU64::new(DEFAULT_TIMEOUT),
             timed_out: AtomicBool::new(false),
             socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
             closed: AtomicBool::new(false),
             data: Mutex::new(ChannelInfoData {
                 node_id: None,
-                is_queue_full_impl: None,
+                write_queue: None,
                 peering_addr: if direction == ChannelDirection::Outbound {
                     Some(peer_addr)
                 } else {
@@ -97,8 +93,8 @@ impl ChannelInfo {
         )
     }
 
-    pub fn set_queue_full_query(&self, query: Box<dyn Fn(TrafficType) -> bool + Send>) {
-        self.data.lock().unwrap().is_queue_full_impl = Some(query);
+    pub(crate) fn set_write_queue(&self, queue: Box<dyn WriteQueueAdapter>) {
+        self.data.lock().unwrap().write_queue = Some(queue);
     }
 
     pub fn channel_id(&self) -> ChannelId {
@@ -191,6 +187,10 @@ impl ChannelInfo {
     pub fn close(&self) {
         self.closed.store(true, Ordering::Relaxed);
         self.set_timeout(Duration::ZERO);
+        let guard = self.data.lock().unwrap();
+        if let Some(queue) = &guard.write_queue {
+            queue.close();
+        }
     }
 
     pub fn set_node_id(&self, node_id: PublicKey) {
@@ -218,27 +218,10 @@ impl ChannelInfo {
             .store(now.into(), Ordering::Relaxed);
     }
 
-    pub fn last_packet_received(&self) -> Timestamp {
-        self.last_packet_received.load(Ordering::Relaxed).into()
-    }
-
-    pub fn set_last_packet_received(&self, now: Timestamp) {
-        self.last_packet_received
-            .store(now.into(), Ordering::Relaxed);
-    }
-
-    pub fn last_packet_sent(&self) -> Timestamp {
-        self.last_packet_sent.load(Ordering::Relaxed).into()
-    }
-
-    pub fn set_last_packet_sent(&self, now: Timestamp) {
-        self.last_packet_sent.store(now.into(), Ordering::Relaxed);
-    }
-
     pub fn is_queue_full(&self, traffic_type: TrafficType) -> bool {
         let guard = self.data.lock().unwrap();
-        match &guard.is_queue_full_impl {
-            Some(cb) => cb(traffic_type),
+        match &guard.write_queue {
+            Some(queue) => queue.is_queue_full(traffic_type),
             None => false,
         }
     }
@@ -247,5 +230,10 @@ impl ChannelInfo {
 struct ChannelInfoData {
     node_id: Option<PublicKey>,
     peering_addr: Option<SocketAddrV6>,
-    is_queue_full_impl: Option<Box<dyn Fn(TrafficType) -> bool + Send>>,
+    write_queue: Option<Box<dyn WriteQueueAdapter>>,
+}
+
+pub(crate) trait WriteQueueAdapter: Send + Sync {
+    fn is_queue_full(&self, traffic_type: TrafficType) -> bool;
+    fn close(&self);
 }

@@ -1,6 +1,6 @@
 use crate::{
     transport::{ResponseServer, ResponseServerExt},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
 };
 use rsnano_core::{utils::seconds_since_epoch, Account, BlockHash};
 use rsnano_ledger::Ledger;
@@ -23,7 +23,7 @@ impl FrontierReqServer {
         request: FrontierReq,
         thread_pool: Arc<dyn ThreadPool>,
         ledger: Arc<Ledger>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
     ) -> Self {
         let result = Self {
             server_impl: Arc::new(Mutex::new(FrontierReqServerImpl {
@@ -35,7 +35,7 @@ impl FrontierReqServer {
                 accounts: VecDeque::new(),
                 thread_pool: Arc::downgrade(&thread_pool),
                 ledger,
-                runtime,
+                tokio,
             })),
         };
         result.server_impl.lock().unwrap().next();
@@ -65,7 +65,7 @@ struct FrontierReqServerImpl {
     accounts: VecDeque<(Account, BlockHash)>,
     thread_pool: Weak<dyn ThreadPool>,
     ledger: Arc<Ledger>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
 }
 
 impl FrontierReqServerImpl {
@@ -89,7 +89,7 @@ impl FrontierReqServerImpl {
             self.next();
 
             let conn = self.connection.clone();
-            self.runtime.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 match conn
                     .channel()
                     .send_buffer(&send_buffer, TrafficType::Generic)
@@ -104,7 +104,7 @@ impl FrontierReqServerImpl {
             });
         } else {
             let connection = self.connection.clone();
-            self.runtime.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 Self::send_finished(connection).await;
             });
         }

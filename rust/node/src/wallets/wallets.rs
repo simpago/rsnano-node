@@ -76,6 +76,7 @@ pub struct Wallets {
 
 impl Wallets {
     pub fn new_null_with_env(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
+        let runtime = Arc::new(AsyncRuntime::default());
         Wallets::new(
             env,
             Arc::new(Ledger::new_null()),
@@ -84,7 +85,7 @@ impl Wallets {
             WorkThresholds::new(0, 0, 0),
             Arc::new(DistributedWorkFactory::new(
                 Arc::new(WorkPoolImpl::disabled()),
-                Arc::new(AsyncRuntime::default()),
+                runtime.clone(),
             )),
             NetworkParams::new(NetworkConstants::active_network()),
             Arc::new(ThreadPoolImpl::new_null()),
@@ -99,7 +100,7 @@ impl Wallets {
                 Arc::new(Ledger::new_null()),
                 Arc::new(Stats::default()),
             )),
-            MessagePublisher::new_null(),
+            MessagePublisher::new_null(runtime.tokio.handle().clone()),
         )
     }
 

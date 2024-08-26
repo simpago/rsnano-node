@@ -1,10 +1,10 @@
-use super::{PeerConnector, PeerConnectorExt};
 use crate::stats::{DetailType, StatType};
 use crate::{
     stats::Stats,
     utils::{CancellationToken, Runnable},
 };
 use rsnano_ledger::Ledger;
+use rsnano_network::PeerConnector;
 use std::{net::SocketAddrV6, sync::Arc, time::Duration};
 use tracing::info;
 
@@ -79,37 +79,37 @@ mod tests {
 
     const REACHOUT_DELAY: Duration = Duration::from_secs(3);
 
-    #[test]
-    fn no_cached_peers() {
-        let merged_peers = run_connector([]);
+    #[tokio::test]
+    async fn no_cached_peers() {
+        let merged_peers = run_connector([]).await;
         assert_eq!(merged_peers, Vec::new());
     }
 
-    #[test]
-    fn connect_to_cached_peers() {
+    #[tokio::test]
+    async fn connect_to_cached_peers() {
         let peer1 = parse_endpoint("[::ffff:10.0.0.1]:1234");
         let peer2 = parse_endpoint("[::ffff:10.0.0.2]:1234");
 
-        let merged_peers = run_connector([peer1, peer2]);
+        let merged_peers = run_connector([peer1, peer2]).await;
 
         assert_eq!(merged_peers, [peer1, peer2]);
     }
 
-    #[test]
+    #[tokio::test]
     #[traced_test]
-    fn log_initial_peers() {
+    async fn log_initial_peers() {
         let peer1 = parse_endpoint("[::ffff:10.0.0.1]:1234");
         let peer2 = parse_endpoint("[::ffff:10.0.0.2]:1234");
 
-        run_connector([peer1, peer2]);
+        run_connector([peer1, peer2]).await;
 
         assert!(logs_contain("Adding cached initial peers: 2"));
     }
 
-    #[test]
+    #[tokio::test]
     #[traced_test]
-    fn log_initial_peers_only_once() {
-        let (mut connector, _, _) = create_test_connector([]);
+    async fn log_initial_peers_only_once() {
+        let (mut connector, _, _) = create_test_connector([]).await;
 
         let cancel = CancellationToken::new_null();
         connector.run(&cancel);
@@ -127,10 +127,10 @@ mod tests {
         })
     }
 
-    #[test]
-    fn wait_between_connection_attempts() {
+    #[tokio::test]
+    async fn wait_between_connection_attempts() {
         let (mut connector, _, _) =
-            create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3]);
+            create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3]).await;
         let cancel_token = CancellationToken::new_null();
         let wait_tracker = cancel_token.track_waits();
 
@@ -139,10 +139,10 @@ mod tests {
         assert_eq!(wait_tracker.output(), [REACHOUT_DELAY; 3]);
     }
 
-    #[test]
-    fn cancel_during_connection_attempts() {
+    #[tokio::test]
+    async fn cancel_during_connection_attempts() {
         let (mut connector, merge_tracker, _) =
-            create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3]);
+            create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2, TEST_ENDPOINT_3]).await;
         let cancel_token = CancellationToken::new_null_with_uncancelled_waits(1);
         let wait_tracker = cancel_token.track_waits();
 
@@ -152,9 +152,9 @@ mod tests {
         assert_eq!(wait_tracker.output(), [REACHOUT_DELAY; 2]);
     }
 
-    #[test]
-    fn inc_stats_when_run() {
-        let (mut connector, _, stats) = create_test_connector([]);
+    #[tokio::test]
+    async fn inc_stats_when_run() {
+        let (mut connector, _, stats) = create_test_connector([]).await;
         connector.run(&CancellationToken::new_null());
         assert_eq!(
             stats.count(
@@ -166,9 +166,10 @@ mod tests {
         )
     }
 
-    #[test]
-    fn inc_stats_for_each_reachout() {
-        let (mut connector, _, stats) = create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2]);
+    #[tokio::test]
+    async fn inc_stats_for_each_reachout() {
+        let (mut connector, _, stats) =
+            create_test_connector([TEST_ENDPOINT_1, TEST_ENDPOINT_2]).await;
         connector.run(&CancellationToken::new_null());
         assert_eq!(
             stats.count(StatType::Network, DetailType::ReachoutCached, Direction::In),
@@ -176,13 +177,15 @@ mod tests {
         )
     }
 
-    fn run_connector(cached_peers: impl IntoIterator<Item = SocketAddrV6>) -> Vec<SocketAddrV6> {
-        let (mut connector, merge_tracker, _) = create_test_connector(cached_peers);
+    async fn run_connector(
+        cached_peers: impl IntoIterator<Item = SocketAddrV6>,
+    ) -> Vec<SocketAddrV6> {
+        let (mut connector, merge_tracker, _) = create_test_connector(cached_peers).await;
         connector.run(&CancellationToken::new_null());
         merge_tracker.output()
     }
 
-    fn create_test_connector(
+    async fn create_test_connector(
         cached_peers: impl IntoIterator<Item = SocketAddrV6>,
     ) -> (
         PeerCacheConnector,
@@ -190,7 +193,7 @@ mod tests {
         Arc<Stats>,
     ) {
         let ledger = ledger_with_peers(cached_peers);
-        let peer_connector = Arc::new(PeerConnector::new_null());
+        let peer_connector = Arc::new(PeerConnector::new_null(tokio::runtime::Handle::current()));
         let merge_tracker = peer_connector.track_connections();
         let stats = Arc::new(Stats::default());
         let connector =

@@ -6,14 +6,14 @@ use super::{
 use crate::{
     block_processing::BlockProcessor,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{MessagePublisher, Network},
+    transport::MessagePublisher,
     utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
 };
 use async_trait::async_trait;
 use ordered_float::OrderedFloat;
 use rsnano_core::{utils::PropertyTree, Account, BlockHash};
 use rsnano_network::{
-    ChannelDirection, ChannelMode, NetworkInfo, NetworkObserver, NullNetworkObserver,
+    ChannelDirection, ChannelMode, Network, NetworkInfo, NetworkObserver, NullNetworkObserver,
 };
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStreamFactory;
@@ -45,7 +45,7 @@ pub struct BootstrapConnections {
     network_info: Arc<RwLock<NetworkInfo>>,
     network_stats: Arc<dyn NetworkObserver>,
     workers: Arc<dyn ThreadPool>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     stats: Arc<Stats>,
     block_processor: Arc<BlockProcessor>,
     bootstrap_initiator: Mutex<Option<Weak<BootstrapInitiator>>>,
@@ -61,7 +61,7 @@ impl BootstrapConnections {
         network: Arc<Network>,
         network_info: Arc<RwLock<NetworkInfo>>,
         network_stats: Arc<dyn NetworkObserver>,
-        async_rt: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         workers: Arc<dyn ThreadPool>,
         stats: Arc<Stats>,
         block_processor: Arc<BlockProcessor>,
@@ -86,7 +86,7 @@ impl BootstrapConnections {
             network_info,
             network_stats,
             workers,
-            runtime: async_rt,
+            tokio,
             stats,
             block_processor,
             pulls_cache,
@@ -96,7 +96,7 @@ impl BootstrapConnections {
         }
     }
 
-    pub fn new_null() -> Self {
+    pub fn new_null(runtime: Arc<AsyncRuntime>) -> Self {
         Self {
             condition: Condvar::new(),
             populate_connections_started: AtomicBool::new(false),
@@ -106,16 +106,16 @@ impl BootstrapConnections {
             connections_count: AtomicU32::new(0),
             new_connections_empty: AtomicBool::new(false),
             stopped: AtomicBool::new(false),
-            network: Arc::new(Network::new_null()),
+            network: Arc::new(Network::new_null(runtime.tokio.handle().clone())),
             network_info: Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             network_stats: Arc::new(NullNetworkObserver::new()),
             workers: Arc::new(ThreadPoolImpl::new_null()),
-            runtime: Arc::new(AsyncRuntime::default()),
+            tokio: runtime.tokio.handle().clone(),
             stats: Arc::new(Stats::default()),
             block_processor: Arc::new(BlockProcessor::new_null()),
             bootstrap_initiator: Mutex::new(None),
             pulls_cache: Arc::new(Mutex::new(PullsCache::new())),
-            message_publisher: MessagePublisher::new_null(),
+            message_publisher: MessagePublisher::new_null(runtime.tokio.handle().clone()),
             clock: Arc::new(SteadyClock::new_null()),
         }
     }
@@ -519,10 +519,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                         .unwrap()
                         .is_excluded(&endpoint, self.clock.now())
                 {
-                    let success = self
-                        .runtime
-                        .tokio
-                        .block_on(self.connect_client(endpoint, false));
+                    let success = self.tokio.block_on(self.connect_client(endpoint, false));
                     if success {
                         endpoints.insert(endpoint);
                         let _guard = self.mutex.lock().unwrap();
@@ -616,15 +613,11 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             }
         };
 
-        let Ok(channel) = self
-            .network
-            .add(
-                tcp_stream,
-                ChannelDirection::Outbound,
-                ChannelMode::Bootstrap,
-            )
-            .await
-        else {
+        let Ok(channel) = self.network.add(
+            tcp_stream,
+            ChannelDirection::Outbound,
+            ChannelMode::Bootstrap,
+        ) else {
             debug!(remote_addr = ?peer_addr, "Bootstrap connection rejected");
             self.network_info
                 .write()
@@ -710,7 +703,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                                 connection_l,
                                 attempt_l,
                                 Arc::clone(&self_l.workers),
-                                Arc::clone(&self_l.runtime),
+                                self_l.tokio.clone(),
                                 self_l,
                                 initiator,
                                 pull,

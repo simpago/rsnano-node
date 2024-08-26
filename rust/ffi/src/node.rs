@@ -29,7 +29,6 @@ use rsnano_network::ChannelId;
 use rsnano_node::{
     consensus::{AccountBalanceChangedCallback, ElectionEndCallback},
     node::{Node, NodeExt},
-    transport::PeerConnectorExt,
 };
 use std::{
     collections::VecDeque,

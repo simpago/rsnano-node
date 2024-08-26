@@ -29,9 +29,9 @@ use crate::{
     },
     transport::{
         InboundMessageQueue, InboundMessageQueueCleanup, KeepaliveFactory, LatestKeepalives,
-        LatestKeepalivesCleanup, MessageProcessor, MessagePublisher, Network, NetworkCleanup,
-        NetworkFilter, NetworkThreads, PeerCacheConnector, PeerCacheUpdater, PeerConnector,
-        RealtimeMessageHandler, ResponseServerFactory, SynCookies, TcpListener, TcpListenerExt,
+        LatestKeepalivesCleanup, MessageProcessor, MessagePublisher, NanoResponseServerSpawner,
+        NetworkFilter, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
+        RealtimeMessageHandler, SynCookies,
     },
     utils::{
         AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread,
@@ -51,7 +51,10 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, Message, Publish};
-use rsnano_network::{ChannelId, DeadChannelCleanup, DropPolicy, NetworkInfo, TrafficType};
+use rsnano_network::{
+    ChannelId, DeadChannelCleanup, DropPolicy, Network, NetworkCleanup, NetworkInfo, PeerConnector,
+    TcpListener, TcpListenerExt, TrafficType,
+};
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_nullable_http_client::{HttpClient, Url};
 use rsnano_store_lmdb::{
@@ -147,6 +150,7 @@ impl Node {
         account_balance_changed: AccountBalanceChangedCallback,
         on_vote: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) -> Self {
+        let tokio_handle = async_rt.tokio.handle();
         // Time relative to the start of the node. This makes time exlicit and enables us to
         // write time relevant unit tests with ease.
         let steady_clock = Arc::new(SteadyClock::default());
@@ -249,6 +253,7 @@ impl Node {
             global_config.into(),
             network_info.clone(),
             steady_clock.clone(),
+            tokio_handle.clone(),
         );
         network.set_observer(network_observer.clone());
         let network = Arc::new(network);
@@ -507,8 +512,8 @@ impl Node {
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
 
-        let response_server_factory = Arc::new(ResponseServerFactory {
-            runtime: async_rt.clone(),
+        let response_server_spawner = Arc::new(NanoResponseServerSpawner {
+            tokio: tokio_handle.clone(),
             stats: stats.clone(),
             node_id: node_id.clone(),
             ledger: ledger.clone(),
@@ -525,12 +530,11 @@ impl Node {
         });
 
         let peer_connector = Arc::new(PeerConnector::new(
-            config.tcp.clone(),
+            config.tcp.connect_timeout,
             network.clone(),
             network_observer.clone(),
-            stats.clone(),
-            async_rt.clone(),
-            response_server_factory.clone(),
+            tokio_handle.clone(),
+            response_server_spawner.clone(),
             steady_clock.clone(),
         ));
 
@@ -559,9 +563,9 @@ impl Node {
         let tcp_listener = Arc::new(TcpListener::new(
             network_info.read().unwrap().listening_port(),
             network.clone(),
-            async_rt.clone(),
-            stats.clone(),
-            response_server_factory.clone(),
+            network_observer.clone(),
+            tokio_handle.clone(),
+            response_server_spawner.clone(),
         ));
 
         let hinted_scheduler = Arc::new(HintedScheduler::new(

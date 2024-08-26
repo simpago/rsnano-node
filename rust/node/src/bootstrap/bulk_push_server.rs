@@ -3,7 +3,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     stats::{DetailType, Direction, StatType, Stats},
     transport::{ResponseServer, ResponseServerExt},
-    utils::{AsyncRuntime, ErrorCode, ThreadPool},
+    utils::{ErrorCode, ThreadPool},
 };
 use num_traits::FromPrimitive;
 use rsnano_core::{
@@ -28,7 +28,7 @@ const BUFFER_SIZE: usize = 256;
 
 impl BulkPushServer {
     pub fn new(
-        async_rt: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         connection: Arc<ResponseServer>,
         thread_pool: Arc<dyn ThreadPool>,
         block_processor: Arc<BlockProcessor>,
@@ -37,7 +37,7 @@ impl BulkPushServer {
         work_thresholds: WorkThresholds,
     ) -> Self {
         let server_impl = BulkPushServerImpl {
-            async_rt,
+            tokio,
             connection,
             thread_pool: Arc::downgrade(&thread_pool),
             block_processor: Arc::downgrade(&block_processor),
@@ -62,7 +62,7 @@ impl BulkPushServer {
 }
 
 struct BulkPushServerImpl {
-    async_rt: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     connection: Arc<ResponseServer>,
     thread_pool: Weak<dyn ThreadPool>,
     block_processor: Weak<BlockProcessor>,
@@ -106,7 +106,7 @@ impl BulkPushServerImpl {
             let channel = Arc::clone(&self.connection.channel());
             let buffer = Arc::clone(&self.receive_buffer);
             let server_impl2 = Arc::clone(&server_impl);
-            self.async_rt.tokio.spawn(async move {
+            self.tokio.spawn(async move {
                 let mut buf = [0; BUFFER_SIZE];
                 let result = channel.deref().read(&mut buf, 1).await;
                 buffer.lock().unwrap().copy_from_slice(&buf);
@@ -135,9 +135,7 @@ impl BulkPushServerImpl {
         match block_type {
             Some(BlockType::NotABlock) => {
                 let connection = self.connection.clone();
-                self.async_rt
-                    .tokio
-                    .spawn(async move { connection.run().await });
+                self.tokio.spawn(async move { connection.run().await });
                 return;
             }
             Some(BlockType::Invalid) | None => {
@@ -147,7 +145,7 @@ impl BulkPushServerImpl {
             _ => {}
         }
 
-        self.async_rt.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             let mut buf = [0; BUFFER_SIZE];
             match block_type {
                 Some(BlockType::LegacySend) => {

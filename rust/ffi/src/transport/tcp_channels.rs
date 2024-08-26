@@ -1,5 +1,4 @@
-use rsnano_network::ChannelMode;
-use rsnano_node::transport::Network;
+use rsnano_network::{ChannelMode, Network};
 use std::{ops::Deref, sync::Arc};
 
 pub struct TcpChannelsHandle(pub Arc<Network>);

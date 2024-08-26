@@ -1,10 +1,10 @@
-use rsnano_core::utils::NULL_ENDPOINT;
-use rsnano_network::{
+use crate::{
     bandwidth_limiter::{OutboundBandwidthLimiter, OutboundBandwidthLimiterConfig},
     utils::into_ipv6_socket_address,
     Channel, ChannelDirection, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy,
     NetworkInfo, NetworkObserver, NullNetworkObserver, TrafficType,
 };
+use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStream;
 use std::{
@@ -20,6 +20,7 @@ pub struct Network {
     limiter: Arc<OutboundBandwidthLimiter>,
     clock: Arc<SteadyClock>,
     observer: Arc<dyn NetworkObserver>,
+    handle: tokio::runtime::Handle,
 }
 
 impl Network {
@@ -27,6 +28,7 @@ impl Network {
         limiter_config: OutboundBandwidthLimiterConfig,
         network_info: Arc<RwLock<NetworkInfo>>,
         clock: Arc<SteadyClock>,
+        handle: tokio::runtime::Handle,
     ) -> Self {
         Self {
             channels: Mutex::new(HashMap::new()),
@@ -34,6 +36,7 @@ impl Network {
             clock,
             info: network_info,
             observer: Arc::new(NullNetworkObserver::new()),
+            handle,
         }
     }
 
@@ -41,7 +44,7 @@ impl Network {
         self.observer = observer;
     }
 
-    pub(crate) async fn wait_for_available_inbound_slot(&self) {
+    pub async fn wait_for_available_inbound_slot(&self) {
         let last_log = Instant::now();
         let log_interval = Duration::from_secs(15);
         while {
@@ -56,7 +59,7 @@ impl Network {
         }
     }
 
-    pub async fn add(
+    pub fn add(
         &self,
         stream: TcpStream,
         direction: ChannelDirection,
@@ -98,8 +101,9 @@ impl Network {
             self.info.clone(),
             self.clock.clone(),
             self.observer.clone(),
-        )
-        .await;
+            &self.handle,
+        );
+
         self.channels
             .lock()
             .unwrap()
@@ -110,15 +114,16 @@ impl Network {
         Ok(channel)
     }
 
-    pub(crate) fn new_null() -> Self {
+    pub fn new_null(handle: tokio::runtime::Handle) -> Self {
         Self::new(
             Default::default(),
             Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             Arc::new(SteadyClock::new_null()),
+            handle,
         )
     }
 
-    pub(crate) fn try_send_buffer(
+    pub fn try_send_buffer(
         &self,
         channel_id: ChannelId,
         buffer: &[u8],

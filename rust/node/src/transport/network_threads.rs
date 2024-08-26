@@ -1,4 +1,4 @@
-use super::{LatestKeepalives, MessagePublisher, PeerConnector, PeerConnectorExt, SynCookies};
+use super::{LatestKeepalives, MessagePublisher, SynCookies};
 use crate::{
     config::{NodeConfig, NodeFlags},
     stats::{DetailType, StatType, Stats},
@@ -6,7 +6,7 @@ use crate::{
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_messages::{Keepalive, Message};
-use rsnano_network::{DeadChannelCleanup, DropPolicy, NetworkInfo, TrafficType};
+use rsnano_network::{DeadChannelCleanup, DropPolicy, NetworkInfo, PeerConnector, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
@@ -317,6 +317,9 @@ impl ReachoutLoop {
 
             if let Some(keepalive) = self.latest_keepalives.lock().unwrap().pop_random() {
                 for peer in keepalive.peers {
+                    if peer.ip().is_unspecified() {
+                        continue;
+                    }
                     self.stats.inc(StatType::Network, DetailType::ReachoutLive);
                     self.peer_connector.connect_to(peer);
 

@@ -28,7 +28,6 @@ add_executable(
   node.cpp
   object_stream.cpp
   optimistic_scheduler.cpp
-  rep_crawler.cpp
   peer_container.cpp
   signal_manager.cpp
   socket.cpp

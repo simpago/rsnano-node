@@ -150,7 +150,7 @@ impl Telemetry {
         let data = telemetry.0.as_ref().unwrap();
 
         let mut guard = self.mutex.lock().unwrap();
-        let peer_addr = channel.peering_addr_or_peer_addr();
+        let peer_addr = channel.peer_addr();
 
         if let Some(entry) = guard.telemetries.get_mut(&peer_addr) {
             self.stats.inc(StatType::Telemetry, DetailType::Update);
