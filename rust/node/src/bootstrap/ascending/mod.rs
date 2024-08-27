@@ -384,11 +384,11 @@ impl BootstrapAscending {
         if blocks.is_empty() {
             return VerifyResult::NothingNew;
         }
-        if blocks.len() == 1 && blocks.first().unwrap().hash() == tag.start.into() {
+        if blocks.len() == 1 && blocks.front().unwrap().hash() == tag.start.into() {
             return VerifyResult::NothingNew;
         }
 
-        let first = blocks.first().unwrap();
+        let first = blocks.front().unwrap();
         match tag.query_type {
             QueryType::BlocksByHash => {
                 if first.hash() != tag.start.into() {
@@ -410,7 +410,7 @@ impl BootstrapAscending {
 
         // Verify blocks make a valid chain
         let mut previous_hash = first.hash();
-        for block in &blocks[1..] {
+        for block in blocks.iter().skip(1) {
             if block.previous() != previous_hash {
                 // TODO: Stat & log
                 return VerifyResult::Invalid; // Blocks do not make a chain
@@ -585,7 +585,7 @@ impl BootstrapAscendingImpl {
         }
 
         if database_limiter.should_pass(1) {
-            let account = self.iterator.next();
+            let account = self.iterator.next(|_| true);
             if !account.is_zero() {
                 stats.inc(StatType::BootstrapAscending, DetailType::NextDatabase);
                 return account;

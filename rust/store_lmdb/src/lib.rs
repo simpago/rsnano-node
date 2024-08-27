@@ -41,6 +41,8 @@ pub use store::{create_backup_file, LedgerCache, LmdbStore};
 pub use version_store::LmdbVersionStore;
 pub use wallet_store::{Fans, KeyType, LmdbWalletStore, WalletValue};
 
+use primitive_types::U256;
+use rsnano_core::utils::{get_cpu_count, PropertyTree};
 use std::{
     any::Any,
     cmp::{max, min},
@@ -49,9 +51,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use primitive_types::U256;
-use rsnano_core::utils::{get_cpu_count, PropertyTree};
+#[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListener, OutputTracker};
+#[cfg(feature = "output_tracking")]
 use std::rc::Rc;
 
 pub trait Transaction {

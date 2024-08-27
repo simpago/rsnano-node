@@ -6,7 +6,7 @@ use rsnano_core::{
 };
 use serde::ser::SerializeStruct;
 use serde_derive::Serialize;
-use std::{fmt::Display, mem::size_of};
+use std::{collections::VecDeque, fmt::Display, mem::size_of};
 
 use super::{AscPullPayloadId, MessageVariant};
 
@@ -29,9 +29,9 @@ impl AscPullAck {
     pub fn new_test_instance_blocks() -> Self {
         Self {
             id: 12345,
-            pull_type: AscPullAckType::Blocks(BlocksAckPayload(vec![
+            pull_type: AscPullAckType::Blocks(BlocksAckPayload(VecDeque::from([
                 BlockEnum::new_test_instance(),
-            ])),
+            ]))),
         }
     }
 
@@ -146,10 +146,10 @@ impl Display for AscPullAck {
 }
 
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
-pub struct BlocksAckPayload(Vec<BlockEnum>);
+pub struct BlocksAckPayload(VecDeque<BlockEnum>);
 
 impl BlocksAckPayload {
-    pub fn new(blocks: Vec<BlockEnum>) -> Self {
+    pub fn new(blocks: VecDeque<BlockEnum>) -> Self {
         if blocks.len() > Self::MAX_BLOCKS {
             panic!(
                 "too many blocks for BlocksAckPayload. Maximum is {}, but was {}",
@@ -163,7 +163,7 @@ impl BlocksAckPayload {
     /* Header allows for 16 bit extensions; 65535 bytes / 500 bytes (block size with some future margin) ~ 131 */
     pub const MAX_BLOCKS: usize = 128;
 
-    pub fn blocks(&self) -> &Vec<BlockEnum> {
+    pub fn blocks(&self) -> &VecDeque<BlockEnum> {
         &self.0
     }
 
@@ -172,7 +172,7 @@ impl BlocksAckPayload {
             if self.0.len() >= Self::MAX_BLOCKS {
                 bail!("too many blocks")
             }
-            self.0.push(current);
+            self.0.push_back(current);
         }
         Ok(())
     }
@@ -253,10 +253,10 @@ mod tests {
     fn serialize_blocks() {
         let original = Message::AscPullAck(AscPullAck {
             id: 7,
-            pull_type: AscPullAckType::Blocks(BlocksAckPayload::new(vec![
+            pull_type: AscPullAckType::Blocks(BlocksAckPayload::new(VecDeque::from([
                 BlockBuilder::state().build(),
                 BlockBuilder::state().build(),
-            ])),
+            ]))),
         });
 
         assert_deserializable(&original);

@@ -19,7 +19,6 @@ namespace nano
 class node;
 class block;
 class block_sideband;
-class block_processor;
 class election;
 class vote;
 class confirming_set;

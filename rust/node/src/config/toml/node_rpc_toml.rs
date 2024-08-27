@@ -1,4 +1,4 @@
-use crate::config::{DaemonConfig, NodeRpcConfig, RpcChildProcessConfig};
+use crate::config::{NodeRpcConfig, RpcChildProcessConfig};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

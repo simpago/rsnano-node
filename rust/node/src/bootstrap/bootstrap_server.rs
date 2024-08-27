@@ -12,6 +12,7 @@ use rsnano_network::{ChannelId, ChannelInfo, DeadChannelCleanupStep, DropPolicy,
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::min,
+    collections::VecDeque,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Condvar, Mutex, MutexGuard,
@@ -342,7 +343,7 @@ impl BootstrapServerImpl {
     fn prepare_empty_blocks_response(&self, id: u64) -> AscPullAck {
         AscPullAck {
             id,
-            pull_type: AscPullAckType::Blocks(BlocksAckPayload::new(Vec::new())),
+            pull_type: AscPullAckType::Blocks(BlocksAckPayload::new(VecDeque::new())),
         }
     }
 
@@ -351,13 +352,13 @@ impl BootstrapServerImpl {
         tx: &LmdbReadTransaction,
         start_block: BlockHash,
         count: usize,
-    ) -> Vec<BlockEnum> {
-        let mut result = Vec::new();
+    ) -> VecDeque<BlockEnum> {
+        let mut result = VecDeque::new();
         if !start_block.is_zero() {
             let mut current = self.ledger.any().get_block(tx, &start_block);
             while let Some(c) = current.take() {
                 let successor = c.sideband().unwrap().successor;
-                result.push(c);
+                result.push_back(c);
 
                 if result.len() == count {
                     break;

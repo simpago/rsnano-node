@@ -115,9 +115,7 @@ impl TestNode {
         wallet: WalletId,
     ) -> Result<()> {
         for account in destination_accounts {
-            self.node_client
-                .wallet_add(wallet, account.private_key)
-                .await?;
+            self.node_client.wallet_add(wallet, account.private).await?;
         }
         Ok(())
     }

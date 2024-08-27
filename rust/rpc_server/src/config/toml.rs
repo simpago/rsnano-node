@@ -1,4 +1,4 @@
-use super::config::{RpcServerConfig, RpcServerLoggingConfig, RpcServerProcessConfig};
+use super::{RpcServerConfig, RpcServerLoggingConfig, RpcServerProcessConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]

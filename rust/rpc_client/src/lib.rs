@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use reqwest::Url;
+use reqwest::{Client, Url};
 use rsnano_core::{Account, Amount, JsonBlock, RawKey, WalletId};
 use rsnano_rpc_messages::*;
 use serde::Serialize;
@@ -7,7 +7,7 @@ use std::{net::Ipv6Addr, time::Duration};
 
 pub struct NanoRpcClient {
     url: Url,
-    client: reqwest::Client,
+    client: Client,
 }
 
 impl NanoRpcClient {
@@ -33,7 +33,7 @@ impl NanoRpcClient {
         destination: Account,
         block: impl Into<JsonBlock>,
     ) -> Result<()> {
-        let request = RpcCommand::Receive(ReceiveCmd {
+        let request = RpcCommand::Receive(ReceiveArgs {
             wallet,
             account: destination,
             block: block.into(),
@@ -48,7 +48,7 @@ impl NanoRpcClient {
         source: Account,
         destination: Account,
     ) -> Result<JsonBlock> {
-        let request = RpcCommand::Send(SendCmd {
+        let request = RpcCommand::Send(SendArgs {
             wallet,
             source,
             destination,

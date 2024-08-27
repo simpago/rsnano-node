@@ -56,11 +56,8 @@ impl NetworkObserver for NetworkStats {
     }
 
     fn read_failed(&self) {
-        self.0.inc_dir(
-            StatType::Tcp,
-            DetailType::TcpReadError,
-            Direction::In,
-        );
+        self.0
+            .inc_dir(StatType::Tcp, DetailType::TcpReadError, Direction::In);
     }
 
     fn connection_attempt(&self, peer: &SocketAddrV6) {
@@ -187,8 +184,7 @@ impl NetworkObserver for NetworkStats {
         }
     }
 
-    fn connect_error(&self, peer: SocketAddrV6, e: Error){
-
+    fn connect_error(&self, peer: SocketAddrV6, e: Error) {
         self.0.inc_dir(
             StatType::TcpListener,
             DetailType::ConnectError,
@@ -198,15 +194,13 @@ impl NetworkObserver for NetworkStats {
     }
 
     fn attempt_timeout(&self, peer: SocketAddrV6) {
-        self.0.inc(StatType::TcpListener, DetailType::AttemptTimeout);
+        self.0
+            .inc(StatType::TcpListener, DetailType::AttemptTimeout);
         debug!("Connection attempt timed out: {}", peer);
     }
 
     fn attempt_cancelled(&self, peer: SocketAddrV6) {
-                    debug!(
-                        "Connection attempt cancelled: {}",
-                        peer,
-                    );
+        debug!("Connection attempt cancelled: {}", peer,);
     }
 
     fn merge_peer(&self) {

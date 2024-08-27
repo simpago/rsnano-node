@@ -73,18 +73,25 @@ impl BufferedIterator {
         }
     }
 
-    pub fn next(&mut self) -> Account {
-        match self.buffer.pop_front() {
-            Some(account) => account,
-            None => self.fill(),
+    pub fn next(&mut self, filter: impl Fn(&Account) -> bool) -> Account {
+        if self.buffer.is_empty() {
+            self.fill();
         }
+
+        while let Some(result) = self.buffer.pop_front() {
+            if filter(&result) {
+                return result;
+            }
+        }
+
+        Account::zero()
     }
 
     pub fn warmup(&self) -> bool {
         self.warmup
     }
 
-    fn fill(&mut self) -> Account {
+    fn fill(&mut self) {
         debug_assert!(self.buffer.is_empty());
 
         // Fill half from accounts table and half from pending table
@@ -105,7 +112,5 @@ impl BufferedIterator {
                 self.warmup = false;
             }
         }
-
-        self.buffer.front().cloned().unwrap_or_default()
     }
 }

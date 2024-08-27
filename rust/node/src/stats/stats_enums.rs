@@ -50,6 +50,13 @@ pub enum StatType {
     BlockprocessorSource,
     BlockprocessorResult,
     BlockprocessorOverfill,
+    BootstrapAscending,
+    BootstrapAscendingAccounts,
+    BootstrapAscendingVerify,
+    BootstrapAscendingProcess,
+    BootstrapAscendingRequest,
+    BootstrapAscendingReply,
+    BootstrapAscendingNext,
     BootstrapServer,
     BootstrapServerRequest,
     BootstrapServerOverfill,
@@ -78,9 +85,6 @@ pub enum StatType {
     MessageProcessor,
     MessageProcessorOverfill,
     MessageProcessorType,
-
-    BootstrapAscending,
-    BootstrapAscendingAccounts,
 }
 
 impl StatType {
@@ -124,6 +128,7 @@ pub enum DetailType {
     Unconfirmed,
     Cemented,
     Cooldown,
+    Empty,
 
     // processing queue
     Queue,
@@ -411,6 +416,12 @@ pub enum DetailType {
     Track,
     Timeout,
     NothingNew,
+    AccountInfoEmpty,
+    LoopDatabase,
+    LoopDependencies,
+    DuplicateRequest,
+    InvalidResponseType,
+    TimestampReset,
 
     // bootstrap ascending accounts
     Prioritize,
@@ -418,20 +429,34 @@ pub enum DetailType {
     Block,
     Unblock,
     UnblockFailed,
+    DependencyUpdate,
+    DependencyUpdateFailed,
 
+    NextNone,
     NextPriority,
     NextDatabase,
-    NextNone,
+    NextBlocking,
+    NextDependency,
 
     BlockingInsert,
     BlockingEraseOverflow,
     PriorityInsert,
+    PriorityEraseByThreshold,
+    PriorityEraseByBlocking,
     PriorityEraseThreshold,
     PriorityEraseBlock,
     PriorityEraseOverflow,
     Deprioritize,
     DeprioritizeFailed,
-    //
+    SyncDependencies,
+
+    RequestBlocks,
+    RequestAccountInfo,
+
+    // active
+    StartedHinted,
+    StartedOptimistic,
+
     // rep_crawler
     ChannelDead,
     QueryTargetFailed,
@@ -478,6 +503,11 @@ pub enum DetailType {
     // election bucket
     ActivateSuccess,
     CancelLowest,
+
+    // query_type
+    BlocksByHash,
+    BlocksByAccount,
+    AccountInfoByHash,
 }
 
 impl DetailType {

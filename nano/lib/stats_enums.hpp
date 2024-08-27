@@ -51,6 +51,13 @@ enum class type : uint8_t
 	blockprocessor_source,
 	blockprocessor_result,
 	blockprocessor_overfill,
+	bootstrap_ascending,
+	bootstrap_ascending_accounts,
+	bootstrap_ascending_verify,
+	bootstrap_ascending_process,
+	bootstrap_ascending_request,
+	bootstrap_ascending_reply,
+	bootstrap_ascending_next,
 	bootstrap_server,
 	bootstrap_server_request,
 	bootstrap_server_overfill,
@@ -79,9 +86,6 @@ enum class type : uint8_t
 	message_processor,
 	message_processor_overfill,
 	message_processor_type,
-
-	bootstrap_ascending,
-	bootstrap_ascending_accounts,
 };
 
 /** Optional detail type */
@@ -117,6 +121,7 @@ enum class detail : uint16_t
 	unconfirmed,
 	cemented,
 	cooldown,
+	empty,
 
 	// processing queue
 	queue,
@@ -404,6 +409,12 @@ enum class detail : uint16_t
 	track,
 	timeout,
 	nothing_new,
+	account_info_empty,
+	loop_database,
+	loop_dependencies,
+	duplicate_request,
+	invalid_response_type,
+	timestamp_reset,
 
 	// bootstrap ascending accounts
 	prioritize,
@@ -411,19 +422,33 @@ enum class detail : uint16_t
 	block,
 	unblock,
 	unblock_failed,
+	dependency_update,
+	dependency_update_failed,
 
+	next_none,
 	next_priority,
 	next_database,
-	next_none,
+	next_blocking,
+	next_dependency,
 
 	blocking_insert,
 	blocking_erase_overflow,
 	priority_insert,
+	priority_erase_by_threshold,
+	priority_erase_by_blocking,
 	priority_erase_threshold,
 	priority_erase_block,
 	priority_erase_overflow,
 	deprioritize,
 	deprioritize_failed,
+	sync_dependencies,
+
+	request_blocks,
+	request_account_info,
+
+	// active
+	started_hinted,
+	started_optimistic,
 
 	// rep_crawler
 	channel_dead,
@@ -471,6 +496,11 @@ enum class detail : uint16_t
 	// election bucket
 	activate_success,
 	cancel_lowest,
+
+	// query_type
+	blocks_by_hash,
+	blocks_by_account,
+	account_info_by_hash,
 };
 
 /** Direction of the stat. If the direction is irrelevant, use in */

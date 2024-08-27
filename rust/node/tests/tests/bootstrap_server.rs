@@ -10,7 +10,7 @@ use rsnano_node::{
     stats::{DetailType, Direction, StatType},
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -534,7 +534,7 @@ impl ResponseHelper {
 }
 
 /// Checks if both lists contain the same blocks, with `blocks_b`
-fn compare_blocks(blocks_a: &[BlockEnum], blocks_b: &[BlockEnum]) -> bool {
+fn compare_blocks(blocks_a: &VecDeque<BlockEnum>, blocks_b: &[BlockEnum]) -> bool {
     assert!(blocks_a.len() <= blocks_b.len());
     blocks_a.iter().zip(blocks_b.iter()).all(|(a, b)| a == b)
 }

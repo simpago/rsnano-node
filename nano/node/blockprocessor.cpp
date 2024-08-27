@@ -34,11 +34,6 @@ rsnano::BlockProcessorHandle const * nano::block_processor::get_handle () const
 	return handle;
 }
 
-void nano::block_processor::stop ()
-{
-	rsnano::rsn_block_processor_stop (handle);
-}
-
 void nano::block_processor::process_active (std::shared_ptr<nano::block> const & incoming)
 {
 	add (incoming);

@@ -239,57 +239,6 @@ void string_delete (void * handle)
 	delete s;
 }
 
-int32_t toml_put_u64 (void * toml_a, const uint8_t * key_a, uintptr_t key_len_a, uint64_t value, const uint8_t * documentation_a, uintptr_t documentation_len_a)
-{
-	try
-	{
-		auto toml{ static_cast<nano::tomlconfig *> (toml_a) };
-		std::string key (reinterpret_cast<const char *> (key_a), key_len_a);
-		std::string documentation (reinterpret_cast<const char *> (documentation_a), documentation_len_a);
-		toml->put (key, value, documentation.c_str ());
-	}
-	catch (...)
-	{
-		return -1;
-	}
-
-	return 0;
-}
-
-int32_t toml_put_i64 (void * toml_a, const uint8_t * key_a, uintptr_t key_len_a, int64_t value, const uint8_t * documentation_a, uintptr_t documentation_len_a)
-{
-	try
-	{
-		auto toml{ static_cast<nano::tomlconfig *> (toml_a) };
-		std::string key (reinterpret_cast<const char *> (key_a), key_len_a);
-		std::string documentation (reinterpret_cast<const char *> (documentation_a), documentation_len_a);
-		toml->put (key, value, documentation.c_str ());
-	}
-	catch (...)
-	{
-		return -1;
-	}
-
-	return 0;
-}
-
-int32_t toml_put_f64 (void * toml_a, const uint8_t * key_a, uintptr_t key_len_a, double value, const uint8_t * documentation_a, uintptr_t documentation_len_a)
-{
-	try
-	{
-		auto toml{ static_cast<nano::tomlconfig *> (toml_a) };
-		std::string key (reinterpret_cast<const char *> (key_a), key_len_a);
-		std::string documentation (reinterpret_cast<const char *> (documentation_a), documentation_len_a);
-		toml->put (key, value, documentation.c_str ());
-	}
-	catch (...)
-	{
-		return -1;
-	}
-
-	return 0;
-}
-
 int32_t toml_put_str (void * toml_a, const uint8_t * key_a, uintptr_t key_len_a, const uint8_t * value_a, uintptr_t value_len_a, const uint8_t * documentation_a, uintptr_t documentation_len_a)
 {
 	try
@@ -333,54 +282,6 @@ struct TomlArrayHandle
 	}
 	std::shared_ptr<cpptoml::array> ptr;
 };
-
-void * toml_create_array (void * toml_a, const uint8_t * key_a, uintptr_t key_len_a, const uint8_t * documentation_a, uintptr_t documentation_len_a)
-{
-	try
-	{
-		auto toml{ static_cast<nano::tomlconfig *> (toml_a) };
-		std::string key (reinterpret_cast<const char *> (key_a), key_len_a);
-		std::string documentation (reinterpret_cast<const char *> (documentation_a), documentation_len_a);
-		auto arr{ toml->create_array (key, documentation.c_str ()) };
-		auto result = new TomlArrayHandle (arr);
-		return result;
-	}
-	catch (...)
-	{
-		return nullptr;
-	}
-}
-
-void toml_drop_array (void * handle_a)
-{
-	auto handle = reinterpret_cast<TomlArrayHandle *> (handle_a);
-	delete handle;
-}
-
-void toml_array_put_str (void * handle_a, const uint8_t * value_a, uintptr_t value_len)
-{
-	auto handle = reinterpret_cast<TomlArrayHandle *> (handle_a);
-	std::string val (reinterpret_cast<const char *> (value_a), value_len);
-	handle->ptr->push_back (val);
-}
-
-void * toml_create_config ()
-{
-	return new nano::tomlconfig ();
-}
-
-void toml_drop_config (void * handle)
-{
-	delete static_cast<nano::tomlconfig *> (handle);
-}
-
-void toml_put_child (void * handle_a, const uint8_t * key_a, uintptr_t key_len_a, void * child_a)
-{
-	auto parent = static_cast<nano::tomlconfig *> (handle_a);
-	auto child = static_cast<nano::tomlconfig *> (child_a);
-	std::string key (reinterpret_cast<const char *> (key_a), key_len_a);
-	parent->put_child (key, *child);
-}
 
 void wait_latch (void * latch_ptr)
 {

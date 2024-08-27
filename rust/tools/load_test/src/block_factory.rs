@@ -100,7 +100,7 @@ impl BlockFactory {
             .send_receive(
                 self.wallet,
                 *DEV_GENESIS_ACCOUNT,
-                destination_account.as_string,
+                destination_account.account,
             )
             .await;
         self.send_calls_remaining.fetch_sub(1, Ordering::SeqCst);
@@ -114,7 +114,7 @@ async fn get_account_info(
 ) -> Result<HashMap<Account, AccountInfoDto>> {
     let mut account_info = HashMap::new();
     for account in accounts {
-        let account = account.as_string;
+        let account = account.account;
         account_info.insert(account, node_client.account_info(account).await?);
     }
     Ok(account_info)

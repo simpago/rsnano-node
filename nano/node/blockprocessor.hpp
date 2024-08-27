@@ -80,8 +80,6 @@ public:
 	block_processor (nano::block_processor &&) = delete;
 	~block_processor ();
 
-	void stop ();
-
 	void process_active (std::shared_ptr<nano::block> const & incoming);
 	bool add (std::shared_ptr<nano::block> const &, block_source = block_source::live);
 	std::optional<nano::block_status> add_blocking (std::shared_ptr<nano::block> const & block, block_source);

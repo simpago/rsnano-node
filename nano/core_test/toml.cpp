@@ -103,6 +103,8 @@ TEST (toml, daemon_config_deserialize_defaults)
 	std::stringstream ss;
 	ss << R"toml(
 	[node]
+	[node.bootstrap_ascending]
+	[node.bootstrap_server]
 	[node.block_processor]
 	[node.diagnostics.txn_tracking]
 	[node.httpcallback]
@@ -113,7 +115,6 @@ TEST (toml, daemon_config_deserialize_defaults)
 	[node.vote_processsor]
 	[node.websocket]
 	[node.lmdb]
-	[node.bootstrap_server]
 	[opencl]
 	[rpc]
 	[rpc.child_process]

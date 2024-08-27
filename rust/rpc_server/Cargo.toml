@@ -4,10 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.40"
-rsnano_node = { path = "../node" }
 rsnano_core = { path = "../core" }
+rsnano_node = { path = "../node" }
+rsnano_rpc_messages = { path = "../rpc_messages" }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["net"] }
+anyhow = "1.0.40"
+axum = "0.7.5"
+toml = "0.8.15"
+tracing = "0.1"
 
 [dev-dependencies]
-toml = "0.8.15"
+rsnano_rpc_client = { path = "../rpc_client" }
+test_helpers = { path = "../tools/test_helpers" }
+reqwest = { version = "0" }

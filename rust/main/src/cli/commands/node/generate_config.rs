@@ -1,10 +1,11 @@
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_core::utils::get_cpu_count;
+use rsnano_core::{utils::get_cpu_count, Networks};
 use rsnano_node::{
-    config::{DaemonConfig, DaemonToml, NetworkConstants},
+    config::{DaemonConfig, DaemonToml},
     NetworkParams,
 };
+use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::io::BufRead;
 
 #[derive(Parser)]
@@ -27,15 +28,15 @@ impl GenerateConfigArgs {
     pub(crate) fn generate_config(&self) -> Result<()> {
         let (toml_str, config_type) = if self.node {
             let daemon_toml: DaemonToml = (&DaemonConfig::new(
-                &NetworkParams::new(NetworkConstants::active_network()),
+                &NetworkParams::new(Networks::NanoBetaNetwork),
                 get_cpu_count(),
             ))
                 .into();
             (toml::to_string(&daemon_toml)?, "node")
         } else {
-            //let rpc_toml = RpcToml::default();
-            //(toml::to_string(&rpc_toml)?, "rpc")
-            (String::new(), "rpc")
+            let rpc_server_toml: RpcServerToml =
+                (&RpcServerConfig::default_for(Networks::NanoBetaNetwork, get_cpu_count())).into();
+            (toml::to_string(&rpc_server_toml)?, "rpc")
         };
 
         println!("# This is an example configuration file for Nano. Visit https://docs.nano.org/running-a-node/configuration/ for more information.");

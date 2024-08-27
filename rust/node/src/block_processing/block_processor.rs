@@ -49,19 +49,27 @@ impl From<BlockSource> for DetailType {
     }
 }
 
+pub type BlockProcessorCallback = Box<dyn Fn(BlockStatus) + Send + Sync>;
+
 pub struct BlockProcessorContext {
     pub block: Arc<BlockEnum>,
     pub source: BlockSource,
+    callback: Option<BlockProcessorCallback>,
     pub arrival: Instant,
     waiter: Arc<BlockProcessorWaiter>,
 }
 
 impl BlockProcessorContext {
-    pub fn new(block: Arc<BlockEnum>, source: BlockSource) -> Self {
+    pub fn new(
+        block: Arc<BlockEnum>,
+        source: BlockSource,
+        callback: Option<BlockProcessorCallback>,
+    ) -> Self {
         Self {
             block,
             source,
             arrival: Instant::now(),
+            callback,
             waiter: Arc::new(BlockProcessorWaiter::new()),
         }
     }
@@ -267,7 +275,18 @@ impl BlockProcessor {
     }
 
     pub fn add(&self, block: Arc<BlockEnum>, source: BlockSource, channel_id: ChannelId) -> bool {
-        self.processor_loop.add(block, source, channel_id)
+        self.processor_loop.add(block, source, channel_id, None)
+    }
+
+    pub fn add_with_callback(
+        &self,
+        block: Arc<BlockEnum>,
+        source: BlockSource,
+        channel_id: ChannelId,
+        callback: BlockProcessorCallback,
+    ) -> bool {
+        self.processor_loop
+            .add(block, source, channel_id, Some(callback))
     }
 
     pub fn add_blocking(&self, block: Arc<BlockEnum>, source: BlockSource) -> Option<BlockStatus> {
@@ -338,6 +357,9 @@ impl BlockProcessorLoop {
 
                 // Set results for futures when not holding the lock
                 for (result, context) in processed.iter_mut() {
+                    if let Some(cb) = &context.callback {
+                        cb(*result);
+                    }
                     context.set_result(*result);
                 }
 
@@ -400,10 +422,16 @@ impl BlockProcessorLoop {
     }
 
     pub fn process_active(&self, block: Arc<BlockEnum>) {
-        self.add(block, BlockSource::Live, ChannelId::LOOPBACK);
+        self.add(block, BlockSource::Live, ChannelId::LOOPBACK, None);
     }
 
-    pub fn add(&self, block: Arc<BlockEnum>, source: BlockSource, channel_id: ChannelId) -> bool {
+    pub fn add(
+        &self,
+        block: Arc<BlockEnum>,
+        source: BlockSource,
+        channel_id: ChannelId,
+        callback: Option<BlockProcessorCallback>,
+    ) -> bool {
         if self.config.work_thresholds.validate_entry_block(&block) {
             // true => error
             self.stats
@@ -421,7 +449,7 @@ impl BlockProcessorLoop {
         );
 
         self.add_impl(
-            Arc::new(BlockProcessorContext::new(block, source)),
+            Arc::new(BlockProcessorContext::new(block, source, callback)),
             channel_id,
         )
     }
@@ -436,7 +464,7 @@ impl BlockProcessorLoop {
         );
 
         let hash = block.hash();
-        let ctx = Arc::new(BlockProcessorContext::new(block, source));
+        let ctx = Arc::new(BlockProcessorContext::new(block, source, None));
         let waiter = ctx.get_waiter();
         self.add_impl(ctx, ChannelId::LOOPBACK);
 
@@ -454,7 +482,7 @@ impl BlockProcessorLoop {
     pub fn force(&self, block: Arc<BlockEnum>) {
         self.stats.inc(StatType::Blockprocessor, DetailType::Force);
         debug!("Forcing block: {}", block.hash());
-        let ctx = Arc::new(BlockProcessorContext::new(block, BlockSource::Forced));
+        let ctx = Arc::new(BlockProcessorContext::new(block, BlockSource::Forced, None));
         self.add_impl(ctx, ChannelId::LOOPBACK);
     }
 
