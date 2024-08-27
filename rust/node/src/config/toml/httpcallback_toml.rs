@@ -8,13 +8,6 @@ pub struct HttpcallbackToml {
     pub target: Option<String>,
 }
 
-impl Default for HttpcallbackToml {
-    fn default() -> Self {
-        let config = NodeConfig::default();
-        (&config).into()
-    }
-}
-
 impl From<&NodeConfig> for HttpcallbackToml {
     fn from(config: &NodeConfig) -> Self {
         Self {
@@ -25,18 +18,16 @@ impl From<&NodeConfig> for HttpcallbackToml {
     }
 }
 
-impl From<&HttpcallbackToml> for NodeConfig {
-    fn from(toml: &HttpcallbackToml) -> Self {
-        let mut config = NodeConfig::default();
+impl NodeConfig {
+    pub fn merge_http_callback_toml(&mut self, toml: &HttpcallbackToml) {
         if let Some(address) = &toml.address {
-            config.callback_address = address.clone();
+            self.callback_address = address.clone();
         }
         if let Some(port) = &toml.port {
-            config.callback_port = port.clone();
+            self.callback_port = port.clone();
         }
         if let Some(target) = &toml.target {
-            config.callback_target = target.clone();
+            self.callback_target = target.clone();
         }
-        config
     }
 }

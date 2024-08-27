@@ -9,13 +9,6 @@ pub struct IpcToml {
     pub tcp: Option<TcpToml>,
 }
 
-impl Default for IpcToml {
-    fn default() -> Self {
-        let config = IpcConfig::default();
-        (&config).into()
-    }
-}
-
 #[derive(Clone, Deserialize, Serialize)]
 pub struct LocalToml {
     pub allow_unsafe: Option<bool>,
@@ -53,13 +46,6 @@ pub struct TcpToml {
     pub port: Option<u16>,
 }
 
-impl Default for TcpToml {
-    fn default() -> Self {
-        let config = IpcConfigTcpSocket::default();
-        (&config).into()
-    }
-}
-
 impl From<&IpcConfig> for IpcToml {
     fn from(config: &IpcConfig) -> Self {
         Self {
@@ -70,20 +56,17 @@ impl From<&IpcConfig> for IpcToml {
     }
 }
 
-impl From<&IpcToml> for IpcConfig {
-    fn from(toml: &IpcToml) -> Self {
-        let mut config = IpcConfig::default();
-
+impl IpcConfig {
+    pub fn merge_toml(&mut self, toml: &IpcToml) {
         if let Some(transport_domain) = &toml.tcp {
-            config.transport_tcp = transport_domain.into();
+            self.transport_tcp.merge_toml(transport_domain);
         }
         if let Some(transport_tcp) = &toml.local {
-            config.transport_domain = transport_tcp.into();
+            self.transport_domain = transport_tcp.into();
         }
         if let Some(flatbuffers) = &toml.flatbuffers {
-            config.flatbuffers = flatbuffers.into();
+            self.flatbuffers = flatbuffers.into();
         }
-        config
     }
 }
 
@@ -145,23 +128,20 @@ impl From<&IpcConfigFlatbuffers> for FlatbuffersToml {
     }
 }
 
-impl From<&TcpToml> for IpcConfigTcpSocket {
-    fn from(toml: &TcpToml) -> Self {
-        let mut config = IpcConfigTcpSocket::default();
-
+impl IpcConfigTcpSocket {
+    pub fn merge_toml(&mut self, toml: &TcpToml) {
         if let Some(enable) = toml.enable {
-            config.transport.enabled = enable;
+            self.transport.enabled = enable;
         }
         if let Some(io_timeout) = toml.io_timeout {
-            config.transport.io_timeout = io_timeout;
+            self.transport.io_timeout = io_timeout;
         }
         if let Some(io_threads) = toml.io_threads {
-            config.transport.io_threads = io_threads;
+            self.transport.io_threads = io_threads;
         }
         if let Some(port) = toml.port {
-            config.port = port;
+            self.port = port;
         }
-        config
     }
 }
 

@@ -47,23 +47,13 @@ pub struct NodeRpcToml {
     pub child_process: Option<RpcChildProcessToml>,
 }
 
-impl Default for NodeRpcToml {
-    fn default() -> Self {
-        let config = DaemonConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&NodeRpcToml> for NodeRpcConfig {
-    fn from(toml: &NodeRpcToml) -> Self {
-        let mut config = NodeRpcConfig::default();
+impl NodeRpcConfig {
+    pub fn merge_toml(&mut self, toml: &NodeRpcToml) {
         if let Some(enable_sign_hash) = toml.enable_sign_hash {
-            config.enable_sign_hash = enable_sign_hash;
+            self.enable_sign_hash = enable_sign_hash;
         }
         if let Some(child_process) = &toml.child_process {
-            config.child_process = child_process.into();
+            self.child_process = child_process.into();
         }
-
-        config
     }
 }

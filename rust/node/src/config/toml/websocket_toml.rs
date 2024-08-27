@@ -8,27 +8,17 @@ pub struct WebsocketToml {
     pub port: Option<u16>,
 }
 
-impl Default for WebsocketToml {
-    fn default() -> Self {
-        let config = WebsocketConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&WebsocketToml> for WebsocketConfig {
-    fn from(toml: &WebsocketToml) -> Self {
-        let mut config = WebsocketConfig::default();
-
+impl WebsocketConfig {
+    pub fn merge_toml(&mut self, toml: &WebsocketToml) {
         if let Some(enabled) = toml.enable {
-            config.enabled = enabled;
+            self.enabled = enabled;
         }
         if let Some(port) = toml.port {
-            config.port = port;
+            self.port = port;
         }
         if let Some(address) = &toml.address {
-            config.address = address.clone();
+            self.address = address.clone();
         }
-        config
     }
 }
 

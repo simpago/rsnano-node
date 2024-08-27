@@ -1,6 +1,5 @@
 use super::{NodeConfig, NodeRpcConfig, OpenclConfig};
 use crate::NetworkParams;
-use rsnano_core::utils::get_cpu_count;
 
 #[derive(Debug, PartialEq)]
 pub struct DaemonConfig {
@@ -24,11 +23,5 @@ impl DaemonConfig {
             opencl_enable: false,
             rpc: NodeRpcConfig::new(),
         }
-    }
-}
-
-impl Default for DaemonConfig {
-    fn default() -> Self {
-        Self::new(&NetworkParams::default(), get_cpu_count())
     }
 }

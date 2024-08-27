@@ -10,30 +10,20 @@ pub struct ExperimentalToml {
     pub secondary_work_peers: Option<Vec<String>>,
 }
 
-impl Default for ExperimentalToml {
-    fn default() -> Self {
-        let config = NodeConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&ExperimentalToml> for NodeConfig {
-    fn from(toml: &ExperimentalToml) -> Self {
-        let mut config = NodeConfig::default();
-
+impl NodeConfig {
+    pub fn merge_experimental_toml(&mut self, toml: &ExperimentalToml) {
         if let Some(max_pruning_age) = toml.max_pruning_age {
-            config.max_pruning_age_s = max_pruning_age as i64;
+            self.max_pruning_age_s = max_pruning_age as i64;
         }
         if let Some(max_pruning_depth) = toml.max_pruning_depth {
-            config.max_pruning_depth = max_pruning_depth;
+            self.max_pruning_depth = max_pruning_depth;
         }
         if let Some(secondary_work_peers) = &toml.secondary_work_peers {
-            config.secondary_work_peers = secondary_work_peers
+            self.secondary_work_peers = secondary_work_peers
                 .iter()
                 .map(|string| Peer::from_str(&string).expect("Invalid secondary work peer"))
                 .collect();
         }
-        config
     }
 }
 

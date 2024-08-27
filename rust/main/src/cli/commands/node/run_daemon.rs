@@ -1,7 +1,7 @@
 use crate::cli::{get_path, init_tracing};
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
-use rsnano_core::work::WorkPoolImpl;
+use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
     config::{
         get_node_toml_config_path, get_rpc_toml_config_path, DaemonConfig, DaemonToml,
@@ -124,36 +124,31 @@ impl RunDaemonArgs {
         init_tracing(dirs);
 
         let path = get_path(&self.data_path, &self.network);
-
-        let network_params = NetworkParams::new(NetworkConstants::active_network());
+        let network = NetworkConstants::active_network();
+        let network_params = NetworkParams::new(network);
+        let parallelism = get_cpu_count();
 
         std::fs::create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
 
         let node_toml_config_path = get_node_toml_config_path(&path);
 
-        let daemon_config = if node_toml_config_path.exists() {
+        let mut daemon_config = DaemonConfig::new(&network_params, parallelism);
+        if node_toml_config_path.exists() {
             let daemon_toml_str = read_to_string(node_toml_config_path)?;
-
             let daemon_toml: DaemonToml = from_str(&daemon_toml_str)?;
-
-            (&daemon_toml).into()
-        } else {
-            DaemonConfig::default()
-        };
+            daemon_config.merge_toml(&daemon_toml);
+        }
 
         let node_config = daemon_config.node;
 
         let rpc_toml_config_path = get_rpc_toml_config_path(&path);
 
-        let rpc_server_config = if rpc_toml_config_path.exists() {
+        let mut rpc_server_config = RpcServerConfig::default_for(network, parallelism);
+        if rpc_toml_config_path.exists() {
             let rpc_server_toml_str = read_to_string(rpc_toml_config_path)?;
-
             let rpc_server_toml: RpcServerToml = from_str(&rpc_server_toml_str)?;
-
-            (&rpc_server_toml).into()
-        } else {
-            RpcServerConfig::default()
-        };
+            rpc_server_config.merge_toml(&rpc_server_toml);
+        }
 
         let mut flags = NodeFlags::new();
         self.set_flags(&mut flags);

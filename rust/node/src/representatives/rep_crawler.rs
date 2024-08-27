@@ -387,11 +387,12 @@ impl RepCrawler {
                 Ok(addresses) => {
                     for address in addresses {
                         let endpoint = into_ipv6_socket_address(address);
-                        match network_info
+                        let channel_id = network_info
                             .read()
                             .unwrap()
-                            .find_realtime_channel_by_peering_addr(&endpoint)
-                        {
+                            .find_realtime_channel_by_peering_addr(&endpoint);
+
+                        match channel_id {
                             Some(channel_id) => {
                                 let mut peers = [NULL_ENDPOINT; 8];
                                 network_info

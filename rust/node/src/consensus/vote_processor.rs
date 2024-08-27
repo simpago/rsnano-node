@@ -1,6 +1,6 @@
 use super::{VoteProcessorQueue, VoteRouter};
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{utils::get_cpu_count, Vote, VoteCode, VoteSource};
+use rsnano_core::{Vote, VoteCode, VoteSource};
 use rsnano_network::ChannelId;
 use std::{
     cmp::{max, min},
@@ -33,13 +33,6 @@ impl VoteProcessorConfig {
             batch_size: 1024,
             max_triggered: 16384,
         }
-    }
-}
-
-impl Default for VoteProcessorConfig {
-    fn default() -> Self {
-        let parallelism = get_cpu_count();
-        Self::new(parallelism)
     }
 }
 

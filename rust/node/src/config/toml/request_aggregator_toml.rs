@@ -8,27 +8,17 @@ pub struct RequestAggregatorToml {
     pub threads: Option<usize>,
 }
 
-impl Default for RequestAggregatorToml {
-    fn default() -> Self {
-        let config = RequestAggregatorConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&RequestAggregatorToml> for RequestAggregatorConfig {
-    fn from(toml: &RequestAggregatorToml) -> Self {
-        let mut config = RequestAggregatorConfig::default();
-
+impl RequestAggregatorConfig {
+    pub fn merge_toml(&mut self, toml: &RequestAggregatorToml) {
         if let Some(threads) = toml.threads {
-            config.threads = threads;
+            self.threads = threads;
         }
         if let Some(max_queue) = toml.max_queue {
-            config.max_queue = max_queue;
+            self.max_queue = max_queue;
         }
         if let Some(batch_size) = toml.batch_size {
-            config.batch_size = batch_size;
+            self.batch_size = batch_size;
         }
-        config
     }
 }
 

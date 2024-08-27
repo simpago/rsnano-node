@@ -7,24 +7,14 @@ pub struct MessageProcessorToml {
     pub threads: Option<usize>,
 }
 
-impl Default for MessageProcessorToml {
-    fn default() -> Self {
-        let config = MessageProcessorConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&MessageProcessorToml> for MessageProcessorConfig {
-    fn from(toml: &MessageProcessorToml) -> Self {
-        let mut config = MessageProcessorConfig::default();
-
+impl MessageProcessorConfig {
+    pub fn merge_toml(&mut self, toml: &MessageProcessorToml) {
         if let Some(threads) = toml.threads {
-            config.threads = threads;
+            self.threads = threads;
         }
         if let Some(max_queue) = toml.max_queue {
-            config.max_queue = max_queue;
+            self.max_queue = max_queue;
         }
-        config
     }
 }
 

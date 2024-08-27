@@ -1,6 +1,10 @@
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_node::config::DaemonToml;
+use rsnano_core::utils::get_cpu_count;
+use rsnano_node::{
+    config::{DaemonConfig, DaemonToml, NetworkConstants},
+    NetworkParams,
+};
 use std::io::BufRead;
 
 #[derive(Parser)]
@@ -22,7 +26,11 @@ pub(crate) struct GenerateConfigArgs {
 impl GenerateConfigArgs {
     pub(crate) fn generate_config(&self) -> Result<()> {
         let (toml_str, config_type) = if self.node {
-            let daemon_toml = DaemonToml::default();
+            let daemon_toml: DaemonToml = (&DaemonConfig::new(
+                &NetworkParams::new(NetworkConstants::active_network()),
+                get_cpu_count(),
+            ))
+                .into();
             (toml::to_string(&daemon_toml)?, "node")
         } else {
             //let rpc_toml = RpcToml::default();

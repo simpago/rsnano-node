@@ -1,4 +1,4 @@
-use crate::config::{DaemonConfig, OpenclConfig};
+use crate::config::OpenclConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -9,32 +9,16 @@ pub struct OpenclToml {
     pub threads: Option<u32>,
 }
 
-impl OpenclToml {
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl Default for OpenclToml {
-    fn default() -> Self {
-        let config = DaemonConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&OpenclToml> for OpenclConfig {
-    fn from(toml: &OpenclToml) -> Self {
-        let mut config = OpenclConfig::default();
+impl OpenclConfig {
+    pub fn merge_toml(&mut self, toml: &OpenclToml) {
         if let Some(device) = toml.device {
-            config.device = device;
+            self.device = device;
         }
         if let Some(platform) = toml.platform {
-            config.platform = platform;
+            self.platform = platform;
         }
         if let Some(threads) = toml.threads {
-            config.threads = threads;
+            self.threads = threads;
         }
-
-        config
     }
 }

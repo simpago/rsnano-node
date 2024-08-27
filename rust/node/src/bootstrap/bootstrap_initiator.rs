@@ -395,12 +395,12 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                 .attempts_list
                 .insert(incremental_id, Arc::clone(&attempt));
             self.attempts.lock().unwrap().add(attempt);
-            if !self
+            let excluded = self
                 .network_info
                 .write()
                 .unwrap()
-                .is_excluded(&remote_addr, self.clock.now())
-            {
+                .is_excluded(&remote_addr, self.clock.now());
+            if !excluded {
                 self.runtime
                     .tokio
                     .block_on(self.connections.add_connection(remote_addr));

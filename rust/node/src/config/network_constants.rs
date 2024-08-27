@@ -68,6 +68,10 @@ impl NetworkConstants {
         }
     }
 
+    pub fn for_network(network: Networks) -> Self {
+        Self::new(WorkThresholds::default_for(network), network)
+    }
+
     pub fn protocol_info(&self) -> ProtocolInfo {
         ProtocolInfo {
             version_using: self.protocol_version,
@@ -112,6 +116,19 @@ impl NetworkConstants {
             optimistic_activation_delay: Duration::from_secs(30),
             rep_crawler_normal_interval: Duration::from_secs(7),
             rep_crawler_warmup_interval: Duration::from_secs(3),
+        }
+    }
+
+    pub fn for_beta() -> Self {
+        Self {
+            current_network: Networks::NanoBetaNetwork,
+            default_node_port: 54000,
+            default_rpc_port: 55000,
+            default_ipc_port: 56000,
+            default_websocket_port: 57000,
+            max_peers_per_ip: 256,
+            max_peers_per_subnetwork: 256,
+            ..Self::live(WorkThresholds::publish_beta().clone())
         }
     }
 
@@ -228,12 +245,9 @@ impl NetworkConstants {
             Networks::Invalid => panic!("invalid network"),
         }
     }
-}
 
-impl Default for NetworkConstants {
-    fn default() -> Self {
-        let active_network = NetworkConstants::active_network();
-        match active_network {
+    pub fn default_for(network: Networks) -> Self {
+        match network {
             Networks::Invalid => Self::empty(),
             Networks::NanoBetaNetwork => Self::new(
                 WorkThresholds::publish_beta().clone(),

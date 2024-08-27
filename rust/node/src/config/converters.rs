@@ -1,7 +1,7 @@
 use super::{FrontiersConfirmationMode, GlobalConfig};
 use crate::{
     block_processing::{BacklogPopulationConfig, BlockProcessorConfig},
-    bootstrap::{AccountSetsConfig, BootstrapAscendingConfig, BootstrapInitiatorConfig},
+    bootstrap::{BootstrapAscendingConfig, BootstrapInitiatorConfig},
 };
 use rsnano_network::{bandwidth_limiter::OutboundBandwidthLimiterConfig, NetworkConfig};
 use std::time::Duration;

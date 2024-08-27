@@ -130,12 +130,12 @@ impl<'a> ConfirmationSolicitor<'a> {
             if !exists || !is_final || different {
                 let request_queue = self.requests.entry(rep.channel_id).or_default();
                 self.channels.insert(rep.channel_id);
-                if !self
+                let queue_full = self
                     .network_info
                     .read()
                     .unwrap()
-                    .is_queue_full(rep.channel_id, TrafficType::Generic)
-                {
+                    .is_queue_full(rep.channel_id, TrafficType::Generic);
+                if !queue_full {
                     request_queue.push((winner.hash(), winner.root()));
                     if !different {
                         count += 1;

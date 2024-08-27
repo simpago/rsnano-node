@@ -1,8 +1,8 @@
-use rsnano_core::utils::get_cpu_count;
+use rsnano_core::Networks;
 use rsnano_node::config::NetworkConstants;
 use std::net::Ipv6Addr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RpcServerConfig {
     pub address: String,
     pub port: u16,
@@ -11,12 +11,6 @@ pub struct RpcServerConfig {
     pub max_request_size: u64,
     pub rpc_logging: RpcServerLoggingConfig,
     pub rpc_process: RpcServerProcessConfig,
-}
-
-impl Default for RpcServerConfig {
-    fn default() -> Self {
-        Self::new(&NetworkConstants::default(), get_cpu_count())
-    }
 }
 
 impl RpcServerConfig {
@@ -45,9 +39,13 @@ impl RpcServerConfig {
             rpc_process: RpcServerProcessConfig::new(network_constants, parallelism),
         }
     }
+
+    pub fn default_for(network: Networks, parallelism: usize) -> Self {
+        Self::new(&NetworkConstants::for_network(network), parallelism)
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RpcServerLoggingConfig {
     pub log_rpc: bool,
 }
@@ -64,7 +62,7 @@ impl Default for RpcServerLoggingConfig {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RpcServerProcessConfig {
     pub io_threads: u32,
     pub ipc_address: String,
@@ -92,12 +90,6 @@ impl RpcServerProcessConfig {
                 1
             },
         }
-    }
-}
-
-impl Default for RpcServerProcessConfig {
-    fn default() -> Self {
-        Self::new(&NetworkConstants::default(), get_cpu_count())
     }
 }
 

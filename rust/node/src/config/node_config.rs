@@ -15,7 +15,7 @@ use crate::{
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
 use rsnano_core::{
-    utils::{get_cpu_count, get_env_or_default_string, is_sanitizer_build},
+    utils::{get_env_or_default_string, is_sanitizer_build},
     Account, Amount, PublicKey, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
@@ -110,17 +110,6 @@ pub struct NodeConfig {
     pub local_block_broadcaster: LocalBlockBroadcasterConfig,
     pub confirming_set: ConfirmingSetConfig,
     pub monitor: MonitorConfig,
-}
-
-impl Default for NodeConfig {
-    fn default() -> Self {
-        let network_params = &NetworkParams::default();
-        Self::new(
-            Some(network_params.network.default_node_port),
-            network_params,
-            get_cpu_count(),
-        )
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

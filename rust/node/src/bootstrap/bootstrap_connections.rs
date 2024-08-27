@@ -243,14 +243,13 @@ pub trait BootstrapConnectionsExt {
 impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
     fn pool_connection(&self, client_a: Arc<BootstrapClient>, new_client: bool, push_front: bool) {
         let mut guard = self.mutex.lock().unwrap();
-        if !self.stopped.load(Ordering::SeqCst)
-            && !client_a.pending_stop()
-            && !self
-                .network_info
-                .write()
-                .unwrap()
-                .is_excluded(&client_a.remote_addr(), self.clock.now())
-        {
+        let excluded = self
+            .network_info
+            .write()
+            .unwrap()
+            .is_excluded(&client_a.remote_addr(), self.clock.now());
+
+        if !self.stopped.load(Ordering::SeqCst) && !client_a.pending_stop() && !excluded {
             client_a.set_timeout(self.config.idle_timeout);
             // Push into idle deque
             if !push_front {
@@ -510,14 +509,15 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                     .write()
                     .unwrap()
                     .bootstrap_peer(self.clock.now()); // Legacy bootstrap is compatible with older version of protocol
+                let excluded = self
+                    .network_info
+                    .write()
+                    .unwrap()
+                    .is_excluded(&endpoint, self.clock.now());
                 if endpoint != SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)
                     && (self.config.allow_bootstrap_peers_duplicates
                         || !endpoints.contains(&endpoint))
-                    && !self
-                        .network_info
-                        .write()
-                        .unwrap()
-                        .is_excluded(&endpoint, self.clock.now())
+                    && !excluded
                 {
                     let success = self.tokio.block_on(self.connect_client(endpoint, false));
                     if success {

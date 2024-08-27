@@ -116,6 +116,7 @@ impl<T: TimerStrategy + 'static> ThreadPool for ThreadPoolImpl<T> {
             *stopped_guard = true;
             drop(stopped_guard);
             if let Some(data) = data_guard.take() {
+                drop(data_guard);
                 data.pool.join();
             }
         }

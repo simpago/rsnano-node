@@ -1,6 +1,5 @@
 use super::{InboundMessageQueue, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
-use rsnano_core::utils::get_cpu_count;
 use rsnano_messages::Message;
 use rsnano_network::{ChannelId, ChannelInfo};
 use std::{
@@ -23,17 +22,6 @@ pub struct MessageProcessorConfig {
 
 impl MessageProcessorConfig {
     pub fn new(parallelism: usize) -> Self {
-        Self {
-            threads: min(2, max(parallelism / 4, 1)),
-            max_queue: 64,
-        }
-    }
-}
-
-impl Default for MessageProcessorConfig {
-    fn default() -> Self {
-        let parallelism = get_cpu_count();
-
         Self {
             threads: min(2, max(parallelism / 4, 1)),
             max_queue: 64,

@@ -11,36 +11,26 @@ pub struct VoteProcessorToml {
     //pub max_triggered: Option<usize>,
 }
 
-impl Default for VoteProcessorToml {
-    fn default() -> Self {
-        let config = VoteProcessorConfig::default();
-        (&config).into()
-    }
-}
-
-impl From<&VoteProcessorToml> for VoteProcessorConfig {
-    fn from(toml: &VoteProcessorToml) -> Self {
-        let mut config = VoteProcessorConfig::default();
-
+impl VoteProcessorConfig {
+    pub fn merge_toml(&mut self, toml: &VoteProcessorToml) {
         if let Some(max_pr_queue) = toml.max_pr_queue {
-            config.max_pr_queue = max_pr_queue;
+            self.max_pr_queue = max_pr_queue;
         }
         if let Some(max_non_pr_queue) = toml.max_non_pr_queue {
-            config.max_non_pr_queue = max_non_pr_queue;
+            self.max_non_pr_queue = max_non_pr_queue;
         }
         if let Some(pr_priority) = toml.pr_priority {
-            config.pr_priority = pr_priority;
+            self.pr_priority = pr_priority;
         }
         if let Some(threads) = toml.threads {
-            config.threads = threads;
+            self.threads = threads;
         }
         if let Some(batch_size) = toml.batch_size {
-            config.batch_size = batch_size;
+            self.batch_size = batch_size;
         }
         //if let Some(max_triggered) = toml.max_triggered {
-        //config.max_triggered = max_triggered;
+        //self.max_triggered = max_triggered;
         //}
-        config
     }
 }
 

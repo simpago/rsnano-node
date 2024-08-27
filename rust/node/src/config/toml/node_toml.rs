@@ -79,79 +79,70 @@ pub struct NodeToml {
     pub websocket: Option<WebsocketToml>,
 }
 
-impl Default for NodeToml {
-    fn default() -> Self {
-        let node_config = NodeConfig::default();
-        (&node_config).into()
-    }
-}
-
-impl From<&NodeToml> for NodeConfig {
-    fn from(toml: &NodeToml) -> Self {
-        let mut config = NodeConfig::default();
-
+impl NodeConfig {
+    pub fn merge_toml(&mut self, toml: &NodeToml) {
         if let Some(allow_local_peers) = toml.allow_local_peers {
-            config.allow_local_peers = allow_local_peers;
+            self.allow_local_peers = allow_local_peers;
         }
         if let Some(background_threads) = toml.background_threads {
-            config.background_threads = background_threads;
+            self.background_threads = background_threads;
         }
         if let Some(backlog_scan_batch_size) = toml.backlog_scan_batch_size {
-            config.backlog_scan_batch_size = backlog_scan_batch_size;
+            self.backlog_scan_batch_size = backlog_scan_batch_size;
         }
         if let Some(backlog_scan_frequency) = toml.backlog_scan_frequency {
-            config.backlog_scan_frequency = backlog_scan_frequency;
+            self.backlog_scan_frequency = backlog_scan_frequency;
         }
         if let Some(backup_before_upgrade) = toml.backup_before_upgrade {
-            config.backup_before_upgrade = backup_before_upgrade;
+            self.backup_before_upgrade = backup_before_upgrade;
         }
         if let Some(bandwidth_limit) = toml.bandwidth_limit {
-            config.bandwidth_limit = bandwidth_limit;
+            self.bandwidth_limit = bandwidth_limit;
         }
         if let Some(bandwidth_limit_burst_ratio) = toml.bandwidth_limit_burst_ratio {
-            config.bandwidth_limit_burst_ratio = bandwidth_limit_burst_ratio;
+            self.bandwidth_limit_burst_ratio = bandwidth_limit_burst_ratio;
         }
         if let Some(block_processor_batch_max_time_ms) = toml.block_processor_batch_max_time {
-            config.block_processor_batch_max_time_ms = block_processor_batch_max_time_ms;
+            self.block_processor_batch_max_time_ms = block_processor_batch_max_time_ms;
         }
         if let Some(bootstrap_bandwidth_burst_ratio) = toml.bootstrap_bandwidth_burst_ratio {
-            config.bootstrap_bandwidth_burst_ratio = bootstrap_bandwidth_burst_ratio;
+            self.bootstrap_bandwidth_burst_ratio = bootstrap_bandwidth_burst_ratio;
         }
         if let Some(bootstrap_bandwidth_limit) = toml.bootstrap_bandwidth_limit {
-            config.bootstrap_bandwidth_limit = bootstrap_bandwidth_limit;
+            self.bootstrap_bandwidth_limit = bootstrap_bandwidth_limit;
         }
         if let Some(bootstrap_connections) = toml.bootstrap_connections {
-            config.bootstrap_connections = bootstrap_connections;
+            self.bootstrap_connections = bootstrap_connections;
         }
         if let Some(bootstrap_connections_max) = toml.bootstrap_connections_max {
-            config.bootstrap_connections_max = bootstrap_connections_max;
+            self.bootstrap_connections_max = bootstrap_connections_max;
         }
         if let Some(bootstrap_fraction_numerator) = toml.bootstrap_fraction_numerator {
-            config.bootstrap_fraction_numerator = bootstrap_fraction_numerator;
+            self.bootstrap_fraction_numerator = bootstrap_fraction_numerator;
         }
         if let Some(bootstrap_frontier_request_count) = toml.bootstrap_frontier_request_count {
-            config.bootstrap_frontier_request_count = bootstrap_frontier_request_count;
+            self.bootstrap_frontier_request_count = bootstrap_frontier_request_count;
         }
         if let Some(bootstrap_initiator_threads) = toml.bootstrap_initiator_threads {
-            config.bootstrap_initiator_threads = bootstrap_initiator_threads;
+            self.bootstrap_initiator_threads = bootstrap_initiator_threads;
         }
         if let Some(bootstrap_serving_threads) = toml.bootstrap_serving_threads {
-            config.bootstrap_serving_threads = bootstrap_serving_threads;
+            self.bootstrap_serving_threads = bootstrap_serving_threads;
         }
         if let Some(confirming_set_batch_time) = &toml.confirming_set_batch_time {
-            config.confirming_set_batch_time = Duration::from_millis(*confirming_set_batch_time);
+            self.confirming_set_batch_time = Duration::from_millis(*confirming_set_batch_time);
         }
         if let Some(enable_voting) = toml.enable_voting {
-            config.enable_voting = enable_voting;
+            self.enable_voting = enable_voting;
         }
         if let Some(external_address) = &toml.external_address {
-            config.external_address = external_address.clone();
+            self.external_address = external_address.clone();
         }
         if let Some(external_port) = toml.external_port {
-            config.external_port = external_port;
+            self.external_port = external_port;
         }
         if let Some(frontiers_confirmation) = &toml.frontiers_confirmation {
-            config.frontiers_confirmation = match frontiers_confirmation.as_str() {
+            self.frontiers_confirmation = match frontiers_confirmation.as_str() {
                 "always" => FrontiersConfirmationMode::Always,
                 "auto" => FrontiersConfirmationMode::Automatic,
                 "disabled" => FrontiersConfirmationMode::Disabled,
@@ -159,38 +150,38 @@ impl From<&NodeToml> for NodeConfig {
             }
         }
         if let Some(io_threads) = toml.io_threads {
-            config.io_threads = io_threads;
+            self.io_threads = io_threads;
         }
         if let Some(max_queued_requests) = toml.max_queued_requests {
-            config.max_queued_requests = max_queued_requests;
+            self.max_queued_requests = max_queued_requests;
         }
         if let Some(max_unchecked_blocks) = toml.max_unchecked_blocks {
-            config.max_unchecked_blocks = max_unchecked_blocks;
+            self.max_unchecked_blocks = max_unchecked_blocks;
         }
         if let Some(max_work_generate_multiplier) = toml.max_work_generate_multiplier {
-            config.max_work_generate_multiplier = max_work_generate_multiplier;
+            self.max_work_generate_multiplier = max_work_generate_multiplier;
         }
         if let Some(network_threads) = toml.network_threads {
-            config.network_threads = network_threads;
+            self.network_threads = network_threads;
         }
         if let Some(online_weight_minimum) = &toml.online_weight_minimum {
-            config.online_weight_minimum =
+            self.online_weight_minimum =
                 Amount::decode_dec(&online_weight_minimum).expect("Invalid online weight minimum");
         }
         if let Some(password_fanout) = toml.password_fanout {
-            config.password_fanout = password_fanout;
+            self.password_fanout = password_fanout;
         }
         if let Some(peering_port) = toml.peering_port {
-            config.peering_port = Some(peering_port);
+            self.peering_port = Some(peering_port);
         }
         if let Some(pow_sleep_interval_ns) = toml.pow_sleep_interval {
-            config.pow_sleep_interval_ns = pow_sleep_interval_ns;
+            self.pow_sleep_interval_ns = pow_sleep_interval_ns;
         }
         if let Some(preconfigured_peers) = &toml.preconfigured_peers {
-            config.preconfigured_peers = preconfigured_peers.clone();
+            self.preconfigured_peers = preconfigured_peers.clone();
         }
         if let Some(preconfigured_representatives) = &toml.preconfigured_representatives {
-            config.preconfigured_representatives = preconfigured_representatives
+            self.preconfigured_representatives = preconfigured_representatives
                 .iter()
                 .map(|string| {
                     Account::decode_account(&string)
@@ -200,129 +191,127 @@ impl From<&NodeToml> for NodeConfig {
                 .collect();
         }
         if let Some(receive_minimum) = &toml.receive_minimum {
-            config.receive_minimum =
+            self.receive_minimum =
                 Amount::decode_dec(&receive_minimum).expect("Invalid receive minimum");
         }
         if let Some(rep_crawler) = &toml.rep_crawler {
             if let Some(query_timeout) = rep_crawler.query_timeout {
-                config.rep_crawler_query_timeout = Duration::from_millis(query_timeout);
+                self.rep_crawler_query_timeout = Duration::from_millis(query_timeout);
             }
         }
         if let Some(representative_vote_weight_minimum) = &toml.representative_vote_weight_minimum {
-            config.representative_vote_weight_minimum =
+            self.representative_vote_weight_minimum =
                 Amount::decode_dec(&representative_vote_weight_minimum)
                     .expect("Invalid representative vote weight minimum");
         }
         if let Some(request_aggregator_threads) = toml.request_aggregator_threads {
-            config.request_aggregator_threads = request_aggregator_threads;
+            self.request_aggregator_threads = request_aggregator_threads;
         }
         if let Some(signature_checker_threads) = toml.signature_checker_threads {
-            config.signature_checker_threads = signature_checker_threads;
+            self.signature_checker_threads = signature_checker_threads;
         }
         if let Some(tcp_incoming_connections_max) = toml.tcp_incoming_connections_max {
-            config.tcp_incoming_connections_max = tcp_incoming_connections_max;
+            self.tcp_incoming_connections_max = tcp_incoming_connections_max;
         }
         if let Some(tcp_io_timeout_s) = toml.tcp_io_timeout {
-            config.tcp_io_timeout_s = tcp_io_timeout_s;
+            self.tcp_io_timeout_s = tcp_io_timeout_s;
         }
         if let Some(unchecked_cutoff_time_s) = toml.unchecked_cutoff_time {
-            config.unchecked_cutoff_time_s = unchecked_cutoff_time_s;
+            self.unchecked_cutoff_time_s = unchecked_cutoff_time_s;
         }
         if let Some(use_memory_pools) = toml.use_memory_pools {
-            config.use_memory_pools = use_memory_pools;
+            self.use_memory_pools = use_memory_pools;
         }
         if let Some(vote_generator_delay_ms) = toml.vote_generator_delay {
-            config.vote_generator_delay_ms = vote_generator_delay_ms;
+            self.vote_generator_delay_ms = vote_generator_delay_ms;
         }
         if let Some(vote_generator_threshold) = toml.vote_generator_threshold {
-            config.vote_generator_threshold = vote_generator_threshold;
+            self.vote_generator_threshold = vote_generator_threshold;
         }
         if let Some(vote_minimum) = &toml.vote_minimum {
-            config.vote_minimum = Amount::decode_dec(&vote_minimum).expect("Invalid vote minimum");
+            self.vote_minimum = Amount::decode_dec(&vote_minimum).expect("Invalid vote minimum");
         }
         if let Some(work_peers) = &toml.work_peers {
-            config.work_peers = work_peers
+            self.work_peers = work_peers
                 .iter()
                 .map(|string| Peer::from_str(&string).expect("Invalid work peer"))
                 .collect();
         }
         if let Some(work_threads) = toml.work_threads {
-            config.work_threads = work_threads;
+            self.work_threads = work_threads;
         }
         if let Some(optimistic_scheduler_toml) = &toml.optimistic_scheduler {
-            config.optimistic_scheduler = optimistic_scheduler_toml.into();
+            self.optimistic_scheduler = optimistic_scheduler_toml.into();
         }
         if let Some(hinted_scheduler_toml) = &toml.hinted_scheduler {
-            config.hinted_scheduler = hinted_scheduler_toml.into();
+            self.hinted_scheduler = hinted_scheduler_toml.into();
         }
         if let Some(priority_bucket_toml) = &toml.priority_bucket {
-            config.priority_bucket = priority_bucket_toml.into();
+            self.priority_bucket = priority_bucket_toml.into();
         }
         if let Some(bootstrap_ascending_toml) = &toml.bootstrap_ascending {
-            config.bootstrap_ascending = bootstrap_ascending_toml.into();
+            self.bootstrap_ascending = bootstrap_ascending_toml.into();
         }
         if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
-            config.bootstrap_server = bootstrap_server_toml.into();
+            self.bootstrap_server = bootstrap_server_toml.into();
         }
         if let Some(websocket_config_toml) = &toml.websocket {
-            config.websocket_config = websocket_config_toml.into();
+            self.websocket_config.merge_toml(&websocket_config_toml);
         }
         if let Some(ipc_config_toml) = &toml.ipc {
-            config.ipc_config = ipc_config_toml.into();
+            self.ipc_config.merge_toml(ipc_config_toml);
         }
         if let Some(diagnostics_config_toml) = &toml.diagnostics {
-            config.diagnostics_config = diagnostics_config_toml.into();
+            self.diagnostics_config = diagnostics_config_toml.into();
         }
         if let Some(stat_config_toml) = &toml.statistics {
-            config.stat_config = stat_config_toml.into();
+            self.stat_config = stat_config_toml.into();
         }
         if let Some(lmdb_config_toml) = &toml.lmdb {
-            config.lmdb_config = lmdb_config_toml.into();
+            self.lmdb_config = lmdb_config_toml.into();
         }
         if let Some(backlog_scan_batch_size) = toml.backlog_scan_batch_size {
-            config.backlog_scan_batch_size = backlog_scan_batch_size;
+            self.backlog_scan_batch_size = backlog_scan_batch_size;
         }
         if let Some(backlog_scan_frequency) = toml.backlog_scan_frequency {
-            config.backlog_scan_frequency = backlog_scan_frequency;
+            self.backlog_scan_frequency = backlog_scan_frequency;
         }
         if let Some(vote_cache_toml) = &toml.vote_cache {
-            config.vote_cache = vote_cache_toml.into();
+            self.vote_cache = vote_cache_toml.into();
         }
         if let Some(block_processor_toml) = &toml.block_processor {
-            config.block_processor = block_processor_toml.into();
+            self.block_processor = block_processor_toml.into();
         }
         if let Some(active_elections_toml) = &toml.active_elections {
-            config.active_elections = active_elections_toml.into();
+            self.active_elections = active_elections_toml.into();
         }
         if let Some(vote_processor_toml) = &toml.vote_processor {
-            config.vote_processor = vote_processor_toml.into();
+            self.vote_processor.merge_toml(&vote_processor_toml);
         }
         if let Some(request_aggregator_toml) = &toml.request_aggregator {
-            config.request_aggregator = request_aggregator_toml.into();
+            self.request_aggregator.merge_toml(request_aggregator_toml);
         }
         if let Some(message_processor_toml) = &toml.message_processor {
-            config.message_processor = message_processor_toml.into();
+            self.message_processor.merge_toml(message_processor_toml);
         }
         if let Some(monitor_toml) = &toml.monitor {
-            config.monitor = monitor_toml.into();
+            self.monitor = monitor_toml.into();
         }
         if let Some(rep_crawler_weight_minimum) = &toml.rep_crawler_weight_minimum {
-            config.rep_crawler_weight_minimum = Amount::decode_dec(&rep_crawler_weight_minimum)
+            self.rep_crawler_weight_minimum = Amount::decode_dec(&rep_crawler_weight_minimum)
                 .expect("Invalid rep crawler weight minimum");
         }
         if let Some(httpcallback) = &toml.httpcallback {
             if let Some(address) = &httpcallback.address {
-                config.callback_address = address.clone();
+                self.callback_address = address.clone();
             }
             if let Some(port) = &httpcallback.port {
-                config.callback_port = port.clone();
+                self.callback_port = port.clone();
             }
             if let Some(target) = &httpcallback.target {
-                config.callback_target = target.clone();
+                self.callback_target = target.clone();
             }
         }
-
-        config
     }
 }
 
