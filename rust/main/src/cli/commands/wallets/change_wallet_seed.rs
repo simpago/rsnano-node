@@ -28,7 +28,7 @@ pub(crate) struct ChangeWalletSeedArgs {
 }
 
 impl ChangeWalletSeedArgs {
-    pub(crate) fn change_wallet_seed(&self) -> Result<()> {
+    pub(crate) async fn change_wallet_seed(&self) -> Result<()> {
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
         let seed = RawKey::decode_hex(&self.seed)?;
@@ -37,7 +37,10 @@ impl ChangeWalletSeedArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let password = self.password.clone().unwrap_or_default();
 

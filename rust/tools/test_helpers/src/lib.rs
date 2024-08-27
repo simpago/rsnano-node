@@ -122,7 +122,7 @@ impl System {
         let path = unique_path().expect("Could not get a unique path");
 
         Arc::new(Node::new(
-            self.runtime.clone(),
+            self.runtime.tokio.handle().clone(),
             path,
             config,
             self.network_params.clone(),

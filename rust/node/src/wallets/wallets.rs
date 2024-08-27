@@ -6,7 +6,7 @@ use crate::{
     representatives::OnlineReps,
     stats::Stats,
     transport::MessagePublisher,
-    utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
+    utils::{ThreadPool, ThreadPoolImpl},
     work::DistributedWorkFactory,
     NetworkParams,
 };
@@ -75,8 +75,10 @@ pub struct Wallets {
 }
 
 impl Wallets {
-    pub fn new_null_with_env(env: Arc<LmdbEnv>) -> anyhow::Result<Self> {
-        let runtime = Arc::new(AsyncRuntime::default());
+    pub fn new_null_with_env(
+        env: Arc<LmdbEnv>,
+        tokio_handle: tokio::runtime::Handle,
+    ) -> anyhow::Result<Self> {
         Wallets::new(
             env,
             Arc::new(Ledger::new_null()),
@@ -85,7 +87,7 @@ impl Wallets {
             WorkThresholds::new(0, 0, 0),
             Arc::new(DistributedWorkFactory::new(
                 Arc::new(WorkPoolImpl::disabled()),
-                runtime.clone(),
+                tokio_handle.clone(),
             )),
             NetworkParams::new(NetworkConstants::active_network()),
             Arc::new(ThreadPoolImpl::new_null()),
@@ -100,7 +102,7 @@ impl Wallets {
                 Arc::new(Ledger::new_null()),
                 Arc::new(Stats::default()),
             )),
-            MessagePublisher::new_null(runtime.tokio.handle().clone()),
+            MessagePublisher::new_null(tokio_handle.clone()),
         )
     }
 

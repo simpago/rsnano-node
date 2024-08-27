@@ -25,12 +25,15 @@ pub(crate) struct DestroyWalletArgs {
 }
 
 impl DestroyWalletArgs {
-    pub(crate) fn destroy_wallet(&self) -> Result<()> {
+    pub(crate) async fn destroy_wallet(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 

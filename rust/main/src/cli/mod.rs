@@ -17,11 +17,11 @@ pub(crate) struct Cli {
 }
 
 impl Cli {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) async fn run(&self) -> Result<()> {
         match &self.command {
-            Some(Commands::Wallets(command)) => command.run()?,
+            Some(Commands::Wallets(command)) => command.run().await?,
             Some(Commands::Utils(command)) => command.run()?,
-            Some(Commands::Node(command)) => command.run()?,
+            Some(Commands::Node(command)) => command.run().await?,
             Some(Commands::Ledger(command)) => command.run()?,
             None => Cli::command().print_long_help()?,
         }

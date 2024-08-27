@@ -7,7 +7,7 @@ use crate::{
     bootstrap::{BootstrapInitiator, BootstrapInitiatorConfig},
     config::NodeFlags,
     stats::Stats,
-    utils::{AsyncRuntime, ThreadPool, ThreadPoolImpl},
+    utils::{ThreadPool, ThreadPoolImpl},
     NetworkParams,
 };
 use rsnano_core::KeyPair;
@@ -37,10 +37,10 @@ pub struct NanoResponseServerSpawner {
 
 impl NanoResponseServerSpawner {
     #[allow(dead_code)]
-    pub(crate) fn new_null(runtime: Arc<AsyncRuntime>) -> Self {
+    pub(crate) fn new_null(tokio: tokio::runtime::Handle) -> Self {
         let ledger = Arc::new(Ledger::new_null());
         let flags = NodeFlags::default();
-        let network = Arc::new(Network::new_null(runtime.tokio.handle().clone()));
+        let network = Arc::new(Network::new_null(tokio.clone()));
         let publish_filter = Arc::new(NetworkFilter::default());
         let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
         let workers = Arc::new(ThreadPoolImpl::new_test_instance());
@@ -49,7 +49,7 @@ impl NanoResponseServerSpawner {
         let block_processor = Arc::new(BlockProcessor::new_test_instance(ledger.clone()));
         let clock = Arc::new(SteadyClock::new_null());
         Self {
-            tokio: runtime.tokio.handle().clone(),
+            tokio: tokio.clone(),
             stats: stats.clone(),
             node_id: KeyPair::from(42),
             ledger: ledger.clone(),
@@ -61,14 +61,14 @@ impl NanoResponseServerSpawner {
                 network.clone(),
                 network_info.clone(),
                 Arc::new(NullNetworkObserver::new()),
-                runtime.clone(),
+                tokio.clone(),
                 workers,
                 network_params.clone(),
                 stats,
                 block_processor,
                 None,
                 ledger,
-                MessagePublisher::new_null(runtime.tokio.handle().clone()),
+                MessagePublisher::new_null(tokio.clone()),
                 clock,
             )),
             network: network_info,

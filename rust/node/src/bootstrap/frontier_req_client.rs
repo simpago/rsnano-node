@@ -1,7 +1,7 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient, BootstrapConnections};
 use crate::{
     bootstrap::{bootstrap_limits, BootstrapAttemptTrait, BootstrapConnectionsExt, PullInfo},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
 };
 use primitive_types::U256;
 use rsnano_core::{
@@ -26,7 +26,7 @@ pub struct FrontierReqClient {
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,
     workers: Arc<dyn ThreadPool>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     attempt: Option<Weak<BootstrapAttemptLegacy>>,
     condition: Condvar,
     retry_limit: u32,
@@ -88,7 +88,7 @@ impl FrontierReqClient {
         retry_limit: u32,
         connections: Arc<BootstrapConnections>,
         workers: Arc<dyn ThreadPool>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
     ) -> Self {
         Self {
             connection,
@@ -98,7 +98,7 @@ impl FrontierReqClient {
             retry_limit,
             connections,
             condition: Condvar::new(),
-            runtime,
+            tokio,
             data: Mutex::new(FrontierReqClientData {
                 current: Account::zero(),
                 frontier: BlockHash::zero(),
@@ -180,7 +180,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
             guard.next(&self.ledger); // Load accounts from disk
         }
         let this_l = Arc::clone(self);
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             match this_l.connection.send(&request).await {
                 Ok(()) => {
                     let workers = this_l.workers.clone();
@@ -204,7 +204,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
 
     fn receive_frontier(&self) {
         let this_l = Arc::clone(self);
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             let mut buffer = [0; SIZE_FRONTIER];
             match this_l
                 .connection

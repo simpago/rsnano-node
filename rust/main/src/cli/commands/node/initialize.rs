@@ -5,7 +5,6 @@ use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
 use rsnano_node::{
     config::{NetworkConstants, NodeConfig, NodeFlags},
     node::{Node, NodeExt},
-    utils::AsyncRuntime,
     NetworkParams,
 };
 use std::{
@@ -26,7 +25,7 @@ pub(crate) struct InitializeArgs {
 }
 
 impl InitializeArgs {
-    pub(crate) fn initialize(&self) -> Result<()> {
+    pub(crate) async fn initialize(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network);
 
         let network_params = NetworkParams::new(NetworkConstants::active_network());
@@ -40,7 +39,6 @@ impl InitializeArgs {
         );
 
         let flags = NodeFlags::new();
-        let async_rt = Arc::new(AsyncRuntime::default());
 
         let work = Arc::new(WorkPoolImpl::new(
             network_params.work.clone(),
@@ -49,7 +47,7 @@ impl InitializeArgs {
         ));
 
         let node = Arc::new(Node::new(
-            async_rt,
+            tokio::runtime::Handle::current(),
             path,
             config,
             network_params,

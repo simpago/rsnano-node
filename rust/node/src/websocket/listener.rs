@@ -2,9 +2,7 @@ use super::{
     ConfirmationJsonOptions, ConfirmationOptions, Options, OutgoingMessageEnvelope, Topic,
     WebsocketSessionEntry,
 };
-use crate::{
-    consensus::ElectionStatus, utils::AsyncRuntime, wallets::Wallets, websocket::WebsocketSession,
-};
+use crate::{consensus::ElectionStatus, wallets::Wallets, websocket::WebsocketSession};
 use rsnano_core::{
     utils::{PropertyTree, SerdePropertyTree},
     Account, Amount, BlockEnum, BlockSideband, VoteWithWeightInfo,
@@ -33,18 +31,18 @@ pub struct WebsocketListener {
     wallets: Arc<Wallets>,
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
     sessions: Arc<Mutex<Vec<Weak<WebsocketSessionEntry>>>>,
-    async_rt: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
 }
 
 impl WebsocketListener {
-    pub fn new(endpoint: SocketAddr, wallets: Arc<Wallets>, async_rt: Arc<AsyncRuntime>) -> Self {
+    pub fn new(endpoint: SocketAddr, wallets: Arc<Wallets>, tokio: tokio::runtime::Handle) -> Self {
         Self {
             endpoint: Mutex::new(endpoint),
             tx_stop: Mutex::new(None),
             wallets,
             topic_subscriber_count: Arc::new(std::array::from_fn(|_| AtomicUsize::new(0))),
             sessions: Arc::new(Mutex::new(Vec::new())),
-            async_rt,
+            tokio,
         }
     }
 
@@ -208,14 +206,14 @@ impl WebsocketListenerExt for Arc<WebsocketListener> {
     /// Start accepting connections
     fn start(&self) {
         let self_l = Arc::clone(self);
-        self.async_rt.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             self_l.run().await;
         });
     }
 
     fn stop(&self) {
         let self_l = Arc::clone(self);
-        self.async_rt.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             self_l.stop_async().await;
         });
     }

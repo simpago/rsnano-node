@@ -25,14 +25,17 @@ pub(crate) struct DecryptWalletArgs {
 }
 
 impl DecryptWalletArgs {
-    pub(crate) fn decrypt_wallet(&self) -> Result<()> {
+    pub(crate) async fn decrypt_wallet(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
 
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let password = self.password.clone().unwrap_or_default();
 

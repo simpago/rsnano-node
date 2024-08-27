@@ -57,7 +57,7 @@ pub unsafe extern "C" fn rsn_distributed_work_factory_make(
     let context = ContextWrapper::new(context, delete_context);
     let root = Root::from_ptr(root);
 
-    handle.async_rt.tokio.spawn(async move {
+    handle.tokio.spawn(async move {
         let work = factory.make(root, difficulty, account).await;
         spawn_blocking(move || {
             callback(

@@ -9,7 +9,7 @@ use crate::{
     config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
     transport::MessagePublisher,
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
     websocket::WebsocketListener,
     NetworkParams,
 };
@@ -110,7 +110,7 @@ pub struct BootstrapInitiator {
     flags: NodeFlags,
     network_info: Arc<RwLock<NetworkInfo>>,
     workers: Arc<dyn ThreadPool>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     clock: Arc<SteadyClock>,
 }
 
@@ -121,7 +121,7 @@ impl BootstrapInitiator {
         network: Arc<Network>,
         network_info: Arc<RwLock<NetworkInfo>>,
         network_stats: Arc<dyn NetworkObserver>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         workers: Arc<dyn ThreadPool>,
         network_params: NetworkParams,
         stats: Arc<Stats>,
@@ -151,7 +151,7 @@ impl BootstrapInitiator {
             flags: flags.clone(),
             network_info: network_info.clone(),
             workers: Arc::clone(&workers),
-            runtime: runtime.clone(),
+            tokio: tokio.clone(),
             clock: clock.clone(),
             connections: Arc::new(BootstrapConnections::new(
                 attempts,
@@ -159,7 +159,7 @@ impl BootstrapInitiator {
                 network,
                 network_info,
                 network_stats,
-                runtime.tokio.handle().clone(),
+                tokio.clone(),
                 workers,
                 stats,
                 block_processor,
@@ -347,7 +347,7 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.connections.clone(),
                     (&self.config).into(),
                     self.stats.clone(),
-                    self.runtime.clone(),
+                    self.tokio.clone(),
                     frontiers_age_a,
                     start_account_a,
                 )
@@ -384,7 +384,7 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.connections.clone(),
                     (&self.config).into(),
                     self.stats.clone(),
-                    self.runtime.clone(),
+                    self.tokio.clone(),
                     u32::MAX,
                     Account::zero(),
                 )
@@ -401,8 +401,7 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                 .unwrap()
                 .is_excluded(&remote_addr, self.clock.now());
             if !excluded {
-                self.runtime
-                    .tokio
+                self.tokio
                     .block_on(self.connections.add_connection(remote_addr));
             }
         }
@@ -496,7 +495,7 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.workers.clone(),
                     self.config.receive_minimum,
                     self.stats.clone(),
-                    self.runtime.clone(),
+                    self.tokio.clone(),
                 )
                 .unwrap(),
             );

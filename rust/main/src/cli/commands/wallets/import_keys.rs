@@ -32,7 +32,7 @@ pub(crate) struct ImportKeysArgs {
 }
 
 impl ImportKeysArgs {
-    pub(crate) fn import_keys(&self) -> Result<()> {
+    pub(crate) async fn import_keys(&self) -> Result<()> {
         let mut file = File::open(PathBuf::from(&self.file))?;
         let mut contents = String::new();
 
@@ -45,7 +45,10 @@ impl ImportKeysArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let password = self.password.clone().unwrap_or_default();
 

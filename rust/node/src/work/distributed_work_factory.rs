@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
-use crate::utils::AsyncRuntime;
-
 #[derive(Serialize)]
 pub struct HttpWorkRequest {
     action: &'static str,
@@ -55,27 +53,21 @@ impl WorkRequest {
 
 pub struct DistributedWorkFactory {
     work_pool: Arc<WorkPoolImpl>,
-    pub async_rt: Arc<AsyncRuntime>,
+    pub tokio: tokio::runtime::Handle,
 }
 
 impl DistributedWorkFactory {
-    pub fn new(work_pool: Arc<WorkPoolImpl>, async_rt: Arc<AsyncRuntime>) -> Self {
-        Self {
-            work_pool,
-            async_rt,
-        }
+    pub fn new(work_pool: Arc<WorkPoolImpl>, tokio: tokio::runtime::Handle) -> Self {
+        Self { work_pool, tokio }
     }
 
     pub fn make_blocking_block(&self, block: &mut BlockEnum, difficulty: u64) -> Option<u64> {
-        let work = self
-            .async_rt
-            .tokio
-            .block_on(self.generate_work(WorkRequest {
-                root: block.root(),
-                difficulty,
-                account: None,
-                peers: Vec::new(),
-            }));
+        let work = self.tokio.block_on(self.generate_work(WorkRequest {
+            root: block.root(),
+            difficulty,
+            account: None,
+            peers: Vec::new(),
+        }));
 
         if let Some(work) = work {
             block.set_work(work);
@@ -91,14 +83,12 @@ impl DistributedWorkFactory {
         difficulty: u64,
         account: Option<Account>,
     ) -> Option<u64> {
-        self.async_rt
-            .tokio
-            .block_on(self.generate_work(WorkRequest {
-                root,
-                difficulty,
-                account,
-                peers: Vec::new(),
-            }))
+        self.tokio.block_on(self.generate_work(WorkRequest {
+            root,
+            difficulty,
+            account,
+            peers: Vec::new(),
+        }))
     }
 
     pub async fn make(&self, root: Root, difficulty: u64, account: Option<Account>) -> Option<u64> {
@@ -148,25 +138,21 @@ mod tests {
     use rsnano_core::work::WorkPoolImpl;
     use std::sync::Arc;
 
-    #[test]
-    fn use_local_work_factor_when_no_peers_given() {
-        let async_rt = Arc::new(AsyncRuntime::default());
-        {
-            let expected_work = 12345;
-            let work_pool = Arc::new(WorkPoolImpl::new_null(expected_work));
-            let work_factory = DistributedWorkFactory::new(work_pool, Arc::clone(&async_rt));
+    #[tokio::test]
+    async fn use_local_work_factor_when_no_peers_given() {
+        let expected_work = 12345;
+        let work_pool = Arc::new(WorkPoolImpl::new_null(expected_work));
+        let work_factory =
+            DistributedWorkFactory::new(work_pool, tokio::runtime::Handle::current());
 
-            let request = WorkRequest {
-                peers: vec![],
-                ..WorkRequest::new_test_instance()
-            };
+        let request = WorkRequest {
+            peers: vec![],
+            ..WorkRequest::new_test_instance()
+        };
 
-            let work = async_rt
-                .tokio
-                .block_on(work_factory.generate_work(request.clone()));
+        let work = work_factory.generate_work(request.clone()).await;
 
-            assert_eq!(work, Some(expected_work));
-        }
+        assert_eq!(work, Some(expected_work));
     }
 
     // TODO:

@@ -5,7 +5,7 @@ use super::{
 use crate::{
     bootstrap::BootstrapAttemptTrait,
     stats::{DetailType, Direction, StatType, Stats},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
 };
 use async_trait::async_trait;
 use rsnano_core::{
@@ -31,7 +31,7 @@ pub struct BulkPullAccountClient {
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,
     bootstrap_initiator: Arc<BootstrapInitiator>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     workers: Arc<dyn ThreadPool>,
 }
 
@@ -45,7 +45,7 @@ impl BulkPullAccountClient {
         connections: Arc<BootstrapConnections>,
         ledger: Arc<Ledger>,
         bootstrap_initiator: Arc<BootstrapInitiator>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         workers: Arc<dyn ThreadPool>,
     ) -> Self {
         attempt.notify();
@@ -59,7 +59,7 @@ impl BulkPullAccountClient {
             connections,
             ledger,
             bootstrap_initiator,
-            runtime,
+            tokio,
             workers,
         }
     }
@@ -97,7 +97,7 @@ impl BulkPullAccountClientExt for Arc<BulkPullAccountClient> {
         }
 
         let self_l = Arc::clone(self);
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             match self_l.connection.send(&req).await {
                 Ok(()) => {
                     self_l.receive_pending().await;
@@ -159,10 +159,8 @@ impl BulkPullAccountClientExt for Arc<BulkPullAccountClient> {
                             }
                         }
                     }
-                    let runtime = this_l.runtime.clone();
-                    runtime
-                        .tokio
-                        .spawn(async move { this_l.receive_pending().await });
+                    let runtime = this_l.tokio.clone();
+                    runtime.spawn(async move { this_l.receive_pending().await });
                 }));
             } else {
                 self.attempt.requeue_pending(self.account);

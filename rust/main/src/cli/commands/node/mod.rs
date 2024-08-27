@@ -39,13 +39,13 @@ pub(crate) struct NodeCommand {
 }
 
 impl NodeCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) async fn run(&self) -> Result<()> {
         match &self.subcommand {
-            Some(NodeSubcommands::RunDaemon(args)) => args.run_daemon()?,
-            Some(NodeSubcommands::Initialize(args)) => args.initialize()?,
+            Some(NodeSubcommands::RunDaemon(args)) => args.run_daemon().await?,
+            Some(NodeSubcommands::Initialize(args)) => args.initialize().await?,
             Some(NodeSubcommands::GenerateConfig(args)) => args.generate_config()?,
             Some(NodeSubcommands::Version) => Self::version(),
-            Some(NodeSubcommands::Diagnostics) => Self::diagnostics()?,
+            Some(NodeSubcommands::Diagnostics) => Self::diagnostics().await?,
             None => NodeCommand::command().print_long_help()?,
         }
 
@@ -57,12 +57,12 @@ impl NodeCommand {
         println!("Build Info {}", BUILD_INFO);
     }
 
-    fn diagnostics() -> Result<()> {
+    async fn diagnostics() -> Result<()> {
         let path = get_path(&None, &None).join("wallets.ldb");
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Wallets::new_null_with_env(env)?;
+        let wallets = Wallets::new_null_with_env(env, tokio::runtime::Handle::current())?;
 
         println!("Testing hash function");
 

@@ -93,7 +93,7 @@ pub unsafe extern "C" fn rsn_node_create(
     );
 
     Box::into_raw(Box::new(NodeHandle(Arc::new(Node::new(
-        Arc::clone(async_rt),
+        async_rt.tokio.handle().clone(),
         path,
         config.try_into().unwrap(),
         params.try_into().unwrap(),

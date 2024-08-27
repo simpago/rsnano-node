@@ -7,7 +7,7 @@ use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::BootstrapConnectionsExt,
     stats::{DetailType, Direction, StatType, Stats},
-    utils::{AsyncRuntime, ThreadPool},
+    utils::ThreadPool,
     websocket::WebsocketListener,
 };
 use rand::{thread_rng, Rng};
@@ -41,7 +41,7 @@ pub struct BootstrapAttemptLegacy {
     account_count: AtomicU32,
     block_processor: Weak<BlockProcessor>,
     workers: Arc<dyn ThreadPool>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
 }
 
 impl BootstrapAttemptLegacy {
@@ -56,7 +56,7 @@ impl BootstrapAttemptLegacy {
         connections: Arc<BootstrapConnections>,
         config: LegacyBootstrapConfig,
         stats: Arc<Stats>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         frontiers_age: u32,
         start_account: Account,
     ) -> anyhow::Result<Self> {
@@ -83,7 +83,7 @@ impl BootstrapAttemptLegacy {
             config,
             ledger,
             stats,
-            runtime,
+            tokio,
             account_count: AtomicU32::new(0),
             block_processor,
             workers,
@@ -184,7 +184,7 @@ impl BootstrapAttemptLegacyExt for Arc<BootstrapAttemptLegacy> {
             let mut client = BulkPushClient::new(
                 connection_l,
                 self.ledger.clone(),
-                self.runtime.clone(),
+                self.tokio.clone(),
                 self.workers.clone(),
             );
             client.set_attempt(self);
@@ -223,7 +223,7 @@ impl BootstrapAttemptLegacyExt for Arc<BootstrapAttemptLegacy> {
                         self.config.frontier_retry_limit,
                         self.connections.clone(),
                         self.workers.clone(),
-                        self.runtime.clone(),
+                        self.tokio.clone(),
                     );
                     client.set_attempt(Arc::clone(self));
                     let client = Arc::new(client);

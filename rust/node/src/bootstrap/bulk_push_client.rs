@@ -1,5 +1,5 @@
 use super::{BootstrapAttemptLegacy, BootstrapClient};
-use crate::utils::{AsyncRuntime, ThreadPool};
+use crate::utils::ThreadPool;
 use rsnano_core::{utils::MemoryStream, BlockEnum, BlockHash, BlockType};
 use rsnano_ledger::Ledger;
 use rsnano_messages::Message;
@@ -16,7 +16,7 @@ pub struct BulkPushClient {
     data: Mutex<BulkPushClientData>,
     condition: Condvar,
     ledger: Arc<Ledger>,
-    runtime: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     workers: Arc<dyn ThreadPool>,
 }
 
@@ -29,7 +29,7 @@ impl BulkPushClient {
     pub fn new(
         connection: Arc<BootstrapClient>,
         ledger: Arc<Ledger>,
-        runtime: Arc<AsyncRuntime>,
+        tokio: tokio::runtime::Handle,
         workers: Arc<dyn ThreadPool>,
     ) -> Self {
         Self {
@@ -41,7 +41,7 @@ impl BulkPushClient {
             }),
             condition: Condvar::new(),
             ledger,
-            runtime,
+            tokio,
             workers,
         }
     }
@@ -87,7 +87,7 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
         let message = Message::BulkPush;
         let this_l = Arc::clone(self);
 
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             match this_l.connection.send(&message).await {
                 Ok(()) => {
                     let workers = this_l.workers.clone();
@@ -106,7 +106,7 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
     fn send_finished(&self) {
         let this_l = Arc::clone(self);
         let buffer = Arc::new(vec![BlockType::NotABlock as u8]);
-        self.runtime.tokio.spawn(async move {
+        self.tokio.spawn(async move {
             let _ = this_l
                 .connection
                 .get_channel()
@@ -166,8 +166,8 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
         block.serialize(&mut stream);
         let buffer = Arc::new(stream.to_vec());
         let this_l = Arc::clone(self);
-        let runtime = self.runtime.clone();
-        runtime.tokio.spawn(async move {
+        let tokio = self.tokio.clone();
+        tokio.spawn(async move {
             match this_l
                 .connection
                 .get_channel()

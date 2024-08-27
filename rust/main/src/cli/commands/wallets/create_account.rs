@@ -25,12 +25,15 @@ pub(crate) struct CreateAccountArgs {
 }
 
 impl CreateAccountArgs {
-    pub(crate) fn create_account(&self) -> Result<()> {
+    pub(crate) async fn create_account(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let wallet = WalletId::decode_hex(&self.wallet)?;
 

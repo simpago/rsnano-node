@@ -28,7 +28,7 @@ pub(crate) struct SetWalletRepresentativeArgs {
 }
 
 impl SetWalletRepresentativeArgs {
-    pub(crate) fn set_representative_wallet(&self) -> Result<()> {
+    pub(crate) async fn set_representative_wallet(&self) -> Result<()> {
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
         let representative = Account::decode_account(&self.account)?.into();
@@ -37,7 +37,10 @@ impl SetWalletRepresentativeArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let password = self.password.clone().unwrap_or_default();
 

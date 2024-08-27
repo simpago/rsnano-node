@@ -1,7 +1,6 @@
 use super::{OutgoingMessageEnvelope, WebsocketConfig, WebsocketListener};
 use crate::{
     consensus::{ActiveElections, ElectionStatus, ElectionStatusType, VoteProcessor},
-    utils::AsyncRuntime,
     wallets::Wallets,
     websocket::Topic,
     Telemetry,
@@ -19,7 +18,7 @@ use tracing::error;
 pub fn create_websocket_server(
     config: WebsocketConfig,
     wallets: Arc<Wallets>,
-    async_rt: Arc<AsyncRuntime>,
+    tokio: tokio::runtime::Handle,
     active_elections: &ActiveElections,
     telemetry: &Telemetry,
     vote_processor: &VoteProcessor,
@@ -34,7 +33,7 @@ pub fn create_websocket_server(
     };
 
     let endpoint = SocketAddr::new(address, config.port);
-    let server = Arc::new(WebsocketListener::new(endpoint, wallets, async_rt));
+    let server = Arc::new(WebsocketListener::new(endpoint, wallets, tokio.clone()));
 
     let server_w = Arc::downgrade(&server);
     active_elections.add_election_end_callback(Box::new(

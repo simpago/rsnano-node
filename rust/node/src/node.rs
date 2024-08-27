@@ -34,8 +34,7 @@ use crate::{
         RealtimeMessageHandler, SynCookies,
     },
     utils::{
-        AsyncRuntime, LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread,
-        TxnTrackingConfig,
+        LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
     },
     wallets::{Wallets, WalletsExt},
     websocket::{create_websocket_server, WebsocketListenerExt},
@@ -74,7 +73,7 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 pub struct Node {
-    pub async_rt: Arc<AsyncRuntime>,
+    pub tokio: tokio::runtime::Handle,
     pub application_path: PathBuf,
     pub steady_clock: Arc<SteadyClock>,
     pub node_id: KeyPair,
@@ -140,7 +139,7 @@ pub struct Node {
 
 impl Node {
     pub fn new(
-        async_rt: Arc<AsyncRuntime>,
+        tokio_handle: tokio::runtime::Handle,
         application_path: impl Into<PathBuf>,
         config: NodeConfig,
         network_params: NetworkParams,
@@ -150,7 +149,6 @@ impl Node {
         account_balance_changed: AccountBalanceChangedCallback,
         on_vote: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) -> Self {
-        let tokio_handle = async_rt.tokio.handle();
         // Time relative to the start of the node. This makes time exlicit and enables us to
         // write time relevant unit tests with ease.
         let steady_clock = Arc::new(SteadyClock::default());
@@ -365,8 +363,10 @@ impl Node {
             block_processor.processor_loop.clone(),
         ));
 
-        let distributed_work =
-            Arc::new(DistributedWorkFactory::new(work.clone(), async_rt.clone()));
+        let distributed_work = Arc::new(DistributedWorkFactory::new(
+            work.clone(),
+            tokio_handle.clone(),
+        ));
 
         let mut wallets_path = application_path.clone();
         wallets_path.push("wallets.ldb");
@@ -478,7 +478,7 @@ impl Node {
         let websocket = create_websocket_server(
             config.websocket_config.clone(),
             wallets.clone(),
-            async_rt.clone(),
+            tokio_handle.clone(),
             &active_elections,
             &telemetry,
             &vote_processor,
@@ -490,7 +490,7 @@ impl Node {
             network.clone(),
             network_info.clone(),
             network_observer.clone(),
-            async_rt.clone(),
+            tokio_handle.clone(),
             bootstrap_workers.clone(),
             network_params.clone(),
             stats.clone(),
@@ -545,7 +545,7 @@ impl Node {
             config.clone(),
             network_params.clone(),
             network_info.clone(),
-            async_rt.clone(),
+            tokio_handle.clone(),
             ledger.clone(),
             active_elections.clone(),
             peer_connector.clone(),
@@ -941,7 +941,7 @@ impl Node {
         }));
 
         if !config.callback_address.is_empty() {
-            let async_rt = async_rt.clone();
+            let tokio = tokio_handle.clone();
             let stats = stats.clone();
             let url: Url = format!(
                 "http://{}:{}{}",
@@ -958,7 +958,7 @@ impl Node {
                     {
                         let url = url.clone();
                         let stats = stats.clone();
-                        async_rt.tokio.spawn(async move {
+                        tokio.spawn(async move {
                             let mut block_json = SerdePropertyTree::new();
                             block.serialize_json(&mut block_json).unwrap();
 
@@ -1090,7 +1090,7 @@ impl Node {
             config,
             flags,
             work,
-            async_rt,
+            tokio: tokio_handle,
             bootstrap_server,
             online_weight_sampler,
             online_reps,
@@ -1639,9 +1639,9 @@ mod tests {
     use std::ops::Deref;
     use uuid::Uuid;
 
-    #[test]
-    fn start_peer_cache_updater() {
-        let node = TestNode::new();
+    #[tokio::test]
+    async fn start_peer_cache_updater() {
+        let node = TestNode::new().await;
         let start_tracker = node.peer_cache_updater.track_start();
 
         node.start();
@@ -1656,9 +1656,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn start_peer_cache_connector() {
-        let node = TestNode::new();
+    #[tokio::test]
+    async fn start_peer_cache_connector() {
+        let node = TestNode::new().await;
         let start_tracker = node.peer_cache_connector.track_start();
 
         node.start();
@@ -1673,9 +1673,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn stop_node() {
-        let node = TestNode::new();
+    #[tokio::test]
+    async fn stop_node() {
+        let node = TestNode::new().await;
         node.start();
 
         node.stop();
@@ -1698,8 +1698,7 @@ mod tests {
     }
 
     impl TestNode {
-        pub fn new() -> Self {
-            let async_rt = Arc::new(AsyncRuntime::default());
+        pub async fn new() -> Self {
             let mut app_path = std::env::temp_dir();
             app_path.push(format!("rsnano-test-{}", Uuid::new_v4().simple()));
             let config = NodeConfig::new_test_instance();
@@ -1712,7 +1711,7 @@ mod tests {
             ));
 
             let node = Arc::new(Node::new(
-                async_rt,
+                tokio::runtime::Handle::current(),
                 &app_path,
                 config,
                 network_params,

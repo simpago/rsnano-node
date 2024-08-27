@@ -25,7 +25,7 @@ fn started_election() {
     };
     let node1 = system.build_node().config(config).finish();
     let channel1 = make_fake_channel(&node1);
-    node1.async_rt.tokio.block_on(async {
+    node1.tokio.block_on(async {
         let (mut ws_stream, _) =
             tokio_tungstenite::connect_async(format!("ws://[::1]:{}", websocket_port))
                 .await
@@ -93,7 +93,7 @@ fn stopped_election() {
     };
     let node1 = system.build_node().config(config).finish();
     let channel1 = make_fake_channel(&node1);
-    node1.async_rt.tokio.block_on(async {
+    node1.tokio.block_on(async {
         let (mut ws_stream, _) =
             tokio_tungstenite::connect_async(format!("ws://[::1]:{}", websocket_port))
                 .await

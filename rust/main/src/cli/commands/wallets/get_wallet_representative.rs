@@ -26,14 +26,17 @@ pub(crate) struct GetWalletRepresentativeArgs {
 }
 
 impl GetWalletRepresentativeArgs {
-    pub(crate) fn get_wallet_representative(&self) -> Result<()> {
+    pub(crate) async fn get_wallet_representative(&self) -> Result<()> {
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let password = self.password.clone().unwrap_or_default();
 

@@ -28,7 +28,7 @@ pub(crate) struct AddPrivateKeyArgs {
 }
 
 impl AddPrivateKeyArgs {
-    pub(crate) fn add_key(&self) -> Result<()> {
+    pub(crate) async fn add_key(&self) -> Result<()> {
         let wallet_id = WalletId::decode_hex(&self.wallet)?;
 
         let public_key = RawKey::decode_hex(&self.private_key)?;
@@ -37,7 +37,10 @@ impl AddPrivateKeyArgs {
 
         let env = Arc::new(LmdbEnv::new(&path)?);
 
-        let wallets = Arc::new(Wallets::new_null_with_env(env)?);
+        let wallets = Arc::new(Wallets::new_null_with_env(
+            env,
+            tokio::runtime::Handle::current(),
+        )?);
 
         let password = self.password.clone().unwrap_or_default();
 

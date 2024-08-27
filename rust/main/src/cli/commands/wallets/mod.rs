@@ -61,24 +61,24 @@ pub(crate) struct WalletsCommand {
 }
 
 impl WalletsCommand {
-    pub(crate) fn run(&self) -> Result<()> {
+    pub(crate) async fn run(&self) -> Result<()> {
         match &self.subcommand {
-            Some(WalletSubcommands::CreateAccount(args)) => args.create_account()?,
-            Some(WalletSubcommands::ListWallets(args)) => args.list_wallets()?,
-            Some(WalletSubcommands::CreateWallet(args)) => args.create_wallet()?,
-            Some(WalletSubcommands::DestroyWallet(args)) => args.destroy_wallet()?,
-            Some(WalletSubcommands::AddPrivateKey(args)) => args.add_key()?,
-            Some(WalletSubcommands::ChangeWalletSeed(args)) => args.change_wallet_seed()?,
-            Some(WalletSubcommands::ImportKeys(args)) => args.import_keys()?,
-            Some(WalletSubcommands::RemoveAccount(args)) => args.remove_account()?,
-            Some(WalletSubcommands::DecryptWallet(args)) => args.decrypt_wallet()?,
+            Some(WalletSubcommands::CreateAccount(args)) => args.create_account().await?,
+            Some(WalletSubcommands::ListWallets(args)) => args.list_wallets().await?,
+            Some(WalletSubcommands::CreateWallet(args)) => args.create_wallet().await?,
+            Some(WalletSubcommands::DestroyWallet(args)) => args.destroy_wallet().await?,
+            Some(WalletSubcommands::AddPrivateKey(args)) => args.add_key().await?,
+            Some(WalletSubcommands::ChangeWalletSeed(args)) => args.change_wallet_seed().await?,
+            Some(WalletSubcommands::ImportKeys(args)) => args.import_keys().await?,
+            Some(WalletSubcommands::RemoveAccount(args)) => args.remove_account().await?,
+            Some(WalletSubcommands::DecryptWallet(args)) => args.decrypt_wallet().await?,
             Some(WalletSubcommands::GetWalletRepresentative(args)) => {
-                args.get_wallet_representative()?
+                args.get_wallet_representative().await?
             }
             Some(WalletSubcommands::SetWalletRepresentative(args)) => {
-                args.set_representative_wallet()?
+                args.set_representative_wallet().await?
             }
-            Some(WalletSubcommands::ClearSendIds(args)) => args.clear_send_ids()?,
+            Some(WalletSubcommands::ClearSendIds(args)) => args.clear_send_ids().await?,
             None => WalletsCommand::command().print_long_help()?,
         }
 
