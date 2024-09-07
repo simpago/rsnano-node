@@ -117,7 +117,7 @@ pub unsafe extern "C" fn rsn_node_node_id(handle: &NodeHandle, result: *mut u8) 
 
 #[no_mangle]
 pub extern "C" fn rsn_node_config(handle: &NodeHandle, result: &mut NodeConfigDto) {
-    fill_node_config_dto(result, &handle.0.config);
+    fill_node_config_dto(result, &handle.0.config.lock().unwrap());
 }
 
 #[no_mangle]

@@ -77,7 +77,7 @@ pub struct Node {
     pub application_path: PathBuf,
     pub steady_clock: Arc<SteadyClock>,
     pub node_id: KeyPair,
-    pub config: NodeConfig,
+    pub config: Arc<Mutex<NodeConfig>>,
     pub network_params: NetworkParams,
     pub stats: Arc<Stats>,
     pub workers: Arc<dyn ThreadPool>,
@@ -1088,7 +1088,7 @@ impl Node {
             stats,
             application_path,
             network_params,
-            config,
+            config: Arc::new(Mutex::new(config)),
             flags,
             work,
             tokio: tokio_handle,
@@ -1367,7 +1367,7 @@ impl NodeExt for Arc<Node> {
         }
         self.ongoing_online_weight_calculation_queue();
 
-        if self.config.tcp_incoming_connections_max > 0
+        if self.config.lock().unwrap().tcp_incoming_connections_max > 0
             && !(self.flags.disable_bootstrap_listener && self.flags.disable_tcp_realtime)
         {
             self.tcp_listener.start();
@@ -1409,7 +1409,7 @@ impl NodeExt for Arc<Node> {
         self.hinted_scheduler.start();
         self.manual_scheduler.start();
         self.optimistic_scheduler.start();
-        if self.config.priority_scheduler_enabled {
+        if self.config.lock().unwrap().priority_scheduler_enabled {
             self.priority_scheduler.start();
         }
         self.backlog_population.start();
@@ -1439,8 +1439,8 @@ impl NodeExt for Arc<Node> {
         }
         self.vote_router.start();
 
-        if self.config.monitor.enabled {
-            self.monitor.start(self.config.monitor.interval);
+        if self.config.lock().unwrap().monitor.enabled {
+            self.monitor.start(self.config.lock().unwrap().monitor.interval);
         }
     }
 

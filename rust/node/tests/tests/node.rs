@@ -140,7 +140,7 @@ fn fork_no_vote_quorum() {
             &wallet_id1,
             *DEV_GENESIS_ACCOUNT,
             key1.into(),
-            node1.config.receive_minimum,
+            node1.config.lock().unwrap().receive_minimum,
             0,
             true,
             None,
@@ -149,21 +149,21 @@ fn fork_no_vote_quorum() {
     assert_timely_msg(
         Duration::from_secs(30),
         || {
-            node3.balance(&key1.into()) == node1.config.receive_minimum
-                && node2.balance(&key1.into()) == node1.config.receive_minimum
-                && node1.balance(&key1.into()) == node1.config.receive_minimum
+            node3.balance(&key1.into()) == node1.config.lock().unwrap().receive_minimum
+                && node2.balance(&key1.into()) == node1.config.lock().unwrap().receive_minimum
+                && node1.balance(&key1.into()) == node1.config.lock().unwrap().receive_minimum
         },
         "balances are wrong",
     );
-    assert_eq!(node1.config.receive_minimum, node1.ledger.weight(&key1));
-    assert_eq!(node1.config.receive_minimum, node2.ledger.weight(&key1));
-    assert_eq!(node1.config.receive_minimum, node3.ledger.weight(&key1));
+    assert_eq!(node1.config.lock().unwrap().receive_minimum, node1.ledger.weight(&key1));
+    assert_eq!(node1.config.lock().unwrap().receive_minimum, node2.ledger.weight(&key1));
+    assert_eq!(node1.config.lock().unwrap().receive_minimum, node3.ledger.weight(&key1));
 
     let send1 = BlockEnum::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         block.hash(),
         *DEV_GENESIS_PUB_KEY,
-        (Amount::MAX / 4) - (node1.config.receive_minimum * 2),
+        (Amount::MAX / 4) - (node1.config.lock().unwrap().receive_minimum * 2),
         Account::from(key1).into(),
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(block.hash().into()),
@@ -182,7 +182,7 @@ fn fork_no_vote_quorum() {
         *DEV_GENESIS_ACCOUNT,
         block.hash(),
         *DEV_GENESIS_PUB_KEY,
-        (Amount::MAX / 4) - (node1.config.receive_minimum * 2),
+        (Amount::MAX / 4) - (node1.config.lock().unwrap().receive_minimum * 2),
         Account::from(key2).into(),
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(block.hash().into()),

@@ -416,7 +416,7 @@ fn inactive_votes_cache_election_start() {
         .unwrap()
         .trended_weight_or_minimum_online_weight()
         / 100)
-        * node.config.hinted_scheduler.hinting_threshold_percent as u128)
+        * node.config.lock().unwrap().hinted_scheduler.hinting_threshold_percent as u128)
         / 2
         + Amount::nano(1_000_000);
 
