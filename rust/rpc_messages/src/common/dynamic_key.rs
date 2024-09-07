@@ -73,13 +73,13 @@ macro_rules! create_rpc_message {
 
 create_rpc_message!(BoolDto, bool);
 create_rpc_message!(AccountRpcMessage, Account);
-create_rpc_message!(AmountDto, Amount);
+create_rpc_message!(AmountRpcMessage, Amount);
 create_rpc_message!(BlockHashRpcMessage, BlockHash);
 create_rpc_message!(U64RpcMessage, u64);
 
 #[cfg(test)]
 mod tests {
-    use crate::{AccountRpcMessage, AmountDto, BlockHashRpcMessage, BoolDto, U64RpcMessage};
+    use crate::{AccountRpcMessage, AmountRpcMessage, BlockHashRpcMessage, BoolDto, U64RpcMessage};
     use rsnano_core::{Account, Amount, BlockHash};
     use serde_json::{from_str, to_string_pretty};
 
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn serialize_amount_rpc_message() {
         let amount = Amount::raw(1000);
-        let amount_rpc = AmountDto::new("amount".to_string(), amount);
+        let amount_rpc = AmountRpcMessage::new("amount".to_string(), amount);
         assert_eq!(
             serde_json::to_string_pretty(&amount_rpc).unwrap(),
             r#"{
@@ -140,9 +140,9 @@ mod tests {
     #[test]
     fn deserialize_amount_rpc_message() {
         let amount = Amount::from(1000);
-        let amount_rpc = AmountDto::new("amount".to_string(), amount);
+        let amount_rpc = AmountRpcMessage::new("amount".to_string(), amount);
         let serialized = to_string_pretty(&amount_rpc).unwrap();
-        let deserialized: AmountDto = from_str(&serialized).unwrap();
+        let deserialized: AmountRpcMessage = from_str(&serialized).unwrap();
         assert_eq!(amount_rpc, deserialized);
     }
 

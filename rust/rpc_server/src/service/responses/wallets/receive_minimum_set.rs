@@ -4,9 +4,9 @@ use rsnano_node::node::Node;
 use rsnano_rpc_messages::{ErrorDto, SuccessDto};
 use serde_json::to_string_pretty;
 
-pub async fn receive_minimum_set(mut node: Arc<Node>, enable_control: bool, amount: Amount) -> String {
+pub async fn receive_minimum_set(node: Arc<Node>, enable_control: bool, amount: Amount) -> String {
     if enable_control {
-        node.config.receive_minimum = amount;
+        node.config.lock().unwrap().receive_minimum = amount;
         to_string_pretty(&SuccessDto::new()).unwrap()
     }
     else {
@@ -22,7 +22,7 @@ mod tests {
     use test_helpers::System;
 
     #[test]
-    fn receive_minimum() {
+    fn receive_minimum_set() {
         let mut system = System::new();
         let node = system.make_node();
 
@@ -32,18 +32,18 @@ mod tests {
             .tokio
             .block_on(async { rpc_client.receive_minimum_set(Amount::raw(1000000000000000000000000000000)).await.unwrap() });
 
-            assert_eq!(
-                result,
-                SuccessDto::new()
-            );
+        assert_eq!(
+            result,
+            SuccessDto::new()
+        );
 
-        assert_eq!(node.config.receive_minimum, Amount::raw(1000000000000000000000000000000));
+        assert_eq!(node.config.lock().unwrap().receive_minimum, Amount::raw(1000000000000000000000000000000));
 
         server.abort();
     }
 
     #[test]
-    fn receive_minimum_fails_without_enable_control() {
+    fn receive_minimum_set_fails_without_enable_control() {
         let mut system = System::new();
         let node = system.make_node();
 

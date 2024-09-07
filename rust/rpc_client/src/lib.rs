@@ -21,6 +21,12 @@ impl NanoRpcClient {
         }
     }
 
+    pub async fn receive_minimum_set(&self, amount: Amount) -> Result<SuccessDto> {
+        let cmd = RpcCommand::receive_minimum_set(amount);
+        let result = self.rpc_request(&cmd).await?;
+        Ok(serde_json::from_value(result)?)
+    }
+
     pub async fn account_info(&self, account: Account) -> Result<AccountInfoDto> {
         let cmd = RpcCommand::account_info(account);
         let result = self.rpc_request(&cmd).await?;

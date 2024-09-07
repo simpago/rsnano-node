@@ -13,6 +13,8 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::info;
 
+use super::receive_minimum_set;
+
 #[derive(Clone)]
 struct RpcService {
     node: Arc<Node>,
@@ -52,6 +54,7 @@ async fn handle_rpc(
     Json(rpc_command): Json<RpcCommand>,
 ) -> Response {
     let response = match rpc_command {
+        RpcCommand::ReceiveMinimumSet(args) => receive_minimum_set(rpc_service.node, rpc_service.enable_control, args.value).await,
         _ => todo!(),
     };
 
