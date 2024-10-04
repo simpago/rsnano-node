@@ -1,4 +1,5 @@
 #include "nano/lib/rsnano.hpp"
+
 #include <nano/lib/logging.hpp>
 #include <nano/lib/stats.hpp>
 #include <nano/lib/threading.hpp>

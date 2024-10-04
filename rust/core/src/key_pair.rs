@@ -1,9 +1,9 @@
 use super::{PublicKey, RawKey, Signature};
 use crate::{Account, Block, StateBlock};
 use anyhow::Context;
-use rsnano_nullable_random::NullableRng;
 use ed25519_dalek::ed25519::signature::SignerMut;
 use ed25519_dalek::Verifier;
+use rsnano_nullable_random::NullableRng;
 
 #[derive(Clone)]
 pub struct KeyPair {
@@ -62,7 +62,9 @@ impl KeyPair {
     }
 
     pub fn from_priv_key_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
-        let secret_bytes: [u8; 32] = bytes.try_into().map_err(|_| anyhow::anyhow!("Invalid secret key length"))?;
+        let secret_bytes: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid secret key length"))?;
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
         Ok(Self {
             keypair: signing_key,
@@ -135,9 +137,9 @@ pub fn validate_block_signature(block: &StateBlock) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use ed25519_dalek::ed25519::signature::SignerMut;
-    use crate::BlockHash;
     use super::*;
+    use crate::BlockHash;
+    use ed25519_dalek::ed25519::signature::SignerMut;
 
     #[test]
     fn ed25519_signing() -> anyhow::Result<()> {
@@ -199,9 +201,12 @@ mod tests {
     // This block signature caused issues during live bootstrap. This was fixed by using verify() instead of verify_strict()
     #[test]
     fn regression_validate_weird_signature2() {
-        let public_key = PublicKey::from(Account::decode_account(
-            "nano_11a11111111111111111111111111111111111111111111111116iq5p4i8",
-        ).unwrap());
+        let public_key = PublicKey::from(
+            Account::decode_account(
+                "nano_11a11111111111111111111111111111111111111111111111116iq5p4i8",
+            )
+            .unwrap(),
+        );
 
         let hash = BlockHash::decode_hex(
             "150AFD70BD1E9845715F91D7CD7D5EE2683668199F19B4DF533FC7802CE07CA2",

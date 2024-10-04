@@ -95,8 +95,7 @@ struct EncodedAccountU512(U512);
 
 impl EncodedAccountU512 {
     fn account_bytes(&self) -> [u8; 32] {
-        let mut bytes_512 = [0u8; 64];
-        (self.0 >> 40).to_big_endian(&mut bytes_512);
+        let bytes_512 = (self.0 >> 40).to_big_endian();
         let mut bytes_256 = [0u8; 32];
         bytes_256.copy_from_slice(&bytes_512[32..]);
         bytes_256

@@ -1,3 +1,6 @@
+use crate::account_balance;
+
+use super::account_create;
 use anyhow::{Context, Result};
 use axum::response::Response;
 use axum::{extract::State, response::IntoResponse, routing::post, Json};
@@ -52,6 +55,19 @@ async fn handle_rpc(
     Json(rpc_command): Json<RpcCommand>,
 ) -> Response {
     let response = match rpc_command {
+        RpcCommand::AccountCreate(args) => {
+            account_create(
+                rpc_service.node,
+                rpc_service.enable_control,
+                args.wallet,
+                args.index,
+                args.work,
+            )
+            .await
+        }
+        RpcCommand::AccountBalance(args) => {
+            account_balance(rpc_service.node, args.account, args.include_only_confirmed).await
+        }
         _ => todo!(),
     };
 

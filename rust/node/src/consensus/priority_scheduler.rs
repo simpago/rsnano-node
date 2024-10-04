@@ -220,7 +220,7 @@ impl PriorityScheduler {
         while !guard.stopped {
             guard = self
                 .condition
-                .wait_timeout(guard, Duration::from_secs(1))
+                .wait_timeout_while(guard, Duration::from_secs(1), |i| !i.stopped)
                 .unwrap()
                 .0;
 

@@ -1,5 +1,15 @@
+use crate::RpcCommand;
 use rsnano_core::{RawKey, WalletId};
 use serde::{Deserialize, Serialize};
+
+impl RpcCommand {
+    pub fn wallet_add(wallet_id: WalletId, key: RawKey) -> Self {
+        Self::WalletAdd(WalletAddArgs {
+            wallet: wallet_id,
+            key,
+        })
+    }
+}
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct WalletAddArgs {

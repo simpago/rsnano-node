@@ -5,9 +5,12 @@ edition = "2021"
 
 [dependencies]
 rsnano_core = { path = "../../core" }
+rsnano_ledger = { path = "../../ledger" }
 rsnano_network = { path = "../../network" }
 rsnano_node = { path = "../../node", features = ["output_tracking"] }
 rsnano_nullable_tcp = { path = "../../nullables/tcp" }
+rsnano_rpc_client = { path = "../../rpc_client" }
+rsnano_rpc_server = { path = "../../rpc_server" }
 mock_instant = "0"
 tracing-subscriber = { version = "0", features = ["env-filter"] }
 axum = "0"

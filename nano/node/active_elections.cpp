@@ -296,7 +296,7 @@ nano::active_elections_config::active_elections_config (rsnano::ActiveElectionsC
 	optimistic_limit_percentage{ dto.optimistic_limit_percentage },
 	confirmation_history_size{ dto.confirmation_history_size },
 	confirmation_cache{ dto.confirmation_cache },
-	max_election_winners{ dto.max_election_winners}
+	max_election_winners{ dto.max_election_winners }
 {
 }
 

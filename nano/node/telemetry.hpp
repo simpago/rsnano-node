@@ -5,6 +5,7 @@
 #include <nano/node/messages.hpp>
 #include <nano/node/nodeconfig.hpp>
 #include <nano/secure/common.hpp>
+
 #include <optional>
 
 namespace nano

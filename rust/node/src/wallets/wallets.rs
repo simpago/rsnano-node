@@ -28,6 +28,7 @@ use rsnano_store_lmdb::{
 };
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     fs::Permissions,
     mem::size_of,
     ops::Deref,
@@ -47,6 +48,21 @@ pub enum WalletsError {
     AccountNotFound,
     InvalidPassword,
     BadPublicKey,
+}
+
+impl fmt::Display for WalletsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let error_message = match self {
+            WalletsError::None => "No error",
+            WalletsError::Generic => "Unknown error",
+            WalletsError::WalletNotFound => "Wallet not found",
+            WalletsError::WalletLocked => "Wallet is locked",
+            WalletsError::AccountNotFound => "Account not found",
+            WalletsError::InvalidPassword => "Invalid password",
+            WalletsError::BadPublicKey => "Bad public key",
+        };
+        write!(f, "{}", error_message)
+    }
 }
 
 pub type WalletsIterator<'txn> = BinaryDbIterator<'txn, [u8; 64], NoValue>;

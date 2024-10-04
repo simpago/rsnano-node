@@ -41,4 +41,3 @@ uint16_t nano::transport::tcp_channels::port () const
 {
 	return rsnano::rsn_tcp_channels_port (handle);
 }
-

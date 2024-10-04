@@ -1,7 +1,8 @@
 use rsnano_core::{
     work::WorkPoolImpl, Account, Amount, BlockEnum, BlockHash, KeyPair, Networks, StateBlock,
-    WalletId,
+    WalletId, DEV_GENESIS_KEY,
 };
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_network::{Channel, ChannelDirection, ChannelInfo, ChannelMode};
 use rsnano_node::{
     config::{NodeConfig, NodeFlags},
@@ -13,8 +14,10 @@ use rsnano_node::{
     NetworkParams,
 };
 use rsnano_nullable_tcp::TcpStream;
+use rsnano_rpc_client::{NanoRpcClient, Url};
+use rsnano_rpc_server::run_rpc_server;
 use std::{
-    net::TcpListener,
+    net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
         atomic::{AtomicU16, Ordering},
         Arc, OnceLock,
@@ -475,4 +478,43 @@ pub fn setup_independent_blocks(node: &Node, count: usize, source: &KeyPair) -> 
     node.confirm(latest);
 
     blocks
+}
+
+pub fn setup_rpc_client_and_server(
+    node: Arc<Node>,
+    enable_control: bool,
+) -> (
+    Arc<NanoRpcClient>,
+    tokio::task::JoinHandle<Result<(), anyhow::Error>>,
+) {
+    let port = get_available_port();
+    let socket_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port);
+
+    let server = node
+        .tokio
+        .spawn(run_rpc_server(node.clone(), socket_addr, enable_control));
+
+    let rpc_url = format!("http://[::1]:{}/", port);
+    let rpc_client = Arc::new(NanoRpcClient::new(Url::parse(&rpc_url).unwrap()));
+
+    (rpc_client, server)
+}
+
+pub fn send_block(node: Arc<Node>) {
+    let send1 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_PUB_KEY,
+        Amount::MAX - Amount::raw(1),
+        DEV_GENESIS_KEY.account().into(),
+        &DEV_GENESIS_KEY,
+        node.work_generate_dev((*DEV_GENESIS_HASH).into()),
+    ));
+
+    node.process_active(send1.clone());
+    assert_timely_msg(
+        Duration::from_secs(5),
+        || node.active.active(&send1),
+        "not active on node 1",
+    );
 }
