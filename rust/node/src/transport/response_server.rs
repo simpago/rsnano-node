@@ -375,7 +375,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     // IO error or critical error when deserializing message
                     self.stats
                         .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
-                    info!(
+                    debug!(
                         "Error reading message: {:?} ({})",
                         e,
                         self.remote_endpoint()
