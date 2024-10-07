@@ -273,14 +273,13 @@ mod tests {
 
         let change = node
             .wallets
-            .change_action2(
-                &wallet_id,
+            .change_action(
+                &node.wallets.mutex.lock().unwrap().get(&wallet_id).unwrap().clone(),
                 *DEV_GENESIS_ACCOUNT,
                 *DEV_GENESIS_PUB_KEY,
                 node.work_generate_dev((*DEV_GENESIS_HASH).into()),
                 false,
             )
-            .unwrap()
             .unwrap();
 
         let send = node
@@ -298,8 +297,8 @@ mod tests {
 
         let receive = node
             .wallets
-            .receive_action2(
-                &wallet_id,
+            .receive_action(
+                &node.wallets.mutex.lock().unwrap().get(&wallet_id).unwrap().clone(),
                 send.hash(),
                 *DEV_GENESIS_PUB_KEY,
                 node.config.receive_minimum,
@@ -307,7 +306,6 @@ mod tests {
                 node.work_generate_dev(send.hash().into()),
                 false,
             )
-            .unwrap()
             .unwrap();
 
         let usend = node
@@ -325,8 +323,8 @@ mod tests {
 
         let ureceive = node
             .wallets
-            .receive_action2(
-                &wallet_id,
+            .receive_action(
+                &node.wallets.mutex.lock().unwrap().get(&wallet_id).unwrap().clone(),
                 usend.hash(),
                 *DEV_GENESIS_PUB_KEY,
                 Amount::nano(1_000),
@@ -334,19 +332,17 @@ mod tests {
                 node.work_generate_dev(usend.hash().into()),
                 false,
             )
-            .unwrap()
             .unwrap();
 
         let uchange = node
             .wallets
-            .change_action2(
-                &wallet_id,
+            .change_action(
+                &node.wallets.mutex.lock().unwrap().get(&wallet_id).unwrap().clone(),
                 *DEV_GENESIS_ACCOUNT,
                 PublicKey::zero(),
                 node.work_generate_dev(ureceive.hash().into()),
                 false,
             )
-            .unwrap()
             .unwrap();
 
         // Set up RPC client and server
@@ -425,6 +421,7 @@ mod tests {
             .deterministic_insert2(&wallet_id, false)
             .unwrap()
             .into();
+        
         let send2 = node
             .wallets
             .send_action2(
@@ -440,8 +437,8 @@ mod tests {
 
         let receive2 = node
             .wallets
-            .receive_action2(
-                &wallet_id,
+            .receive_action(
+                &node.wallets.mutex.lock().unwrap().get(&wallet_id).unwrap().clone(),
                 send2.hash(),
                 account2.into(),
                 node.config.receive_minimum,
@@ -449,7 +446,6 @@ mod tests {
                 node.work_generate_dev(send2.hash().into()),
                 false,
             )
-            .unwrap()
             .unwrap();
 
         // Test filter for send state blocks
