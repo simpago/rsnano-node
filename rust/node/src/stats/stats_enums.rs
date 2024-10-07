@@ -485,7 +485,8 @@ pub enum DetailType {
     NotifyAlreadyCemented,
     NotifyIntermediate,
     AlreadyCemented,
-    CementingHash,
+    Cementing,
+    CementedHash,
 
     // election_state
     Passive,

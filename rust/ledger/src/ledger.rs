@@ -57,6 +57,7 @@ pub trait LedgerObserver: Send + Sync {
     fn block_rolled_back(&self, _block_type: BlockSubType) {}
     fn block_rolled_back2(&self, _block: &BlockEnum, _is_epoch: bool) {}
     fn block_added(&self, _block: &BlockEnum, _is_epoch: bool) {}
+    fn dependent_unconfirmed(&self) {}
 }
 
 pub struct NullLedgerObserver {}
@@ -602,11 +603,14 @@ impl Ledger {
     pub fn confirm_max(
         &self,
         txn: &mut LmdbWriteTransaction,
-        hash: BlockHash,
+        target_hash: BlockHash,
         max_blocks: usize,
     ) -> VecDeque<BlockEnum> {
-        BlockCementer::new(&self.store, self.observer.as_ref(), &self.constants)
-            .confirm(txn, hash, max_blocks)
+        BlockCementer::new(&self.store, self.observer.as_ref(), &self.constants).confirm(
+            txn,
+            target_hash,
+            max_blocks,
+        )
     }
 
     pub fn cemented_count(&self) -> u64 {

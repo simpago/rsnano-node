@@ -76,11 +76,7 @@ impl Vote {
             signature: Signature::new(),
             hashes,
         };
-        result.signature = sign_message(
-            &keys.private_key(),
-            &result.voting_account.into(),
-            result.hash().as_bytes(),
-        );
+        result.signature = sign_message(&keys.private_key(), result.hash().as_bytes());
         result
     }
 

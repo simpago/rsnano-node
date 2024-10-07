@@ -11,8 +11,11 @@ use rsnano_ledger::{Ledger, WriteGuard, Writer};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
     collections::{HashSet, VecDeque},
-    sync::{Arc, Condvar, Mutex},
-    thread::{sleep, JoinHandle},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Condvar, Mutex,
+    },
+    thread::JoinHandle,
     time::Duration,
 };
 
@@ -26,7 +29,7 @@ pub struct ConfirmingSetConfig {
 impl Default for ConfirmingSetConfig {
     fn default() -> Self {
         Self {
-            max_blocks: 64 * 128,
+            max_blocks: 128 * 128,
             max_queued_notifications: 8,
         }
     }
@@ -44,9 +47,9 @@ impl ConfirmingSet {
             join_handle: Mutex::new(None),
             thread: Arc::new(ConfirmingSetThread {
                 mutex: Mutex::new(ConfirmingSetImpl {
-                    stopped: false,
                     set: HashSet::new(),
                 }),
+                stopped: AtomicBool::new(false),
                 condition: Condvar::new(),
                 ledger,
                 stats,
@@ -94,7 +97,8 @@ impl ConfirmingSet {
 
     pub fn stop(&self) {
         self.thread.stop();
-        if let Some(handle) = self.join_handle.lock().unwrap().take() {
+        let handle = self.join_handle.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap();
         }
         self.thread.notification_workers.stop();
@@ -130,6 +134,7 @@ impl Drop for ConfirmingSet {
 
 struct ConfirmingSetThread {
     mutex: Mutex<ConfirmingSetImpl>,
+    stopped: AtomicBool,
     condition: Condvar,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
@@ -141,8 +146,8 @@ struct ConfirmingSetThread {
 impl ConfirmingSetThread {
     fn stop(&self) {
         {
-            let mut guard = self.mutex.lock().unwrap();
-            guard.stopped = true;
+            let _guard = self.mutex.lock().unwrap();
+            self.stopped.store(true, Ordering::SeqCst);
         }
         self.condition.notify_all();
     }
@@ -172,7 +177,7 @@ impl ConfirmingSetThread {
 
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
-        while !guard.stopped {
+        while !self.stopped.load(Ordering::SeqCst) {
             if !guard.set.is_empty() {
                 let batch = guard.next_batch(256);
                 drop(guard);
@@ -181,7 +186,9 @@ impl ConfirmingSetThread {
             } else {
                 guard = self
                     .condition
-                    .wait_while(guard, |i| i.set.is_empty() && !i.stopped)
+                    .wait_while(guard, |i| {
+                        i.set.is_empty() && !self.stopped.load(Ordering::SeqCst)
+                    })
                     .unwrap();
             }
         }
@@ -200,11 +207,21 @@ impl ConfirmingSetThread {
         std::mem::swap(&mut notification.cemented, cemented);
         std::mem::swap(&mut notification.already_cemented, already_cemented);
 
-        // Wait for the worker thread if too many notifications are queued
+        let mut guard = self.mutex.lock().unwrap();
+
         while self.notification_workers.num_queued_tasks() >= self.config.max_queued_notifications {
             self.stats
                 .inc(StatType::ConfirmingSet, DetailType::Cooldown);
-            sleep(Duration::from_millis(100));
+            guard = self
+                .condition
+                .wait_timeout_while(guard, Duration::from_millis(100), |g| {
+                    !self.stopped.load(Ordering::SeqCst)
+                })
+                .unwrap()
+                .0;
+            if self.stopped.load(Ordering::Relaxed) {
+                return;
+            }
         }
 
         let observers = self.observers.clone();
@@ -248,12 +265,18 @@ impl ConfirmingSetThread {
             for hash in batch {
                 loop {
                     (write_guard, tx) = self.ledger.refresh_if_needed(write_guard, tx);
-                    self.stats
-                        .inc(StatType::ConfirmingSet, DetailType::CementingHash);
+
+                    // Cementing deep dependency chains might take a long time, allow for graceful shutdown, ignore notifications
+                    if self.stopped.load(Ordering::Relaxed) {
+                        return;
+                    }
 
                     // Issue notifications here, so that `cemented` set is not too large before we add more blocks
                     (write_guard, tx) =
                         self.notify_maybe(write_guard, tx, &mut cemented, &mut already_cemented);
+
+                    self.stats
+                        .inc(StatType::ConfirmingSet, DetailType::Cementing);
 
                     let added = self
                         .ledger
@@ -276,11 +299,14 @@ impl ConfirmingSetThread {
                     }
 
                     if self.ledger.confirmed().block_exists(&tx, &hash)
-                        || self.mutex.lock().unwrap().stopped
+                        || self.stopped.load(Ordering::Relaxed)
                     {
                         break;
                     }
                 }
+
+                self.stats
+                    .inc(StatType::ConfirmingSet, DetailType::CementedHash);
             }
         }
 
@@ -289,7 +315,6 @@ impl ConfirmingSetThread {
 }
 
 struct ConfirmingSetImpl {
-    stopped: bool,
     set: HashSet<BlockHash>,
 }
 

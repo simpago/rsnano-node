@@ -2,10 +2,11 @@ use rsnano_core::{
     work::WorkPool, Account, Amount, BlockEnum, BlockHash, KeyPair, StateBlock, Vote, VoteSource,
     DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_network::ChannelId;
 use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeFlags},
+    consensus::{ActiveElectionsExt, ElectionBehavior},
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
@@ -16,7 +17,8 @@ use std::{
     time::Duration,
 };
 use test_helpers::{
-    assert_timely, assert_timely_eq, assert_timely_msg, get_available_port, start_election, System,
+    assert_never, assert_timely, assert_timely_eq, assert_timely_msg, get_available_port,
+    setup_chain, setup_independent_blocks, start_election, System,
 };
 
 /// What this test is doing:
@@ -805,4 +807,145 @@ fn confirm_frontier() {
     assert_timely_eq(Duration::from_secs(5), || node2.ledger.cemented_count(), 2);
     assert_timely(Duration::from_secs(5), || node2.active.len() == 0);
     assert!(election2.confirmation_request_count.load(Ordering::SeqCst) > 0);
+}
+
+#[test]
+fn vacancy() {
+    let mut system = System::new();
+    let mut config = System::default_config();
+    config.active_elections.size = 1;
+    let node = system.build_node().config(config).finish();
+    let notify_tracker = node.election_schedulers.track_notify();
+
+    let send = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_PUB_KEY,
+        Amount::MAX - Amount::nano(1000),
+        (*DEV_GENESIS_ACCOUNT).into(),
+        &DEV_GENESIS_KEY,
+        system
+            .work
+            .generate_dev2((*DEV_GENESIS_HASH).into())
+            .unwrap(),
+    ));
+    node.process(send.clone()).unwrap();
+    assert_eq!(1, node.active.vacancy(ElectionBehavior::Priority),);
+    assert_eq!(0, node.active.len());
+    let election1 = start_election(&node, &send.hash());
+    assert_timely(Duration::from_secs(1), || notify_tracker.output().len() > 0);
+    notify_tracker.clear();
+    assert_eq!(0, node.active.vacancy(ElectionBehavior::Priority));
+    assert_eq!(1, node.active.len());
+    node.active.force_confirm(&election1);
+    assert_timely(Duration::from_secs(1), || notify_tracker.output().len() > 0);
+    assert_eq!(1, node.active.vacancy(ElectionBehavior::Priority));
+    assert_eq!(0, node.active.len());
+}
+
+/// Ensures that election winners set won't grow without bounds when cementing
+/// is slower that the rate of confirming new elections
+#[test]
+fn bound_election_winners() {
+    let mut system = System::new();
+    let mut config = System::default_config();
+    // Set election winner limit to a low value
+    config.active_elections.max_election_winners = 5;
+    let node = system.build_node().config(config).finish();
+
+    // Start elections for a couple of blocks, number of elections is larger than the election winner set limit
+    let blocks = setup_independent_blocks(&node, 10, &DEV_GENESIS_KEY);
+    assert_timely(Duration::from_secs(5), || {
+        blocks.iter().all(|block| node.active.active(block))
+    });
+
+    {
+        // Prevent cementing of confirmed blocks
+        let _write_guard = node.ledger.write_queue.wait(Writer::Testing);
+        let _tx = node.ledger.rw_txn();
+
+        // Ensure that when the number of election winners reaches the limit, AEC vacancy reflects that
+        assert!(node.active.vacancy(ElectionBehavior::Priority) > 0);
+
+        for index in 0..node.config.active_elections.max_election_winners {
+            let election = node.vote_router.election(&blocks[index].hash()).unwrap();
+            node.active.force_confirm(&election);
+        }
+
+        assert_timely_eq(
+            Duration::from_secs(5),
+            || node.active.vacancy(ElectionBehavior::Priority),
+            0,
+        );
+
+        // Confirming more elections should make the vacancy negative
+        for index in 0..blocks.len() {
+            let election = node.vote_router.election(&blocks[index].hash()).unwrap();
+            node.active.force_confirm(&election);
+        }
+
+        assert_timely(Duration::from_secs(5), || {
+            node.active.vacancy(ElectionBehavior::Priority) < 0
+        });
+        // Release the guard to allow cementing, there should be some vacancy now
+    }
+
+    assert_timely(Duration::from_secs(5), || {
+        node.active.vacancy(ElectionBehavior::Priority) > 0
+    });
+}
+
+/// Blocks should only be broadcasted when they are active in the AEC
+#[test]
+fn broadcast_block_on_activation() {
+    let mut system = System::new();
+    let mut config1 = System::default_config();
+    // Deactivates elections on both nodes.
+    config1.active_elections.size = 0;
+    config1.bootstrap_ascending.enable = false;
+
+    let mut config2 = System::default_config();
+    config2.active_elections.size = 0;
+    config2.bootstrap_ascending.enable = false;
+
+    // Disables bootstrap listener to make sure the block won't be shared by this channel.
+    let flags = NodeFlags {
+        disable_bootstrap_listener: true,
+        ..Default::default()
+    };
+
+    let node1 = system
+        .build_node()
+        .config(config1)
+        .flags(flags.clone())
+        .finish();
+    let node2 = system.build_node().config(config2).flags(flags).finish();
+
+    let send1 = BlockEnum::State(StateBlock::new(
+        *DEV_GENESIS_ACCOUNT,
+        *DEV_GENESIS_HASH,
+        *DEV_GENESIS_PUB_KEY,
+        Amount::MAX - Amount::nano(1000),
+        (*DEV_GENESIS_ACCOUNT).into(),
+        &DEV_GENESIS_KEY,
+        system
+            .work
+            .generate_dev2((*DEV_GENESIS_HASH).into())
+            .unwrap(),
+    ));
+
+    // Adds a block to the first node
+    node1.process_active(send1.clone());
+
+    // The second node should not have the block
+    assert_never(Duration::from_millis(500), || {
+        node2.block(&send1.hash()).is_some()
+    });
+
+    // Activating the election should broadcast the block
+    node1.election_schedulers.add_manual(send1.clone().into());
+    assert_timely(Duration::from_secs(5), || {
+        node1.active.active_root(&send1.qualified_root())
+    });
+    assert_timely(Duration::from_secs(5), || node2.block_exists(&send1.hash()));
 }

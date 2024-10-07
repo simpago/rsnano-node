@@ -88,7 +88,6 @@ impl RepCrawler {
                 stopped: false,
                 last_query: None,
                 responses: BoundedVecDeque::new(Self::MAX_RESPONSES),
-                network_info,
             }),
         }
     }
@@ -99,7 +98,8 @@ impl RepCrawler {
             guard.stopped = true;
         }
         self.condition.notify_all();
-        if let Some(handle) = self.thread.lock().unwrap().take() {
+        let handle = self.thread.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap();
         }
     }
@@ -254,9 +254,32 @@ impl RepCrawler {
 
             if guard.query_predicate(interval) {
                 guard.last_query = Some(Instant::now());
+                drop(guard);
 
-                let targets =
-                    guard.prepare_crawl_targets(sufficient_weight, self.steady_clock.now());
+                // TODO: Make these values configurable
+                const CONSERVATIVE_COUNT: usize = 160;
+                const AGGRESSIVE_COUNT: usize = 160;
+
+                // Crawl more aggressively if we lack sufficient total peer weight.
+                let required_peer_count = if sufficient_weight {
+                    CONSERVATIVE_COUNT
+                } else {
+                    AGGRESSIVE_COUNT
+                };
+
+                /* include channels with ephemeral remote ports */
+                let random_peers = self
+                    .network_info
+                    .read()
+                    .unwrap()
+                    .random_realtime_channels(required_peer_count, 0);
+
+                guard = self.rep_crawler_impl.lock().unwrap();
+                let targets = guard.prepare_crawl_targets(
+                    sufficient_weight,
+                    random_peers,
+                    self.steady_clock.now(),
+                );
                 drop(guard);
                 self.query(targets);
                 guard = self.rep_crawler_impl.lock().unwrap();
@@ -454,7 +477,6 @@ struct RepCrawlerImpl {
     queries: OrderedQueries,
     online_reps: Arc<Mutex<OnlineReps>>,
     stats: Arc<Stats>,
-    network_info: Arc<RwLock<NetworkInfo>>,
     query_timeout: Duration,
     stopped: bool,
     last_query: Option<Instant>,
@@ -473,13 +495,13 @@ impl RepCrawlerImpl {
     fn prepare_crawl_targets(
         &self,
         sufficient_weight: bool,
+        mut random_peers: Vec<Arc<ChannelInfo>>,
         now: Timestamp,
     ) -> Vec<Arc<ChannelInfo>> {
         // TODO: Make these values configurable
-        const CONSERVATIVE_COUNT: usize = 160;
-        const AGGRESSIVE_COUNT: usize = 160;
         const CONSERVATIVE_MAX_ATTEMPTS: usize = 4;
         const AGGRESSIVE_MAX_ATTEMPTS: usize = 8;
+
         let rep_query_interval = if self.is_dev_network {
             Duration::from_millis(500)
         } else {
@@ -496,27 +518,14 @@ impl RepCrawlerImpl {
             Direction::In,
         );
 
-        // Crawl more aggressively if we lack sufficient total peer weight.
-        let required_peer_count = if sufficient_weight {
-            CONSERVATIVE_COUNT
-        } else {
-            AGGRESSIVE_COUNT
-        };
-
-        /* include channels with ephemeral remote ports */
-        let mut random_peers = self
-            .network_info
-            .read()
-            .unwrap()
-            .random_realtime_channels(required_peer_count, 0);
-
         random_peers.retain(|channel| {
-            match self
+            let elapsed = self
                 .online_reps
                 .lock()
                 .unwrap()
-                .last_request_elapsed(channel.channel_id(), now)
-            {
+                .last_request_elapsed(channel.channel_id(), now);
+
+            match elapsed {
                 Some(last_request_elapsed) => {
                     // Throttle queries to active reps
                     last_request_elapsed >= rep_query_interval

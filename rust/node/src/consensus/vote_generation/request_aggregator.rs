@@ -225,6 +225,7 @@ impl RequestAggregatorLoop {
                 .read()
                 .unwrap()
                 .is_queue_full(*channel_id, TrafficType::Generic);
+
             if !queue_full {
                 self.process(&tx, request, *channel_id);
             } else {

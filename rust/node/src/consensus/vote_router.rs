@@ -63,7 +63,8 @@ impl VoteRouter {
     pub fn stop(&self) {
         self.shared.1.lock().unwrap().stopped = true;
         self.shared.0.notify_all();
-        if let Some(thread) = self.thread.lock().unwrap().take() {
+        let thread = self.thread.lock().unwrap().take();
+        if let Some(thread) = thread {
             thread.join().unwrap();
         }
     }

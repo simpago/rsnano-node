@@ -478,7 +478,8 @@ enum class detail : uint16_t
 	notify_already_cemented,
 	notify_intermediate,
 	already_cemented,
-	cementing_hash,
+	cementing,
+	cemented_hash,
 
 	// election_state
 	passive,

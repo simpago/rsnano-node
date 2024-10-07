@@ -141,17 +141,6 @@ int64_t nano::active_elections::vacancy (nano::election_behavior behavior) const
 	return rsnano::rsn_active_transactions_vacancy (handle, static_cast<uint8_t> (behavior));
 }
 
-void nano::active_elections::set_vacancy_update (std::function<void ()> callback)
-{
-	auto context = new std::function<void ()> (callback);
-	rsnano::rsn_active_transactions_set_vacancy_update (handle, context, call_vacancy_update, delete_vacancy_update);
-}
-
-void nano::active_elections::vacancy_update ()
-{
-	rsnano::rsn_active_transactions_vacancy_update (handle);
-}
-
 std::vector<std::shared_ptr<nano::election>> nano::active_elections::list_active (std::size_t max_a)
 {
 	std::vector<std::shared_ptr<nano::election>> result_l;
@@ -306,13 +295,14 @@ nano::active_elections_config::active_elections_config (rsnano::ActiveElectionsC
 	hinted_limit_percentage{ dto.hinted_limit_percentage },
 	optimistic_limit_percentage{ dto.optimistic_limit_percentage },
 	confirmation_history_size{ dto.confirmation_history_size },
-	confirmation_cache{ dto.confirmation_cache }
+	confirmation_cache{ dto.confirmation_cache },
+	max_election_winners{ dto.max_election_winners }
 {
 }
 
 rsnano::ActiveElectionsConfigDto nano::active_elections_config::into_dto () const
 {
-	return { size, hinted_limit_percentage, optimistic_limit_percentage, confirmation_history_size, confirmation_cache };
+	return { size, hinted_limit_percentage, optimistic_limit_percentage, confirmation_history_size, confirmation_cache, max_election_winners };
 }
 
 nano::error nano::active_elections_config::deserialize (nano::tomlconfig & toml)

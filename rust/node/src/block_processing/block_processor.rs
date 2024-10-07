@@ -6,7 +6,7 @@ use crate::{
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
     work::WorkThresholds,
-    BlockEnum, BlockType, Epoch, HackyUnsafeMutBlock, HashOrAccount, UncheckedInfo,
+    BlockEnum, BlockType, Epoch, HackyUnsafeMutBlock, HashOrAccount, Networks, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
@@ -140,28 +140,26 @@ pub struct BlockProcessorConfig {
     pub work_thresholds: WorkThresholds,
 }
 
-impl Default for BlockProcessorConfig {
-    fn default() -> Self {
+impl BlockProcessorConfig {
+    pub const DEFAULT_BATCH_SIZE: usize = 0;
+    pub const DEFAULT_FULL_SIZE: usize = 65536;
+
+    pub fn new(work_thresholds: WorkThresholds) -> Self {
         Self {
+            work_thresholds,
             max_peer_queue: 128,
             max_system_queue: 16 * 1024,
             priority_live: 1,
             priority_bootstrap: 8,
             priority_local: 16,
             batch_max_time: Duration::from_millis(500),
-            full_size: 65536,
-            batch_size: 0,
-            work_thresholds: WorkThresholds::default(),
+            full_size: Self::DEFAULT_FULL_SIZE,
+            batch_size: Self::DEFAULT_BATCH_SIZE,
         }
     }
-}
 
-impl BlockProcessorConfig {
-    pub fn new(work_thresholds: WorkThresholds) -> Self {
-        Self {
-            work_thresholds,
-            ..Default::default()
-        }
+    pub fn new_for(network: Networks) -> Self {
+        Self::new(WorkThresholds::default_for(network))
     }
 }
 
@@ -216,7 +214,7 @@ impl BlockProcessor {
 
     pub fn new_test_instance(ledger: Arc<Ledger>) -> Self {
         BlockProcessor::new(
-            BlockProcessorConfig::default(),
+            BlockProcessorConfig::new_for(Networks::NanoDevNetwork),
             ledger,
             Arc::new(UncheckedMap::default()),
             Arc::new(Stats::default()),
@@ -243,7 +241,8 @@ impl BlockProcessor {
     pub fn stop(&self) {
         self.processor_loop.mutex.lock().unwrap().stopped = true;
         self.processor_loop.condition.notify_all();
-        if let Some(join_handle) = self.thread.lock().unwrap().take() {
+        let join_handle = self.thread.lock().unwrap().take();
+        if let Some(join_handle) = join_handle {
             join_handle.join().unwrap();
         }
     }
@@ -775,10 +774,7 @@ mod tests {
 
     #[test]
     fn insufficient_work() {
-        let config = BlockProcessorConfig {
-            work_thresholds: WorkThresholds::new_stub(),
-            ..Default::default()
-        };
+        let config = BlockProcessorConfig::new(WorkThresholds::new_stub());
         let ledger = Arc::new(Ledger::new_null());
         let unchecked = Arc::new(UncheckedMap::default());
         let stats = Arc::new(Stats::default());

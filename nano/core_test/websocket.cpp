@@ -929,8 +929,8 @@ TEST (websocket, telemetry)
 
 	ASSERT_TRUE (nano::test::compare_telemetry (telemetry_data, *node2));
 
-	ASSERT_EQ (contents.get<std::string> ("address"), remote.value().address ().to_string ());
-	ASSERT_EQ (contents.get<uint16_t> ("port"), remote.value().port ());
+	ASSERT_EQ (contents.get<std::string> ("address"), remote.value ().address ().to_string ());
+	ASSERT_EQ (contents.get<uint16_t> ("port"), remote.value ().port ());
 
 	// Other node should have no subscribers
 	EXPECT_EQ (0, node2->websocket.server->subscriber_count (nano::websocket::topic::telemetry));

@@ -89,7 +89,7 @@ impl TelemetryData {
     /// Size does not include unknown_data
     pub fn serialized_size_of_known_data() -> usize {
         Signature::serialized_size()
-        + Account::serialized_size()
+        + Account::serialized_size() // node id
         + size_of::<u64>() //block_count
           + size_of::<u64>()// cemented_count 
           + size_of::<u64>() // unchecked_count 
@@ -135,11 +135,63 @@ impl TelemetryData {
         writer.write_bytes_safe(&self.unknown_data);
     }
 
+    pub fn deserialize(stream: &mut dyn Stream, payload_len: usize) -> anyhow::Result<Self> {
+        let signature = Signature::deserialize(stream)?;
+        let node_id = PublicKey::deserialize(stream)?;
+        let block_count = stream.read_u64_be()?;
+        let cemented_count = stream.read_u64_be()?;
+        let unchecked_count = stream.read_u64_be()?;
+        let account_count = stream.read_u64_be()?;
+        let bandwidth_cap = stream.read_u64_be()?;
+        let peer_count = stream.read_u32_be()?;
+        let protocol_version = stream.read_u8()?;
+        let uptime = stream.read_u64_be()?;
+        let genesis_block = BlockHash::deserialize(stream)?;
+        let major_version = stream.read_u8()?;
+        let minor_version = stream.read_u8()?;
+        let patch_version = stream.read_u8()?;
+        let pre_release_version = stream.read_u8()?;
+        let maker = stream.read_u8()?;
+        let timestamp_ms = stream.read_u64_be()?;
+        let active_difficulty = stream.read_u64_be()?;
+        let mut unknown_data = Vec::new();
+        if payload_len as usize > TelemetryData::serialized_size_of_known_data() {
+            let unknown_len =
+                (payload_len as usize) - TelemetryData::serialized_size_of_known_data();
+            unknown_data.resize(unknown_len, 0);
+            stream.read_bytes(&mut unknown_data, unknown_len)?;
+        }
+
+        let data = TelemetryData {
+            signature,
+            node_id,
+            block_count,
+            cemented_count,
+            unchecked_count,
+            account_count,
+            bandwidth_cap,
+            peer_count,
+            protocol_version,
+            uptime,
+            genesis_block,
+            major_version,
+            minor_version,
+            patch_version,
+            pre_release_version,
+            maker,
+            timestamp: SystemTime::UNIX_EPOCH + Duration::from_millis(timestamp_ms),
+            active_difficulty,
+            unknown_data,
+        };
+
+        Ok(data)
+    }
+
     pub fn sign(&mut self, keys: &KeyPair) -> Result<()> {
         debug_assert!(keys.public_key() == self.node_id);
         let mut stream = MemoryStream::new();
         self.serialize_without_signature(&mut stream);
-        self.signature = sign_message(&keys.private_key(), &keys.public_key(), stream.as_bytes());
+        self.signature = sign_message(&keys.private_key(), stream.as_bytes());
         Ok(())
     }
 
@@ -222,38 +274,8 @@ impl TelemetryAck {
             return Some(Self(None));
         }
 
-        let mut result = TelemetryData {
-            signature: Signature::deserialize(stream).ok()?,
-            node_id: PublicKey::deserialize(stream).ok()?,
-            block_count: stream.read_u64_be().ok()?,
-            cemented_count: stream.read_u64_be().ok()?,
-            unchecked_count: stream.read_u64_be().ok()?,
-            account_count: stream.read_u64_be().ok()?,
-            bandwidth_cap: stream.read_u64_be().ok()?,
-            peer_count: stream.read_u32_be().ok()?,
-            protocol_version: stream.read_u8().ok()?,
-            uptime: stream.read_u64_be().ok()?,
-            genesis_block: BlockHash::deserialize(stream).ok()?,
-            major_version: stream.read_u8().ok()?,
-            minor_version: stream.read_u8().ok()?,
-            patch_version: stream.read_u8().ok()?,
-            pre_release_version: stream.read_u8().ok()?,
-            maker: stream.read_u8().ok()?,
-            timestamp: {
-                let timestamp_ms = stream.read_u64_be().ok()?;
-                SystemTime::UNIX_EPOCH + Duration::from_millis(timestamp_ms)
-            },
-            active_difficulty: stream.read_u64_be().ok()?,
-            unknown_data: Vec::new(),
-        };
-        if payload_length as usize > TelemetryData::serialized_size_of_known_data() {
-            let unknown_len =
-                (payload_length as usize) - TelemetryData::serialized_size_of_known_data();
-            result.unknown_data.resize(unknown_len, 0);
-            stream
-                .read_bytes(&mut result.unknown_data, unknown_len)
-                .ok()?;
-        }
+        let result = TelemetryData::deserialize(stream, payload_length).ok()?;
+
         Some(Self(Some(result)))
     }
 }
@@ -326,9 +348,13 @@ impl Display for TelemetryData {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{assert_deserializable, Message};
 
-    use super::*;
+    #[test]
+    fn serialized_size() {
+        assert_eq!(TelemetryData::serialized_size_of_known_data(), 202);
+    }
 
     // original test: telemetry.signatures
     #[test]

@@ -10,6 +10,10 @@ impl Priority {
     }
 
     pub const ZERO: Self = Self(OrderedFloat(0.0));
+
+    pub fn as_f64(&self) -> f64 {
+        self.0 .0
+    }
 }
 
 impl Add for Priority {
@@ -46,7 +50,7 @@ impl Div<f64> for Priority {
 
 impl From<Priority> for f64 {
     fn from(value: Priority) -> Self {
-        value.0 .0
+        value.as_f64()
     }
 }
 
@@ -89,5 +93,55 @@ impl Deref for PriorityKeyDesc {
 impl From<Priority> for PriorityKeyDesc {
     fn from(value: Priority) -> Self {
         Self(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create() {
+        assert_priority_eq(Priority::new(1.0), Priority::new(1.0));
+        assert!(Priority::new(1.0) != Priority::new(1.1));
+        assert_eq!(Priority::new(1.23).as_f64(), 1.23);
+    }
+
+    #[test]
+    fn add() {
+        assert_priority_eq(Priority::new(1.0) + Priority::new(2.5), Priority::new(3.5));
+    }
+
+    #[test]
+    fn sub() {
+        assert_priority_eq(Priority::new(2.4) - Priority::new(1.1), Priority::new(1.3));
+    }
+
+    #[test]
+    fn mul() {
+        assert_priority_eq(Priority::new(2.4) * 2.0, Priority::new(4.8));
+    }
+
+    #[test]
+    fn div() {
+        assert_priority_eq(Priority::new(2.4) / 2.0, Priority::new(1.2));
+    }
+
+    #[test]
+    fn format() {
+        assert_eq!(format!("{}", Priority::new(1.23)), "1.23");
+        assert_eq!(format!("{:?}", Priority::new(1.23)), "1.23");
+    }
+
+    fn assert_priority_eq(actual: Priority, expected: Priority) {
+        let actual = actual.as_f64();
+        let expected = expected.as_f64();
+        let diff = actual - expected;
+        assert!(
+            diff.abs() < 0.001,
+            "expected priority {} to be equal to {}",
+            actual,
+            expected
+        );
     }
 }

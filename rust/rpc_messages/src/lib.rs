@@ -15,28 +15,85 @@ pub use wallets::*;
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum RpcCommand {
     AccountInfo(AccountInfoArgs),
-    Keepalive(KeepaliveArgs),
+    Keepalive(AddressWithPortArg),
     Stop,
     KeyCreate,
     Receive(ReceiveArgs),
     Send(SendArgs),
     WalletAdd(WalletAddArgs),
-    WalletCreate,
-    ReceiveMinimumSet(AmountRpcMessage)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::RpcCommand;
-    use serde_json::to_string_pretty;
-
-    #[test]
-    fn serialize_stop_command() {
-        assert_eq!(
-            to_string_pretty(&RpcCommand::Stop).unwrap(),
-            r#"{
-  "action": "stop"
-}"#
-        )
-    }
+    AccountCreate(AccountCreateArgs),
+    AccountBalance(AccountBalanceArgs),
+    AccountsCreate(AccountsCreateArgs),
+    AccountRemove(WalletWithAccountArgs),
+    AccountMove(AccountMoveArgs),
+    AccountList(WalletRpcMessage),
+    WalletCreate(WalletCreateArgs),
+    WalletContains(WalletWithAccountArgs),
+    WalletDestroy(WalletRpcMessage),
+    WalletLock(WalletRpcMessage),
+    WalletLocked(WalletRpcMessage),
+    AccountBlockCount(AccountRpcMessage),
+    AccountKey(AccountRpcMessage),
+    AccountGet(KeyRpcMessage),
+    AccountRepresentative(AccountRpcMessage),
+    AccountWeight(AccountRpcMessage),
+    AvailableSupply,
+    BlockAccount(BlockHashRpcMessage),
+    BlockConfirm(BlockHashRpcMessage),
+    BlockCount,
+    Uptime,
+    FrontierCount,
+    ValidateAccountNumber(AccountRpcMessage),
+    NanoToRaw(AmountDto),
+    RawToNano(AmountDto),
+    WalletAddWatch(WalletAddWatchArgs),
+    WalletRepresentative(WalletRpcMessage),
+    WorkSet(WorkSetArgs),
+    WorkGet(WalletWithAccountArgs),
+    WalletWorkGet(WalletRpcMessage),
+    AccountsFrontiers(AccountsRpcMessage),
+    WalletFrontiers(WalletRpcMessage),
+    Frontiers(AccountWithCountArgs),
+    WalletInfo(WalletRpcMessage),
+    WalletExport(WalletRpcMessage),
+    PasswordChange(WalletWithPasswordArgs),
+    PasswordEnter(WalletWithPasswordArgs),
+    PasswordValid(WalletRpcMessage),
+    DeterministicKey(DeterministicKeyArgs),
+    KeyExpand(KeyExpandArgs),
+    Peers(PeersArgs),
+    PopulateBacklog,
+    Representatives(RepresentativesArgs),
+    AccountsRepresentatives(AccountsRpcMessage),
+    StatsClear,
+    UncheckedClear,
+    Unopened(UnopenedArgs),
+    NodeId,
+    SearchReceivableAll,
+    ReceiveMinimum,
+    WalletChangeSeed(WalletChangeSeedArgs),
+    Delegators(DelegatorsArgs),
+    DelegatorsCount(AccountRpcMessage),
+    BlockHash(BlockHashArgs),
+    AccountsBalances(AccountsBalancesArgs),
+    BlockInfo(BlockHashRpcMessage),
+    Blocks(BlocksHashesRpcMessage),
+    BlocksInfo(BlocksHashesRpcMessage),
+    Chain(ChainArgs),
+    Successors(ChainArgs),
+    ConfirmationActive(ConfirmationActiveArgs),
+    ConfirmationQuorum(ConfirmationQuorumArgs),
+    WorkValidate(WorkValidateArgs),
+    AccountHistory(AccountHistoryArgs),
+    Sign(SignArgs),
+    Process(ProcessArgs),
+    WorkCancel(BlockHashRpcMessage),
+    Bootstrap(BootstrapArgs),
+    BootstrapAny(BootstrapAnyArgs),
+    BoostrapLazy(BootsrapLazyArgs),
+    WalletReceivable(WalletReceivableArgs),
+    WalletRepresentativeSet(WalletRepresentativeSetArgs),
+    SearchReceivable(WalletRpcMessage),
+    WalletRepublish(WalletWithCountArgs),
+    ReceiveMinimumSet(AmountDto)
 }

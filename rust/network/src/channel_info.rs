@@ -131,7 +131,7 @@ impl ChannelInfo {
             .unwrap()
             .peering_addr
             .clone()
-            .unwrap_or(self.peer_addr())
+            .unwrap_or(self.peer_addr)
     }
 
     pub fn ipv4_address_or_ipv6_subnet(&self) -> Ipv6Addr {

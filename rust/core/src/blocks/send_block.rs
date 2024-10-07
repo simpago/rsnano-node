@@ -6,6 +6,7 @@ use crate::{
     PendingKey, PublicKey, RawKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
+use serde::de::{Unexpected, Visitor};
 
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct SendHashables {
@@ -89,7 +90,7 @@ impl SendBlock {
         };
 
         let hash = LazyBlockHash::new();
-        let signature = sign_message(private_key, public_key, hash.hash(&hashables).as_bytes());
+        let signature = sign_message(private_key, hash.hash(&hashables).as_bytes());
 
         Self {
             hashables,
@@ -118,7 +119,7 @@ impl SendBlock {
 
         let mut buffer = [0u8; 8];
         stream.read_bytes(&mut buffer, 8)?;
-        let work = u64::from_be_bytes(buffer);
+        let work = u64::from_le_bytes(buffer);
         Ok(SendBlock {
             hashables,
             signature,
@@ -157,7 +158,7 @@ impl SendBlock {
     pub fn deserialize_json(reader: &impl PropertyTree) -> Result<Self> {
         let previous = BlockHash::decode_hex(reader.get_string("previous")?)?;
         let destination = Account::decode_account(reader.get_string("destination")?)?;
-        let balance = Amount::decode_dec(reader.get_string("balance")?)?;
+        let balance = Amount::decode_hex(reader.get_string("balance")?)?;
         let signature = Signature::decode_hex(reader.get_string("signature")?)?;
         let work = u64_from_hex_str(reader.get_string("work")?)?;
         Ok(SendBlock {
@@ -250,14 +251,14 @@ impl Block for SendBlock {
     fn serialize_without_block_type(&self, writer: &mut dyn BufferWriter) {
         self.hashables.serialize(writer);
         self.signature.serialize(writer);
-        writer.write_bytes_safe(&self.work.to_be_bytes());
+        writer.write_bytes_safe(&self.work.to_le_bytes());
     }
 
     fn serialize_json(&self, writer: &mut dyn PropertyTree) -> Result<()> {
         writer.put_string("type", "send")?;
         writer.put_string("previous", &self.hashables.previous.encode_hex())?;
         writer.put_string("destination", &self.hashables.destination.encode_account())?;
-        writer.put_string("balance", &self.hashables.balance.to_string_dec())?;
+        writer.put_string("balance", &self.hashables.balance.encode_hex())?;
         writer.put_string("work", &to_hex_string(self.work))?;
         writer.put_string("signature", &self.signature.encode_hex())?;
         Ok(())
@@ -299,7 +300,7 @@ impl Block for SendBlock {
         JsonBlock::Send(JsonSendBlock {
             previous: self.hashables.previous,
             destination: self.hashables.destination,
-            balance: self.hashables.balance,
+            balance: self.hashables.balance.into(),
             work: self.work.into(),
             signature: self.signature.clone(),
         })
@@ -311,7 +312,7 @@ impl From<JsonSendBlock> for SendBlock {
         let hashables = SendHashables {
             previous: value.previous,
             destination: value.destination,
-            balance: value.balance,
+            balance: value.balance.into(),
         };
 
         let hash = LazyBlockHash::new();
@@ -330,9 +331,74 @@ impl From<JsonSendBlock> for SendBlock {
 pub struct JsonSendBlock {
     pub previous: BlockHash,
     pub destination: Account,
-    pub balance: Amount,
+    pub balance: AmountHex,
     pub work: WorkNonce,
     pub signature: Signature,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct AmountHex(u128);
+
+impl AmountHex {
+    pub fn new(amount: u128) -> Self {
+        Self(amount)
+    }
+}
+
+impl From<Amount> for AmountHex {
+    fn from(value: Amount) -> Self {
+        Self(value.number())
+    }
+}
+
+impl From<AmountHex> for Amount {
+    fn from(value: AmountHex) -> Self {
+        Amount::raw(value.0)
+    }
+}
+
+impl serde::Serialize for AmountHex {
+    fn serialize<S>(&self, serializer: S) -> std::prelude::v1::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let amount = Amount::raw(self.0);
+        let hex = amount.encode_hex();
+        serializer.serialize_str(&hex)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for AmountHex {
+    fn deserialize<D>(deserializer: D) -> std::prelude::v1::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = deserializer.deserialize_str(AmountHexVisitor {})?;
+        Ok(value)
+    }
+}
+
+struct AmountHexVisitor {}
+
+impl<'de> Visitor<'de> for AmountHexVisitor {
+    type Value = AmountHex;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a u128 bit amount in encoded as hex string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let amount = Amount::decode_hex(v).map_err(|_| {
+            serde::de::Error::invalid_value(
+                Unexpected::Str(v),
+                &"a u128 bit amount in encoded as hex string",
+            )
+        })?;
+        Ok(amount.into())
+    }
 }
 
 #[cfg(test)]
@@ -406,10 +472,28 @@ mod tests {
   "type": "send",
   "previous": "0000000000000000000000000000000000000000000000000000000000000001",
   "destination": "nano_11111111111111111111111111111111111111111111111111147dcwzp3c",
-  "balance": "3",
+  "balance": "00000000000000000000000000000003",
   "work": "000000001949D66C",
   "signature": "076FF9D1587141EC1DDB05493092B0BFE160B6EEE96D37462B11A81F2622A5211756316A9B48BB403EE4AC57BCCA2023C2075F7214B6B33211B9E5350B76A606"
 }"#
+        );
+    }
+
+    #[test]
+    fn serde_serialize_amount_hex() {
+        let serialized =
+            serde_json::to_string_pretty(&AmountHex::new(337010421085160209006996005437231978653))
+                .unwrap();
+        assert_eq!(serialized, "\"FD89D89D89D89D89D89D89D89D89D89D\"");
+    }
+
+    #[test]
+    fn serde_deserialize_amount_hex() {
+        let deserialized: AmountHex =
+            serde_json::from_str("\"FD89D89D89D89D89D89D89D89D89D89D\"").unwrap();
+        assert_eq!(
+            deserialized,
+            AmountHex::new(337010421085160209006996005437231978653)
         );
     }
 }

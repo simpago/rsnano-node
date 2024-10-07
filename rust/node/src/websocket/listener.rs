@@ -78,7 +78,8 @@ impl WebsocketListener {
 
     /// Close all websocket sessions and stop listening for new connections
     pub async fn stop_async(&self) {
-        if let Some(tx) = self.tx_stop.lock().unwrap().take() {
+        let tx = self.tx_stop.lock().unwrap().take();
+        if let Some(tx) = tx {
             tx.send(()).unwrap()
         }
 

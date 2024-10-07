@@ -1,5 +1,5 @@
 use crate::{
-    consensus::{OptimisticScheduler, PriorityScheduler},
+    consensus::election_schedulers::ElectionSchedulers,
     stats::{DetailType, StatType, Stats},
 };
 use primitive_types::U256;
@@ -44,19 +44,17 @@ pub struct BacklogPopulation {
     /** Thread that runs the backlog implementation logic. The thread always runs, even if
      *  backlog population is disabled, so that it can service a manual trigger (e.g. via RPC). */
     thread: Mutex<Option<JoinHandle<()>>>,
-    optimistic_scheduler: Arc<OptimisticScheduler>,
-    priority_scheduler: Arc<PriorityScheduler>,
+    election_schedulers: Arc<ElectionSchedulers>,
 }
 
 pub type ActivateCallback = Box<dyn Fn(&dyn Transaction, &Account) + Send + Sync>;
 
 impl BacklogPopulation {
-    pub fn new(
+    pub(crate) fn new(
         config: BacklogPopulationConfig,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
-        optimistic_scheduler: Arc<OptimisticScheduler>,
-        priority_scheduler: Arc<PriorityScheduler>,
+        election_schedulers: Arc<ElectionSchedulers>,
     ) -> Self {
         Self {
             config,
@@ -69,8 +67,7 @@ impl BacklogPopulation {
             })),
             condition: Arc::new(Condvar::new()),
             thread: Mutex::new(None),
-            optimistic_scheduler,
-            priority_scheduler,
+            election_schedulers,
         }
     }
 
@@ -89,8 +86,7 @@ impl BacklogPopulation {
             config: self.config.clone(),
             mutex: self.mutex.clone(),
             condition: self.condition.clone(),
-            optimistic_scheduler: self.optimistic_scheduler.clone(),
-            priority_scheduler: self.priority_scheduler.clone(),
+            election_schedulers: self.election_schedulers.clone(),
         };
 
         *self.thread.lock().unwrap() = Some(
@@ -108,7 +104,8 @@ impl BacklogPopulation {
         lock.stopped = true;
         drop(lock);
         self.notify();
-        if let Some(handle) = self.thread.lock().unwrap().take() {
+        let handle = self.thread.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap()
         }
     }
@@ -141,8 +138,7 @@ struct BacklogPopulationThread {
     config: BacklogPopulationConfig,
     mutex: Arc<Mutex<BacklogPopulationFlags>>,
     condition: Arc<Condvar>,
-    optimistic_scheduler: Arc<OptimisticScheduler>,
-    priority_scheduler: Arc<PriorityScheduler>,
+    election_schedulers: Arc<ElectionSchedulers>,
 }
 
 impl BacklogPopulationThread {
@@ -238,10 +234,8 @@ impl BacklogPopulationThread {
                 callback(txn, account);
             }
 
-            self.optimistic_scheduler
-                .activate(account, account_info, &conf_info);
-            self.priority_scheduler
-                .activate_with_info(txn, account, account_info, &conf_info);
+            self.election_schedulers
+                .activate_backlog(txn, account, account_info, &conf_info);
         }
     }
 }

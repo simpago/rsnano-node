@@ -11,9 +11,8 @@ pub async fn key_expand(key: RawKey) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::service::responses::test_helpers::setup_rpc_client_and_server;
     use rsnano_core::{Account, PublicKey, RawKey};
-    use test_helpers::System;
+    use test_helpers::{setup_rpc_client_and_server, System};
 
     #[test]
     fn key_expand() {

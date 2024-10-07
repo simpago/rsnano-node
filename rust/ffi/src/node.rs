@@ -254,14 +254,14 @@ pub extern "C" fn rsn_node_tcp_listener(handle: &NodeHandle) -> *mut TcpListener
 #[no_mangle]
 pub extern "C" fn rsn_node_manual(handle: &NodeHandle) -> *mut ManualSchedulerHandle {
     Box::into_raw(Box::new(ManualSchedulerHandle(Arc::clone(
-        &handle.0.manual_scheduler,
+        &handle.0.election_schedulers.manual,
     ))))
 }
 
 #[no_mangle]
 pub extern "C" fn rsn_node_priority(handle: &NodeHandle) -> *mut ElectionSchedulerHandle {
     Box::into_raw(Box::new(ElectionSchedulerHandle(Arc::clone(
-        &handle.0.priority_scheduler,
+        &handle.0.election_schedulers.priority,
     ))))
 }
 
@@ -423,7 +423,8 @@ pub struct RepDetailsHandle(Vec<(PublicKey, SocketAddrV6, Amount)>);
 #[no_mangle]
 pub extern "C" fn rsn_node_representative_details(handle: &NodeHandle) -> *mut RepDetailsHandle {
     let mut result = Vec::new();
-    for rep in handle.0.online_reps.lock().unwrap().peered_reps() {
+    let reps = handle.0.online_reps.lock().unwrap().peered_reps();
+    for rep in reps {
         let endpoint = handle
             .0
             .network_info

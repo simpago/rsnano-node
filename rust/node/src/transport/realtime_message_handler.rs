@@ -1,19 +1,19 @@
-use super::{MessagePublisher, NetworkFilter};
+use super::NetworkFilter;
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapAscending, BootstrapServer},
-    config::{NodeConfig, NodeFlags},
+    config::NodeConfig,
     consensus::{RequestAggregator, VoteProcessorQueue},
     stats::{DetailType, Direction, StatType, Stats},
     wallets::Wallets,
     Telemetry,
 };
 use rsnano_core::VoteSource;
-use rsnano_messages::{Message, TelemetryAck};
-use rsnano_network::{ChannelInfo, DropPolicy, NetworkInfo, TrafficType};
+use rsnano_messages::Message;
+use rsnano_network::{ChannelInfo, NetworkInfo};
 use std::{
     net::SocketAddrV6,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 use tracing::trace;
 
@@ -24,14 +24,12 @@ pub struct RealtimeMessageHandler {
     network_info: Arc<RwLock<NetworkInfo>>,
     block_processor: Arc<BlockProcessor>,
     config: NodeConfig,
-    flags: NodeFlags,
     wallets: Arc<Wallets>,
     request_aggregator: Arc<RequestAggregator>,
     vote_processor_queue: Arc<VoteProcessorQueue>,
     telemetry: Arc<Telemetry>,
     bootstrap_server: Arc<BootstrapServer>,
     ascend_boot: Arc<BootstrapAscending>,
-    message_publisher: Mutex<MessagePublisher>,
 }
 
 impl RealtimeMessageHandler {
@@ -41,14 +39,12 @@ impl RealtimeMessageHandler {
         publish_filter: Arc<NetworkFilter>,
         block_processor: Arc<BlockProcessor>,
         config: NodeConfig,
-        flags: NodeFlags,
         wallets: Arc<Wallets>,
         request_aggregator: Arc<RequestAggregator>,
         vote_processor_queue: Arc<VoteProcessorQueue>,
         telemetry: Arc<Telemetry>,
         bootstrap_server: Arc<BootstrapServer>,
         ascend_boot: Arc<BootstrapAscending>,
-        message_publisher: MessagePublisher,
     ) -> Self {
         Self {
             stats,
@@ -56,14 +52,12 @@ impl RealtimeMessageHandler {
             publish_filter,
             block_processor,
             config,
-            flags,
             wallets,
             request_aggregator,
             vote_processor_queue,
             telemetry,
             bootstrap_server,
             ascend_boot,
-            message_publisher: Mutex::new(message_publisher),
         }
     }
 

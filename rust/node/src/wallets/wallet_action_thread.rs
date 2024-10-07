@@ -47,7 +47,8 @@ impl WalletActionThread {
 
     pub fn stop(&self) {
         self.action_loop.stop();
-        if let Some(join_handle) = self.join_handle.lock().unwrap().take() {
+        let join_handle = self.join_handle.lock().unwrap().take();
+        if let Some(join_handle) = join_handle {
             join_handle.join().unwrap();
         }
     }

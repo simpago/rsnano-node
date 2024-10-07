@@ -393,8 +393,8 @@ mod tests {
             default_cfg.node.preconfigured_representatives
         );
         assert_ne!(
-            deserialized.node.receive_minimum,
-            default_cfg.node.receive_minimum
+            *deserialized.node.receive_minimum.lock().unwrap(),
+            *default_cfg.node.receive_minimum.lock().unwrap()
         );
         assert_ne!(
             deserialized.node.signature_checker_threads,
@@ -982,18 +982,6 @@ mod tests {
             deserialized.rpc.child_process.rpc_path,
             default_cfg.rpc.child_process.rpc_path
         );
-    }
-
-    #[test]
-    fn deserialize_empty() {
-        let toml_str = "";
-        let daemon_toml: DaemonToml = toml::from_str(toml_str).expect("Failed to deserialize TOML");
-
-        let mut deserialized_daemon_config = create_default_daemon_config();
-        deserialized_daemon_config.merge_toml(&daemon_toml);
-        let default_daemon_config = create_default_daemon_config();
-
-        assert_eq!(&deserialized_daemon_config, &default_daemon_config);
     }
 
     fn create_default_daemon_config() -> DaemonConfig {

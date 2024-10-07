@@ -135,7 +135,7 @@ impl BlockValidationTest {
 
 fn new_test_validator<'a>(block: &'a BlockEnum, account: Account) -> BlockValidator {
     BlockValidator {
-        block: block,
+        block,
         epochs: &LEDGER_CONSTANTS_STUB.epochs,
         work: &WORK_THRESHOLDS_STUB,
         block_exists: false,

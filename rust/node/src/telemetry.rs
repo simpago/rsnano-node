@@ -45,7 +45,7 @@ pub struct Telemetry {
     network_info: Arc<RwLock<NetworkInfo>>,
     message_publisher: Mutex<MessagePublisher>,
     node_id: KeyPair,
-    startup_time: Instant,
+    pub startup_time: Instant,
     telemetry_processed_callbacks:
         Mutex<Vec<Box<dyn Fn(&TelemetryData, &SocketAddrV6) + Send + Sync>>>,
     clock: Arc<SteadyClock>,
@@ -94,7 +94,8 @@ impl Telemetry {
     pub fn stop(&self) {
         self.mutex.lock().unwrap().stopped = true;
         self.condition.notify_all();
-        if let Some(handle) = self.thread.lock().unwrap().take() {
+        let handle = self.thread.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap();
         }
     }
@@ -344,6 +345,12 @@ impl Telemetry {
     }
 
     pub fn local_telemetry(&self) -> TelemetryData {
+        let peer_count = self
+            .network_info
+            .read()
+            .unwrap()
+            .count_by_mode(ChannelMode::Realtime) as u32;
+
         let mut telemetry_data = TelemetryData {
             node_id: self.node_id.public_key(),
             block_count: self.ledger.block_count(),
@@ -353,11 +360,7 @@ impl Telemetry {
             uptime: self.startup_time.elapsed().as_secs(),
             unchecked_count: self.unchecked.len() as u64,
             genesis_block: self.network_params.ledger.genesis.hash(),
-            peer_count: self
-                .network_info
-                .read()
-                .unwrap()
-                .count_by_mode(ChannelMode::Realtime) as u32,
+            peer_count,
             account_count: self.ledger.account_count(),
             major_version: MAJOR_VERSION,
             minor_version: MINOR_VERSION,
@@ -375,12 +378,12 @@ impl Telemetry {
     }
 }
 
-pub const MAJOR_VERSION: u8 = 28; // TODO: get this from cmake
+pub const MAJOR_VERSION: u8 = 2; // TODO: get this from cmake
 pub const MINOR_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PATCH_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PRE_RELEASE_VERSION: u8 = 99; // TODO: get this from cmake
 pub const BUILD_INFO: &'static str = "TODO get buildinfo";
-pub const VERSION_STRING: &'static str = "27.0"; // TODO: get this from cmake
+pub const VERSION_STRING: &'static str = "2.0"; // TODO: get this from cmake
 
 #[derive(Clone, Hash, Copy, PartialEq, Eq, Default)]
 struct VendorVersion {

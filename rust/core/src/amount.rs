@@ -182,6 +182,12 @@ impl std::ops::Mul<u128> for Amount {
     }
 }
 
+impl std::ops::SubAssign<u128> for Amount {
+    fn sub_assign(&mut self, rhs: u128) {
+        self.raw -= rhs;
+    }
+}
+
 impl std::cmp::PartialOrd for Amount {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.raw.partial_cmp(&other.raw)

@@ -74,13 +74,12 @@ impl PeerConnector {
             if let Err(e) =
                 network.add_outbound_attempt(peer, ChannelMode::Realtime, self.clock.now())
             {
+                drop(network);
                 self.network_observer
                     .error(e, &peer, ChannelDirection::Outbound);
 
                 return false;
             }
-
-            self.network_observer.connection_attempt(&peer);
 
             if let Err(e) = network.validate_new_connection(
                 &peer,
@@ -89,12 +88,14 @@ impl PeerConnector {
                 self.clock.now(),
             ) {
                 network.remove_attempt(&peer);
+                drop(network);
                 self.network_observer
                     .error(e, &peer, ChannelDirection::Outbound);
                 return false;
             }
         }
 
+        self.network_observer.connection_attempt(&peer);
         self.network_observer.merge_peer();
 
         let network_l = self.network.clone();

@@ -1,9 +1,9 @@
 use rsnano_core::Amount;
-use crate::{AmountRpcMessage, RpcCommand};
+use crate::{AmountDto, RpcCommand};
 
 impl RpcCommand {
     pub fn receive_minimum_set(amount: Amount) -> Self {
-        Self::ReceiveMinimumSet(AmountRpcMessage::new("amount".to_string(), amount))
+        Self::ReceiveMinimumSet(AmountDto::new("amount".to_string(), amount))
     }
 }
 

@@ -20,6 +20,7 @@ pub use node_rpc_config::*;
 pub use opencl_config::*;
 pub use optimistic_scheduler_config::*;
 pub use rpc_config::*;
+use rsnano_core::ACTIVE_NETWORK;
 use rsnano_node::block_processing::BlockProcessorConfig;
 pub use websocket_config::*;
 
@@ -34,7 +35,7 @@ pub struct BlockProcessorConfigDto {
 
 impl From<&BlockProcessorConfigDto> for BlockProcessorConfig {
     fn from(value: &BlockProcessorConfigDto) -> Self {
-        let mut config = BlockProcessorConfig::default();
+        let mut config = BlockProcessorConfig::new_for(*ACTIVE_NETWORK.lock().unwrap());
         config.max_peer_queue = value.max_peer_queue;
         config.max_system_queue = value.max_system_queue;
         config.priority_live = value.priority_live;

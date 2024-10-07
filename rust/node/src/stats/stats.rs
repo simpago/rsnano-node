@@ -74,7 +74,8 @@ impl Stats {
     pub fn stop(&self) {
         self.stats_loop.loop_state.lock().unwrap().stopped = true;
         self.stats_loop.condition.notify_all();
-        if let Some(handle) = self.thread.lock().unwrap().take() {
+        let handle = self.thread.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap();
         }
     }

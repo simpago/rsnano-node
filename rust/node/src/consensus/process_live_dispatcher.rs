@@ -1,4 +1,4 @@
-use super::PriorityScheduler;
+use super::election_schedulers::ElectionSchedulers;
 use crate::{
     block_processing::BlockProcessor,
     websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
@@ -14,19 +14,19 @@ use std::sync::Arc;
 /// Observes confirmed blocks and dispatches the process_live function.
 pub struct ProcessLiveDispatcher {
     ledger: Arc<Ledger>,
-    scheduler: Arc<PriorityScheduler>,
+    election_schedulers: Arc<ElectionSchedulers>,
     websocket: Option<Arc<WebsocketListener>>,
 }
 
 impl ProcessLiveDispatcher {
     pub fn new(
         ledger: Arc<Ledger>,
-        scheduler: Arc<PriorityScheduler>,
+        election_schedulers: Arc<ElectionSchedulers>,
         websocket: Option<Arc<WebsocketListener>>,
     ) -> Self {
         Self {
             ledger,
-            scheduler,
+            election_schedulers,
             websocket,
         }
     }
@@ -40,7 +40,7 @@ impl ProcessLiveDispatcher {
     fn process_live(&self, block: &BlockEnum, tx: &LmdbReadTransaction) {
         // Start collecting quorum on block
         if self.ledger.dependents_confirmed(tx, block) {
-            self.scheduler.activate(tx, &block.account());
+            self.election_schedulers.activate(tx, &block.account());
         }
 
         if let Some(websocket) = &self.websocket {

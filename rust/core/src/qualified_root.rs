@@ -6,7 +6,7 @@ use crate::{
 };
 use primitive_types::U512;
 
-#[derive(Default, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Default, Clone, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
 pub struct QualifiedRoot {
     pub root: Root,
     pub previous: BlockHash,
@@ -66,8 +66,7 @@ impl Deserialize for QualifiedRoot {
 
 impl From<U512> for QualifiedRoot {
     fn from(value: U512) -> Self {
-        let mut bytes = [0; 64];
-        value.to_big_endian(&mut bytes);
+        let bytes = value.to_big_endian();
         let root = Root::from_slice(&bytes[..32]).unwrap();
         let previous = BlockHash::from_slice(&bytes[32..]).unwrap();
         QualifiedRoot { root, previous }

@@ -11,7 +11,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use ordered_float::OrderedFloat;
-use rsnano_core::{utils::PropertyTree, Account, BlockHash};
+use rsnano_core::{utils::PropertyTree, Account, BlockHash, Networks};
 use rsnano_network::{
     ChannelDirection, ChannelMode, Network, NetworkInfo, NetworkObserver, NullNetworkObserver,
 };
@@ -102,7 +102,7 @@ impl BootstrapConnections {
             populate_connections_started: AtomicBool::new(false),
             attempts: Arc::new(Mutex::new(BootstrapAttempts::new())),
             mutex: Mutex::new(BootstrapConnectionsData::default()),
-            config: BootstrapInitiatorConfig::default(),
+            config: BootstrapInitiatorConfig::default_for(Networks::NanoDevNetwork),
             connections_count: AtomicU32::new(0),
             new_connections_empty: AtomicBool::new(false),
             stopped: AtomicBool::new(false),
@@ -242,12 +242,13 @@ pub trait BootstrapConnectionsExt {
 #[async_trait]
 impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
     fn pool_connection(&self, client_a: Arc<BootstrapClient>, new_client: bool, push_front: bool) {
-        let mut guard = self.mutex.lock().unwrap();
         let excluded = self
             .network_info
             .write()
             .unwrap()
             .is_excluded(&client_a.remote_addr(), self.clock.now());
+
+        let mut guard = self.mutex.lock().unwrap();
 
         if !self.stopped.load(Ordering::SeqCst) && !client_a.pending_stop() && !excluded {
             client_a.set_timeout(self.config.idle_timeout);
@@ -278,6 +279,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             .unwrap()
             .find(pull.bootstrap_id as usize)
             .cloned();
+
         if let Some(attempt_l) = attempt_l {
             attempt_l.inc_requeued_pulls();
             let mut is_lazy = false;
@@ -504,16 +506,12 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
             // TODO - tune this better
             // Not many peers respond, need to try to make more connections than we need.
             for _ in 0..delta {
-                let endpoint = self
-                    .network_info
-                    .write()
-                    .unwrap()
-                    .bootstrap_peer(self.clock.now()); // Legacy bootstrap is compatible with older version of protocol
-                let excluded = self
-                    .network_info
-                    .write()
-                    .unwrap()
-                    .is_excluded(&endpoint, self.clock.now());
+                let (endpoint, excluded) = {
+                    let mut network = self.network_info.write().unwrap();
+                    let endpoint = network.bootstrap_peer(self.clock.now()); // Legacy bootstrap is compatible with older version of protocol
+                    let excluded = network.is_excluded(&endpoint, self.clock.now());
+                    (endpoint, excluded)
+                };
                 if endpoint != SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)
                     && (self.config.allow_bootstrap_peers_duplicates
                         || !endpoints.contains(&endpoint))
@@ -559,11 +557,11 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 ChannelMode::Bootstrap,
                 self.clock.now(),
             ) {
+                drop(network_info);
                 self.network_stats
                     .error(e, &peer_addr, ChannelDirection::Outbound);
                 return false;
             }
-            self.network_stats.connection_attempt(&peer_addr);
 
             if let Err(e) = network_info.validate_new_connection(
                 &peer_addr,
@@ -581,6 +579,8 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                 return false;
             }
         }
+
+        self.network_stats.connection_attempt(&peer_addr);
 
         let tcp_stream_factory = Arc::new(TcpStreamFactory::new());
         let tcp_stream = match tokio::time::timeout(

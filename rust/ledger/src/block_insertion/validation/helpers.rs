@@ -176,6 +176,14 @@ impl<'a> BlockValidator<'a> {
         }
     }
 
+    pub(crate) fn delete_received_pending_info(&self) -> Option<PendingKey> {
+        if self.is_receive() {
+            Some(PendingKey::new(self.account, self.block.source_or_link()))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn new_pending_info(&self) -> Option<(PendingKey, PendingInfo)> {
         match self.block {
             BlockEnum::State(_) => {

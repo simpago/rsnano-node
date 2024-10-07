@@ -56,13 +56,12 @@ pub unsafe extern "C" fn rsn_sign_message(
     signature: *mut u8,
 ) -> i32 {
     let private_key = RawKey::from_ptr(priv_key);
-    let public_key = PublicKey::from_ptr(pub_key);
     let data = if message.is_null() {
         &[]
     } else {
         std::slice::from_raw_parts(message, len)
     };
-    let sig = sign_message(&private_key, &public_key, data);
+    let sig = sign_message(&private_key, data);
     let signature = slice::from_raw_parts_mut(signature, 64);
     signature.copy_from_slice(sig.as_bytes());
     0

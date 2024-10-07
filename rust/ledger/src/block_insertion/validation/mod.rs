@@ -53,11 +53,7 @@ impl<'a> BlockValidator<'a> {
             account: self.account,
             old_account_info: self.old_account_info.clone().unwrap_or_default(),
             set_account_info: self.new_account_info(),
-            delete_pending: if self.pending_receive_info.is_some() {
-                Some(PendingKey::new(self.account, self.block.source_or_link()))
-            } else {
-                None
-            },
+            delete_pending: self.delete_received_pending_info(),
             insert_pending: self.new_pending_info(),
             set_sideband: self.new_sideband(),
             is_epoch_block: self.is_epoch_block(),

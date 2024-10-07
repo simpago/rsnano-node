@@ -684,4 +684,3 @@ nano::stat::detail nano::to_stat_detail (nano::block_status process_result)
 {
 	return static_cast<nano::stat::detail> (rsnano::rsn_process_result_into_detail (static_cast<uint8_t> (process_result)));
 }
-

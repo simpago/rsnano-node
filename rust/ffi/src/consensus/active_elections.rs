@@ -6,7 +6,7 @@ use super::{
     vote_with_weight_info::VoteWithWeightInfoVecHandle,
     VoteHandle,
 };
-use crate::{core::BlockHandle, utils::ContextWrapper, VoidPointerCallback};
+use crate::core::BlockHandle;
 use num_traits::FromPrimitive;
 use rsnano_core::{Amount, BlockEnum, BlockHash, PublicKey, QualifiedRoot, VoteSource};
 use rsnano_node::consensus::{
@@ -253,24 +253,6 @@ pub extern "C" fn rsn_active_transactions_vacancy(
 }
 
 #[no_mangle]
-pub extern "C" fn rsn_active_transactions_vacancy_update(handle: &ActiveTransactionsHandle) {
-    (handle.vacancy_update.lock().unwrap())();
-}
-
-#[no_mangle]
-pub extern "C" fn rsn_active_transactions_set_vacancy_update(
-    handle: &ActiveTransactionsHandle,
-    context: *mut c_void,
-    callback: VoidPointerCallback,
-    drop_context: VoidPointerCallback,
-) {
-    let ctx_wrapper = ContextWrapper::new(context, drop_context);
-    *handle.vacancy_update.lock().unwrap() = Box::new(move || unsafe {
-        callback(ctx_wrapper.get_context());
-    })
-}
-
-#[no_mangle]
 pub extern "C" fn rsn_active_transactions_clear(handle: &ActiveTransactionsHandle) {
     handle.clear();
 }
@@ -346,16 +328,12 @@ pub type FfiAccountBalanceCallback = unsafe extern "C" fn(*mut c_void, *const u8
 
 #[repr(C)]
 pub struct ActiveElectionsConfigDto {
-    // Maximum number of simultaneous active elections (AEC size)
     pub size: usize,
-    // Limit of hinted elections as percentage of `active_elections_size`
     pub hinted_limit_percentage: usize,
-    // Limit of optimistic elections as percentage of `active_elections_size`
     pub optimistic_limit_percentage: usize,
-    // Maximum confirmation history size
     pub confirmation_history_size: usize,
-    // Maximum cache size for recently_confirmed
     pub confirmation_cache: usize,
+    pub max_election_winners: usize,
 }
 
 impl From<&ActiveElectionsConfigDto> for ActiveElectionsConfig {
@@ -366,6 +344,7 @@ impl From<&ActiveElectionsConfigDto> for ActiveElectionsConfig {
             optimistic_limit_percentage: value.optimistic_limit_percentage,
             confirmation_history_size: value.confirmation_history_size,
             confirmation_cache: value.confirmation_cache,
+            max_election_winners: value.max_election_winners,
         }
     }
 }
@@ -378,6 +357,7 @@ impl From<&ActiveElectionsConfig> for ActiveElectionsConfigDto {
             optimistic_limit_percentage: value.optimistic_limit_percentage,
             confirmation_history_size: value.confirmation_history_size,
             confirmation_cache: value.confirmation_cache,
+            max_election_winners: value.max_election_winners,
         }
     }
 }

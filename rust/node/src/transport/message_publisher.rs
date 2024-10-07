@@ -102,25 +102,26 @@ impl MessagePublisher {
             self.try_send(rep.channel_id, &message, drop_policy, traffic_type);
         }
 
-        let peers = self.list_no_pr(self.network.info.read().unwrap().fanout(scale));
-        for peer in peers {
+        let mut channels;
+        let fanout;
+        {
+            let network = self.network.info.read().unwrap();
+            fanout = network.fanout(scale);
+            channels = network.random_list_realtime(usize::MAX, 0)
+        }
+
+        self.remove_no_pr(&mut channels, fanout);
+        for peer in channels {
             self.try_send(peer.channel_id(), &message, drop_policy, traffic_type);
         }
     }
 
-    fn list_no_pr(&self, count: usize) -> Vec<Arc<ChannelInfo>> {
-        let mut channels = self
-            .network
-            .info
-            .read()
-            .unwrap()
-            .random_list_realtime(usize::MAX, 0);
+    fn remove_no_pr(&self, channels: &mut Vec<Arc<ChannelInfo>>, count: usize) {
         {
             let reps = self.online_reps.lock().unwrap();
             channels.retain(|c| !reps.is_pr(c.channel_id()));
         }
         channels.truncate(count);
-        channels
     }
 
     pub fn flood(&mut self, message: &Message, drop_policy: DropPolicy, scale: f32) {

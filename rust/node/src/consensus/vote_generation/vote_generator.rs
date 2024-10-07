@@ -100,7 +100,8 @@ impl VoteGenerator {
         self.vote_generation_queue.stop();
         self.shared_state.stopped.store(true, Ordering::SeqCst);
         self.shared_state.condition.notify_all();
-        if let Some(thread) = self.thread.lock().unwrap().take() {
+        let thread = self.thread.lock().unwrap().take();
+        if let Some(thread) = thread {
             thread.join().unwrap();
         }
     }

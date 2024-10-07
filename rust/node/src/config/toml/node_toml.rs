@@ -319,7 +319,7 @@ impl NodeConfig {
             self.vote_cache = vote_cache_toml.into();
         }
         if let Some(block_processor_toml) = &toml.block_processor {
-            self.block_processor = block_processor_toml.into();
+            self.block_processor.merge_toml(block_processor_toml);
         }
         if let Some(active_elections_toml) = &toml.active_elections {
             self.active_elections = active_elections_toml.into();

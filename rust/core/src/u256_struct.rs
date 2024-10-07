@@ -113,9 +113,7 @@ macro_rules! u256_struct {
 
         impl From<primitive_types::U256> for $name {
             fn from(value: primitive_types::U256) -> Self {
-                let mut key = Self::zero();
-                value.to_big_endian(&mut key.0);
-                key
+                Self(value.to_big_endian())
             }
         }
 

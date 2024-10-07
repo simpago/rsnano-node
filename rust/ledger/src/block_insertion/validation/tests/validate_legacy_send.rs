@@ -97,3 +97,14 @@ fn fails_if_legacy_send_follows_a_state_block() {
         .block_to_validate(|chain| chain.new_legacy_send_block().build())
         .assert_validation_fails_with(BlockStatus::BlockPosition);
 }
+
+#[test]
+fn when_pending_receive_exists_for_link_dont_delete_it() {
+    let test = BlockValidationTest::for_epoch0_account()
+        .block_to_validate(|chain| chain.new_legacy_send_block().amount(1).build())
+        .with_pending_receive(Amount::raw(1), Epoch::Epoch0);
+
+    let result = test.assert_is_valid();
+
+    assert_eq!(result.delete_pending, None);
+}

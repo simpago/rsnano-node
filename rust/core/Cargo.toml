@@ -12,7 +12,7 @@ aes = "0"
 anyhow = "1"
 blake2 = "0.10"
 ctr = "0"
-ed25519-dalek-blake2b = "1"
+ed25519-dalek = { git = "https://github.com/Fiono11/ed25519-dalek.git", rev = "e967e3792ed5aa4d67b89e98c2be1d719ef57aab", features = ["legacy_compatibility", "rand_core"] }
 hex = "0"
 num = "0"
 num-traits = "0"

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use commands::{
-    ledger::LedgerCommand, node::NodeCommand, utils::UtilsCommand, wallets::WalletsCommand,
+    config::ConfigCommand, ledger::LedgerCommand, node::NodeCommand, utils::UtilsCommand,
+    wallets::WalletsCommand,
 };
 use rsnano_core::Networks;
 use rsnano_node::{config::NetworkConstants, working_path};
@@ -23,6 +24,7 @@ impl Cli {
             Some(Commands::Utils(command)) => command.run()?,
             Some(Commands::Node(command)) => command.run().await?,
             Some(Commands::Ledger(command)) => command.run()?,
+            Some(Commands::Config(command)) => command.run()?,
             None => Cli::command().print_long_help()?,
         }
         Ok(())
@@ -31,6 +33,8 @@ impl Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
+    /// Commands related to configs
+    Config(ConfigCommand),
     /// Commands related to the ledger
     Ledger(LedgerCommand),
     /// Commands related to running the node

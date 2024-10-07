@@ -50,7 +50,8 @@ impl WebsocketSessionEntry {
     }
 
     pub fn close(&self) {
-        if let Some(close) = self.tx_close.lock().unwrap().take() {
+        let close = self.tx_close.lock().unwrap().take();
+        if let Some(close) = close {
             let _ = close.send(());
         }
     }

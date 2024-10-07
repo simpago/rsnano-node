@@ -46,8 +46,8 @@ if(MSVC)
   add_definitions(/MP)
 endif()
 
-set(CPACK_PACKAGE_VENDOR "Nano Currency")
-set(CPACK_PACKAGE_VERSION_MAJOR "28")
+set(CPACK_PACKAGE_VENDOR "RsNano")
+set(CPACK_PACKAGE_VERSION_MAJOR "2")
 set(CPACK_PACKAGE_VERSION_MINOR "0")
 set(CPACK_PACKAGE_VERSION_PATCH "0")
 
@@ -308,7 +308,7 @@ endif()
 
 if(WIN32)
   find_library(PSAPI Psapi)
-  add_definitions(-D_WIN32_WINNT=0x0600 -DWINVER=0x0600 
+  add_definitions(-D_WIN32_WINNT=0x0600 -DWINVER=0x0600
                   -D_CRT_SECURE_NO_WARNINGS -DNOGDI /EHsc)
 else()
   if(NANO_FUZZER_TEST)

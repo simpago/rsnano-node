@@ -71,8 +71,7 @@ impl Deserialize for PendingKey {
 
 impl From<U512> for PendingKey {
     fn from(value: U512) -> Self {
-        let mut buffer = [0; 64];
-        value.to_big_endian(&mut buffer);
+        let buffer = value.to_big_endian();
         PendingKey::new(
             Account::from_slice(&buffer[..32]).unwrap(),
             BlockHash::from_slice(&buffer[32..]).unwrap(),

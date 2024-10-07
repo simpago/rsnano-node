@@ -10,7 +10,7 @@ use crate::{
     utils::{ThreadPool, ThreadPoolImpl},
     NetworkParams,
 };
-use rsnano_core::KeyPair;
+use rsnano_core::{KeyPair, Networks};
 use rsnano_ledger::Ledger;
 use rsnano_network::{
     Channel, ChannelDirection, Network, NetworkInfo, NullNetworkObserver, ResponseServerSpawner,
@@ -44,7 +44,7 @@ impl NanoResponseServerSpawner {
         let publish_filter = Arc::new(NetworkFilter::default());
         let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
         let workers = Arc::new(ThreadPoolImpl::new_test_instance());
-        let network_params = NetworkParams::new(rsnano_core::Networks::NanoDevNetwork);
+        let network_params = NetworkParams::new(Networks::NanoDevNetwork);
         let stats = Arc::new(Stats::default());
         let block_processor = Arc::new(BlockProcessor::new_test_instance(ledger.clone()));
         let clock = Arc::new(SteadyClock::new_null());
@@ -56,7 +56,7 @@ impl NanoResponseServerSpawner {
             workers: Arc::new(ThreadPoolImpl::new_test_instance()),
             block_processor: block_processor.clone(),
             bootstrap_initiator: Arc::new(BootstrapInitiator::new(
-                BootstrapInitiatorConfig::default(),
+                BootstrapInitiatorConfig::default_for(Networks::NanoDevNetwork),
                 flags.clone(),
                 network.clone(),
                 network_info.clone(),

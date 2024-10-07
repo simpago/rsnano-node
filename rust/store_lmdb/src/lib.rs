@@ -59,7 +59,7 @@ use std::rc::Rc;
 pub trait Transaction {
     fn as_any(&self) -> &dyn Any;
     fn refresh(&mut self);
-    fn refresh_if_needed(&mut self);
+    fn refresh_if_needed(&mut self) -> bool;
     fn is_refresh_needed(&self) -> bool;
     fn is_refresh_needed_with(&self, max_duration: Duration) -> bool;
     fn get(&self, database: LmdbDatabase, key: &[u8]) -> lmdb::Result<&[u8]>;
@@ -196,9 +196,12 @@ impl Transaction for LmdbReadTransaction {
         self.start.elapsed() > max_duration
     }
 
-    fn refresh_if_needed(&mut self) {
+    fn refresh_if_needed(&mut self) -> bool {
         if self.is_refresh_needed() {
             self.refresh();
+            true
+        } else {
+            false
         }
     }
 
@@ -414,9 +417,12 @@ impl Transaction for LmdbWriteTransaction {
     fn is_refresh_needed_with(&self, max_duration: Duration) -> bool {
         self.start.elapsed() > max_duration
     }
-    fn refresh_if_needed(&mut self) {
+    fn refresh_if_needed(&mut self) -> bool {
         if self.is_refresh_needed() {
             self.refresh();
+            true
+        } else {
+            false
         }
     }
 }

@@ -2,20 +2,17 @@ use crate::{
     bandwidth_limiter::OutboundBandwidthLimiter,
     utils::into_ipv6_socket_address,
     write_queue::{WriteQueue, WriteQueueReceiver},
-    AsyncBufferReader, ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkInfo,
-    NetworkObserver, NullNetworkObserver, TrafficType, WriteQueueAdapter,
+    AsyncBufferReader, ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkObserver,
+    NullNetworkObserver, TrafficType, WriteQueueAdapter,
 };
 use async_trait::async_trait;
-use rsnano_core::{
-    utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2},
-    PublicKey,
-};
+use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_nullable_tcp::TcpStream;
 use std::{
     fmt::Display,
     net::{Ipv6Addr, SocketAddrV6},
-    sync::{Arc, RwLock, Weak},
+    sync::{Arc, Weak},
     time::Duration,
 };
 use tokio::{select, time::sleep};
@@ -24,7 +21,6 @@ use tracing::debug;
 
 pub struct Channel {
     channel_id: ChannelId,
-    network_info: Arc<RwLock<NetworkInfo>>,
     pub info: Arc<ChannelInfo>,
     limiter: Arc<OutboundBandwidthLimiter>,
     write_queue: Arc<WriteQueue>,
@@ -39,7 +35,6 @@ impl Channel {
 
     fn new(
         channel_info: Arc<ChannelInfo>,
-        network_info: Arc<RwLock<NetworkInfo>>,
         stream: Weak<TcpStream>,
         limiter: Arc<OutboundBandwidthLimiter>,
         clock: Arc<SteadyClock>,
@@ -51,7 +46,6 @@ impl Channel {
         let channel = Self {
             channel_id: channel_info.channel_id(),
             info: channel_info,
-            network_info,
             limiter,
             write_queue: Arc::new(write_queue),
             stream,
@@ -78,7 +72,6 @@ impl Channel {
                 u8::MAX,
                 Timestamp::new_test_instance(),
             )),
-            Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             Arc::downgrade(&Arc::new(TcpStream::new_null())),
             Arc::new(OutboundBandwidthLimiter::default()),
             Arc::new(SteadyClock::new_null()),
@@ -92,7 +85,6 @@ impl Channel {
         channel_info: Arc<ChannelInfo>,
         stream: TcpStream,
         limiter: Arc<OutboundBandwidthLimiter>,
-        network_info: Arc<RwLock<NetworkInfo>>,
         clock: Arc<SteadyClock>,
         observer: Arc<dyn NetworkObserver>,
         handle: &tokio::runtime::Handle,
@@ -103,7 +95,6 @@ impl Channel {
         let cancel_token = CancellationToken::new();
         let (channel, mut receiver) = Self::new(
             channel_info,
-            network_info,
             Arc::downgrade(&stream),
             limiter,
             clock.clone(),
@@ -177,13 +168,6 @@ impl Channel {
 
     pub fn channel_id(&self) -> ChannelId {
         self.channel_id
-    }
-
-    pub fn set_node_id(&self, id: PublicKey) {
-        self.network_info
-            .read()
-            .unwrap()
-            .set_node_id(self.channel_id, id);
     }
 
     pub fn local_addr(&self) -> SocketAddrV6 {

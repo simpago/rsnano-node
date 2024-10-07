@@ -112,6 +112,7 @@ impl TcpListenerExt for Arc<TcpListener> {
                 .write()
                 .unwrap()
                 .set_listening_port(addr.port());
+
             self_l.data.lock().unwrap().local_addr =
                 SocketAddrV6::new(Ipv6Addr::LOCALHOST, addr.port(), 0, 0);
 

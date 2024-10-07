@@ -3,6 +3,7 @@ mod bootstrap_weights;
 mod bucket;
 mod confirmation_solicitor;
 mod election;
+pub(crate) mod election_schedulers;
 mod election_status;
 mod hinted_scheduler;
 mod manual_scheduler;

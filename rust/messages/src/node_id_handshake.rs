@@ -66,7 +66,7 @@ impl NodeIdHandshakeResponse {
     pub fn sign(&mut self, cookie: &Cookie, key: &KeyPair) {
         debug_assert!(key.public_key() == self.node_id);
         let data = self.data_to_sign(cookie);
-        self.signature = sign_message(&key.private_key(), &key.public_key(), &data);
+        self.signature = sign_message(&key.private_key(), &data);
         debug_assert!(self.validate(cookie).is_ok());
     }
 

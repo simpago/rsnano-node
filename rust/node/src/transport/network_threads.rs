@@ -315,7 +315,8 @@ impl ReachoutLoop {
             }
             drop(stopped);
 
-            if let Some(keepalive) = self.latest_keepalives.lock().unwrap().pop_random() {
+            let keepalive = self.latest_keepalives.lock().unwrap().pop_random();
+            if let Some(keepalive) = keepalive {
                 for peer in keepalive.peers {
                     if peer.ip().is_unspecified() {
                         continue;

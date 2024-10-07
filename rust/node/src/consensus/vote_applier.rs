@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    Election, ElectionData, ElectionStatus, LocalVoteHistory, RecentlyConfirmedCache, TallyKey,
-    VoteGenerators,
+    election_schedulers::ElectionSchedulers, Election, ElectionData, ElectionStatus,
+    LocalVoteHistory, RecentlyConfirmedCache, TallyKey, VoteGenerators,
 };
 use rsnano_core::{
     utils::{ContainerInfo, ContainerInfoComponent},
@@ -22,7 +22,7 @@ use rsnano_ledger::Ledger;
 use std::{
     collections::{BTreeMap, HashMap},
     mem::size_of,
-    sync::{atomic::Ordering, Arc, Mutex, MutexGuard},
+    sync::{atomic::Ordering, Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
 use tracing::trace;
@@ -41,6 +41,7 @@ pub struct VoteApplier {
     confirming_set: Arc<ConfirmingSet>,
     workers: Arc<dyn ThreadPool>,
     election_winner_details: Mutex<HashMap<BlockHash, Arc<Election>>>,
+    election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
 }
 
 impl VoteApplier {
@@ -72,7 +73,12 @@ impl VoteApplier {
             confirming_set,
             workers,
             election_winner_details: Mutex::new(HashMap::new()),
+            election_schedulers: RwLock::new(None),
         }
+    }
+
+    pub(crate) fn set_election_schedulers(&self, schedulers: &Arc<ElectionSchedulers>) {
+        *self.election_schedulers.write().unwrap() = Some(Arc::downgrade(&schedulers));
     }
 
     /// Calculates minimum time delay between subsequent votes when processing non-final votes
@@ -165,8 +171,23 @@ impl VoteApplier {
     }
 
     pub fn remove_election_winner_details(&self, hash: &BlockHash) -> Option<Arc<Election>> {
-        let mut guard = self.election_winner_details.lock().unwrap();
-        guard.remove(hash)
+        let election = {
+            let mut guard = self.election_winner_details.lock().unwrap();
+            guard.remove(hash)
+        };
+
+        self.vacancy_changed();
+
+        election
+    }
+
+    fn vacancy_changed(&self) {
+        let schedulers = self.election_schedulers.read().unwrap();
+        if let Some(schedulers) = &*schedulers {
+            if let Some(schedulers) = schedulers.upgrade() {
+                schedulers.notify();
+            }
+        }
     }
 
     pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
@@ -290,7 +311,8 @@ impl VoteApplierExt for Arc<VoteApplier> {
                 self.vote_generators
                     .generate_final_vote(&election.root, &status_winner_hash);
             }
-            if election_lock.final_weight >= self.online_reps.lock().unwrap().quorum_delta() {
+            let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
+            if election_lock.final_weight >= quorum_delta {
                 self.confirm_once(election_lock, election);
             }
         }

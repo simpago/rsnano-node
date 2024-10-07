@@ -185,13 +185,13 @@ impl ResponseServer {
             return false;
         }
 
-        if self
+        let bootstrap_count = self
             .network_info
             .read()
             .unwrap()
-            .count_by_mode(ChannelMode::Bootstrap)
-            >= self.connections_max
-        {
+            .count_by_mode(ChannelMode::Bootstrap);
+
+        if bootstrap_count >= self.connections_max {
             return false;
         }
 
@@ -286,13 +286,17 @@ impl ResponseServerExt for Arc<ResponseServer> {
             return false;
         }
 
-        let upgraded = self
+        let result = self
             .network_info
             .read()
             .unwrap()
             .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id);
 
-        if upgraded {
+        if let Some((channel, observers)) = result {
+            for observer in observers {
+                observer(channel.clone());
+            }
+
             self.stats
                 .inc(StatType::TcpChannels, DetailType::ChannelAccepted);
 
@@ -301,6 +305,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 self.channel.info.peer_addr(),
                 node_id.to_node_id()
             );
+            true
         } else {
             debug!(
                 channel_id = ?self.channel.channel_id(),
@@ -308,9 +313,8 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 node_id = node_id.to_node_id(),
                 "Could not upgrade channel to realtime connection, because another channel for the same node ID was found",
             );
+            false
         }
-
-        upgraded
     }
 
     async fn run(&self) {
@@ -371,7 +375,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     // IO error or critical error when deserializing message
                     self.stats
                         .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
-                    info!(
+                    debug!(
                         "Error reading message: {:?} ({})",
                         e,
                         self.remote_endpoint()

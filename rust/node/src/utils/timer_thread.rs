@@ -91,7 +91,8 @@ impl<T: Runnable> TimerThread<T> {
 
     pub fn stop(&self) {
         self.cancel_token.cancel();
-        if let Some(handle) = self.thread.lock().unwrap().take() {
+        let handle = self.thread.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap();
         }
     }

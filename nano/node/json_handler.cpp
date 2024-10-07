@@ -2424,7 +2424,7 @@ public:
 		auto balance (block_a.balance ().number ());
 		auto previous_balance_raw = handler.node.ledger.any ().block_balance (transaction, block_a.previous ());
 		auto previous_balance = previous_balance_raw.value_or (0);
-		if (!block_a.previous().is_zero() && !previous_balance_raw.has_value())
+		if (!block_a.previous ().is_zero () && !previous_balance_raw.has_value ())
 		{
 			// If previous hash is non-zero and we can't query the balance, e.g. it's pruned, we can't determine the block type
 			if (raw)
@@ -4214,8 +4214,8 @@ void nano::json_handler::unopened ()
 	if (!ec)
 	{
 		auto transaction = node.store.tx_begin_read ();
-		auto iterator = node.store.pending ().begin(*transaction, nano::pending_key (start, 0));
-		auto end = node.store.pending ().end();
+		auto iterator = node.store.pending ().begin (*transaction, nano::pending_key (start, 0));
+		auto end = node.store.pending ().end ();
 		nano::account current_account = start;
 		nano::uint128_t current_account_sum{ 0 };
 		boost::property_tree::ptree accounts;
@@ -4224,16 +4224,16 @@ void nano::json_handler::unopened ()
 			nano::pending_key key{ iterator->first };
 			nano::account account{ key.account };
 			nano::pending_info info{ iterator->second };
-			if (node.store.account().exists(*transaction, account))
+			if (node.store.account ().exists (*transaction, account))
 			{
 				if (account.number () == std::numeric_limits<nano::uint256_t>::max ())
 				{
 					break;
 				}
 				// Skip existing accounts
-				iterator = node.store.pending().begin(*transaction, nano::pending_key (account.number () + 1, 0));
+				iterator = node.store.pending ().begin (*transaction, nano::pending_key (account.number () + 1, 0));
 			}
-			else 
+			else
 			{
 				if (account != current_account)
 				{

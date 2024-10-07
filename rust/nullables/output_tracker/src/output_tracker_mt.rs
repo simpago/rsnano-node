@@ -22,6 +22,10 @@ impl<T: Clone + 'static> OutputTrackerMt<T> {
     pub fn output(&self) -> Vec<T> {
         self.output.lock().unwrap().clone()
     }
+
+    pub fn clear(&self) {
+        self.output.lock().unwrap().clear();
+    }
 }
 
 pub struct OutputListenerMt<T: Clone + 'static> {

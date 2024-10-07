@@ -9,7 +9,9 @@ use rsnano_network::{
 };
 use rsnano_node::{
     bootstrap::BulkPullServer,
+    config::NodeConfig,
     node::Node,
+    stats::{DetailType, Direction, StatType},
     transport::{LatestKeepalives, ResponseServer},
 };
 use rsnano_node::{
@@ -19,9 +21,11 @@ use rsnano_node::{
     wallets::WalletsExt,
 };
 use rsnano_nullable_tcp::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::sync::{atomic::Ordering, Arc, Mutex};
 use std::time::Duration;
-use test_helpers::{assert_timely_eq, assert_timely_msg, get_available_port, System};
+use test_helpers::{
+    assert_timely, assert_timely_eq, assert_timely_msg, get_available_port, setup_chain, System,
+};
 
 mod bootstrap_processor {
     use super::*;
@@ -1384,12 +1388,236 @@ mod bulk_pull_account {
     }
 }
 
+#[test]
+fn bulk_genesis() {
+    let mut system = System::new();
+    let config = NodeConfig {
+        frontiers_confirmation: FrontiersConfirmationMode::Disabled,
+        ..System::default_config()
+    };
+    let flags = NodeFlags {
+        disable_bootstrap_bulk_push_client: true,
+        disable_lazy_bootstrap: true,
+        ..Default::default()
+    };
+    let node1 = system.build_node().config(config).flags(flags).finish();
+    node1.insert_into_wallet(&DEV_GENESIS_KEY);
+
+    let node2 = system.make_disconnected_node();
+    let latest1 = node1.latest(&DEV_GENESIS_ACCOUNT);
+    let latest2 = node2.latest(&DEV_GENESIS_ACCOUNT);
+    assert_eq!(latest1, latest2);
+    let key2 = KeyPair::new();
+    let wallet_id = node1.wallets.wallet_ids()[0];
+    let _send = node1
+        .wallets
+        .send_action2(
+            &wallet_id,
+            *DEV_GENESIS_ACCOUNT,
+            key2.public_key().as_account(),
+            Amount::raw(100),
+            0,
+            true,
+            None,
+        )
+        .unwrap();
+    let latest3 = node1.latest(&DEV_GENESIS_ACCOUNT);
+    assert_ne!(latest1, latest3);
+
+    node2
+        .peer_connector
+        .connect_to(node1.tcp_listener.local_address());
+    node2
+        .bootstrap_initiator
+        .bootstrap2(node1.tcp_listener.local_address(), "".into());
+    assert_timely(Duration::from_secs(10), || {
+        node2.latest(&DEV_GENESIS_ACCOUNT) == node1.latest(&DEV_GENESIS_ACCOUNT)
+    });
+    assert_eq!(
+        node2.latest(&DEV_GENESIS_ACCOUNT),
+        node1.latest(&DEV_GENESIS_ACCOUNT)
+    );
+}
+
+#[test]
+fn bulk_offline_send() {
+    let mut system = System::new();
+    let config = NodeConfig {
+        frontiers_confirmation: FrontiersConfirmationMode::Disabled,
+        ..System::default_config()
+    };
+    let flags = NodeFlags {
+        disable_bootstrap_bulk_push_client: true,
+        disable_lazy_bootstrap: true,
+        ..Default::default()
+    };
+    let node1 = system.build_node().config(config).flags(flags).finish();
+    node1.insert_into_wallet(&DEV_GENESIS_KEY);
+    let amount = node1.config.receive_minimum;
+    let node2 = system.make_disconnected_node();
+    let key2 = KeyPair::new();
+    let wallet_id2 = WalletId::random();
+    node2.wallets.create(wallet_id2);
+    node2
+        .wallets
+        .insert_adhoc2(&wallet_id2, &key2.private_key(), true)
+        .unwrap();
+
+    // send amount from genesis to key2, it will be autoreceived
+    let wallet_id1 = node1.wallets.wallet_ids()[0];
+    let send1 = node1
+        .wallets
+        .send_action2(
+            &wallet_id1,
+            *DEV_GENESIS_ACCOUNT,
+            key2.public_key().into(),
+            node1.config.receive_minimum,
+            0,
+            true,
+            None,
+        )
+        .unwrap();
+
+    // Wait to finish election background tasks
+    assert_timely_eq(Duration::from_secs(5), || node1.active.len(), 0);
+    assert_timely(Duration::from_secs(5), || {
+        node1.block_confirmed(&send1.hash())
+    });
+    assert_eq!(Amount::MAX - amount, node1.balance(&DEV_GENESIS_ACCOUNT));
+
+    // Initiate bootstrap
+    node2
+        .peer_connector
+        .connect_to(node1.tcp_listener.local_address());
+    node2
+        .bootstrap_initiator
+        .bootstrap2(node1.tcp_listener.local_address(), "".into());
+
+    // Nodes should find each other after bootstrap initiation
+    assert_timely(Duration::from_secs(5), || {
+        !node1.network_info.read().unwrap().len() > 0
+    });
+    assert_timely(Duration::from_secs(5), || {
+        !node2.network_info.read().unwrap().len() > 0
+    });
+
+    // Send block arrival via bootstrap
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node2.balance(&DEV_GENESIS_ACCOUNT),
+        Amount::MAX - amount,
+    );
+    // Receiving send block
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || node2.balance(&key2.public_key().into()),
+        amount,
+    );
+}
+
+#[test]
+fn bulk_genesis_pruning() {
+    let mut system = System::new();
+    let config = NodeConfig {
+        frontiers_confirmation: FrontiersConfirmationMode::Disabled,
+        enable_voting: false,
+        ..System::default_config()
+    };
+    let mut flags = NodeFlags {
+        disable_bootstrap_bulk_push_client: true,
+        disable_lazy_bootstrap: true,
+        disable_ongoing_bootstrap: true,
+        disable_ascending_bootstrap: true,
+        enable_pruning: true,
+        ..Default::default()
+    };
+    let node1 = system
+        .build_node()
+        .config(config)
+        .flags(flags.clone())
+        .finish();
+    let blocks = setup_chain(&node1, 3, &DEV_GENESIS_KEY, true);
+    let send1 = &blocks[0];
+    let send2 = &blocks[1];
+    let send3 = &blocks[2];
+    assert_eq!(4, node1.ledger.block_count());
+
+    node1.ledger_pruning(2, false);
+    assert_eq!(2, node1.ledger.pruned_count());
+    assert_eq!(4, node1.ledger.block_count());
+    assert!(node1
+        .ledger
+        .store
+        .pruned
+        .exists(&node1.ledger.read_txn(), &send1.hash()));
+    assert_eq!(node1.block_exists(&send1.hash()), false);
+    assert!(node1
+        .ledger
+        .store
+        .pruned
+        .exists(&node1.ledger.read_txn(), &send2.hash()));
+    assert_eq!(node1.block_exists(&send2.hash()), false);
+    assert_eq!(node1.block_exists(&send3.hash()), true);
+
+    // Bootstrap with missing blocks for node2
+    flags.enable_pruning = false;
+    let node2 = system.build_node().flags(flags).disconnected().finish();
+    node2
+        .peer_connector
+        .connect_to(node1.tcp_listener.local_address());
+    node2
+        .bootstrap_initiator
+        .bootstrap2(node1.tcp_listener.local_address(), "".into());
+    assert_timely(Duration::from_secs(5), || {
+        node2
+            .stats
+            .count(StatType::Bootstrap, DetailType::Initiate, Direction::Out)
+            >= 1
+    });
+    assert_timely(Duration::from_secs(5), || {
+        !node2.bootstrap_initiator.in_progress()
+    });
+
+    // node2 still missing blocks
+    assert_eq!(1, node2.ledger.block_count());
+    {
+        let _tx = node2.ledger.rw_txn();
+        node2.unchecked.clear();
+    }
+
+    // Insert pruned blocks
+    node2.process_active(send1.clone());
+    node2.process_active(send2.clone());
+    assert_timely_eq(Duration::from_secs(5), || node2.ledger.block_count(), 3);
+
+    // New bootstrap to sync up everything
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || {
+            node2
+                .bootstrap_initiator
+                .connections
+                .connections_count
+                .load(Ordering::SeqCst)
+        },
+        0,
+    );
+    node2
+        .peer_connector
+        .connect_to(node1.tcp_listener.local_address());
+    node2
+        .bootstrap_initiator
+        .bootstrap2(node1.tcp_listener.local_address(), "".into());
+    assert_timely(Duration::from_secs(5), || {
+        node2.latest(&DEV_GENESIS_ACCOUNT) == node1.latest(&DEV_GENESIS_ACCOUNT)
+    });
+}
+
 fn create_response_server(node: &Node) -> Arc<ResponseServer> {
     let channel = Channel::create(
         Arc::new(ChannelInfo::new_test_instance()),
         TcpStream::new_null(),
         Arc::new(OutboundBandwidthLimiter::default()),
-        node.network_info.clone(),
         node.steady_clock.clone(),
         Arc::new(NullNetworkObserver::new()),
         &node.tokio,

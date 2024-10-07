@@ -60,7 +60,8 @@ impl UncheckedMap {
     pub fn stop(&self) {
         self.mutable.lock().unwrap().stopped = true;
         self.condition.notify_all();
-        if let Some(handle) = self.join_handle.lock().unwrap().take() {
+        let handle = self.join_handle.lock().unwrap().take();
+        if let Some(handle) = handle {
             handle.join().unwrap();
         }
     }

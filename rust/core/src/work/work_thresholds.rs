@@ -1,6 +1,6 @@
 use crate::{
     BlockDetails, BlockEnum, BlockType, Difficulty, DifficultyV1, Epoch, Networks, Root,
-    StubDifficulty, WorkVersion, ACTIVE_NETWORK,
+    StubDifficulty, WorkVersion,
 };
 use once_cell::sync::Lazy;
 use std::cmp::{max, min};
@@ -284,8 +284,10 @@ impl WorkThresholds {
 
     //todo return true if valid!
     pub fn validate_entry_block(&self, block: &BlockEnum) -> bool {
-        self.difficulty_block(block)
-            < self.threshold_entry(block.block_type(), block.work_version())
+        let difficulty = self.difficulty_block(block);
+        let threshold = self.threshold_entry(block.block_type(), block.work_version());
+        let is_invalid = difficulty < threshold;
+        is_invalid
     }
 
     pub fn is_valid_pow(&self, block: &BlockEnum, details: &BlockDetails) -> bool {
@@ -293,15 +295,10 @@ impl WorkThresholds {
     }
 }
 
-impl Default for WorkThresholds {
-    fn default() -> Self {
-        Self::default_for(ACTIVE_NETWORK.lock().unwrap().clone())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Amount, BlockHash, JsonBlock};
 
     #[test]
     fn test_parse_threshold() {
@@ -413,5 +410,34 @@ mod tests {
             ),
             0xfffffe0000000000
         );
+    }
+
+    #[test]
+    fn validate_real_block() {
+        let json_block = r###"{
+  "type": "send",
+  "previous": "991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948",
+  "destination": "nano_13ezf4od79h1tgj9aiu4djzcmmguendtjfuhwfukhuucboua8cpoihmh8byo",
+  "balance": "FD89D89D89D89D89D89D89D89D89D89D",
+  "signature": "5B11B17DB9C8FE0CC58CAC6A6EECEF9CB122DA8A81C6D3DB1B5EE3AB065AA8F8CB1D6765C8EB91B58530C5FF5987AD95E6D34BB57F44257E20795EE412E61600",
+  "work": "3c82cc724905ee95"
+}"###;
+        let block: BlockEnum = serde_json::from_str::<JsonBlock>(json_block)
+            .unwrap()
+            .into();
+        let thresholds = WorkThresholds::publish_full();
+        assert_eq!(
+            block.hash(),
+            BlockHash::decode_hex(
+                "A170D51B94E00371ACE76E35AC81DC9405D5D04D4CEBC399AEACE07AE05DD293"
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            block.balance(),
+            Amount::raw(337010421085160209006996005437231978653)
+        );
+        assert_eq!(thresholds.validate_entry_block(&block), false);
+        assert_eq!(thresholds.difficulty_block(&block), 18446743921403126366);
     }
 }

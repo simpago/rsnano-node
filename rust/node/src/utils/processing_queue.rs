@@ -68,7 +68,10 @@ impl<T: Send + 'static> ProcessingQueue<T> {
     }
 
     pub fn stop(&self) {
-        self.shared_state.stopped.store(true, Ordering::SeqCst);
+        {
+            let _guard = self.shared_state.queue.lock().unwrap();
+            self.shared_state.stopped.store(true, Ordering::SeqCst);
+        }
         self.shared_state.condition.notify_all();
         let threads = {
             let mut t = Vec::new();

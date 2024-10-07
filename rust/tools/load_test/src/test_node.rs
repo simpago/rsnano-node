@@ -10,11 +10,12 @@ use rsnano_node::{
     unique_path, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{AccountInfoDto, KeyPairDto};
+use rsnano_rpc_messages::{AccountInfoDto, KeyPairDto, SuccessDto};
 use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::{
     collections::HashMap,
     fs,
+    net::Ipv6Addr,
     path::{Path, PathBuf},
     process::{Child, Command},
     sync::Arc,
@@ -65,7 +66,7 @@ impl TestNode {
     }
 
     pub async fn stop(&mut self) -> Result<()> {
-        self.node_client.stop_rpc().await?;
+        self.node_client.stop().await?;
 
         if let Some(c) = self.node_child.take() {
             wait_for_child_to_exit(c).await;
@@ -77,8 +78,10 @@ impl TestNode {
         Ok(())
     }
 
-    pub async fn connect(&self, other: &TestNode) -> Result<()> {
-        self.node_client.keepalive(other.peering_port).await
+    pub async fn connect(&self, other: &TestNode) -> Result<SuccessDto> {
+        self.node_client
+            .keepalive(Ipv6Addr::LOCALHOST, other.peering_port)
+            .await
     }
 
     pub async fn create_send_and_receive_blocks(
@@ -88,7 +91,7 @@ impl TestNode {
         simultaneous_process_calls: usize,
     ) -> Result<HashMap<Account, AccountInfoDto>> {
         let destination_accounts = self.create_destination_accounts(destination_count).await?;
-        let wallet = self.node_client.wallet_create_rpc().await?;
+        let wallet = self.node_client.wallet_create(None).await?.wallet;
         self.add_genesis_account(wallet).await?;
         self.add_destination_accounts(&destination_accounts, wallet)
             .await?;
@@ -105,8 +108,9 @@ impl TestNode {
 
     async fn add_genesis_account(&self, wallet: WalletId) -> Result<()> {
         self.node_client
-            .wallet_add(wallet, DEV_GENESIS_KEY.private_key())
-            .await
+            .wallet_add(wallet, DEV_GENESIS_KEY.private_key(), None)
+            .await?;
+        Ok(())
     }
 
     async fn add_destination_accounts(
@@ -115,7 +119,9 @@ impl TestNode {
         wallet: WalletId,
     ) -> Result<()> {
         for account in destination_accounts {
-            self.node_client.wallet_add(wallet, account.private).await?;
+            self.node_client
+                .wallet_add(wallet, account.private, None)
+                .await?;
         }
         Ok(())
     }
@@ -126,14 +132,16 @@ impl TestNode {
     ) -> Result<Vec<KeyPairDto>> {
         let mut destination_accounts = Vec::with_capacity(destination_count);
         for _ in 0..destination_count {
-            let acc = self.node_client.key_create_rpc().await?;
+            let acc = self.node_client.key_create().await?;
             destination_accounts.push(acc);
         }
         Ok(destination_accounts)
     }
 
     pub async fn account_info(&self, account: Account) -> Result<AccountInfoDto> {
-        self.node_client.account_info(account).await
+        self.node_client
+            .account_info(account, None, None, None, None, None)
+            .await
     }
 }
 

@@ -603,37 +603,32 @@ impl NetworkInfo {
         &self,
         channel_id: ChannelId,
         node_id: PublicKey,
-    ) -> bool {
-        let (observers, channel) = {
-            if self.is_stopped() {
-                return false;
-            }
-
-            let Some(channel) = self.channels.get(&channel_id) else {
-                return false;
-            };
-
-            if let Some(other) = self.find_node_id(&node_id) {
-                if other.ipv4_address_or_ipv6_subnet() == channel.ipv4_address_or_ipv6_subnet() {
-                    // We already have a connection to that node. We allow duplicate node ids, but
-                    // only if they come from different IP addresses
-                    return false;
-                }
-            }
-
-            channel.set_node_id(node_id);
-            channel.set_mode(ChannelMode::Realtime);
-
-            let observers = self.new_realtime_channel_observers();
-            let channel = channel.clone();
-            (observers, channel)
-        };
-
-        for observer in observers {
-            observer(channel.clone());
+    ) -> Option<(
+        Arc<ChannelInfo>,
+        Vec<Arc<dyn Fn(Arc<ChannelInfo>) + Send + Sync>>,
+    )> {
+        if self.is_stopped() {
+            return None;
         }
 
-        true
+        let Some(channel) = self.channels.get(&channel_id) else {
+            return None;
+        };
+
+        if let Some(other) = self.find_node_id(&node_id) {
+            if other.ipv4_address_or_ipv6_subnet() == channel.ipv4_address_or_ipv6_subnet() {
+                // We already have a connection to that node. We allow duplicate node ids, but
+                // only if they come from different IP addresses
+                return None;
+            }
+        }
+
+        channel.set_node_id(node_id);
+        channel.set_mode(ChannelMode::Realtime);
+
+        let observers = self.new_realtime_channel_observers();
+        let channel = channel.clone();
+        Some((channel, observers))
     }
 
     pub fn idle_channels(&self, min_idle_time: Duration, now: Timestamp) -> Vec<ChannelId> {
@@ -766,7 +761,9 @@ mod tests {
             )
             .unwrap();
 
-        assert!(network.upgrade_to_realtime_connection(channel.channel_id(), PublicKey::from(456)));
+        assert!(network
+            .upgrade_to_realtime_connection(channel.channel_id(), PublicKey::from(456))
+            .is_some());
         assert_eq!(network.list_realtime_channels(0).len(), 1);
     }
 

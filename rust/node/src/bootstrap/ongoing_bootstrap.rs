@@ -61,14 +61,15 @@ impl OngoingBootstrapExt for Arc<OngoingBootstrap> {
         if self.warmed_up.load(Ordering::SeqCst) < 3 {
             // Re-attempt bootstrapping more aggressively on startup
             next_wakeup = Duration::from_secs(5);
-            if !self.bootstrap_initiator.in_progress()
-                && !self
-                    .network
-                    .read()
-                    .unwrap()
-                    .count_by_mode(ChannelMode::Realtime)
-                    == 0
-            {
+
+            let has_realtime_connections = self
+                .network
+                .read()
+                .unwrap()
+                .count_by_mode(ChannelMode::Realtime)
+                > 0;
+
+            if !self.bootstrap_initiator.in_progress() && has_realtime_connections {
                 self.warmed_up.fetch_add(1, Ordering::SeqCst);
             }
         }

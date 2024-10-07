@@ -135,6 +135,7 @@ impl<'a> ConfirmationSolicitor<'a> {
                     .read()
                     .unwrap()
                     .is_queue_full(rep.channel_id, TrafficType::Generic);
+
                 if !queue_full {
                     request_queue.push((winner.hash(), winner.root()));
                     if !different {

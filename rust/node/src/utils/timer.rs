@@ -84,7 +84,8 @@ impl<T: TimerStrategy> Timer<T> {
         let cb = {
             let option_cb = Arc::new(Mutex::new(Some(cb)));
             let arc_cb: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
-                if let Some(mut cb) = option_cb.lock().unwrap().take() {
+                let cb = option_cb.lock().unwrap().take();
+                if let Some(mut cb) = cb {
                     cb();
                 }
             });
