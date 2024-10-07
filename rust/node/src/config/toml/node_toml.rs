@@ -191,7 +191,7 @@ impl NodeConfig {
                 .collect();
         }
         if let Some(receive_minimum) = &toml.receive_minimum {
-            self.receive_minimum =
+            *self.receive_minimum.lock().unwrap() =
                 Amount::decode_dec(&receive_minimum).expect("Invalid receive minimum");
         }
         if let Some(rep_crawler) = &toml.rep_crawler {
@@ -400,7 +400,7 @@ impl From<&NodeConfig> for NodeToml {
                     .map(|pk| Account::from(pk).encode_account())
                     .collect(),
             ),
-            receive_minimum: Some(config.receive_minimum.to_string_dec()),
+            receive_minimum: Some(config.receive_minimum.lock().unwrap().to_string_dec()),
             rep_crawler_weight_minimum: Some(config.rep_crawler_weight_minimum.to_string_dec()),
             representative_vote_weight_minimum: Some(
                 config.representative_vote_weight_minimum.to_string_dec(),

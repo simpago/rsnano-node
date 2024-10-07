@@ -25,8 +25,7 @@ use rsnano_node::{
     NetworkParams,
 };
 use std::{
-    convert::{TryFrom, TryInto},
-    time::Duration,
+    convert::{TryFrom, TryInto}, sync::{Arc, Mutex}, time::Duration
 };
 
 #[repr(C)]
@@ -208,7 +207,7 @@ pub fn fill_node_config_dto(dto: &mut NodeConfigDto, cfg: &NodeConfig) {
     dto.priority_bucket = (&cfg.priority_bucket).into();
     dto.peering_port_defined = cfg.peering_port.is_some();
     dto.bootstrap_fraction_numerator = cfg.bootstrap_fraction_numerator;
-    dto.receive_minimum = cfg.receive_minimum.to_be_bytes();
+    dto.receive_minimum = cfg.receive_minimum.lock().unwrap().to_be_bytes();
     dto.online_weight_minimum = cfg.online_weight_minimum.to_be_bytes();
     dto.representative_vote_weight_minimum = cfg.representative_vote_weight_minimum.to_be_bytes();
     dto.password_fanout = cfg.password_fanout;
@@ -377,7 +376,7 @@ impl TryFrom<&NodeConfigDto> for NodeConfig {
             hinted_scheduler: (&value.hinted_scheduler).into(),
             priority_bucket: (&value.priority_bucket).into(),
             bootstrap_fraction_numerator: value.bootstrap_fraction_numerator,
-            receive_minimum: Amount::from_be_bytes(value.receive_minimum),
+            receive_minimum: Arc::new(Mutex::new(Amount::from_be_bytes(value.receive_minimum))),
             online_weight_minimum: Amount::from_be_bytes(value.online_weight_minimum),
             representative_vote_weight_minimum: Amount::from_be_bytes(
                 value.representative_vote_weight_minimum,

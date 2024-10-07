@@ -6,7 +6,7 @@ use serde_json::to_string_pretty;
 
 pub async fn receive_minimum_set(node: Arc<Node>, enable_control: bool, amount: Amount) -> String {
     if enable_control {
-        node.config.lock().unwrap().receive_minimum = amount;
+        *node.config.receive_minimum.lock().unwrap() = amount;
         to_string_pretty(&SuccessDto::new()).unwrap()
     }
     else {
@@ -37,7 +37,7 @@ mod tests {
             SuccessDto::new()
         );
 
-        assert_eq!(node.config.lock().unwrap().receive_minimum, Amount::raw(1000000000000000000000000000000));
+        assert_eq!(*node.config.receive_minimum.lock().unwrap(), Amount::raw(1000000000000000000000000000000));
 
         server.abort();
     }

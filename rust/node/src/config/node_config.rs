@@ -19,7 +19,7 @@ use rsnano_core::{
     Account, Amount, PublicKey, GXRB_RATIO, XRB_RATIO,
 };
 use rsnano_store_lmdb::LmdbConfig;
-use std::{cmp::max, fmt, net::Ipv6Addr, str::FromStr, time::Duration};
+use std::{cmp::max, fmt, net::Ipv6Addr, str::FromStr, sync::{Arc, Mutex}, time::Duration};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -30,14 +30,14 @@ pub enum FrontiersConfirmationMode {
     Invalid,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct NodeConfig {
     pub peering_port: Option<u16>,
     pub optimistic_scheduler: OptimisticSchedulerConfig,
     pub hinted_scheduler: HintedSchedulerConfig,
     pub priority_bucket: PriorityBucketConfig,
     pub bootstrap_fraction_numerator: u32,
-    pub receive_minimum: Amount,
+    pub receive_minimum: Arc<Mutex<Amount>>,
     pub online_weight_minimum: Amount,
     /// The minimum vote weight that a representative must have for its vote to be counted.
     /// All representatives above this weight will be kept in memory!
@@ -260,7 +260,7 @@ impl NodeConfig {
         Self {
             peering_port,
             bootstrap_fraction_numerator: 1,
-            receive_minimum: Amount::raw(*XRB_RATIO),
+            receive_minimum: Arc::new(Mutex::new(Amount::raw(*XRB_RATIO))),
             online_weight_minimum: Amount::nano(60_000_000),
             representative_vote_weight_minimum: Amount::nano(10),
             password_fanout: 1024,

@@ -1504,7 +1504,7 @@ impl WalletsExt for Arc<Wallets> {
         mut work: u64,
         generate_work: bool,
     ) -> Option<BlockEnum> {
-        if amount < self.node_config.receive_minimum {
+        if amount < *self.node_config.receive_minimum.lock().unwrap() {
             warn!(
                 "Not receiving block {} due to minimum receive threshold",
                 send_hash
@@ -1810,7 +1810,7 @@ impl WalletsExt for Arc<Wallets> {
                 ) {
                     let hash = key.send_block_hash;
                     let amount = info.amount;
-                    if self.node_config.receive_minimum <= amount {
+                    if *self.node_config.receive_minimum.lock().unwrap() <= amount {
                         info!(
                             "Found a receivable block {} for account {}",
                             hash,

@@ -48,7 +48,7 @@ impl From<&GlobalConfig> for BootstrapInitiatorConfig {
             frontier_retry_limit: value.network_params.bootstrap.frontier_retry_limit,
             disable_bulk_push_client: value.flags.disable_bootstrap_bulk_push_client,
             bootstrap_initiator_threads: value.node_config.bootstrap_initiator_threads,
-            receive_minimum: value.node_config.receive_minimum,
+            receive_minimum: *value.node_config.receive_minimum.lock().unwrap(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use super::{NodeConfig, NodeRpcConfig, OpenclConfig};
 use crate::NetworkParams;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct DaemonConfig {
     pub rpc_enable: bool,
     pub rpc: NodeRpcConfig,
