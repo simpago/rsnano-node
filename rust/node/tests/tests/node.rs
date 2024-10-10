@@ -39,7 +39,6 @@ fn local_block_broadcast() {
         &key1.account(),
         &(Amount::MAX - Amount::nano(1000)),
         &DEV_GENESIS_KEY.private_key(),
-        &DEV_GENESIS_KEY.public_key(),
         system.work.generate_dev2(latest_hash.into()).unwrap(),
     ));
 

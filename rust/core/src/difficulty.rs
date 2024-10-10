@@ -7,7 +7,7 @@ use std::mem::size_of;
 
 use crate::Root;
 
-#[derive(Clone, Copy, FromPrimitive)]
+#[derive(Clone, Copy, FromPrimitive, PartialEq, Eq)]
 pub enum WorkVersion {
     Unspecified,
     Work1,

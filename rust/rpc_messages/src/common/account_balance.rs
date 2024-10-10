@@ -20,8 +20,8 @@ impl AccountBalanceDto {
 
 #[cfg(test)]
 mod tests {
-    use rsnano_core::Amount;
     use crate::AccountBalanceDto;
+    use rsnano_core::Amount;
 
     #[test]
     fn serialize_account_balance_dto() {

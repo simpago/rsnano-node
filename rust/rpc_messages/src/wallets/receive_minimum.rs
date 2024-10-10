@@ -15,11 +15,11 @@ mod tests {
     fn serialize_receive_minimum() {
         let command = RpcCommand::receive_minimum();
         let serialized = serde_json::to_value(&command).unwrap();
-        
+
         let expected = json!({
             "action": "receive_minimum"
         });
-        
+
         assert_eq!(serialized, expected);
     }
 
@@ -30,9 +30,9 @@ mod tests {
             "action": "receive_minimum"
         }
         "#;
-        
+
         let deserialized: RpcCommand = serde_json::from_str(json_str).unwrap();
-        
+
         assert!(matches!(deserialized, RpcCommand::ReceiveMinimum));
     }
 }

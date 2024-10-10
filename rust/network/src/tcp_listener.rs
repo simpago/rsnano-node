@@ -49,7 +49,7 @@ impl TcpListener {
             network,
             network_observer,
             data: Mutex::new(TcpListenerData {
-                stopped: false,
+                stopped: true,
                 local_addr: SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0),
             }),
             tokio,
@@ -70,7 +70,7 @@ impl TcpListener {
         if !guard.stopped {
             guard.local_addr
         } else {
-            SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)
+            SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0)
         }
     }
 }
@@ -84,6 +84,7 @@ pub trait TcpListenerExt {
 #[async_trait]
 impl TcpListenerExt for Arc<TcpListener> {
     fn start(&self) {
+        self.data.lock().unwrap().stopped = false;
         let self_l = Arc::clone(self);
         self.tokio.spawn(async move {
             let port = self_l.port.load(Ordering::SeqCst);

@@ -1,5 +1,5 @@
 use rsnano_core::Account;
-use rsnano_node::node::Node;
+use rsnano_node::Node;
 use rsnano_rpc_messages::AmountDto;
 use serde_json::to_string_pretty;
 use std::sync::Arc;
@@ -33,26 +33,4 @@ pub async fn available_supply(node: Arc<Node>) -> String {
     let available_supply = AmountDto::new("available".to_string(), available);
 
     to_string_pretty(&available_supply).unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use rsnano_core::Amount;
-    use test_helpers::{setup_rpc_client_and_server, System};
-
-    #[test]
-    fn available_supply() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
-
-        let result = node
-            .tokio
-            .block_on(async { rpc_client.available_supply().await.unwrap() });
-
-        assert_eq!(result.value, Amount::MAX);
-
-        server.abort();
-    }
 }

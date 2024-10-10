@@ -214,7 +214,7 @@ impl ConfirmingSetThread {
                 .inc(StatType::ConfirmingSet, DetailType::Cooldown);
             guard = self
                 .condition
-                .wait_timeout_while(guard, Duration::from_millis(100), |g| {
+                .wait_timeout_while(guard, Duration::from_millis(100), |_| {
                     !self.stopped.load(Ordering::SeqCst)
                 })
                 .unwrap()

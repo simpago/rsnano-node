@@ -1,9 +1,14 @@
-use rsnano_core::BlockHash;
 use crate::RpcCommand;
-use serde::{Serialize, Deserialize};
+use rsnano_core::BlockHash;
+use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
-    pub fn successors(block: BlockHash, count: u64, offset: Option<u64>, reverse: Option<bool>) -> Self {
+    pub fn chain(
+        block: BlockHash,
+        count: u64,
+        offset: Option<u64>,
+        reverse: Option<bool>,
+    ) -> Self {
         Self::Chain(ChainArgs::new(block, count, offset, reverse))
     }
 }
@@ -32,11 +37,14 @@ impl ChainArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, from_value};
+    use serde_json::{from_value, json};
 
     #[test]
     fn test_chain_args_serialize() {
-        let block_hash = BlockHash::decode_hex("000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F").unwrap();
+        let block_hash = BlockHash::decode_hex(
+            "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
+        )
+        .unwrap();
         let chain_args = ChainArgs::new(block_hash, 1, Some(1), Some(false));
 
         let serialized = serde_json::to_value(chain_args).unwrap();
@@ -60,7 +68,10 @@ mod tests {
         });
 
         let deserialized: ChainArgs = from_value(json_value).unwrap();
-        let expected_block_hash = BlockHash::decode_hex("000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F").unwrap();
+        let expected_block_hash = BlockHash::decode_hex(
+            "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
+        )
+        .unwrap();
         let expected = ChainArgs::new(expected_block_hash, 1, Some(1), Some(false));
 
         assert_eq!(deserialized, expected);
@@ -68,7 +79,10 @@ mod tests {
 
     #[test]
     fn serialize_chain_command() {
-        let block_hash = BlockHash::decode_hex("000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F").unwrap();
+        let block_hash = BlockHash::decode_hex(
+            "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
+        )
+        .unwrap();
         let chain_command = RpcCommand::chain(block_hash, 1, Some(1), Some(false));
 
         let serialized = serde_json::to_value(chain_command).unwrap();
@@ -94,7 +108,10 @@ mod tests {
         });
 
         let deserialized: RpcCommand = from_value(json_value).unwrap();
-        let expected_block_hash = BlockHash::decode_hex("000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F").unwrap();
+        let expected_block_hash = BlockHash::decode_hex(
+            "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
+        )
+        .unwrap();
         let expected = RpcCommand::chain(expected_block_hash, 1, Some(1), Some(false));
 
         assert_eq!(deserialized, expected);

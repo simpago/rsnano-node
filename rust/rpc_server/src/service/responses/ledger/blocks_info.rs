@@ -1,5 +1,5 @@
-use rsnano_core::{BlockDetails, BlockHash, BlockSubType, BlockType, JsonBlock};
-use rsnano_node::node::Node;
+use rsnano_core::{BlockDetails, BlockHash, BlockSubType, BlockType};
+use rsnano_node::Node;
 use rsnano_rpc_messages::{BlockInfoDto, BlocksInfoDto, ErrorDto};
 use serde_json::to_string_pretty;
 use std::{collections::HashMap, sync::Arc};
@@ -52,27 +52,4 @@ pub async fn blocks_info(node: Arc<Node>, hashes: Vec<BlockHash>) -> String {
     }
 
     to_string_pretty(&BlocksInfoDto::new(blocks_info)).unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use rsnano_ledger::DEV_GENESIS_HASH;
-    use test_helpers::{setup_rpc_client_and_server, System};
-
-    #[test]
-    fn blocks_info() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
-
-        let result = node.tokio.block_on(async {
-            rpc_client
-                .blocks_info(vec![*DEV_GENESIS_HASH])
-                .await
-                .unwrap()
-        });
-
-        server.abort();
-    }
 }

@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use super::AccountBalanceDto;
 use rsnano_core::Account;
 use serde::{Deserialize, Serialize};
-use super::AccountBalanceDto;
+use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct AccountsBalancesDto {
@@ -17,7 +17,10 @@ mod tests {
     fn serialize_accounts_balances_dto() {
         let mut balances = HashMap::new();
         balances.insert(
-            Account::decode_account("nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3").unwrap(),
+            Account::decode_account(
+                "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+            )
+            .unwrap(),
             AccountBalanceDto {
                 balance: Amount::raw(325586539664609129644855132177),
                 pending: Amount::raw(2309372032769300000000000000000000),
@@ -25,7 +28,10 @@ mod tests {
             },
         );
         balances.insert(
-            Account::decode_account("nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7").unwrap(),
+            Account::decode_account(
+                "nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7",
+            )
+            .unwrap(),
             AccountBalanceDto {
                 balance: Amount::raw(10000000),
                 pending: Amount::raw(0),
@@ -40,11 +46,27 @@ mod tests {
 
         assert_eq!(dto.balances.len(), deserialized.balances.len());
         assert_eq!(
-            dto.balances.get(&Account::decode_account("nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3").unwrap()).unwrap().balance,
+            dto.balances
+                .get(
+                    &Account::decode_account(
+                        "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3"
+                    )
+                    .unwrap()
+                )
+                .unwrap()
+                .balance,
             Amount::raw(325586539664609129644855132177)
         );
         assert_eq!(
-            dto.balances.get(&Account::decode_account("nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7").unwrap()).unwrap().pending,
+            dto.balances
+                .get(
+                    &Account::decode_account(
+                        "nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7"
+                    )
+                    .unwrap()
+                )
+                .unwrap()
+                .pending,
             Amount::raw(0)
         );
     }
@@ -71,12 +93,37 @@ mod tests {
 
         assert_eq!(deserialized.balances.len(), 2);
 
-        let balance1 = deserialized.balances.get(&Account::decode_account("nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3").unwrap()).unwrap();
-        assert_eq!(balance1.balance, Amount::raw(325586539664609129644855132177));
-        assert_eq!(balance1.pending, Amount::raw(2309372032769300000000000000000000));
-        assert_eq!(balance1.receivable, Amount::raw(2309372032769300000000000000000000));
+        let balance1 = deserialized
+            .balances
+            .get(
+                &Account::decode_account(
+                    "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            balance1.balance,
+            Amount::raw(325586539664609129644855132177)
+        );
+        assert_eq!(
+            balance1.pending,
+            Amount::raw(2309372032769300000000000000000000)
+        );
+        assert_eq!(
+            balance1.receivable,
+            Amount::raw(2309372032769300000000000000000000)
+        );
 
-        let balance2 = deserialized.balances.get(&Account::decode_account("nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7").unwrap()).unwrap();
+        let balance2 = deserialized
+            .balances
+            .get(
+                &Account::decode_account(
+                    "nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7",
+                )
+                .unwrap(),
+            )
+            .unwrap();
         assert_eq!(balance2.balance, Amount::raw(10000000));
         assert_eq!(balance2.pending, Amount::raw(0));
         assert_eq!(balance2.receivable, Amount::raw(0));

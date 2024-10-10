@@ -36,13 +36,15 @@ impl VoteProcessorConfig {
     }
 }
 
+pub type VoteProcessedCallback2 =
+    Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>;
+
 pub struct VoteProcessor {
     threads: Mutex<Vec<JoinHandle<()>>>,
     queue: Arc<VoteProcessorQueue>,
     vote_router: Arc<VoteRouter>,
     stats: Arc<Stats>,
-    vote_processed:
-        Mutex<Vec<Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>>>,
+    vote_processed: Mutex<Vec<VoteProcessedCallback2>>,
     pub total_processed: AtomicU64,
 }
 
@@ -51,7 +53,7 @@ impl VoteProcessor {
         queue: Arc<VoteProcessorQueue>,
         vote_router: Arc<VoteRouter>,
         stats: Arc<Stats>,
-        on_vote: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
+        on_vote: VoteProcessedCallback2,
     ) -> Self {
         Self {
             queue,

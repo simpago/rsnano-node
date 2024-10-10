@@ -1,7 +1,7 @@
 use crate::{LmdbDatabase, Transaction};
 use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_SET_RANGE};
 use rsnano_core::utils::{
-    BufferReader, Deserialize, FixedSizeSerialize, MemoryStream, MutStreamAdapter, Serialize,
+    BufferReader, Deserialize, FixedSizeSerialize, MutStreamAdapter, Serialize,
 };
 use rsnano_nullable_lmdb::RoCursor;
 use std::{

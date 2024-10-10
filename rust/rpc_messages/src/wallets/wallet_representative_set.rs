@@ -1,16 +1,22 @@
-use serde::{Deserialize, Serialize};
-use crate::RpcCommand;
 use super::WalletWithAccountArgs;
+use crate::RpcCommand;
+use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
-    pub fn wallet_representative_set(wallet_with_account: WalletWithAccountArgs, update_existing_accounts: Option<bool>) -> Self {
-        Self::WalletRepresentativeSet(WalletRepresentativeSetArgs::new(wallet_with_account, update_existing_accounts))
+    pub fn wallet_representative_set(
+        wallet_with_account: WalletWithAccountArgs,
+        update_existing_accounts: Option<bool>,
+    ) -> Self {
+        Self::WalletRepresentativeSet(WalletRepresentativeSetArgs::new(
+            wallet_with_account,
+            update_existing_accounts,
+        ))
     }
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 
- pub struct WalletRepresentativeSetArgs {
+pub struct WalletRepresentativeSetArgs {
     #[serde(flatten)]
     pub wallet_with_account: WalletWithAccountArgs,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -18,7 +24,10 @@ impl RpcCommand {
 }
 
 impl WalletRepresentativeSetArgs {
-    pub fn new(wallet_with_account: WalletWithAccountArgs, update_existing_accounts: Option<bool>) -> Self {
+    pub fn new(
+        wallet_with_account: WalletWithAccountArgs,
+        update_existing_accounts: Option<bool>,
+    ) -> Self {
         Self {
             wallet_with_account,
             update_existing_accounts,
@@ -35,7 +44,8 @@ mod tests {
     #[test]
     fn serialize_wallet_representative_set_args_update_existing_accounts_none() {
         let wallet_with_account = WalletWithAccountArgs::new(WalletId::zero(), Account::zero());
-        let wallet_representative_set_args = WalletRepresentativeSetArgs::new(wallet_with_account, None);
+        let wallet_representative_set_args =
+            WalletRepresentativeSetArgs::new(wallet_with_account, None);
 
         let serialized = to_string(&wallet_representative_set_args).unwrap();
 
@@ -51,7 +61,8 @@ mod tests {
     #[test]
     fn serialize_wallet_representative_set_args_update_existing_accounts_some() {
         let wallet_with_account = WalletWithAccountArgs::new(WalletId::zero(), Account::zero());
-        let wallet_representative_set_args = WalletRepresentativeSetArgs::new(wallet_with_account, Some(true));
+        let wallet_representative_set_args =
+            WalletRepresentativeSetArgs::new(wallet_with_account, Some(true));
 
         let serialized = to_string(&wallet_representative_set_args).unwrap();
 

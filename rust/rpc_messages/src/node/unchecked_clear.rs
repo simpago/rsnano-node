@@ -8,8 +8,8 @@ impl RpcCommand {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn serialize_unchecked_clear() {

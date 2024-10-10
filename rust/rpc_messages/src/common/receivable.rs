@@ -98,10 +98,13 @@ mod tests {
     fn serialize_wallet_receivable_dto_source() {
         let mut blocks = HashMap::new();
         let mut inner_map = HashMap::new();
-        inner_map.insert(BlockHash::zero(), SourceInfo {
-            amount: Amount::from(1000),
-            source: Account::zero(),
-        });
+        inner_map.insert(
+            BlockHash::zero(),
+            SourceInfo {
+                amount: Amount::from(1000),
+                source: Account::zero(),
+            },
+        );
         blocks.insert(Account::zero(), inner_map);
 
         let works = ReceivableDto::Source { blocks };
@@ -119,10 +122,13 @@ mod tests {
 
         let mut expected_blocks = HashMap::new();
         let mut inner_map = HashMap::new();
-        inner_map.insert(BlockHash::zero(), SourceInfo {
-            amount: Amount::from(1000),
-            source: Account::zero(),
-        });
+        inner_map.insert(
+            BlockHash::zero(),
+            SourceInfo {
+                amount: Amount::from(1000),
+                source: Account::zero(),
+            },
+        );
         expected_blocks.insert(Account::zero(), inner_map);
 
         let expected_works = ReceivableDto::Source {

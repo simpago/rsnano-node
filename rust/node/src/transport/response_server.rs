@@ -27,7 +27,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TcpConfig {

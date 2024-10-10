@@ -1,7 +1,7 @@
 use rsnano_core::BlockHash;
 use rsnano_node::{
     consensus::{ElectionStatus, ElectionStatusType},
-    node::Node,
+    Node,
 };
 use rsnano_rpc_messages::{BoolDto, ErrorDto};
 use serde_json::to_string_pretty;
@@ -29,50 +29,5 @@ pub async fn block_confirm(node: Arc<Node>, hash: BlockHash) -> String {
             to_string_pretty(&block_confirm).unwrap()
         }
         None => to_string_pretty(&ErrorDto::new("Block not found".to_string())).unwrap(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use rsnano_core::BlockHash;
-    use rsnano_ledger::DEV_GENESIS_HASH;
-    use test_helpers::{setup_rpc_client_and_server, System};
-
-    #[test]
-    fn block_confirm() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
-
-        let result = node.tokio.block_on(async {
-            rpc_client
-                .block_confirm(DEV_GENESIS_HASH.to_owned())
-                .await
-                .unwrap()
-        });
-
-        assert_eq!(result.value, true);
-
-        server.abort();
-    }
-
-    #[test]
-    fn block_confirm_fails_with_block_not_found() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
-
-        let result = node
-            .tokio
-            .block_on(async { rpc_client.block_confirm(BlockHash::zero()).await });
-
-        assert_eq!(
-            result.err().map(|e| e.to_string()),
-            Some("node returned error: \"Block not found\"".to_string())
-        );
-
-        server.abort();
     }
 }

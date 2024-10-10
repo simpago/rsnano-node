@@ -85,7 +85,8 @@ impl<'de> Visitor<'de> for AccountVisitor {
     type Value = Account;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("an account in the form \"nano_...\" or a node ID in the form \"node_...\"")
+        formatter
+            .write_str("an account in the form \"nano_...\" or a node ID in the form \"node_...\"")
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -368,7 +369,10 @@ mod tests {
         let account = Account::decode_node_id(node_id).expect("Failed to decode node ID");
         assert_eq!(
             account,
-            Account::decode_account("nano_1y7j5rdqhg99uyab1145gu3yur1ax35a3b6qr417yt8cd6n86uiw3d4whty3").expect("Failed to decode account")
+            Account::decode_account(
+                "nano_1y7j5rdqhg99uyab1145gu3yur1ax35a3b6qr417yt8cd6n86uiw3d4whty3"
+            )
+            .expect("Failed to decode account")
         );
     }
 }

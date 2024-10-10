@@ -80,7 +80,6 @@ pub extern "C" fn rsn_state_block_create2(dto: &StateBlockDto2) -> *mut BlockHan
         Amount::from_be_bytes(dto.balance),
         Link::from_bytes(dto.link),
         &RawKey::from_bytes(dto.priv_key),
-        &PublicKey::from_bytes(dto.pub_key),
         dto.work,
     );
     Box::into_raw(Box::new(BlockHandle(Arc::new(BlockEnum::State(block)))))

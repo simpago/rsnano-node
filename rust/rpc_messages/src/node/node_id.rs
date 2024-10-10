@@ -1,6 +1,6 @@
-use rsnano_core::{Account, PublicKey, RawKey};
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
 use crate::RpcCommand;
+use rsnano_core::{Account, PublicKey, RawKey};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 impl RpcCommand {
     pub fn node_id() -> Self {
@@ -13,13 +13,21 @@ pub struct NodeIdDto {
     pub private: RawKey,
     pub public: PublicKey,
     pub as_account: Account,
-    #[serde(serialize_with = "serialize_node_id", deserialize_with = "deserialize_node_id")]
+    #[serde(
+        serialize_with = "serialize_node_id",
+        deserialize_with = "deserialize_node_id"
+    )]
     pub node_id: Account,
 }
 
 impl NodeIdDto {
     pub fn new(private: RawKey, public: PublicKey, as_account: Account) -> Self {
-        Self { private, public, as_account, node_id: as_account }
+        Self {
+            private,
+            public,
+            as_account,
+            node_id: as_account,
+        }
     }
 }
 
@@ -41,8 +49,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn serialize_node_id_dto() {

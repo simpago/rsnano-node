@@ -1,5 +1,4 @@
 use crate::RpcCommand;
-use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
     pub fn uptime() -> Self {

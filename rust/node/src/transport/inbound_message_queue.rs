@@ -1,4 +1,4 @@
-use super::FairQueue;
+use super::{FairQueue, MessageCallback};
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::utils::ContainerInfoComponent;
 use rsnano_messages::Message;
@@ -12,6 +12,8 @@ pub struct InboundMessageQueue {
     state: Mutex<State>,
     condition: Condvar,
     stats: Arc<Stats>,
+    inbound_callback: Option<MessageCallback>,
+    inbound_dropped_callback: Option<MessageCallback>,
 }
 
 impl InboundMessageQueue {
@@ -23,7 +25,17 @@ impl InboundMessageQueue {
             }),
             condition: Condvar::new(),
             stats,
+            inbound_callback: None,
+            inbound_dropped_callback: None,
         }
+    }
+
+    pub fn set_inbound_callback(&mut self, callback: MessageCallback) {
+        self.inbound_callback = Some(callback);
+    }
+
+    pub fn set_inbound_dropped_callback(&mut self, callback: MessageCallback) {
+        self.inbound_dropped_callback = Some(callback);
     }
 
     pub fn put(&self, message: Message, channel: Arc<ChannelInfo>) -> bool {
@@ -33,7 +45,7 @@ impl InboundMessageQueue {
             .lock()
             .unwrap()
             .queue
-            .push(channel.channel_id(), (message, channel.clone()));
+            .push(channel.channel_id(), (message.clone(), channel.clone()));
 
         if added {
             self.stats
@@ -42,11 +54,17 @@ impl InboundMessageQueue {
                 .inc(StatType::MessageProcessorType, message_type.into());
 
             self.condition.notify_all();
+            if let Some(cb) = &self.inbound_callback {
+                cb(channel.channel_id(), &message);
+            }
         } else {
             self.stats
                 .inc(StatType::MessageProcessor, DetailType::Overfill);
             self.stats
                 .inc(StatType::MessageProcessorOverfill, message_type.into());
+            if let Some(cb) = &self.inbound_dropped_callback {
+                cb(channel.channel_id(), &message);
+            }
         }
 
         added

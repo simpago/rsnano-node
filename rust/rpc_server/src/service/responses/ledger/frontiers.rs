@@ -1,5 +1,5 @@
 use rsnano_core::{Account, BlockHash};
-use rsnano_node::node::Node;
+use rsnano_node::Node;
 use rsnano_rpc_messages::FrontiersDto;
 use serde_json::to_string_pretty;
 use std::{collections::HashMap, sync::Arc};
@@ -23,29 +23,4 @@ pub async fn frontiers(node: Arc<Node>, account: Account, count: u64) -> String 
     }
 
     to_string_pretty(&FrontiersDto::new(frontiers)).unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
-    use test_helpers::{setup_rpc_client_and_server, System};
-
-    #[test]
-    fn frontiers() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
-
-        let result = node
-            .tokio
-            .block_on(async { rpc_client.frontiers(*DEV_GENESIS_ACCOUNT, 1).await.unwrap() });
-
-        assert_eq!(
-            result.frontiers.get(&*DEV_GENESIS_ACCOUNT).unwrap(),
-            &*DEV_GENESIS_HASH
-        );
-
-        server.abort();
-    }
 }

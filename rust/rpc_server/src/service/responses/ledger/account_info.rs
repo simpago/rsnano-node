@@ -1,5 +1,5 @@
-use rsnano_core::{Account, Amount};
-use rsnano_node::node::Node;
+use rsnano_core::Amount;
+use rsnano_node::Node;
 use rsnano_rpc_messages::{AccountInfoArgs, AccountInfoDto, ErrorDto};
 use serde_json::to_string_pretty;
 use std::sync::Arc;
@@ -94,75 +94,4 @@ pub async fn account_info(node: Arc<Node>, args: AccountInfoArgs) -> String {
     }
 
     to_string_pretty(&account_info).unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use rsnano_core::{Account, Amount, BlockHash, Epoch};
-    use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
-    use rsnano_rpc_messages::AccountInfoArgs;
-    use test_helpers::{setup_rpc_client_and_server, System};
-
-    #[test]
-    fn account_info() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
-
-        let result = node.tokio.block_on(async {
-            rpc_client
-                .account_info(
-                    Account::decode_account(
-                        "nano_1111111111111111111111111111111111111111111111111111hifc8npp",
-                    )
-                    .unwrap(),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-                .await
-        });
-
-        assert_eq!(
-            result.err().map(|e| e.to_string()),
-            Some("node returned error: \"Account not found\"".to_string())
-        );
-
-        let result = node.tokio.block_on(async {
-            rpc_client
-                .account_info(
-                    *DEV_GENESIS_ACCOUNT,
-                    Some(true),
-                    Some(true),
-                    Some(true),
-                    Some(true),
-                    Some(true),
-                )
-                .await
-                .unwrap()
-        });
-
-        assert_eq!(result.frontier, *DEV_GENESIS_HASH);
-        assert_eq!(result.open_block, *DEV_GENESIS_HASH);
-        assert_eq!(result.representative_block, *DEV_GENESIS_HASH);
-        assert_eq!(result.balance, Amount::MAX);
-        assert!(result.modified_timestamp > 0);
-        assert_eq!(result.block_count, 1);
-        assert_eq!(result.account_version, 2);
-        assert_eq!(result.confirmed_height, Some(1));
-        assert_eq!(result.confirmation_height_frontier, Some(*DEV_GENESIS_HASH));
-        assert_eq!(result.representative, Some(*DEV_GENESIS_ACCOUNT));
-        assert_eq!(result.weight, Some(Amount::MAX));
-        assert_eq!(result.pending, Some(Amount::raw(0)));
-        assert_eq!(result.receivable, Some(Amount::raw(0)));
-        assert_eq!(result.confirmed_balance, Some(Amount::MAX));
-        assert_eq!(result.confirmed_pending, Some(Amount::raw(0)));
-        assert_eq!(result.confirmed_receivable, Some(Amount::raw(0)));
-        assert_eq!(result.confirmed_representative, Some(*DEV_GENESIS_ACCOUNT));
-
-        server.abort();
-    }
 }

@@ -3,7 +3,7 @@ use rand::Rng;
 use rsnano_core::{Account, WalletId};
 use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{AccountInfoDto, KeyPairDto};
+use rsnano_rpc_messages::{AccountInfoArgs, AccountInfoDto, KeyPairDto};
 use std::{
     collections::HashMap,
     io::Write,
@@ -118,7 +118,7 @@ async fn get_account_info(
         account_info.insert(
             account,
             node_client
-                .account_info(account, None, None, None, None, None)
+                .account_info(AccountInfoArgs::new(account, None, None, None, None, None))
                 .await?,
         );
     }

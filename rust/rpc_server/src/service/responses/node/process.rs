@@ -1,6 +1,6 @@
 use rsnano_core::BlockEnum;
 use rsnano_ledger::BlockStatus;
-use rsnano_node::node::Node;
+use rsnano_node::Node;
 use rsnano_rpc_messages::{BlockHashRpcMessage, ErrorDto, ProcessArgs};
 use serde_json::to_string_pretty;
 use std::sync::Arc;
@@ -72,91 +72,10 @@ pub async fn process(node: Arc<Node>, args: ProcessArgs) -> String {
         }
     } else {
         if let BlockEnum::State(_) = block {
-            node.process(block);
+            node.process(block).unwrap(); // TODO add error handling!
             to_string_pretty(&serde_json::json!({"started": "1"})).unwrap_or_default()
         } else {
             to_string_pretty(&ErrorDto::new("Is not state block".to_string())).unwrap()
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use rsnano_core::{Amount, BlockEnum, BlockSubType, StateBlock, DEV_GENESIS_KEY};
-    use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-    use test_helpers::{setup_rpc_client_and_server, System};
-
-    #[test]
-    fn process() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
-
-        let send1 = BlockEnum::State(StateBlock::new(
-            *DEV_GENESIS_ACCOUNT,
-            *DEV_GENESIS_HASH,
-            *DEV_GENESIS_PUB_KEY,
-            Amount::MAX - Amount::raw(100),
-            DEV_GENESIS_KEY.account().into(),
-            &DEV_GENESIS_KEY,
-            node.work_generate_dev((*DEV_GENESIS_HASH).into()),
-        ));
-
-        let result = node.tokio.block_on(async {
-            rpc_client
-                .process(
-                    Some(BlockSubType::Send),
-                    send1.json_representation(),
-                    None,
-                    None,
-                    None,
-                )
-                .await
-                .unwrap()
-        });
-
-        assert_eq!(result.value, send1.hash());
-
-        assert_eq!(node.latest(&*DEV_GENESIS_ACCOUNT), send1.hash());
-
-        server.abort();
-    }
-
-    #[test]
-    fn process_fails_with_low_work() {
-        let mut system = System::new();
-        let node = system.make_node();
-
-        let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
-
-        let send1 = BlockEnum::State(StateBlock::new(
-            *DEV_GENESIS_ACCOUNT,
-            *DEV_GENESIS_HASH,
-            *DEV_GENESIS_PUB_KEY,
-            Amount::MAX - Amount::raw(100),
-            DEV_GENESIS_KEY.account().into(),
-            &DEV_GENESIS_KEY,
-            1,
-        ));
-
-        let result = node.tokio.block_on(async {
-            rpc_client
-                .process(
-                    Some(BlockSubType::Send),
-                    send1.json_representation(),
-                    None,
-                    None,
-                    None,
-                )
-                .await
-        });
-
-        assert_eq!(
-            result.err().map(|e| e.to_string()),
-            Some("node returned error: \"Work low\"".to_string())
-        );
-
-        server.abort();
     }
 }

@@ -4,7 +4,10 @@ use serde::{
     ser::SerializeMap,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::HashMap, fmt};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+};
 
 #[macro_export]
 macro_rules! create_rpc_message {
@@ -78,12 +81,13 @@ create_rpc_message!(BlockHashRpcMessage, BlockHash);
 create_rpc_message!(BlocksHashesRpcMessage, Vec<BlockHash>);
 create_rpc_message!(U64RpcMessage, u64);
 create_rpc_message!(AccountsWithAmountsDto, HashMap<Account, Amount>);
+create_rpc_message!(AccountsReceivablesDto, BTreeMap<Account, Vec<BlockHash>>);
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{from_str, to_string_pretty};
     use crate::AccountsWithAmountsDto;
+    use serde_json::{from_str, to_string_pretty};
     use std::collections::HashMap;
 
     #[test]
@@ -193,9 +197,9 @@ mod tests {
     fn serialize_accounts_with_amounts_dto() {
         let mut accounts = HashMap::new();
         accounts.insert(Account::zero(), Amount::from(1000));
-        
+
         let message = AccountsWithAmountsDto::new("accounts".to_string(), accounts);
-        
+
         let serialized = serde_json::to_string_pretty(&message).unwrap();
         assert_eq!(
             serialized,
@@ -216,8 +220,11 @@ mod tests {
 }"#;
 
         let deserialized: AccountsWithAmountsDto = serde_json::from_str(json).unwrap();
-        
+
         assert_eq!(deserialized.key, "accounts");
-        assert_eq!(deserialized.value.get(&Account::zero()), Some(&Amount::from(1000)));
+        assert_eq!(
+            deserialized.value.get(&Account::zero()),
+            Some(&Amount::from(1000))
+        );
     }
 }

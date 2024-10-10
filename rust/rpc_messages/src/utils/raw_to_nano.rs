@@ -17,12 +17,12 @@ mod tests {
     fn serialize_raw_to_nano_command() {
         assert_eq!(
             to_string_pretty(&RpcCommand::raw_to_nano(Amount::nano(
-                1000000000000000000000000000000
+                1
             )))
             .unwrap(),
             r#"{
   "action": "raw_to_nano",
-  "amount": "1"
+  "amount": "1000000000000000000000000000000"
 }"#
         );
     }

@@ -1,6 +1,6 @@
+use crate::{AccountRpcMessage, RpcCommand};
 use rsnano_core::Account;
 use serde::{Deserialize, Serialize};
-use crate::{AccountRpcMessage, RpcCommand};
 
 impl RpcCommand {
     pub fn delegators_count(account: Account) -> Self {
@@ -18,7 +18,6 @@ impl CountDto {
         Self { count }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -38,7 +37,7 @@ mod tests {
         let json = r#"{"action": "delegators_count","account": "nano_1111111111111111111111111111111111111111111111111111hifc8npp"}"#;
         let deserialized: RpcCommand = serde_json::from_str(json).unwrap();
         let expected = RpcCommand::delegators_count(Account::zero());
-        assert!(matches!(deserialized, expected));
+        assert_eq!(deserialized, expected);
     }
 
     #[test]

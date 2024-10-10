@@ -1,6 +1,5 @@
 use crate::{BlockHashRpcMessage, RpcCommand};
 use rsnano_core::BlockHash;
-use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
     pub fn block_confirm(hash: BlockHash) -> Self {

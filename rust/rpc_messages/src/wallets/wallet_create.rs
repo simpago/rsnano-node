@@ -1,6 +1,6 @@
+use crate::RpcCommand;
 use rsnano_core::{Account, RawKey, WalletId};
 use serde::{Deserialize, Serialize};
-use crate::RpcCommand;
 
 impl RpcCommand {
     pub fn wallet_create(seed: Option<RawKey>) -> Self {
@@ -11,7 +11,7 @@ impl RpcCommand {
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct WalletCreateArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub seed: Option<RawKey>
+    pub seed: Option<RawKey>,
 }
 
 impl WalletCreateArgs {
@@ -38,7 +38,6 @@ impl WalletCreateDto {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -86,7 +85,10 @@ mod tests {
     #[test]
     fn serialize_wallet_create_dto_options_none() {
         let dto = WalletCreateDto {
-            wallet: WalletId::decode_hex("5D4570F8CAADE20D021490FF3E525780A380C0C7FD115F5A1EF3B4F4EF1DA03B").unwrap(),
+            wallet: WalletId::decode_hex(
+                "5D4570F8CAADE20D021490FF3E525780A380C0C7FD115F5A1EF3B4F4EF1DA03B",
+            )
+            .unwrap(),
             last_restored_account: None,
             restored_count: None,
         };
@@ -103,8 +105,16 @@ mod tests {
     #[test]
     fn serialize_wallet_create_dto_options_some() {
         let dto = WalletCreateDto {
-            wallet: WalletId::decode_hex("5D4570F8CAADE20D021490FF3E525780A380C0C7FD115F5A1EF3B4F4EF1DA03B").unwrap(),
-            last_restored_account: Some(Account::decode_account("nano_3a1d9fj3kx3zs3worrubd6n1r69xsdapt3ykigfaq35se7agknckjxsqbxzp").unwrap()),
+            wallet: WalletId::decode_hex(
+                "5D4570F8CAADE20D021490FF3E525780A380C0C7FD115F5A1EF3B4F4EF1DA03B",
+            )
+            .unwrap(),
+            last_restored_account: Some(
+                Account::decode_account(
+                    "nano_3a1d9fj3kx3zs3worrubd6n1r69xsdapt3ykigfaq35se7agknckjxsqbxzp",
+                )
+                .unwrap(),
+            ),
             restored_count: Some(1),
         };
 

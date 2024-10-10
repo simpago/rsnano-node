@@ -42,7 +42,6 @@ impl ChangeBlock {
         previous: BlockHash,
         representative: PublicKey,
         prv_key: &RawKey,
-        pub_key: &PublicKey,
         work: u64,
     ) -> Self {
         let hashables = ChangeHashables {
@@ -68,7 +67,6 @@ impl ChangeBlock {
             BlockHash::from(123),
             PublicKey::from(456),
             &key.private_key(),
-            &key.public_key(),
             69420,
         )
     }
@@ -246,7 +244,7 @@ impl Block for ChangeBlock {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct JsonChangeBlock {
     pub previous: BlockHash,
     pub representative: Account,
@@ -283,13 +281,7 @@ mod tests {
     fn create_block() {
         let key1 = KeyPair::new();
         let previous = BlockHash::from(1);
-        let block = ChangeBlock::new(
-            previous.clone(),
-            PublicKey::from(2),
-            &key1.private_key(),
-            &key1.public_key(),
-            5,
-        );
+        let block = ChangeBlock::new(previous.clone(), PublicKey::from(2), &key1.private_key(), 5);
         assert_eq!(block.previous(), previous);
         assert_eq!(block.root(), block.previous().into());
     }
@@ -302,7 +294,6 @@ mod tests {
             BlockHash::from(1),
             PublicKey::from(2),
             &key1.private_key(),
-            &key1.public_key(),
             5,
         );
         let mut stream = MemoryStream::new();

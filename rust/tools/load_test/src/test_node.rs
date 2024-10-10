@@ -10,7 +10,7 @@ use rsnano_node::{
     unique_path, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{AccountInfoDto, KeyPairDto, SuccessDto};
+use rsnano_rpc_messages::{AccountInfoArgs, AccountInfoDto, KeyPairDto, SuccessDto};
 use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::{
     collections::HashMap,
@@ -140,7 +140,7 @@ impl TestNode {
 
     pub async fn account_info(&self, account: Account) -> Result<AccountInfoDto> {
         self.node_client
-            .account_info(account, None, None, None, None, None)
+            .account_info(AccountInfoArgs::new(account, None, None, None, None, None))
             .await
     }
 }

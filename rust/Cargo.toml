@@ -20,6 +20,8 @@ members = [
     "main",
     "tools/load_test",
     "tools/xtask",
-    "tools/test_helpers" 
-, "network", "tools/signature-checker"]
+    "tools/test_helpers", 
+	"tools/signature-checker", 
+	"tools/insight"
+	]
 resolver = "2"

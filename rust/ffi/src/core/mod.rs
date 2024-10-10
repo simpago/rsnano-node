@@ -50,7 +50,7 @@ pub unsafe extern "C" fn rsn_account_decode(input: *const c_char, result: *mut [
 #[no_mangle]
 pub unsafe extern "C" fn rsn_sign_message(
     priv_key: *const u8,
-    pub_key: *const u8,
+    _pub_key: *const u8,
     message: *const u8,
     len: usize,
     signature: *mut u8,

@@ -1,6 +1,6 @@
-use rsnano_core::Account;
 use crate::RpcCommand;
-use serde::{Serialize, Deserialize};
+use rsnano_core::Account;
+use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct AccountsBalancesArgs {
@@ -26,8 +26,14 @@ mod tests {
     #[test]
     fn deserialize_accounts_balances_rpc_command() {
         let accounts = vec![
-            Account::decode_account("nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3").unwrap(),
-            Account::decode_account("nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7").unwrap(),
+            Account::decode_account(
+                "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+            )
+            .unwrap(),
+            Account::decode_account(
+                "nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7",
+            )
+            .unwrap(),
         ];
 
         let command = RpcCommand::accounts_balances(accounts.clone(), None);
@@ -60,14 +66,20 @@ mod tests {
                 assert_eq!(args.accounts.len(), 2);
                 assert_eq!(
                     args.accounts[0],
-                    Account::decode_account("nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3").unwrap()
+                    Account::decode_account(
+                        "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3"
+                    )
+                    .unwrap()
                 );
                 assert_eq!(
                     args.accounts[1],
-                    Account::decode_account("nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7").unwrap()
+                    Account::decode_account(
+                        "nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7"
+                    )
+                    .unwrap()
                 );
                 assert_eq!(args.include_only_confirmed, Some(true));
-            },
+            }
             _ => panic!("Deserialized to wrong RpcCommand variant"),
         }
 
@@ -86,7 +98,7 @@ mod tests {
             RpcCommand::AccountsBalances(args) => {
                 assert_eq!(args.accounts.len(), 2);
                 assert_eq!(args.include_only_confirmed, None);
-            },
+            }
             _ => panic!("Deserialized to wrong RpcCommand variant"),
         }
     }

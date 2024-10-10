@@ -80,7 +80,6 @@ impl SendBlock {
         destination: &Account,
         balance: &Amount,
         private_key: &RawKey,
-        public_key: &PublicKey,
         work: u64,
     ) -> Self {
         let hashables = SendHashables {
@@ -108,7 +107,6 @@ impl SendBlock {
             &Account::from(2),
             &Amount::raw(3),
             &key.private_key(),
-            &key.public_key(),
             424269420,
         )
     }
@@ -327,7 +325,7 @@ impl From<JsonSendBlock> for SendBlock {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct JsonSendBlock {
     pub previous: BlockHash,
     pub destination: Account,
@@ -336,7 +334,7 @@ pub struct JsonSendBlock {
     pub signature: Signature,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct AmountHex(u128);
 
 impl AmountHex {
@@ -417,7 +415,6 @@ mod tests {
             &Account::from(1),
             &Amount::raw(13),
             &key.private_key(),
-            &key.public_key(),
             2,
         );
 
@@ -439,7 +436,6 @@ mod tests {
             &Account::from(1),
             &Amount::raw(2),
             &key.private_key(),
-            &key.public_key(),
             5,
         );
         let mut stream = MemoryStream::new();

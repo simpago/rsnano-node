@@ -3,8 +3,8 @@ use crate::utils::FfiStream;
 use crate::FfiPropertyTree;
 use num::FromPrimitive;
 use rsnano_core::{
-    valid_send_block_predecessor, Account, Amount, BlockEnum, BlockHash, LazyBlockHash, PublicKey,
-    RawKey, SendBlock, SendHashables, Signature,
+    valid_send_block_predecessor, Account, Amount, BlockEnum, BlockHash, LazyBlockHash, RawKey,
+    SendBlock, SendHashables, Signature,
 };
 use std::ffi::c_void;
 use std::ops::Deref;
@@ -61,15 +61,7 @@ pub extern "C" fn rsn_send_block_create2(dto: &SendBlockDto2) -> *mut BlockHandl
     let destination = Account::from_bytes(dto.destination);
     let balance = Amount::from_be_bytes(dto.balance);
     let private_key = RawKey::from_bytes(dto.priv_key);
-    let public_key = PublicKey::from_bytes(dto.pub_key);
-    let block = SendBlock::new(
-        &previous,
-        &destination,
-        &balance,
-        &private_key,
-        &public_key,
-        dto.work,
-    );
+    let block = SendBlock::new(&previous, &destination, &balance, &private_key, dto.work);
 
     Box::into_raw(Box::new(BlockHandle(Arc::new(BlockEnum::LegacySend(
         block,

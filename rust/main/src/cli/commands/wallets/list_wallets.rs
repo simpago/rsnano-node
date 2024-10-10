@@ -21,13 +21,11 @@ pub(crate) struct ListWalletsArgs {
 impl ListWalletsArgs {
     pub(crate) async fn list_wallets(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
-
         let env = Arc::new(LmdbEnv::new(&path)?);
-
         let wallets = Arc::new(Wallets::new_null_with_env(
             env.clone(),
             tokio::runtime::Handle::current(),
-        )?);
+        ));
 
         let mut txn = env.tx_begin_read();
 

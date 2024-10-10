@@ -23,13 +23,11 @@ use crate::{
     VoidPointerCallback,
 };
 use rsnano_core::{
-    utils::NULL_ENDPOINT, Amount, BlockEnum, BlockHash, PublicKey, Root, Vote, VoteCode, VoteSource,
+    utils::NULL_ENDPOINT, Account, Amount, BlockEnum, BlockHash, PublicKey, Root, Vote, VoteCode,
+    VoteSource,
 };
 use rsnano_network::ChannelId;
-use rsnano_node::{
-    consensus::{AccountBalanceChangedCallback, ElectionEndCallback},
-    node::{Node, NodeExt},
-};
+use rsnano_node::{NetworkParams, Node, NodeBuilder, NodeCallbacks, NodeExt};
 use std::{
     collections::VecDeque,
     ffi::{c_char, c_void},
@@ -60,49 +58,49 @@ pub unsafe extern "C" fn rsn_node_create(
         observers_context,
         delete_observers_context,
     ));
+    let ctx2 = ctx_wrapper.clone();
+    let ctx3 = ctx_wrapper.clone();
+    let ctx4 = ctx_wrapper.clone();
+    let network_params: NetworkParams = params.try_into().unwrap();
+    let callbacks = NodeCallbacks::builder()
+        .on_election_end(
+            move |status, votes, account, amount, is_state_send, is_state_epoch| {
+                let status_handle = ElectionStatusHandle::new(status.clone());
+                let votes_handle = VoteWithWeightInfoVecHandle::new(votes.clone());
+                election_ended(
+                    ctx2.get_context(),
+                    status_handle,
+                    votes_handle,
+                    account.as_bytes().as_ptr(),
+                    amount.to_be_bytes().as_ptr(),
+                    is_state_send,
+                    is_state_epoch,
+                );
+            },
+        )
+        .on_balance_changed(move |account: &Account, is_pending: bool| {
+            balance_changed(ctx3.get_context(), account.as_bytes().as_ptr(), is_pending);
+        })
+        .on_vote(
+            move |vote: &Arc<Vote>, _channel_id: ChannelId, source: VoteSource, code: VoteCode| {
+                let vote_handle = VoteHandle::new(Arc::clone(vote));
+                vote_processed(ctx4.get_context(), vote_handle, source as u8, code as u8);
+            },
+        )
+        .finish();
 
-    let ctx = Arc::clone(&ctx_wrapper);
-    let election_ended_wrapper: ElectionEndCallback = Box::new(
-        move |status, votes, account, amount, is_state_send, is_state_epoch| {
-            let status_handle = ElectionStatusHandle::new(status.clone());
-            let votes_handle = VoteWithWeightInfoVecHandle::new(votes.clone());
-            election_ended(
-                ctx.get_context(),
-                status_handle,
-                votes_handle,
-                account.as_bytes().as_ptr(),
-                amount.to_be_bytes().as_ptr(),
-                is_state_send,
-                is_state_epoch,
-            );
-        },
-    );
+    let node = NodeBuilder::new(network_params.network.current_network)
+        .runtime(async_rt.tokio.handle().clone())
+        .data_path(path)
+        .config(config.try_into().unwrap())
+        .network_params(network_params)
+        .flags(flags.lock().unwrap().clone())
+        .work((*work).clone())
+        .callbacks(callbacks)
+        .finish()
+        .unwrap();
 
-    let ctx = Arc::clone(&ctx_wrapper);
-    let account_balance_changed_wrapper: AccountBalanceChangedCallback =
-        Box::new(move |account, is_pending| {
-            balance_changed(ctx.get_context(), account.as_bytes().as_ptr(), is_pending);
-        });
-
-    let ctx = Arc::clone(&ctx_wrapper);
-    let vote_processed = Box::new(
-        move |vote: &Arc<Vote>, _channel_id: ChannelId, source: VoteSource, code: VoteCode| {
-            let vote_handle = VoteHandle::new(Arc::clone(vote));
-            vote_processed(ctx.get_context(), vote_handle, source as u8, code as u8);
-        },
-    );
-
-    Box::into_raw(Box::new(NodeHandle(Arc::new(Node::new(
-        async_rt.tokio.handle().clone(),
-        path,
-        config.try_into().unwrap(),
-        params.try_into().unwrap(),
-        flags.lock().unwrap().clone(),
-        Arc::clone(work),
-        election_ended_wrapper,
-        account_balance_changed_wrapper,
-        vote_processed,
-    )))))
+    Box::into_raw(Box::new(NodeHandle(Arc::new(node))))
 }
 
 #[no_mangle]

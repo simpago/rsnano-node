@@ -1,7 +1,7 @@
-use std::net::SocketAddrV6;
+use crate::RpcCommand;
 use rsnano_core::{Account, Amount};
 use serde::{Deserialize, Serialize};
-use crate::RpcCommand;
+use std::net::SocketAddrV6;
 
 impl RpcCommand {
     pub fn confirmation_quorum(peer_details: Option<bool>) -> Self {

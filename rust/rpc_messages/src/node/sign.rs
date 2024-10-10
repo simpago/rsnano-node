@@ -1,9 +1,14 @@
+use crate::RpcCommand;
 use rsnano_core::{Account, JsonBlock, RawKey, Signature, WalletId};
 use serde::{Deserialize, Serialize};
-use crate::RpcCommand;
 
 impl RpcCommand {
-    pub fn sign(key: Option<RawKey>, wallet: Option<WalletId>, account: Option<Account>, block: JsonBlock) -> Self {
+    pub fn sign(
+        key: Option<RawKey>,
+        wallet: Option<WalletId>,
+        account: Option<Account>,
+        block: JsonBlock,
+    ) -> Self {
         Self::Sign(SignArgs::new(key, wallet, account, block))
     }
 }
@@ -21,8 +26,18 @@ pub struct SignArgs {
 }
 
 impl SignArgs {
-    pub fn new(key: Option<RawKey>, wallet: Option<WalletId>, account: Option<Account>, block: JsonBlock) -> Self {
-        Self { key, wallet, account, block }
+    pub fn new(
+        key: Option<RawKey>,
+        wallet: Option<WalletId>,
+        account: Option<Account>,
+        block: JsonBlock,
+    ) -> Self {
+        Self {
+            key,
+            wallet,
+            account,
+            block,
+        }
     }
 }
 

@@ -62,13 +62,7 @@ impl LegacyChangeBlockBuilder {
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
 
-        let mut block = ChangeBlock::new(
-            previous,
-            representative,
-            &key_pair.private_key(),
-            &key_pair.public_key(),
-            work,
-        );
+        let mut block = ChangeBlock::new(previous, representative, &key_pair.private_key(), work);
 
         if self.build_sideband {
             let details = BlockDetails {

@@ -1,6 +1,6 @@
+use crate::RpcCommand;
 use rsnano_core::BlockHash;
 use serde::{Deserialize, Serialize};
-use crate::RpcCommand;
 
 impl RpcCommand {
     pub fn bootstrap_lazy(hash: BlockHash, force: Option<bool>, id: Option<String>) -> Self {
@@ -18,11 +18,7 @@ pub struct BootsrapLazyArgs {
 
 impl BootsrapLazyArgs {
     pub fn new(hash: BlockHash, force: Option<bool>, id: Option<String>) -> Self {
-        Self {
-            hash,
-            force,
-            id,
-        }
+        Self { hash, force, id }
     }
 }
 

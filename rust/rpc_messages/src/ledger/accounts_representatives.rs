@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use crate::{ AccountsRpcMessage, RpcCommand};
+use crate::{AccountsRpcMessage, RpcCommand};
 use rsnano_core::Account;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 impl RpcCommand {
     pub fn accounts_representatives(accounts: Vec<Account>) -> Self {
@@ -13,15 +13,17 @@ impl RpcCommand {
 pub struct AccountsRepresentativesDto {
     pub representatives: HashMap<Account, Account>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub errors: Option<HashMap<Account, String>>
+    pub errors: Option<HashMap<Account, String>>,
 }
 
 impl AccountsRepresentativesDto {
     pub fn new(representatives: HashMap<Account, Account>) -> Self {
-        Self { representatives, errors: None }
+        Self {
+            representatives,
+            errors: None,
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -32,8 +34,10 @@ mod tests {
     #[test]
     fn serialize_accounts_representatives_command() {
         assert_eq!(
-            to_string_pretty(&RpcCommand::accounts_representatives(vec![Account::from(123)]))
-                .unwrap(),
+            to_string_pretty(&RpcCommand::accounts_representatives(vec![Account::from(
+                123
+            )]))
+            .unwrap(),
             r#"{
   "action": "accounts_representatives",
   "accounts": [
@@ -76,7 +80,7 @@ mod tests {
   }
 }"#;
         let dto: AccountsRepresentativesDto = from_str(json).unwrap();
-        
+
         assert_eq!(dto.representatives.len(), 1);
         assert_eq!(dto.errors, None);
         assert_eq!(
@@ -91,7 +95,7 @@ mod tests {
         representatives.insert(Account::from(123), Account::from(456));
         let mut errors = HashMap::new();
         errors.insert(Account::from(789), "Invalid account".to_string());
-        
+
         let mut dto = AccountsRepresentativesDto::new(representatives);
         dto.errors = Some(errors);
 
@@ -119,7 +123,7 @@ mod tests {
   }
 }"#;
         let dto: AccountsRepresentativesDto = from_str(json).unwrap();
-        
+
         assert_eq!(dto.representatives.len(), 1);
         assert!(dto.errors.is_some());
         assert_eq!(dto.errors.as_ref().unwrap().len(), 1);
@@ -133,4 +137,3 @@ mod tests {
         );
     }
 }
-

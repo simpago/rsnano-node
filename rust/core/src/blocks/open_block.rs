@@ -46,7 +46,6 @@ impl OpenBlock {
         representative: PublicKey,
         account: Account,
         prv_key: &RawKey,
-        pub_key: &PublicKey,
         work: u64,
     ) -> Self {
         let hashables = OpenHashables {
@@ -78,7 +77,6 @@ impl OpenBlock {
             PublicKey::from(456),
             Account::from(789),
             &key.private_key(),
-            &key.public_key(),
             69420,
         )
     }
@@ -257,7 +255,7 @@ impl Block for OpenBlock {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct JsonOpenBlock {
     pub account: Account,
     pub source: BlockHash,
@@ -298,14 +296,7 @@ mod tests {
         let source = BlockHash::from(1);
         let representative = PublicKey::from(2);
         let account = Account::from(3);
-        let block = OpenBlock::new(
-            source,
-            representative,
-            account,
-            &key.private_key(),
-            &key.public_key(),
-            0,
-        );
+        let block = OpenBlock::new(source, representative, account, &key.private_key(), 0);
 
         assert_eq!(block.account_field(), Some(account));
         assert_eq!(block.root(), account.into());
@@ -320,7 +311,6 @@ mod tests {
             PublicKey::from(1),
             Account::from(0),
             &key1.private_key(),
-            &key1.public_key(),
             0,
         );
         let mut ptree = TestPropertyTree::new();

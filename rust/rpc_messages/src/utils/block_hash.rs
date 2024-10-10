@@ -1,6 +1,6 @@
+use crate::RpcCommand;
 use rsnano_core::JsonBlock;
 use serde::{Deserialize, Serialize};
-use crate::RpcCommand;
 
 impl RpcCommand {
     pub fn block_hash(block: JsonBlock) -> Self {
@@ -15,7 +15,7 @@ pub struct BlockHashArgs {
 
 impl BlockHashArgs {
     pub fn new(block: JsonBlock) -> Self {
-        Self { block } 
+        Self { block }
     }
 }
 
@@ -68,7 +68,10 @@ mod tests {
 
         let block = BlockEnum::State(StateBlock::new_test_instance());
 
-        assert_eq!(deserialized, BlockHashArgs::new(block.json_representation()));
+        assert_eq!(
+            deserialized,
+            BlockHashArgs::new(block.json_representation())
+        );
     }
 
     #[test]

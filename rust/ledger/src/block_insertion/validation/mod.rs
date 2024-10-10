@@ -9,9 +9,7 @@ mod tests;
 
 use super::BlockInsertInstructions;
 use crate::BlockStatus;
-use rsnano_core::{
-    work::WorkThresholds, Account, AccountInfo, BlockEnum, Epochs, PendingInfo, PendingKey,
-};
+use rsnano_core::{work::WorkThresholds, Account, AccountInfo, BlockEnum, Epochs, PendingInfo};
 
 /// Validates a single block before it gets inserted into the ledger
 pub(crate) struct BlockValidator<'a> {

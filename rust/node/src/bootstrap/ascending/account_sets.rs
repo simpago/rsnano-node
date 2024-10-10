@@ -9,10 +9,7 @@ use rsnano_core::{
     Account, BlockHash,
 };
 use rsnano_nullable_clock::Timestamp;
-use std::{
-    cmp::min,
-    time::{Duration, Instant},
-};
+use std::{cmp::min, time::Duration};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccountSetsConfig {

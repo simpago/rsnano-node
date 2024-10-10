@@ -3,7 +3,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use generate_config::GenerateConfigArgs;
 use initialize::InitializeArgs;
-use rsnano_core::{Account, Amount, BlockHash, PublicKey, RawKey, SendBlock};
+use rsnano_core::{Account, Amount, BlockHash, RawKey, SendBlock};
 use rsnano_node::{wallets::Wallets, BUILD_INFO, VERSION_STRING};
 use rsnano_store_lmdb::LmdbEnv;
 use run_daemon::RunDaemonArgs;
@@ -59,10 +59,8 @@ impl NodeCommand {
 
     async fn diagnostics() -> Result<()> {
         let path = get_path(&None, &None).join("wallets.ldb");
-
         let env = Arc::new(LmdbEnv::new(&path)?);
-
-        let wallets = Wallets::new_null_with_env(env, tokio::runtime::Handle::current())?;
+        let wallets = Wallets::new_null_with_env(env, tokio::runtime::Handle::current());
 
         println!("Testing hash function");
 
@@ -71,7 +69,6 @@ impl NodeCommand {
             &Account::zero(),
             &Amount::zero(),
             &RawKey::zero(),
-            &PublicKey::zero(),
             0,
         );
 
