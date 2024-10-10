@@ -6,8 +6,8 @@ use rsnano_messages::{
 };
 use rsnano_node::{
     bootstrap::BootstrapServer,
-    node::Node,
     stats::{DetailType, Direction, StatType},
+    Node,
 };
 use std::{
     collections::{HashMap, VecDeque},

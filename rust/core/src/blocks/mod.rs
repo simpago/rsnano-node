@@ -52,6 +52,23 @@ pub enum BlockType {
     State = 6,
 }
 
+impl TryFrom<BlockType> for BlockSubType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: BlockType) -> Result<Self, Self::Error> {
+        match value {
+            BlockType::LegacySend => Ok(BlockSubType::Send),
+            BlockType::LegacyReceive => Ok(BlockSubType::Receive),
+            BlockType::LegacyOpen => Ok(BlockSubType::Open),
+            BlockType::LegacyChange => Ok(BlockSubType::Change),
+            BlockType::State => Ok(BlockSubType::Send),
+            BlockType::Invalid | BlockType::NotABlock => {
+                Err(anyhow!("Invalid block type for conversion to subtype"))
+            }
+        }
+    }
+}
+
 impl TryFrom<u8> for BlockType {
     type Error = anyhow::Error;
 
@@ -60,7 +77,8 @@ impl TryFrom<u8> for BlockType {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum BlockSubType {
     Send,
     Receive,
@@ -479,7 +497,7 @@ impl serde::Serialize for BlockEnum {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum JsonBlock {
     Open(JsonOpenBlock),

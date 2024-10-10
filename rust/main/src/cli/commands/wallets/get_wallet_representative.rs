@@ -36,7 +36,7 @@ impl GetWalletRepresentativeArgs {
         let wallets = Arc::new(Wallets::new_null_with_env(
             env,
             tokio::runtime::Handle::current(),
-        )?);
+        ));
 
         let password = self.password.clone().unwrap_or_default();
 

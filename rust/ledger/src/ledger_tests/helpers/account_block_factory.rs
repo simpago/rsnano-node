@@ -10,7 +10,7 @@ use rsnano_core::{
 use rsnano_store_lmdb::Transaction;
 
 /// Test helper that creates blocks for a single account
-pub(crate) struct AccountBlockFactory<'a> {
+pub struct AccountBlockFactory<'a> {
     pub key: KeyPair,
     ledger: &'a Ledger,
 }
@@ -34,7 +34,7 @@ impl<'a> AccountBlockFactory<'a> {
         self.key.public_key()
     }
 
-    pub(crate) fn account(&self) -> Account {
+    pub fn account(&self) -> Account {
         self.key.public_key().into()
     }
 
@@ -101,7 +101,7 @@ impl<'a> AccountBlockFactory<'a> {
             .sign(&self.key)
     }
 
-    pub(crate) fn send(&self, txn: &dyn Transaction) -> StateBlockBuilder {
+    pub fn send(&self, txn: &dyn Transaction) -> StateBlockBuilder {
         let info = self.info(txn).unwrap();
         BlockBuilder::state()
             .account(self.account())

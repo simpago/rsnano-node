@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 #[macro_use]
 extern crate anyhow;
 
@@ -108,6 +110,7 @@ serialize_32_byte_string!(Link);
 u256_struct!(PublicKey);
 serialize_32_byte_string!(PublicKey);
 u256_struct!(Root);
+serialize_32_byte_string!(Root);
 u256_struct!(WalletId);
 serialize_32_byte_string!(WalletId);
 

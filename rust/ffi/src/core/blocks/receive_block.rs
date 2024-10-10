@@ -1,8 +1,7 @@
 use super::BlockHandle;
 use crate::{utils::FfiStream, FfiPropertyTree};
 use rsnano_core::{
-    BlockEnum, BlockHash, LazyBlockHash, PublicKey, RawKey, ReceiveBlock, ReceiveHashables,
-    Signature,
+    BlockEnum, BlockHash, LazyBlockHash, RawKey, ReceiveBlock, ReceiveHashables, Signature,
 };
 use std::{ffi::c_void, ops::Deref, sync::Arc};
 
@@ -67,7 +66,6 @@ pub extern "C" fn rsn_receive_block_create2(dto: &ReceiveBlockDto2) -> *mut Bloc
         BlockHash::from_bytes(dto.previous),
         BlockHash::from_bytes(dto.source),
         &RawKey::from_bytes(dto.priv_key),
-        &PublicKey::from_bytes(dto.pub_key),
         dto.work,
     );
 

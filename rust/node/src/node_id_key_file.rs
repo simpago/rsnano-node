@@ -18,6 +18,10 @@ impl NodeIdKeyFile {
         Self { fs, key_factory }
     }
 
+    pub fn new_null() -> Self {
+        Self::new(NullableFilesystem::new_null(), KeyPairFactory::new_null())
+    }
+
     pub fn initialize(&mut self, app_path: impl AsRef<Path>) -> anyhow::Result<KeyPair> {
         let app_path = app_path.as_ref();
         let file_path = Self::key_file_path(app_path);

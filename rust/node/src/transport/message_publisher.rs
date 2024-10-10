@@ -7,6 +7,8 @@ use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, Network, TrafficType};
 use std::sync::{Arc, Mutex};
 use tracing::trace;
 
+pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
+
 /// Publishes messages to peered nodes
 #[derive(Clone)]
 pub struct MessagePublisher {
@@ -14,6 +16,7 @@ pub struct MessagePublisher {
     network: Arc<Network>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
+    published_callback: Option<MessageCallback>,
 }
 
 impl MessagePublisher {
@@ -28,6 +31,7 @@ impl MessagePublisher {
             network,
             stats,
             message_serializer: MessageSerializer::new(protocol_info),
+            published_callback: None,
         }
     }
 
@@ -43,7 +47,12 @@ impl MessagePublisher {
             network,
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
+            published_callback: None,
         }
+    }
+
+    pub fn set_published_callback(&mut self, callback: MessageCallback) {
+        self.published_callback = Some(callback);
     }
 
     pub(crate) fn new_null(handle: tokio::runtime::Handle) -> Self {
@@ -63,7 +72,7 @@ impl MessagePublisher {
         traffic_type: TrafficType,
     ) -> bool {
         let buffer = self.message_serializer.serialize(message);
-        try_send_serialized_message(
+        let sent = try_send_serialized_message(
             &self.network,
             &self.stats,
             channel_id,
@@ -71,7 +80,13 @@ impl MessagePublisher {
             message,
             drop_policy,
             traffic_type,
-        )
+        );
+
+        if let Some(callback) = &self.published_callback {
+            callback(channel_id, message);
+        }
+
+        sent
     }
 
     pub async fn send(
@@ -87,6 +102,11 @@ impl MessagePublisher {
         self.stats
             .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);
         trace!(%channel_id, message = ?message, "Message sent");
+
+        if let Some(callback) = &self.published_callback {
+            callback(channel_id, message);
+        }
+
         Ok(())
     }
 

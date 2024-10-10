@@ -45,7 +45,7 @@ pub struct Telemetry {
     network_info: Arc<RwLock<NetworkInfo>>,
     message_publisher: Mutex<MessagePublisher>,
     node_id: KeyPair,
-    startup_time: Instant,
+    pub startup_time: Instant,
     telemetry_processed_callbacks:
         Mutex<Vec<Box<dyn Fn(&TelemetryData, &SocketAddrV6) + Send + Sync>>>,
     clock: Arc<SteadyClock>,
@@ -384,15 +384,6 @@ pub const PATCH_VERSION: u8 = 0; // TODO: get this from cmake
 pub const PRE_RELEASE_VERSION: u8 = 99; // TODO: get this from cmake
 pub const BUILD_INFO: &'static str = "TODO get buildinfo";
 pub const VERSION_STRING: &'static str = "2.0"; // TODO: get this from cmake
-
-#[derive(Clone, Hash, Copy, PartialEq, Eq, Default)]
-struct VendorVersion {
-    major: u8,
-    minor: u8,
-    patch: u8,
-    pre_release: u8,
-    maker: u8,
-}
 
 impl Drop for Telemetry {
     fn drop(&mut self) {

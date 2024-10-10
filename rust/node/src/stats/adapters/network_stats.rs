@@ -39,10 +39,10 @@ impl NetworkObserver for NetworkStats {
             },
         );
         debug!(
-            channel_id = %channel.channel_id(), 
-            remote_addr = ?channel.peer_addr(), 
-            mode = ?channel.mode(), 
-            direction = ?channel.direction(), 
+            channel_id = %channel.channel_id(),
+            remote_addr = ?channel.peer_addr(),
+            mode = ?channel.mode(),
+            direction = ?channel.direction(),
             "Closing channel due to timeout");
     }
 

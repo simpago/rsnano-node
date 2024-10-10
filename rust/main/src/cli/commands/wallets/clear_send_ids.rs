@@ -20,15 +20,10 @@ pub(crate) struct ClearSendIdsArgs {
 impl ClearSendIdsArgs {
     pub(crate) async fn clear_send_ids(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("wallets.ldb");
-
         let env = Arc::new(LmdbEnv::new(&path)?);
-
-        let wallets = Wallets::new_null_with_env(env, tokio::runtime::Handle::current())?;
-
+        let wallets = Wallets::new_null_with_env(env, tokio::runtime::Handle::current());
         wallets.clear_send_ids();
-
         println!("{}", "Send IDs deleted");
-
         Ok(())
     }
 }

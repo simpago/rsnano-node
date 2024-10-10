@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
     pub fn account_create(wallet: WalletId, index: Option<u32>, work: Option<bool>) -> Self {
-        Self::AccountCreate(AccountCreateArgs { wallet, index, work })
+        Self::AccountCreate(AccountCreateArgs {
+            wallet,
+            index,
+            work,
+        })
     }
 }
 

@@ -56,13 +56,7 @@ impl LegacyReceiveBlockBuilder {
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
 
-        let mut block = ReceiveBlock::new(
-            previous,
-            source,
-            &key_pair.private_key(),
-            &key_pair.public_key(),
-            work,
-        );
+        let mut block = ReceiveBlock::new(previous, source, &key_pair.private_key(), work);
 
         let details = BlockDetails {
             epoch: Epoch::Epoch0,

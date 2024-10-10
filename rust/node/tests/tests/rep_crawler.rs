@@ -2,7 +2,7 @@ use rsnano_core::{Amount, BlockEnum, BlockHash, KeyPair, StateBlock, Vote, DEV_G
 use rsnano_ledger::{DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelId, ChannelMode, DropPolicy, TrafficType};
-use rsnano_node::node::NodeExt;
+use rsnano_node::NodeExt;
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, System};
 

@@ -78,28 +78,27 @@ pub unsafe extern "C" fn rsn_lmdb_wallets_create(
     let network_params = NetworkParams::try_from(network_params).unwrap();
     let protocol = network_params.network.protocol_info();
     let work = WorkThresholds::from(work_thresholds);
-    let wallets = Arc::new(
-        Wallets::new(
-            lmdb,
-            Arc::clone(&ledger.0),
-            &node_config,
-            kdf_work,
-            work,
-            Arc::clone(distributed_work),
-            network_params,
-            Arc::clone(workers),
-            Arc::clone(block_processor),
-            representatives.0.clone(),
-            Arc::clone(confirming_set),
-            MessagePublisher::new(
-                Arc::new(Mutex::new(OnlineReps::default())),
-                Arc::clone(tcp_channels),
-                Arc::clone(stats),
-                protocol,
-            ),
-        )
-        .expect("could not create wallet"),
+    let mut wallets = Wallets::new(
+        lmdb,
+        Arc::clone(&ledger.0),
+        &node_config,
+        kdf_work,
+        work,
+        Arc::clone(distributed_work),
+        network_params,
+        Arc::clone(workers),
+        Arc::clone(block_processor),
+        representatives.0.clone(),
+        Arc::clone(confirming_set),
+        MessagePublisher::new(
+            Arc::new(Mutex::new(OnlineReps::default())),
+            Arc::clone(tcp_channels),
+            Arc::clone(stats),
+            protocol,
+        ),
     );
+    wallets.initialize().expect("could not create wallet");
+    let wallets = Arc::new(wallets);
     wallets.initialize2();
     Box::into_raw(Box::new(LmdbWalletsHandle(wallets)))
 }

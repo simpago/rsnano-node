@@ -43,7 +43,7 @@ pub type ElectionEndCallback = Box<
     dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, Amount, bool, bool) + Send + Sync,
 >;
 
-pub type AccountBalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
+pub type BalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -97,7 +97,7 @@ pub struct ActiveElections {
     active_started_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     active_stopped_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     election_end: Mutex<Vec<ElectionEndCallback>>,
-    account_balance_changed: AccountBalanceChangedCallback,
+    account_balance_changed: BalanceChangedCallback,
     online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
@@ -121,7 +121,7 @@ impl ActiveElections {
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         election_end: ElectionEndCallback,
-        account_balance_changed: AccountBalanceChangedCallback,
+        account_balance_changed: BalanceChangedCallback,
         online_reps: Arc<Mutex<OnlineReps>>,
         flags: NodeFlags,
         recently_confirmed: Arc<RecentlyConfirmedCache>,

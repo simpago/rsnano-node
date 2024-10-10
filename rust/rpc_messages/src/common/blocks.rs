@@ -2,11 +2,11 @@ use rsnano_core::BlockHash;
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub struct BlocksDto {
+pub struct BlockHashesDto {
     pub blocks: Vec<BlockHash>,
 }
 
-impl BlocksDto {
+impl BlockHashesDto {
     pub fn new(blocks: Vec<BlockHash>) -> Self {
         Self { blocks }
     }
@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     fn serialize_blocks_dto() {
-        let dto = BlocksDto::new(vec![BlockHash::zero()]);
+        let dto = BlockHashesDto::new(vec![BlockHash::zero()]);
 
         let serialized = to_string(&dto).unwrap();
 
@@ -37,9 +37,9 @@ mod tests {
             "blocks": ["0000000000000000000000000000000000000000000000000000000000000000"]
         }"#;
 
-        let deserialized: BlocksDto = from_str(json_str).unwrap();
+        let deserialized: BlockHashesDto = from_str(json_str).unwrap();
 
-        let expected = BlocksDto::new(vec![BlockHash::zero()]);
+        let expected = BlockHashesDto::new(vec![BlockHash::zero()]);
 
         assert_eq!(deserialized, expected);
     }

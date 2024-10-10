@@ -18,7 +18,7 @@ use std::{
 };
 use test_helpers::{
     assert_never, assert_timely, assert_timely_eq, assert_timely_msg, get_available_port,
-    setup_chain, setup_independent_blocks, start_election, System,
+    setup_independent_blocks, start_election, System,
 };
 
 /// What this test is doing:

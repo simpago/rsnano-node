@@ -1,14 +1,13 @@
 use crate::cli::{get_path, init_tracing};
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
-use rsnano_core::{utils::get_cpu_count, work::WorkPoolImpl};
+use rsnano_core::utils::get_cpu_count;
 use rsnano_node::{
     config::{
         get_node_toml_config_path, get_rpc_toml_config_path, DaemonConfig, DaemonToml,
         NetworkConstants, NodeFlags,
     },
-    node::{Node, NodeExt},
-    NetworkParams,
+    NetworkParams, NodeBuilder, NodeExt,
 };
 use rsnano_rpc_server::{run_rpc_server, RpcServerConfig, RpcServerToml};
 use std::{
@@ -16,8 +15,8 @@ use std::{
     net::{IpAddr, SocketAddr},
     str::FromStr,
     sync::{Arc, Condvar, Mutex},
-    time::Duration,
 };
+use tokio::net::TcpListener;
 use toml::from_str;
 use tracing_subscriber::EnvFilter;
 
@@ -151,34 +150,25 @@ impl RunDaemonArgs {
         let mut flags = NodeFlags::new();
         self.set_flags(&mut flags);
 
-        let work = Arc::new(WorkPoolImpl::new(
-            network_params.work.clone(),
-            node_config.work_threads as usize,
-            Duration::from_nanos(node_config.pow_sleep_interval_ns as u64),
-        ));
+        let node = NodeBuilder::new(network_params.network.current_network)
+            .data_path(path)
+            .config(node_config)
+            .network_params(network_params)
+            .flags(flags)
+            .finish()
+            .unwrap();
 
-        let node = Arc::new(Node::new(
-            tokio::runtime::Handle::current(),
-            path,
-            node_config,
-            network_params,
-            flags,
-            work,
-            Box::new(|_, _, _, _, _, _| {}),
-            Box::new(|_, _| {}),
-            Box::new(|_, _, _, _| {}),
-        ));
-
+        let node = Arc::new(node);
         node.start();
 
         let rpc_server = if daemon_config.rpc_enable {
             let ip_addr = IpAddr::from_str(&rpc_server_config.address)?;
             let socket_addr = SocketAddr::new(ip_addr, rpc_server_config.port);
-            Some(tokio::spawn(run_rpc_server(
-                node.clone(),
-                socket_addr,
-                rpc_server_config.enable_control,
-            )))
+            Some(tokio::spawn({
+                let listener = TcpListener::bind(socket_addr).await?;
+
+                run_rpc_server(node.clone(), listener, rpc_server_config.enable_control)
+            }))
         } else {
             None
         };

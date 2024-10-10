@@ -1,17 +1,10 @@
-use serde::de::{Unexpected, Visitor};
-
 use crate::utils::{BufferWriter, Serialize, Stream};
-use std::fmt::Write;
+use serde::de::{Unexpected, Visitor};
+use std::fmt::{Debug, Write};
 
-#[derive(Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Signature {
     bytes: [u8; 64],
-}
-
-impl Default for Signature {
-    fn default() -> Self {
-        Self { bytes: [0; 64] }
-    }
 }
 
 impl Signature {
@@ -72,6 +65,21 @@ impl Signature {
     }
 }
 
+impl Default for Signature {
+    fn default() -> Self {
+        Self { bytes: [0; 64] }
+    }
+}
+
+impl Debug for Signature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.bytes {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
+    }
+}
+
 impl Serialize for Signature {
     fn serialize(&self, writer: &mut dyn BufferWriter) {
         writer.write_bytes_safe(&self.bytes)
@@ -114,5 +122,17 @@ impl<'de> Visitor<'de> for SignatureVisitor {
             serde::de::Error::invalid_value(Unexpected::Str(v), &"a hex string containing 64 bytes")
         })?;
         Ok(signature)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_format() {
+        let signature = Signature::from_bytes([42; 64]);
+        let result = format!("{:?}", signature);
+        assert_eq!(result, "2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A");
     }
 }

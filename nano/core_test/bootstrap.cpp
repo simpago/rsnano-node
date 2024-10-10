@@ -835,4 +835,3 @@ TEST (bootstrap_processor, wallet_lazy_pending)
 	// Check processed blocks
 	ASSERT_TIMELY (10s, node1->block_or_pruned_exists (send2->hash ()));
 }
-

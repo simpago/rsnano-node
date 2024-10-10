@@ -51,7 +51,6 @@ pub extern "C" fn rsn_open_block_create2(dto: &OpenBlockDto2) -> *mut BlockHandl
         PublicKey::from_bytes(dto.representative),
         Account::from_bytes(dto.account),
         &RawKey::from_bytes(dto.priv_key),
-        &PublicKey::from_bytes(dto.pub_key),
         dto.work,
     );
 

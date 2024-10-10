@@ -76,7 +76,6 @@ impl LegacyOpenBlockBuilder {
             representative,
             account,
             &key_pair.private_key(),
-            &key_pair.public_key(),
             work,
         );
 

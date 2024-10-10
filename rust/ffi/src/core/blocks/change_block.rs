@@ -46,7 +46,6 @@ pub extern "C" fn rsn_change_block_create2(dto: &ChangeBlockDto2) -> *mut BlockH
         BlockHash::from_bytes(dto.previous),
         PublicKey::from_bytes(dto.representative),
         &RawKey::from_bytes(dto.priv_key),
-        &PublicKey::from_bytes(dto.pub_key),
         dto.work,
     );
     Box::into_raw(Box::new(BlockHandle(Arc::new(BlockEnum::LegacyChange(

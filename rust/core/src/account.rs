@@ -41,6 +41,16 @@ impl Account {
         EncodedAccountStr(source.as_ref()).to_u512()?.to_account()
     }
 
+    pub fn decode_node_id(source: impl AsRef<str>) -> Result<Account> {
+        let mut node_id = source.as_ref().to_string();
+        if node_id.starts_with("node_") {
+            node_id.replace_range(0..5, "nano_");
+            Self::decode_account(node_id)
+        } else {
+            bail!("Invalid node ID format")
+        }
+    }
+
     pub fn to_node_id(&self) -> String {
         let mut node_id = self.encode_account();
         node_id.replace_range(0..4, "node");
@@ -75,19 +85,29 @@ impl<'de> Visitor<'de> for AccountVisitor {
     type Value = Account;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("an account in the form \"nano_...\"")
+        formatter
+            .write_str("an account in the form \"nano_...\" or a node ID in the form \"node_...\"")
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Account::decode_account(v).map_err(|_| {
-            serde::de::Error::invalid_value(
-                Unexpected::Str(v),
-                &"an account in the form \"nano_...\"",
-            )
-        })
+        if v.starts_with("node_") {
+            Account::decode_node_id(v).map_err(|_| {
+                serde::de::Error::invalid_value(
+                    Unexpected::Str(v),
+                    &"a node ID in the form \"node_...\"",
+                )
+            })
+        } else {
+            Account::decode_account(v).map_err(|_| {
+                serde::de::Error::invalid_value(
+                    Unexpected::Str(v),
+                    &"an account in the form \"nano_...\"",
+                )
+            })
+        }
     }
 }
 
@@ -341,5 +361,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(deserialized, Account::from(123));
+    }
+
+    #[test]
+    fn decode_node_id() {
+        let node_id = "node_1y7j5rdqhg99uyab1145gu3yur1ax35a3b6qr417yt8cd6n86uiw3d4whty3";
+        let account = Account::decode_node_id(node_id).expect("Failed to decode node ID");
+        assert_eq!(
+            account,
+            Account::decode_account(
+                "nano_1y7j5rdqhg99uyab1145gu3yur1ax35a3b6qr417yt8cd6n86uiw3d4whty3"
+            )
+            .expect("Failed to decode account")
+        );
     }
 }

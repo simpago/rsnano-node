@@ -71,7 +71,6 @@ impl StateBlock {
             balance,
             link,
             &keys.private_key(),
-            &keys.public_key(),
             work,
         )
     }
@@ -84,7 +83,6 @@ impl StateBlock {
         balance: Amount,
         link: Link,
         prv_key: &RawKey,
-        pub_key: &PublicKey,
         work: u64,
     ) -> Self {
         let hashables = StateHashables {
@@ -391,7 +389,7 @@ impl From<JsonStateBlock> for StateBlock {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct JsonStateBlock {
     pub account: Account,
     pub previous: BlockHash,

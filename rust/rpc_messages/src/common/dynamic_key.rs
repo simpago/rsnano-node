@@ -4,7 +4,10 @@ use serde::{
     ser::SerializeMap,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::fmt;
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+};
 
 #[macro_export]
 macro_rules! create_rpc_message {
@@ -75,13 +78,17 @@ create_rpc_message!(BoolDto, bool);
 create_rpc_message!(AccountRpcMessage, Account);
 create_rpc_message!(AmountDto, Amount);
 create_rpc_message!(BlockHashRpcMessage, BlockHash);
+create_rpc_message!(BlocksHashesRpcMessage, Vec<BlockHash>);
 create_rpc_message!(U64RpcMessage, u64);
+create_rpc_message!(AccountsWithAmountsDto, HashMap<Account, Amount>);
+create_rpc_message!(AccountsReceivablesDto, BTreeMap<Account, Vec<BlockHash>>);
 
 #[cfg(test)]
 mod tests {
-    use crate::{AccountRpcMessage, AmountDto, BlockHashRpcMessage, BoolDto, U64RpcMessage};
-    use rsnano_core::{Account, Amount, BlockHash};
+    use super::*;
+    use crate::AccountsWithAmountsDto;
     use serde_json::{from_str, to_string_pretty};
+    use std::collections::HashMap;
 
     #[test]
     fn serialize_bool_dto() {
@@ -184,5 +191,40 @@ mod tests {
         let serialized = to_string_pretty(&block_hash_message).unwrap();
         let deserialized: U64RpcMessage = from_str(&serialized).unwrap();
         assert_eq!(block_hash_message, deserialized);
+    }
+
+    #[test]
+    fn serialize_accounts_with_amounts_dto() {
+        let mut accounts = HashMap::new();
+        accounts.insert(Account::zero(), Amount::from(1000));
+
+        let message = AccountsWithAmountsDto::new("accounts".to_string(), accounts);
+
+        let serialized = serde_json::to_string_pretty(&message).unwrap();
+        assert_eq!(
+            serialized,
+            r#"{
+  "accounts": {
+    "nano_1111111111111111111111111111111111111111111111111111hifc8npp": "1000"
+  }
+}"#
+        );
+    }
+
+    #[test]
+    fn deserialize_accounts_with_amounts_dto() {
+        let json = r#"{
+  "accounts": {
+    "nano_1111111111111111111111111111111111111111111111111111hifc8npp": "1000"
+  }
+}"#;
+
+        let deserialized: AccountsWithAmountsDto = serde_json::from_str(json).unwrap();
+
+        assert_eq!(deserialized.key, "accounts");
+        assert_eq!(
+            deserialized.value.get(&Account::zero()),
+            Some(&Amount::from(1000))
+        );
     }
 }
