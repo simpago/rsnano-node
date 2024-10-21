@@ -1,6 +1,5 @@
 use crate::RpcCommand;
-use rsnano_core::Account;
-use rsnano_core::{Amount, BlockHash};
+use rsnano_core::{Account, Amount, BlockHash};
 use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
@@ -25,22 +24,80 @@ pub struct AccountInfoArgs {
 }
 
 impl AccountInfoArgs {
-    pub fn new(
-        account: Account,
-        representative: Option<bool>,
-        weight: Option<bool>,
-        pending: Option<bool>,
-        receivable: Option<bool>,
-        include_confirmed: Option<bool>,
-    ) -> Self {
+    pub fn new(account: Account) -> AccountInfoArgs {
+        AccountInfoArgs {
+            account,
+            representative: None,
+            weight: None,
+            pending: None,
+            receivable: None,
+            include_confirmed: None,
+        }
+    }
+
+    pub fn builder(account: Account) -> AccountInfoArgsBuilder {
+        AccountInfoArgsBuilder::new(account)
+    }
+}
+
+impl From<Account> for AccountInfoArgs {
+    fn from(account: Account) -> Self {
         Self {
             account,
-            representative,
-            weight,
-            pending,
-            receivable,
-            include_confirmed,
+            representative: None,
+            weight: None,
+            pending: None,
+            receivable: None,
+            include_confirmed: None,
         }
+    }
+}
+
+pub struct AccountInfoArgsBuilder {
+    args: AccountInfoArgs,
+}
+
+impl AccountInfoArgsBuilder {
+    fn new(account: Account) -> Self {
+        Self {
+            args: AccountInfoArgs {
+                account,
+                representative: None,
+                weight: None,
+                pending: None,
+                receivable: None,
+                include_confirmed: None,
+            },
+        }
+    }
+
+    pub fn include_representative(mut self) -> Self {
+        self.args.representative = Some(true);
+        self
+    }
+
+    pub fn include_weight(mut self) -> Self {
+        self.args.weight = Some(true);
+        self
+    }
+
+    pub fn include_pending(mut self) -> Self {
+        self.args.pending = Some(true);
+        self
+    }
+
+    pub fn include_receivable(mut self) -> Self {
+        self.args.receivable = Some(true);
+        self
+    }
+
+    pub fn include_confirmed(mut self) -> Self {
+        self.args.include_confirmed = Some(true);
+        self
+    }
+
+    pub fn build(self) -> AccountInfoArgs {
+        self.args
     }
 }
 
@@ -93,7 +150,6 @@ impl AccountInfoDto {
             account_version,
             confirmed_height: None,
             confirmation_height_frontier: None,
-            // Initialize new fields with None
             representative: None,
             weight: None,
             pending: None,
@@ -112,17 +168,79 @@ mod tests {
     use serde_json::{from_str, to_string_pretty};
 
     #[test]
-    fn serialize_account_info_command() {
+    fn test_account_info_args_builder() {
+        let account = Account::from(123);
+        let args = AccountInfoArgs::builder(account)
+            .include_weight()
+            .include_pending()
+            .include_confirmed()
+            .build();
+
+        assert_eq!(args.account, account);
+        assert_eq!(args.representative, None);
+        assert_eq!(args.weight, Some(true));
+        assert_eq!(args.pending, Some(true));
+        assert_eq!(args.receivable, None);
+        assert_eq!(args.include_confirmed, Some(true));
+    }
+
+    #[test]
+    fn serialize_account_info_command_with_optionals() {
+        let account = Account::from(123);
+        let args = AccountInfoArgs::builder(account)
+            .include_representative()
+            .include_weight()
+            .include_pending()
+            .include_receivable()
+            .include_confirmed()
+            .build();
+
+        let serialized = to_string_pretty(&RpcCommand::account_info(args)).unwrap();
+
+        assert!(serialized.contains(r#""action": "account_info""#));
+        assert!(serialized.contains(
+            r#""account": "nano_111111111111111111111111111111111111111111111111115uwdgas549""#
+        ));
+        assert!(serialized.contains(r#""representative": true"#));
+        assert!(serialized.contains(r#""weight": true"#));
+        assert!(serialized.contains(r#""pending": true"#));
+        assert!(serialized.contains(r#""receivable": true"#));
+        assert!(serialized.contains(r#""include_confirmed": true"#));
+    }
+
+    #[test]
+    fn deserialize_account_info_command_with_optionals() {
+        let json = r#"{
+            "action": "account_info",
+            "account": "nano_111111111111111111111111111111111111111111111111115uwdgas549",
+            "representative": true,
+            "weight": true,
+            "pending": true,
+            "receivable": true,
+            "include_confirmed": true
+        }"#;
+
+        let deserialized: RpcCommand = from_str(json).unwrap();
+
+        if let RpcCommand::AccountInfo(args) = deserialized {
+            assert_eq!(args.account, Account::from(123));
+            assert_eq!(args.representative, Some(true));
+            assert_eq!(args.weight, Some(true));
+            assert_eq!(args.pending, Some(true));
+            assert_eq!(args.receivable, Some(true));
+            assert_eq!(args.include_confirmed, Some(true));
+        } else {
+            panic!("Deserialized to wrong RpcCommand variant");
+        }
+    }
+
+    #[test]
+    fn serialize_account_info_command_without_optionals() {
+        let account = Account::from(123);
+        let args = AccountInfoArgs::builder(account).build();
+
         assert_eq!(
-            serde_json::to_string_pretty(&RpcCommand::account_info(AccountInfoArgs {
-                account: Account::from(123),
-                representative: None,
-                weight: None,
-                pending: None,
-                receivable: None,
-                include_confirmed: None,
-            }))
-            .unwrap(),
+            serde_json::to_string_pretty(&RpcCommand::account_info(args)).unwrap(),
             r#"{
   "action": "account_info",
   "account": "nano_111111111111111111111111111111111111111111111111115uwdgas549"
@@ -131,19 +249,53 @@ mod tests {
     }
 
     #[test]
-    fn derialize_account_info_command() {
+    fn derialize_account_info_command_without_optionals() {
         let account = Account::from(123);
-        let cmd = RpcCommand::account_info(AccountInfoArgs {
-            account,
-            representative: None,
-            weight: None,
-            pending: None,
-            receivable: None,
-            include_confirmed: None,
-        });
+        let args = AccountInfoArgs::builder(account).build();
+        let cmd = RpcCommand::account_info(args);
         let serialized = to_string_pretty(&cmd).unwrap();
         let deserialized: RpcCommand = from_str(&serialized).unwrap();
+
         assert_eq!(cmd, deserialized)
+    }
+
+    #[test]
+    fn serialize_account_info_args() {
+        let args = AccountInfoArgs::builder(Account::zero())
+            .include_representative()
+            .include_weight()
+            .include_receivable()
+            .build();
+
+        let serialized = to_string_pretty(&args).unwrap();
+        let deserialized: AccountInfoArgs = from_str(&serialized).unwrap();
+
+        assert!(serialized.contains("account"));
+        assert!(serialized.contains("representative"));
+        assert!(serialized.contains("weight"));
+        assert!(serialized.contains("receivable"));
+        assert!(!serialized.contains("pending"));
+        assert!(!serialized.contains("include_confirmed"));
+        assert_eq!(args, deserialized);
+    }
+
+    #[test]
+    fn serialize_account_info_command_with_some_args() {
+        let args = AccountInfoArgs::builder(Account::zero())
+            .include_representative()
+            .include_weight()
+            .include_receivable()
+            .build();
+
+        let command = RpcCommand::account_info(args);
+        let serialized = to_string_pretty(&command).unwrap();
+
+        assert!(serialized.contains("account"));
+        assert!(serialized.contains("representative"));
+        assert!(serialized.contains("weight"));
+        assert!(serialized.contains("receivable"));
+        assert!(!serialized.contains("pending"));
+        assert!(!serialized.contains("include_confirmed"));
     }
 
     #[test]
@@ -169,9 +321,8 @@ mod tests {
         };
 
         let serialized = to_string_pretty(&account_info).unwrap();
-        println!("Serialized AccountInfoDto:\n{}", serialized);
-
         let deserialized: AccountInfoDto = from_str(&serialized).unwrap();
+
         assert_eq!(account_info, deserialized);
     }
 
@@ -188,16 +339,9 @@ mod tests {
         );
 
         let serialized = to_string_pretty(&account_info).unwrap();
-        println!(
-            "Serialized AccountInfoDto with None values:\n{}",
-            serialized
-        );
-
         let deserialized: AccountInfoDto = from_str(&serialized).unwrap();
-        assert_eq!(account_info, deserialized);
 
-        // Check that None fields are not serialized
-        //assert!(!serialized.contains("representative"));
+        assert_eq!(account_info, deserialized);
         assert!(!serialized.contains("weight"));
         assert!(!serialized.contains("pending"));
         assert!(!serialized.contains("receivable"));
@@ -233,12 +377,7 @@ mod tests {
     fn serialize_account_info_dto_with_some_values() {
         let account_info = create_account_info_dto_with_some_values();
         let serialized = to_string_pretty(&account_info).unwrap();
-        println!(
-            "Serialized AccountInfoDto with Some values:\n{}",
-            serialized
-        );
 
-        // Check that all fields are present in the serialized output
         assert!(serialized.contains("frontier"));
         assert!(serialized.contains("representative"));
         assert!(serialized.contains("weight"));
@@ -255,58 +394,7 @@ mod tests {
         let account_info = create_account_info_dto_with_some_values();
         let serialized = to_string_pretty(&account_info).unwrap();
         let deserialized: AccountInfoDto = from_str(&serialized).unwrap();
+
         assert_eq!(account_info, deserialized);
-    }
-
-    #[test]
-    fn serialize_account_info_args() {
-        let args = AccountInfoArgs {
-            account: Account::zero(),
-            representative: Some(true),
-            weight: Some(false),
-            pending: None,
-            receivable: Some(true),
-            include_confirmed: None,
-        };
-
-        let serialized = to_string_pretty(&args).unwrap();
-        println!("Serialized AccountInfoArgs:\n{}", serialized);
-
-        // Check that fields with Some values are serialized
-        assert!(serialized.contains("account"));
-        assert!(serialized.contains("representative"));
-        assert!(serialized.contains("weight"));
-        assert!(serialized.contains("receivable"));
-
-        // Check that fields with None values are not serialized
-        assert!(!serialized.contains("pending"));
-        assert!(!serialized.contains("include_confirmed"));
-
-        let deserialized: AccountInfoArgs = from_str(&serialized).unwrap();
-        assert_eq!(args, deserialized);
-    }
-
-    #[test]
-    fn serialize_account_info_command_with_some_args() {
-        let command = RpcCommand::account_info(AccountInfoArgs {
-            account: Account::zero(),
-            representative: Some(true),
-            weight: Some(false),
-            pending: None,
-            receivable: Some(true),
-            include_confirmed: None,
-        });
-
-        let serialized = to_string_pretty(&command).unwrap();
-
-        // Check that fields with Some values are serialized
-        assert!(serialized.contains("account"));
-        assert!(serialized.contains("representative"));
-        assert!(serialized.contains("weight"));
-        assert!(serialized.contains("receivable"));
-
-        // Check that fields with None values are not serialized
-        assert!(!serialized.contains("pending"));
-        assert!(!serialized.contains("include_confirmed"));
     }
 }

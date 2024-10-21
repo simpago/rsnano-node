@@ -1,34 +1,29 @@
-use rsnano_core::{Account, Amount};
+use rsnano_core::Amount;
 use rsnano_node::Node;
-use rsnano_rpc_messages::AccountBalanceDto;
-use serde_json::to_string_pretty;
+use rsnano_rpc_messages::{AccountBalanceArgs, AccountBalanceDto, RpcDto};
 use std::sync::Arc;
 
-pub async fn account_balance(
-    node: Arc<Node>,
-    account: Account,
-    only_confirmed: Option<bool>,
-) -> String {
+pub async fn account_balance(node: Arc<Node>, args: AccountBalanceArgs) -> RpcDto {
     let tx = node.ledger.read_txn();
-    let only_confirmed = only_confirmed.unwrap_or(true);
+    let include_unconfirmed_blocks = args.include_only_confirmed.unwrap_or(false);
 
-    let balance = if only_confirmed {
+    let balance = if !include_unconfirmed_blocks {
         node.ledger
             .confirmed()
-            .account_balance(&tx, &account)
+            .account_balance(&tx, &args.account)
             .unwrap_or(Amount::zero())
     } else {
         node.ledger
             .any()
-            .account_balance(&tx, &account)
+            .account_balance(&tx, &args.account)
             .unwrap_or(Amount::zero())
     };
 
     let pending = node
         .ledger
-        .account_receivable(&tx, &account, only_confirmed);
+        .account_receivable(&tx, &args.account, !include_unconfirmed_blocks);
 
-    let account_balance = AccountBalanceDto::new(balance, pending, pending);
+    let account_balance_dto = AccountBalanceDto::new(balance, pending, pending);
 
-    to_string_pretty(&account_balance).unwrap()
+    RpcDto::AccountBalance(account_balance_dto)
 }

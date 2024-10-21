@@ -11,6 +11,7 @@ pub(crate) struct NullableRuntime {
     blocking_spawns: AtomicUsize,
 }
 
+#[allow(dead_code)]
 impl NullableRuntime {
     pub(crate) fn new(handle: tokio::runtime::Handle) -> Self {
         Self::with_strategy(RuntimeStrategy::Real(RealRuntime(handle)))
@@ -47,6 +48,7 @@ impl Default for NullableRuntime {
     }
 }
 
+#[allow(dead_code)]
 enum RuntimeStrategy {
     Real(RealRuntime),
     Null(StubRuntime),
@@ -63,6 +65,7 @@ impl Deref for RuntimeStrategy {
     }
 }
 
+#[allow(dead_code)]
 trait RuntimeImpl {
     fn spawn_blocking(&self, f: Box<dyn FnOnce() + Send + Sync>);
     fn run_nulled_blocking_task(&self);

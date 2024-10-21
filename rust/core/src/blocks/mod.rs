@@ -87,7 +87,7 @@ pub enum BlockSubType {
     Epoch,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default)]
 pub struct LazyBlockHash {
     // todo: Remove Arc<RwLock>? Maybe remove lazy hash calculation?
     hash: Arc<RwLock<BlockHash>>,
@@ -116,6 +116,12 @@ impl LazyBlockHash {
     pub fn clear(&self) {
         let mut x = self.hash.write().unwrap();
         *x = BlockHash::zero();
+    }
+}
+
+impl std::fmt::Debug for LazyBlockHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.hash.read().unwrap().deref(), f)
     }
 }
 

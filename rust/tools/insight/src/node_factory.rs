@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
 use rsnano_core::Networks;
 use rsnano_node::{Node, NodeBuilder, NodeCallbacks};
+use std::sync::Arc;
 
 pub(crate) struct NodeFactory {
     runtime: tokio::runtime::Handle,
@@ -16,6 +15,7 @@ impl NodeFactory {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn new_null() -> Self {
         Self {
             runtime: tokio::runtime::Handle::current(),

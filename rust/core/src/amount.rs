@@ -1,9 +1,11 @@
+use std::fmt::Debug;
+
 use crate::utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde::de::{Unexpected, Visitor};
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Amount {
     raw: u128, // native endian!
 }
@@ -141,6 +143,12 @@ impl Deserialize for Amount {
         let len = buffer.len();
         stream.read_bytes(&mut buffer, len)?;
         Ok(Amount::raw(u128::from_be_bytes(buffer)))
+    }
+}
+
+impl Debug for Amount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.raw, f)
     }
 }
 
@@ -356,5 +364,11 @@ mod tests {
     fn serde_deserialize() {
         let deserialized: Amount = serde_json::from_str("\"123\"").unwrap();
         assert_eq!(deserialized, Amount::raw(123));
+    }
+
+    #[test]
+    fn implements_debug() {
+        let formatted = format!("{:?}", Amount::raw(123));
+        assert_eq!(formatted, "123");
     }
 }

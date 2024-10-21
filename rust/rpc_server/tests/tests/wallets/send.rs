@@ -1,9 +1,9 @@
 use rsnano_core::{Account, Amount, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_node::wallets::WalletsExt;
+use rsnano_rpc_messages::SendArgs;
 use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
-use rsnano_rpc_messages::SendArgs;
 
 #[test]
 fn send() {
@@ -26,14 +26,7 @@ fn send() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .send(SendArgs::new(
-                wallet,
-                *DEV_GENESIS_ACCOUNT,
-                destination,
-                amount,
-                None,
-                None,
-            ))
+            .send(SendArgs::builder(wallet, *DEV_GENESIS_ACCOUNT, destination, amount).build())
             .await
             .unwrap()
     });
@@ -42,7 +35,7 @@ fn send() {
 
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.ledger.get_block(&tx, &result.value).is_some(),
+        || node.ledger.get_block(&tx, &result.block).is_some(),
         "Send block not found in ledger",
     );
 
@@ -78,14 +71,7 @@ fn send_fails_without_enable_control() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .send(SendArgs::new(
-                wallet,
-                *DEV_GENESIS_ACCOUNT,
-                destination,
-                amount,
-                None,
-                None,
-            ))
+            .send(SendArgs::builder(wallet, *DEV_GENESIS_ACCOUNT, destination, amount).build())
             .await
     });
 

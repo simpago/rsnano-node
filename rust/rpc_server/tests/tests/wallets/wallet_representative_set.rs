@@ -1,5 +1,6 @@
 use rsnano_core::{Account, PublicKey, WalletId};
 use rsnano_node::wallets::WalletsExt;
+use rsnano_rpc_messages::WalletRepresentativeSetArgs;
 use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]
@@ -14,7 +15,7 @@ fn wallet_representative_set() {
 
     node.runtime.block_on(async {
         rpc_client
-            .wallet_representative_set(wallet, Account::zero(), None)
+            .wallet_representative_set(WalletRepresentativeSetArgs::new(wallet, Account::zero()))
             .await
             .unwrap()
     });
@@ -36,7 +37,10 @@ fn wallet_representative_set_fails_without_enable_control() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .wallet_representative_set(WalletId::zero(), Account::zero(), None)
+            .wallet_representative_set(WalletRepresentativeSetArgs::new(
+                WalletId::zero(),
+                Account::zero(),
+            ))
             .await
     });
 

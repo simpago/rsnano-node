@@ -1,5 +1,6 @@
 use rsnano_core::WalletId;
 use rsnano_node::wallets::WalletsExt;
+use rsnano_rpc_messages::{AccountsCreateArgs, WalletWithCountArgs};
 use std::time::Duration;
 use test_helpers::{assert_timely, setup_rpc_client_and_server, System};
 
@@ -16,7 +17,7 @@ fn accounts_create() {
 
     node.runtime.block_on(async {
         rpc_client
-            .accounts_create(wallet, 8, Some(true))
+            .accounts_create(WalletWithCountArgs::new(wallet, 8))
             .await
             .unwrap()
     });
@@ -30,7 +31,7 @@ fn accounts_create() {
 }
 
 #[test]
-fn accounts_create_work_true() {
+fn accounts_create_default_with_precomputed_work() {
     let mut system = System::new();
     let node = system.make_node();
 
@@ -42,7 +43,7 @@ fn accounts_create_work_true() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .accounts_create(wallet_id, 1, Some(true))
+            .accounts_create(WalletWithCountArgs::new(wallet_id, 1))
             .await
             .unwrap()
     });
@@ -60,7 +61,7 @@ fn accounts_create_work_true() {
 }
 
 #[test]
-fn accounts_create_work_false() {
+fn accounts_create_without_precomputed_work() {
     let mut system = System::new();
     let node = system.make_node();
 
@@ -70,12 +71,13 @@ fn accounts_create_work_false() {
 
     node.wallets.create(wallet_id);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .accounts_create(wallet_id, 1, Some(false))
-            .await
-            .unwrap()
-    });
+    let args = AccountsCreateArgs::builder(wallet_id, 1)
+        .without_precomputed_work()
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.accounts_create(args).await.unwrap() });
 
     assert!(node.wallets.exists(&result.accounts[0].into()));
 
@@ -102,9 +104,11 @@ fn accounts_create_fails_wallet_locked() {
 
     node.wallets.lock(&wallet_id).unwrap();
 
-    let result = node
-        .runtime
-        .block_on(async { rpc_client.accounts_create(wallet_id, 1, None).await });
+    let result = node.runtime.block_on(async {
+        rpc_client
+            .accounts_create(WalletWithCountArgs::new(wallet_id, 1))
+            .await
+    });
 
     assert_eq!(
         result.err().map(|e| e.to_string()),
@@ -123,9 +127,11 @@ fn accounts_create_fails_wallet_not_found() {
 
     let wallet_id = WalletId::random();
 
-    let result = node
-        .runtime
-        .block_on(async { rpc_client.accounts_create(wallet_id, 1, None).await });
+    let result = node.runtime.block_on(async {
+        rpc_client
+            .accounts_create(WalletWithCountArgs::new(wallet_id, 1))
+            .await
+    });
 
     assert_eq!(
         result.err().map(|e| e.to_string()),
@@ -146,9 +152,11 @@ fn accounts_create_fails_without_enable_control() {
 
     node.wallets.create(wallet);
 
-    let result = node
-        .runtime
-        .block_on(async { rpc_client.accounts_create(wallet, 8, None).await });
+    let result = node.runtime.block_on(async {
+        rpc_client
+            .accounts_create(WalletWithCountArgs::new(wallet, 8))
+            .await
+    });
 
     assert!(result.is_err());
 

@@ -52,7 +52,7 @@ fn wallet_history() {
 
     let wallet_history = node
         .runtime
-        .block_on(async { rpc_client.wallet_history(wallet_id, None).await.unwrap() });
+        .block_on(async { rpc_client.wallet_history(wallet_id).await.unwrap() });
 
     assert_eq!(wallet_history.history.len(), 1);
 
@@ -85,7 +85,7 @@ fn wallet_history_fails_with_wallet_not_found() {
 
     let result = node
         .runtime
-        .block_on(async { rpc_client.wallet_history(WalletId::zero(), None).await });
+        .block_on(async { rpc_client.wallet_history(WalletId::zero()).await });
 
     assert_eq!(
         result.err().map(|e| e.to_string()),

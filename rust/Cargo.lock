@@ -3680,14 +3680,19 @@ dependencies = [
 name = "rsnano-insight"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "eframe",
  "egui_extras",
+ "num",
+ "num-derive 0.3.3",
  "num-format",
+ "num-traits",
  "rsnano_core",
  "rsnano_ledger",
  "rsnano_messages",
  "rsnano_network",
  "rsnano_node",
+ "rsnano_nullable_clock",
  "rsnano_store_lmdb",
  "tokio",
 ]

@@ -5,6 +5,7 @@ use rsnano_node::{
     config::{FrontiersConfirmationMode, NodeConfig, NodeFlags},
     wallets::WalletsExt,
 };
+use rsnano_rpc_messages::BootstrapArgs;
 use std::time::Duration;
 use test_helpers::{assert_timely_eq, setup_rpc_client_and_server, System};
 
@@ -106,7 +107,10 @@ fn bootstrap_id_none() {
     let port = node2.tcp_listener.local_address().port();
 
     node1.runtime.spawn(async move {
-        rpc_client.bootstrap(address, port, None).await.unwrap();
+        rpc_client
+            .bootstrap(BootstrapArgs::new(address, port))
+            .await
+            .unwrap();
     });
 
     // TODO: this fails because bootstrap2 also call block_on

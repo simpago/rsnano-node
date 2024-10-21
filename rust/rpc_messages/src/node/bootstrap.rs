@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::net::Ipv6Addr;
 
 impl RpcCommand {
-    pub fn bootstrap(address: Ipv6Addr, port: u16, id: Option<String>) -> Self {
-        Self::Bootstrap(BootstrapArgs::new(address, port, id))
+    pub fn bootstrap(args: BootstrapArgs) -> Self {
+        Self::Bootstrap(args)
     }
 }
 
@@ -17,14 +17,39 @@ pub struct BootstrapArgs {
 }
 
 impl BootstrapArgs {
-    pub fn new(address: Ipv6Addr, port: u16, id: Option<String>) -> Self {
-        Self { address, port, id }
+    pub fn new(address: Ipv6Addr, port: u16) -> BootstrapArgs {
+        BootstrapArgs {
+            address,
+            port,
+            id: None,
+        }
+    }
+
+    pub fn builder(address: Ipv6Addr, port: u16) -> BootstrapArgsBuilder {
+        BootstrapArgsBuilder {
+            args: BootstrapArgs::new(address, port),
+        }
+    }
+}
+
+pub struct BootstrapArgsBuilder {
+    args: BootstrapArgs,
+}
+
+impl BootstrapArgsBuilder {
+    pub fn id(mut self, id: String) -> Self {
+        self.args.id = Some(id);
+        self
+    }
+
+    pub fn build(self) -> BootstrapArgs {
+        self.args
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::RpcCommand;
+    use crate::{node::BootstrapArgs, RpcCommand};
     use serde_json::{from_str, to_string_pretty};
     use std::{net::Ipv6Addr, str::FromStr};
 
@@ -33,7 +58,7 @@ mod tests {
         let address = Ipv6Addr::from_str("::ffff:192.169.0.1").unwrap();
 
         assert_eq!(
-            to_string_pretty(&RpcCommand::bootstrap(address, 1024, None)).unwrap(),
+            to_string_pretty(&RpcCommand::bootstrap(BootstrapArgs::new(address, 1024))).unwrap(),
             r#"{
   "action": "bootstrap",
   "address": "::ffff:192.169.0.1",
@@ -45,7 +70,7 @@ mod tests {
     #[test]
     fn deserialize_bootstrap_command_none() {
         let address = Ipv6Addr::from_str("::ffff:192.169.0.1").unwrap();
-        let cmd = RpcCommand::bootstrap(address, 1024, None);
+        let cmd = RpcCommand::bootstrap(BootstrapArgs::new(address, 1024));
         let serialized = to_string_pretty(&cmd).unwrap();
         let deserialized: RpcCommand = from_str(&serialized).unwrap();
         assert_eq!(cmd, deserialized);
@@ -54,13 +79,11 @@ mod tests {
     #[test]
     fn serialize_bootstrap_command_id_some() {
         let address = Ipv6Addr::from_str("::ffff:192.169.0.1").unwrap();
+        let args = BootstrapArgs::builder(address, 1024)
+            .id("id".to_string())
+            .build();
         assert_eq!(
-            to_string_pretty(&RpcCommand::bootstrap(
-                address,
-                1024,
-                Some("id".to_string())
-            ))
-            .unwrap(),
+            to_string_pretty(&RpcCommand::bootstrap(args)).unwrap(),
             r#"{
   "action": "bootstrap",
   "address": "::ffff:192.169.0.1",
@@ -73,7 +96,10 @@ mod tests {
     #[test]
     fn deserialize_bootstrap_command_id_some() {
         let address = Ipv6Addr::from_str("::ffff:192.169.0.1").unwrap();
-        let cmd = RpcCommand::bootstrap(address, 1024, Some("id".to_string()));
+        let args = BootstrapArgs::builder(address, 1024)
+            .id("id".to_string())
+            .build();
+        let cmd = RpcCommand::bootstrap(args);
         let serialized = to_string_pretty(&cmd).unwrap();
         let deserialized: RpcCommand = from_str(&serialized).unwrap();
         assert_eq!(cmd, deserialized);

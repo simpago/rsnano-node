@@ -3,7 +3,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{wallets::WalletsExt, Node};
-use rsnano_rpc_messages::{AccountBalanceDto, AccountsBalancesDto};
+use rsnano_rpc_messages::{AccountBalanceDto, AccountsBalancesDto, WalletBalancesArgs};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
@@ -33,11 +33,12 @@ fn wallet_balances_threshold_none() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    node.wallets.create(1.into());
+    let wallet: WalletId = 1.into();
+    node.wallets.create(wallet);
 
     let result = node
         .runtime
-        .block_on(async { rpc_client.wallet_balances(1.into(), None).await.unwrap() });
+        .block_on(async { rpc_client.wallet_balances(wallet).await.unwrap() });
 
     let expected_balances: HashMap<Account, AccountBalanceDto> = HashMap::new();
     let expected_result = AccountsBalancesDto {
@@ -69,10 +70,10 @@ fn wallet_balances_threshold_some() {
     send_block(node.clone(), public_key.into());
 
     let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_balances(wallet, Some(Amount::zero()))
-            .await
-            .unwrap()
+        let args = WalletBalancesArgs::builder(wallet)
+            .with_minimum_balance(Amount::zero())
+            .build();
+        rpc_client.wallet_balances(args).await.unwrap()
     });
 
     let mut expected_balances: HashMap<Account, AccountBalanceDto> = HashMap::new();
@@ -96,7 +97,8 @@ fn wallet_balances_threshold_some_fails() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    node.wallets.create(1.into());
+    let wallet = 1.into();
+    node.wallets.create(wallet);
 
     let public_key = node
         .wallets
@@ -106,10 +108,11 @@ fn wallet_balances_threshold_some_fails() {
     send_block(node.clone(), public_key.into());
 
     let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_balances(1.into(), Some(Amount::raw(2)))
-            .await
-            .unwrap()
+        let args = WalletBalancesArgs::builder(wallet)
+            .with_minimum_balance(Amount::nano(1))
+            .build();
+
+        rpc_client.wallet_balances(args).await.unwrap()
     });
 
     let expected_balances: HashMap<Account, AccountBalanceDto> = HashMap::new();

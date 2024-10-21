@@ -1,5 +1,6 @@
 use rsnano_core::{RawKey, WalletId};
 use rsnano_node::wallets::WalletsExt;
+use rsnano_rpc_messages::WalletWithSeedArgs;
 use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]
@@ -17,7 +18,7 @@ fn wallet_change_seed() {
 
     node.runtime.block_on(async {
         rpc_client
-            .wallet_change_seed(wallet_id, new_seed, None)
+            .wallet_change_seed(WalletWithSeedArgs::new(wallet_id, new_seed))
             .await
             .unwrap()
     });
@@ -36,7 +37,7 @@ fn wallet_change_seed_fails_without_enable_control() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .wallet_change_seed(WalletId::zero(), RawKey::zero(), None)
+            .wallet_change_seed(WalletWithSeedArgs::new(WalletId::zero(), RawKey::zero()))
             .await
     });
 

@@ -1,29 +1,9 @@
-use rsnano_core::{Amount, BlockEnum, StateBlock, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_node::Node;
-use std::{sync::Arc, time::Duration};
+use rsnano_core::{Amount, KeyPair, WalletId, DEV_GENESIS_KEY};
+use rsnano_ledger::DEV_GENESIS_ACCOUNT;
+use rsnano_node::wallets::WalletsExt;
+use rsnano_rpc_messages::ChainArgs;
+use std::{time::Duration, u64};
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
-
-fn send_block(node: Arc<Node>) -> BlockEnum {
-    let send1 = BlockEnum::State(StateBlock::new(
-        *DEV_GENESIS_ACCOUNT,
-        *DEV_GENESIS_HASH,
-        *DEV_GENESIS_PUB_KEY,
-        Amount::MAX - Amount::raw(1),
-        DEV_GENESIS_KEY.account().into(),
-        &DEV_GENESIS_KEY,
-        node.work_generate_dev((*DEV_GENESIS_HASH).into()),
-    ));
-
-    node.process_active(send1.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node.active.active(&send1),
-        "not active on node 1",
-    );
-
-    send1
-}
 
 #[test]
 fn chain() {
@@ -32,16 +12,95 @@ fn chain() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
 
-    let block = send_block(node.clone());
+    let wallet_id = WalletId::zero();
+    node.wallets.create(wallet_id);
+    node.wallets
+        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
+        .unwrap();
+
+    let genesis = node.latest(&*DEV_GENESIS_ACCOUNT);
+    assert!(!genesis.is_zero());
+
+    let key = KeyPair::new();
+    let block = node
+        .wallets
+        .send_action2(
+            &wallet_id,
+            *DEV_GENESIS_ACCOUNT,
+            key.account(),
+            Amount::raw(1),
+            0,
+            true,
+            None,
+        )
+        .unwrap();
+
+    assert_timely_msg(
+        Duration::from_secs(5),
+        || node.active.active(&block),
+        "block not active on node",
+    );
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .chain(block.hash(), u64::MAX, None, None)
+            .chain(ChainArgs::builder(block.hash(), u64::MAX).build())
             .await
             .unwrap()
     });
 
-    let blocks = result.blocks;
+    let blocks = result.blocks.clone();
+
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0], block.hash());
+    assert_eq!(blocks[1], genesis);
+
+    server.abort();
+}
+
+#[test]
+fn chain_limit() {
+    let mut system = System::new();
+    let node = system.make_node();
+
+    let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
+
+    let wallet_id = WalletId::zero();
+    node.wallets.create(wallet_id);
+    node.wallets
+        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
+        .unwrap();
+
+    let genesis = node.latest(&*DEV_GENESIS_ACCOUNT);
+    assert!(!genesis.is_zero());
+
+    let key = KeyPair::new();
+    let block = node
+        .wallets
+        .send_action2(
+            &wallet_id,
+            *DEV_GENESIS_ACCOUNT,
+            key.account(),
+            Amount::raw(1),
+            0,
+            true,
+            None,
+        )
+        .unwrap();
+
+    assert_timely_msg(
+        Duration::from_secs(5),
+        || node.active.active(&block),
+        "block not active on node",
+    );
+
+    let result = node.runtime.block_on(async {
+        rpc_client
+            .chain(ChainArgs::builder(block.hash(), 1).build())
+            .await
+            .unwrap()
+    });
+
+    let blocks = result.blocks.clone();
 
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0], block.hash());
@@ -50,26 +109,51 @@ fn chain() {
 }
 
 #[test]
-fn successors() {
+fn chain_offset() {
     let mut system = System::new();
     let node = system.make_node();
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
 
-    let block = send_block(node.clone());
+    let wallet_id = WalletId::zero();
+    node.wallets.create(wallet_id);
+    node.wallets
+        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.private_key(), true)
+        .unwrap();
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .successors(block.hash(), u64::MAX, None, None)
-            .await
-            .unwrap()
-    });
+    let genesis = node.latest(&*DEV_GENESIS_ACCOUNT);
+    assert!(!genesis.is_zero());
 
-    let blocks = result.blocks;
+    let key = KeyPair::new();
+    let block = node
+        .wallets
+        .send_action2(
+            &wallet_id,
+            *DEV_GENESIS_ACCOUNT,
+            key.account(),
+            Amount::raw(1),
+            0,
+            true,
+            None,
+        )
+        .unwrap();
 
-    assert_eq!(blocks.len(), 2);
-    assert_eq!(blocks[0], block.hash());
-    assert_eq!(blocks[1], *DEV_GENESIS_HASH);
+    assert_timely_msg(
+        Duration::from_secs(5),
+        || node.active.active(&block),
+        "block not active on node",
+    );
+
+    let args = ChainArgs::builder(block.hash(), u64::MAX).offset(1).build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.chain(args).await.unwrap() });
+
+    let blocks = result.blocks.clone();
+
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0], genesis);
 
     server.abort();
 }

@@ -1,6 +1,6 @@
 use rsnano_core::{Amount, PublicKey, RawKey, WalletId};
 use rsnano_node::wallets::WalletsExt;
-use rsnano_rpc_messages::ReceivableDto;
+use rsnano_rpc_messages::{ReceivableDto, WalletReceivableArgs};
 use test_helpers::{send_block_to, setup_rpc_client_and_server, System};
 
 #[test]
@@ -20,12 +20,13 @@ fn wallet_receivable_include_only_confirmed_false() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_receivable(wallet, 1, None, None, None, Some(false))
-            .await
-            .unwrap()
-    });
+    let args = WalletReceivableArgs::builder(wallet, 1)
+        .include_unconfirmed_blocks()
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.wallet_receivable(args).await.unwrap() });
 
     if let ReceivableDto::Blocks { blocks } = result {
         assert_eq!(blocks.get(&public_key.into()).unwrap(), &vec![send.hash()]);
@@ -60,7 +61,7 @@ fn wallet_receivable_options_none() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .wallet_receivable(wallet, 1, None, None, None, None)
+            .wallet_receivable(WalletReceivableArgs::new(wallet, 1))
             .await
             .unwrap()
     });
@@ -94,12 +95,13 @@ fn wallet_receivable_threshold_some() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_receivable(wallet, 2, Some(Amount::raw(1)), None, None, Some(false))
-            .await
-            .unwrap()
-    });
+    let args = WalletReceivableArgs::builder(wallet, 2)
+        .threshold(Amount::raw(1))
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.wallet_receivable(args).await.unwrap() });
 
     if let ReceivableDto::Threshold { blocks } = result {
         let account_blocks = blocks.get(&public_key.into()).unwrap();
@@ -122,7 +124,7 @@ fn wallet_receivable_fails_without_enable_control() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .wallet_receivable(WalletId::zero(), 1, None, None, None, None)
+            .wallet_receivable(WalletReceivableArgs::new(WalletId::zero(), 1))
             .await
     });
 

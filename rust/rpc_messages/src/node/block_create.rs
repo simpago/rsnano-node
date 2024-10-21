@@ -1,4 +1,7 @@
-use crate::{BlockTypeDto, RpcCommand, WorkVersionDto};
+use crate::{
+    common::{BlockTypeDto, WorkVersionDto},
+    RpcCommand,
+};
 use rsnano_core::{Account, Amount, BlockHash, JsonBlock, Link, RawKey, WalletId, WorkNonce};
 use serde::{Deserialize, Serialize};
 
@@ -92,9 +95,7 @@ impl BlockCreateDto {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsnano_core::{
-        Block, KeyPair, RawKey, StateBlock,
-    };
+    use rsnano_core::{Block, KeyPair, RawKey, StateBlock};
     use serde_json::json;
 
     #[test]

@@ -1,9 +1,9 @@
-use crate::{AmountDto, RpcCommand};
+use crate::{common::AmountRpcMessage, RpcCommand};
 use rsnano_core::Amount;
 
 impl RpcCommand {
     pub fn raw_to_nano(amount: Amount) -> Self {
-        Self::RawToNano(AmountDto::new("amount".to_string(), amount))
+        Self::RawToNano(AmountRpcMessage::new(amount))
     }
 }
 
@@ -16,10 +16,7 @@ mod tests {
     #[test]
     fn serialize_raw_to_nano_command() {
         assert_eq!(
-            to_string_pretty(&RpcCommand::raw_to_nano(Amount::nano(
-                1
-            )))
-            .unwrap(),
+            to_string_pretty(&RpcCommand::raw_to_nano(Amount::nano(1))).unwrap(),
             r#"{
   "action": "raw_to_nano",
   "amount": "1000000000000000000000000000000"

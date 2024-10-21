@@ -20,20 +20,15 @@ fn process() {
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .process(ProcessArgs::new(
-                Some(BlockSubType::Send),
-                send1.json_representation(),
-                None,
-                None,
-                None,
-            ))
-            .await
-            .unwrap()
-    });
+    let args: ProcessArgs = ProcessArgs::builder(send1.json_representation())
+        .subtype(BlockSubType::Send)
+        .build();
 
-    assert_eq!(result.value, send1.hash());
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.process(args).await.unwrap() });
+
+    assert_eq!(result.hash, send1.hash());
 
     assert_eq!(node.latest(&*DEV_GENESIS_ACCOUNT), send1.hash());
 
@@ -57,17 +52,13 @@ fn process_fails_with_low_work() {
         1,
     ));
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .process(ProcessArgs::new(
-                Some(BlockSubType::Send),
-                send1.json_representation(),
-                None,
-                None,
-                None,
-            ))
-            .await
-    });
+    let args: ProcessArgs = ProcessArgs::builder(send1.json_representation())
+        .subtype(BlockSubType::Send)
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.process(args).await });
 
     assert_eq!(
         result.err().map(|e| e.to_string()),

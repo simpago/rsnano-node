@@ -1,5 +1,6 @@
 use rsnano_core::{Account, Amount, BlockBuilder, JsonBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_HASH;
+use rsnano_rpc_messages::ConfirmationInfoArgs;
 use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
@@ -28,12 +29,13 @@ fn confirmation_info() {
 
     let root = send.qualified_root();
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .confirmation_info(root, Some(true), Some(true))
-            .await
-            .unwrap()
-    });
+    let args = ConfirmationInfoArgs::builder(root)
+        .include_representatives()
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.confirmation_info(args).await.unwrap() });
 
     //assert_eq!(result.announcements, 1); TODO
     assert_eq!(result.voters, 1);

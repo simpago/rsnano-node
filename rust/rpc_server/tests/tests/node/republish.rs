@@ -1,6 +1,7 @@
 use rsnano_core::{Amount, BlockBuilder, BlockHash, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_HASH;
 use rsnano_node::Node;
+use rsnano_rpc_messages::RepublishArgs;
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
@@ -66,12 +67,9 @@ fn test_republish_send_block() {
         .unwrap();
 
     // Test: Republish send block
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .republish(send.hash(), None, None, None)
-            .await
-            .unwrap()
-    });
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.republish(send.hash()).await.unwrap() });
 
     assert_eq!(
         result.blocks.len(),
@@ -103,13 +101,14 @@ fn test_republish_genesis_block() {
 
     setup_test_environment(node.clone());
 
+    let args = RepublishArgs::builder(*DEV_GENESIS_HASH)
+        .with_count(1)
+        .build();
+
     // Test: Republish genesis block with count 1
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .republish(*DEV_GENESIS_HASH, None, None, Some(1))
-            .await
-            .unwrap()
-    });
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.republish(args).await.unwrap() });
 
     assert_eq!(
         result.blocks.len(),
@@ -135,13 +134,12 @@ fn test_republish_open_block_with_sources() {
     //let send_successor = node.ledger.any().block_successor(&node.store.tx_begin_read(), &genesis_successor).unwrap();
     //let open = node.ledger.any().get_block(&node.store.tx_begin_read(), &send_successor).unwrap();
 
+    let args = RepublishArgs::builder(block_hash).with_sources(2).build();
+
     // Test: Republish open block with sources 2
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .republish(block_hash, Some(2), None, None)
-            .await
-            .unwrap()
-    });
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.republish(args).await.unwrap() });
 
     assert_eq!(
         result.blocks.len(),

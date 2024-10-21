@@ -1,5 +1,4 @@
 use rsnano_core::{BlockHash, DifficultyV1, WorkVersion};
-use rsnano_rpc_messages::WorkGenerateArgs;
 use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]
@@ -11,14 +10,9 @@ fn work_generate() {
 
     let hash = BlockHash::from_bytes([1; 32]);
 
-    let work_generate_dto = node.runtime.block_on(async {
-        rpc_client
-            .work_generate(WorkGenerateArgs::new(
-                hash, None, None, None, None, None, None,
-            ))
-            .await
-            .unwrap()
-    });
+    let work_generate_dto = node
+        .runtime
+        .block_on(async { rpc_client.work_generate(hash).await.unwrap() });
 
     assert_eq!(hash, work_generate_dto.hash);
 

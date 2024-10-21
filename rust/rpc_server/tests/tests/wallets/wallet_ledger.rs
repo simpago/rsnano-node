@@ -1,6 +1,7 @@
 use rsnano_core::{Amount, BlockEnum, BlockHash, KeyPair, StateBlock, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{wallets::WalletsExt, Node};
+use rsnano_rpc_messages::WalletLedgerArgs;
 use std::sync::Arc;
 use test_helpers::{setup_rpc_client_and_server, System};
 
@@ -46,20 +47,17 @@ fn wallet_ledger() {
         .insert_adhoc2(&wallet_id, &keys.private_key(), true)
         .unwrap();
 
-    let wallet = wallet_id;
-    let representative = Some(true);
-    let weight = Some(true);
-    let receivable = Some(true);
-    let modified_since = None;
-
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_ledger(wallet, representative, weight, receivable, modified_since)
-            .await
-            .unwrap()
-    });
+    let args = WalletLedgerArgs::builder(wallet_id)
+        .receivable()
+        .representative()
+        .weight()
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.wallet_ledger(args).await.unwrap() });
 
     let accounts = result.accounts;
 
@@ -77,12 +75,9 @@ fn wallet_ledger() {
     assert_eq!(info.receivable, Some(Amount::zero()));
     assert_eq!(info.representative, Some(keys.account()));
 
-    let result_without_optional = node.runtime.block_on(async {
-        rpc_client
-            .wallet_ledger(wallet, None, None, None, None)
-            .await
-            .unwrap()
-    });
+    let result_without_optional = node
+        .runtime
+        .block_on(async { rpc_client.wallet_ledger(wallet_id).await.unwrap() });
 
     let accounts_without_optional = result_without_optional.accounts;
     let (_, info_without_optional) = accounts_without_optional.iter().next().unwrap();
@@ -101,11 +96,9 @@ fn account_create_fails_without_enable_control() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_ledger(WalletId::zero(), None, None, None, None)
-            .await
-    });
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.wallet_ledger(WalletId::zero()).await });
 
     assert_eq!(
         result.err().map(|e| e.to_string()),
@@ -122,11 +115,9 @@ fn account_create_fails_with_wallet_not_found() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .wallet_ledger(WalletId::zero(), None, None, None, None)
-            .await
-    });
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.wallet_ledger(WalletId::zero()).await });
 
     assert_eq!(
         result.err().map(|e| e.to_string()),

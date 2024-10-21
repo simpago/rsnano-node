@@ -1,6 +1,7 @@
 use rsnano_core::{Amount, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_node::wallets::WalletsExt;
+use rsnano_rpc_messages::RepresentativesOnlineArgs;
 use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
@@ -128,17 +129,23 @@ fn representatives_online() {
         "two representatives not online on both nodes",
     );
 
-    // Test filtering by accounts using node2
-    let filtered_result = node2.runtime.block_on(async {
-        rpc_client
-            .representatives_online(Some(true), Some(vec![new_rep.into()]))
-            .await
-            .unwrap()
-    });
+    let args = RepresentativesOnlineArgs::builder()
+        .weight()
+        .accounts(vec![new_rep.into()])
+        .build();
 
-    assert_eq!(filtered_result.value.len(), 1);
-    assert!(filtered_result.value.contains_key(&new_rep.into()));
-    assert!(!filtered_result.value.contains_key(&(*DEV_GENESIS_ACCOUNT)));
+    // Test filtering by accounts using node2
+    let filtered_result = node2
+        .runtime
+        .block_on(async { rpc_client.representatives_online(args).await.unwrap() });
+
+    assert_eq!(filtered_result.representatives.len(), 1);
+    assert!(filtered_result
+        .representatives
+        .contains_key(&new_rep.into()));
+    assert!(!filtered_result
+        .representatives
+        .contains_key(&(*DEV_GENESIS_ACCOUNT)));
 
     // Ensure node2 has the same view of online representatives
     let node2_online_reps = node2.online_reps.lock().unwrap().online_reps().count();

@@ -1,37 +1,60 @@
-use super::WalletWithAccountArgs;
 use crate::RpcCommand;
+use rsnano_core::{Account, WalletId};
 use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
-    pub fn wallet_representative_set(
-        wallet_with_account: WalletWithAccountArgs,
-        update_existing_accounts: Option<bool>,
-    ) -> Self {
-        Self::WalletRepresentativeSet(WalletRepresentativeSetArgs::new(
-            wallet_with_account,
-            update_existing_accounts,
-        ))
+    pub fn wallet_representative_set(args: WalletRepresentativeSetArgs) -> Self {
+        Self::WalletRepresentativeSet(args)
     }
 }
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
-
 pub struct WalletRepresentativeSetArgs {
-    #[serde(flatten)]
-    pub wallet_with_account: WalletWithAccountArgs,
+    pub wallet: WalletId,
+    pub account: Account,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_existing_accounts: Option<bool>,
 }
 
 impl WalletRepresentativeSetArgs {
-    pub fn new(
-        wallet_with_account: WalletWithAccountArgs,
-        update_existing_accounts: Option<bool>,
-    ) -> Self {
+    pub fn new(wallet: WalletId, account: Account) -> Self {
         Self {
-            wallet_with_account,
-            update_existing_accounts,
+            wallet,
+            account,
+            update_existing_accounts: None,
         }
+    }
+
+    pub fn builder(wallet: WalletId, account: Account) -> WalletRepresentativeSetArgsBuilder {
+        WalletRepresentativeSetArgsBuilder {
+            args: WalletRepresentativeSetArgs::new(wallet, account),
+        }
+    }
+}
+
+pub struct WalletRepresentativeSetArgsBuilder {
+    args: WalletRepresentativeSetArgs,
+}
+
+impl WalletRepresentativeSetArgsBuilder {
+    pub fn update_existing_accounts(mut self) -> Self {
+        self.args.update_existing_accounts = Some(true);
+        self
+    }
+
+    pub fn build(self) -> WalletRepresentativeSetArgs {
+        self.args
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct SetDto {
+    pub set: bool,
+}
+
+impl SetDto {
+    pub fn new(set: bool) -> Self {
+        Self { set }
     }
 }
 
@@ -43,9 +66,8 @@ mod tests {
 
     #[test]
     fn serialize_wallet_representative_set_args_update_existing_accounts_none() {
-        let wallet_with_account = WalletWithAccountArgs::new(WalletId::zero(), Account::zero());
         let wallet_representative_set_args =
-            WalletRepresentativeSetArgs::new(wallet_with_account, None);
+            WalletRepresentativeSetArgs::new(WalletId::zero(), Account::zero());
 
         let serialized = to_string(&wallet_representative_set_args).unwrap();
 
@@ -60,9 +82,10 @@ mod tests {
 
     #[test]
     fn serialize_wallet_representative_set_args_update_existing_accounts_some() {
-        let wallet_with_account = WalletWithAccountArgs::new(WalletId::zero(), Account::zero());
         let wallet_representative_set_args =
-            WalletRepresentativeSetArgs::new(wallet_with_account, Some(true));
+            WalletRepresentativeSetArgs::builder(WalletId::zero(), Account::zero())
+                .update_existing_accounts()
+                .build();
 
         let serialized = to_string(&wallet_representative_set_args).unwrap();
 
@@ -85,8 +108,7 @@ mod tests {
 
         let deserialized: WalletRepresentativeSetArgs = from_str(json_str).unwrap();
 
-        let wallet_with_account = WalletWithAccountArgs::new(WalletId::zero(), Account::zero());
-        let expected = WalletRepresentativeSetArgs::new(wallet_with_account, None);
+        let expected = WalletRepresentativeSetArgs::new(WalletId::zero(), Account::zero());
 
         assert_eq!(deserialized, expected);
     }
@@ -101,8 +123,9 @@ mod tests {
 
         let deserialized: WalletRepresentativeSetArgs = from_str(json_str).unwrap();
 
-        let wallet_with_account = WalletWithAccountArgs::new(WalletId::zero(), Account::zero());
-        let expected = WalletRepresentativeSetArgs::new(wallet_with_account, Some(true));
+        let expected = WalletRepresentativeSetArgs::builder(WalletId::zero(), Account::zero())
+            .update_existing_accounts()
+            .build();
 
         assert_eq!(deserialized, expected);
     }
