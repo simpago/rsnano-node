@@ -1,78 +1,35 @@
-use rsnano_core::{Amount, BlockEnum, BlockSubType, StateBlock, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_rpc_messages::ProcessArgs;
-use test_helpers::{setup_rpc_client_and_server, System};
+use rsnano_core::{Account, Amount, BlockEnum, BlockHash, KeyPair, StateBlock};
+use rsnano_ledger::{DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use std::time::Duration;
+use test_helpers::{assert_timely, setup_rpc_client_and_server, System};
 
 #[test]
-fn process() {
+fn unchecked_clear() {
     let mut system = System::new();
     let node = system.make_node();
 
-    let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
+    let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), true);
+
+    let keypair = KeyPair::new();
 
     let send1 = BlockEnum::State(StateBlock::new(
-        *DEV_GENESIS_ACCOUNT,
-        *DEV_GENESIS_HASH,
+        keypair.account(),
+        BlockHash::zero(),
         *DEV_GENESIS_PUB_KEY,
-        Amount::MAX - Amount::raw(100),
-        DEV_GENESIS_KEY.account().into(),
-        &DEV_GENESIS_KEY,
+        Amount::MAX - Amount::raw(1),
+        Account::zero().into(),
+        &keypair,
         node.work_generate_dev((*DEV_GENESIS_HASH).into()),
     ));
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .process(ProcessArgs::new(
-                Some(BlockSubType::Send),
-                send1.json_representation(),
-                None,
-                None,
-                None,
-            ))
-            .await
-            .unwrap()
-    });
+    node.process_local(send1.clone()).unwrap();
 
-    assert_eq!(result.value, send1.hash());
+    assert_timely(Duration::from_secs(5), || !node.unchecked.is_empty());
 
-    assert_eq!(node.latest(&*DEV_GENESIS_ACCOUNT), send1.hash());
+    node.runtime
+        .block_on(async { rpc_client.unchecked_clear().await.unwrap() });
 
-    server.abort();
-}
-
-#[test]
-fn process_fails_with_low_work() {
-    let mut system = System::new();
-    let node = system.make_node();
-
-    let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
-
-    let send1 = BlockEnum::State(StateBlock::new(
-        *DEV_GENESIS_ACCOUNT,
-        *DEV_GENESIS_HASH,
-        *DEV_GENESIS_PUB_KEY,
-        Amount::MAX - Amount::raw(100),
-        DEV_GENESIS_KEY.account().into(),
-        &DEV_GENESIS_KEY,
-        1,
-    ));
-
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .process(ProcessArgs::new(
-                Some(BlockSubType::Send),
-                send1.json_representation(),
-                None,
-                None,
-                None,
-            ))
-            .await
-    });
-
-    assert_eq!(
-        result.err().map(|e| e.to_string()),
-        Some("node returned error: \"Work low\"".to_string())
-    );
+    assert!(node.unchecked.is_empty());
 
     server.abort();
 }

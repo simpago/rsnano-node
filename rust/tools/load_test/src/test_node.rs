@@ -10,7 +10,7 @@ use rsnano_node::{
     unique_path, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use rsnano_rpc_client::NanoRpcClient;
-use rsnano_rpc_messages::{AccountInfoArgs, AccountInfoDto, KeyPairDto, SuccessDto};
+use rsnano_rpc_messages::{AccountInfoDto, KeyPairDto, StartedDto, WalletAddArgs};
 use rsnano_rpc_server::{RpcServerConfig, RpcServerToml};
 use std::{
     collections::HashMap,
@@ -78,7 +78,7 @@ impl TestNode {
         Ok(())
     }
 
-    pub async fn connect(&self, other: &TestNode) -> Result<SuccessDto> {
+    pub async fn connect(&self, other: &TestNode) -> Result<StartedDto> {
         self.node_client
             .keepalive(Ipv6Addr::LOCALHOST, other.peering_port)
             .await
@@ -108,7 +108,7 @@ impl TestNode {
 
     async fn add_genesis_account(&self, wallet: WalletId) -> Result<()> {
         self.node_client
-            .wallet_add(wallet, DEV_GENESIS_KEY.private_key(), None)
+            .wallet_add(WalletAddArgs::new(wallet, DEV_GENESIS_KEY.private_key()))
             .await?;
         Ok(())
     }
@@ -120,7 +120,7 @@ impl TestNode {
     ) -> Result<()> {
         for account in destination_accounts {
             self.node_client
-                .wallet_add(wallet, account.private, None)
+                .wallet_add(WalletAddArgs::new(wallet, account.private))
                 .await?;
         }
         Ok(())
@@ -139,9 +139,7 @@ impl TestNode {
     }
 
     pub async fn account_info(&self, account: Account) -> Result<AccountInfoDto> {
-        self.node_client
-            .account_info(AccountInfoArgs::new(account, None, None, None, None, None))
-            .await
+        self.node_client.account_info(account).await
     }
 }
 

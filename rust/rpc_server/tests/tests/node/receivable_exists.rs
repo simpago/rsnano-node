@@ -1,6 +1,7 @@
 use rsnano_core::{Amount, BlockEnum, BlockHash, StateBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::Node;
+use rsnano_rpc_messages::ReceivableExistsArgs;
 use std::sync::Arc;
 use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
@@ -36,14 +37,11 @@ fn receivable_exists_confirmed() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .receivable_exists(send.hash(), None, Some(true))
-            .await
-            .unwrap()
-    });
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.receivable_exists(send.hash()).await.unwrap() });
 
-    assert_eq!(result.value, true);
+    assert_eq!(result.exists, true);
 
     server.abort();
 }
@@ -57,14 +55,16 @@ fn test_receivable_exists_unconfirmed() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .receivable_exists(send.hash(), Some(true), Some(false))
-            .await
-            .unwrap()
-    });
+    let args = ReceivableExistsArgs::builder(send.hash())
+        .include_active()
+        .include_unconfirmed_blocks()
+        .build();
 
-    assert_eq!(result.value, true);
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.receivable_exists(args).await.unwrap() });
+
+    assert_eq!(result.exists, true);
 
     server.abort();
 }
@@ -79,12 +79,12 @@ fn test_receivable_exists_non_existent() {
     let non_existent_hash = BlockHash::zero();
     let result = node.runtime.block_on(async {
         rpc_client
-            .receivable_exists(non_existent_hash, None, None)
+            .receivable_exists(non_existent_hash)
             .await
             .unwrap()
     });
 
-    assert_eq!(result.value, false);
+    assert_eq!(result.exists, false);
 
     server.abort();
 }

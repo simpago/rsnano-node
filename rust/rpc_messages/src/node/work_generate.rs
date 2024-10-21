@@ -1,7 +1,6 @@
+use crate::{common::WorkVersionDto, RpcCommand};
 use rsnano_core::{Account, BlockHash, JsonBlock, WorkNonce};
 use serde::{Deserialize, Serialize};
-
-use crate::{RpcCommand, WorkVersionDto};
 
 impl RpcCommand {
     pub fn work_generate(work_generate_args: WorkGenerateArgs) -> Self {
@@ -9,8 +8,13 @@ impl RpcCommand {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+impl From<BlockHash> for WorkGenerateArgs {
+    fn from(value: BlockHash) -> Self {
+        Self::builder(value).build()
+    }
+}
 
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct WorkGenerateArgs {
     pub hash: BlockHash,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -28,24 +32,62 @@ pub struct WorkGenerateArgs {
 }
 
 impl WorkGenerateArgs {
-    pub fn new(
-        hash: BlockHash,
-        use_peers: Option<bool>,
-        difficulty: Option<u64>,
-        multiplier: Option<u64>,
-        account: Option<Account>,
-        version: Option<WorkVersionDto>,
-        block: Option<JsonBlock>,
-    ) -> Self {
-        Self {
-            hash,
-            use_peers,
-            difficulty,
-            multiplier,
-            account,
-            version,
-            block,
+    pub fn builder(hash: BlockHash) -> WorkGenerateArgsBuilder {
+        WorkGenerateArgsBuilder::new(hash)
+    }
+}
+
+pub struct WorkGenerateArgsBuilder {
+    args: WorkGenerateArgs,
+}
+
+impl WorkGenerateArgsBuilder {
+    pub fn new(hash: BlockHash) -> Self {
+        WorkGenerateArgsBuilder {
+            args: WorkGenerateArgs {
+                hash,
+                use_peers: None,
+                difficulty: None,
+                multiplier: None,
+                account: None,
+                version: None,
+                block: None,
+            },
         }
+    }
+
+    pub fn use_peers(mut self) -> Self {
+        self.args.use_peers = Some(true);
+        self
+    }
+
+    pub fn difficulty(mut self, difficulty: u64) -> Self {
+        self.args.difficulty = Some(difficulty);
+        self
+    }
+
+    pub fn multiplier(mut self, multiplier: u64) -> Self {
+        self.args.multiplier = Some(multiplier);
+        self
+    }
+
+    pub fn account(mut self, account: Account) -> Self {
+        self.args.account = Some(account);
+        self
+    }
+
+    pub fn version(mut self, version: WorkVersionDto) -> Self {
+        self.args.version = Some(version);
+        self
+    }
+
+    pub fn block(mut self, block: JsonBlock) -> Self {
+        self.args.block = Some(block);
+        self
+    }
+
+    pub fn build(self) -> WorkGenerateArgs {
+        self.args
     }
 }
 

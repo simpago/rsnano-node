@@ -2,6 +2,12 @@ use crate::RpcCommand;
 use rsnano_core::Account;
 use serde::{Deserialize, Serialize};
 
+impl RpcCommand {
+    pub fn accounts_balances(args: AccountsBalancesArgs) -> Self {
+        RpcCommand::AccountsBalances(args)
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct AccountsBalancesArgs {
     pub accounts: Vec<Account>,
@@ -9,12 +15,42 @@ pub struct AccountsBalancesArgs {
     pub include_only_confirmed: Option<bool>,
 }
 
-impl RpcCommand {
-    pub fn accounts_balances(accounts: Vec<Account>, include_only_confirmed: Option<bool>) -> Self {
-        RpcCommand::AccountsBalances(AccountsBalancesArgs {
+impl AccountsBalancesArgs {
+    pub fn new(accounts: Vec<Account>) -> AccountsBalancesArgsBuilder {
+        AccountsBalancesArgsBuilder::new(accounts)
+    }
+}
+
+pub struct AccountsBalancesArgsBuilder {
+    args: AccountsBalancesArgs,
+}
+
+impl AccountsBalancesArgsBuilder {
+    fn new(accounts: Vec<Account>) -> Self {
+        Self {
+            args: AccountsBalancesArgs {
+                accounts,
+                include_only_confirmed: None,
+            },
+        }
+    }
+
+    pub fn include_unconfirmed_blocks(mut self) -> Self {
+        self.args.include_only_confirmed = Some(false);
+        self
+    }
+
+    pub fn build(self) -> AccountsBalancesArgs {
+        self.args
+    }
+}
+
+impl From<Vec<Account>> for AccountsBalancesArgs {
+    fn from(accounts: Vec<Account>) -> Self {
+        Self {
             accounts,
-            include_only_confirmed,
-        })
+            include_only_confirmed: None,
+        }
     }
 }
 
@@ -36,14 +72,17 @@ mod tests {
             .unwrap(),
         ];
 
-        let command = RpcCommand::accounts_balances(accounts.clone(), None);
+        let command = RpcCommand::accounts_balances(accounts.clone().into());
         let serialized = serde_json::to_string(&command).unwrap();
         let expected = r#"{"action":"accounts_balances","accounts":["nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3","nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7"]}"#;
         assert_eq!(serialized, expected);
 
-        let command = RpcCommand::accounts_balances(accounts, Some(true));
+        let args = AccountsBalancesArgsBuilder::new(accounts)
+            .include_unconfirmed_blocks()
+            .build();
+        let command = RpcCommand::accounts_balances(args);
         let serialized = serde_json::to_string(&command).unwrap();
-        let expected = r#"{"action":"accounts_balances","accounts":["nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3","nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7"],"include_only_confirmed":true}"#;
+        let expected = r#"{"action":"accounts_balances","accounts":["nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3","nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7"],"include_only_confirmed":false}"#;
         assert_eq!(serialized, expected);
     }
 
@@ -101,5 +140,31 @@ mod tests {
             }
             _ => panic!("Deserialized to wrong RpcCommand variant"),
         }
+    }
+
+    #[test]
+    fn test_accounts_balances_args_builder() {
+        let accounts = vec![
+            Account::decode_account(
+                "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+            )
+            .unwrap(),
+            Account::decode_account(
+                "nano_3i1aq1cchnmbn9x5rsbap8b15akfh7wj7pwskuzi7ahz8oq6cobd99d4r3b7",
+            )
+            .unwrap(),
+        ];
+
+        let args = AccountsBalancesArgs::new(accounts.clone())
+            .include_unconfirmed_blocks()
+            .build();
+
+        assert_eq!(args.accounts, accounts);
+        assert_eq!(args.include_only_confirmed, Some(false));
+
+        let args_default = AccountsBalancesArgs::new(accounts.clone()).build();
+
+        assert_eq!(args_default.accounts, accounts);
+        assert_eq!(args_default.include_only_confirmed, None);
     }
 }

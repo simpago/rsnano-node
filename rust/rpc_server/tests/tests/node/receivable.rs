@@ -3,7 +3,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::{wallets::WalletsExt, Node};
-use rsnano_rpc_messages::ReceivableDto;
+use rsnano_rpc_messages::{ReceivableArgs, ReceivableDto};
 use std::sync::Arc;
 use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
@@ -60,7 +60,7 @@ fn receivable_include_only_confirmed() {
 
     let result1 = node.runtime.block_on(async {
         rpc_client
-            .receivable(public_key.into(), 1, None, None, None, None, Some(true))
+            .receivable(ReceivableArgs::new(public_key.into(), 1))
             .await
             .unwrap()
     });
@@ -71,12 +71,13 @@ fn receivable_include_only_confirmed() {
         panic!("Expected ReceivableDto::Blocks variant");
     }
 
-    let result2 = node.runtime.block_on(async {
-        rpc_client
-            .receivable(public_key.into(), 1, None, None, None, None, Some(false))
-            .await
-            .unwrap()
-    });
+    let args = ReceivableArgs::builder(public_key.into(), 1)
+        .include_unconfirmed_blocks()
+        .build();
+
+    let result2 = node
+        .runtime
+        .block_on(async { rpc_client.receivable(args).await.unwrap() });
 
     if let ReceivableDto::Blocks { blocks } = result2 {
         assert_eq!(blocks.get(&public_key.into()).unwrap(), &vec![send.hash()]);
@@ -107,7 +108,7 @@ fn receivable_options_none() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .receivable(public_key.into(), 1, None, None, None, None, Some(true))
+            .receivable(ReceivableArgs::new(public_key.into(), 1))
             .await
             .unwrap()
     });
@@ -141,20 +142,13 @@ fn receivable_threshold_some() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .receivable(
-                public_key.into(),
-                2,
-                Some(Amount::raw(1)),
-                None,
-                None,
-                None,
-                None,
-            )
-            .await
-            .unwrap()
-    });
+    let args = ReceivableArgs::builder(public_key.into(), 2)
+        .threshold(Amount::raw(1))
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.receivable(args).await.unwrap() });
 
     println!("{:?}", result);
 
@@ -191,20 +185,14 @@ fn receivable_sorting() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .receivable(
-                public_key.into(),
-                1,
-                None,
-                None,
-                None,
-                Some(true),
-                Some(false),
-            )
-            .await
-            .unwrap()
-    });
+    let args = ReceivableArgs::builder(public_key.into(), 1)
+        .sorting()
+        .include_unconfirmed_blocks()
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.receivable(args).await.unwrap() });
 
     if let ReceivableDto::Blocks { blocks } = result {
         assert_eq!(blocks.len(), 1);

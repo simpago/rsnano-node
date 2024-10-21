@@ -3,22 +3,57 @@ use rsnano_core::{Account, Amount};
 use serde::{Deserialize, Serialize};
 
 impl RpcCommand {
-    pub fn accounts_receivable(
-        accounts: Vec<Account>,
-        count: u64,
-        threshold: Option<Amount>,
-        source: Option<bool>,
-        sorting: Option<bool>,
-        include_only_confirmed: Option<bool>,
-    ) -> Self {
-        Self::AccountsReceivable(AccountsReceivableArgs {
+    pub fn accounts_receivable(args: AccountsReceivableArgs) -> Self {
+        Self::AccountsReceivable(args)
+    }
+}
+
+impl AccountsReceivableArgs {
+    pub fn new(accounts: Vec<Account>, count: u64) -> AccountsReceivableArgs {
+        Self {
             accounts,
             count,
-            threshold,
-            source,
-            sorting,
-            include_only_confirmed,
-        })
+            threshold: None,
+            source: None,
+            sorting: None,
+            include_only_confirmed: None,
+        }
+    }
+
+    pub fn builder(accounts: Vec<Account>, count: u64) -> AccountsReceivableArgsBuilder {
+        AccountsReceivableArgsBuilder {
+            args: AccountsReceivableArgs::new(accounts, count),
+        }
+    }
+}
+
+pub struct AccountsReceivableArgsBuilder {
+    args: AccountsReceivableArgs,
+}
+
+impl AccountsReceivableArgsBuilder {
+    pub fn with_minimum_balance(mut self, threshold: Amount) -> Self {
+        self.args.threshold = Some(threshold);
+        self
+    }
+
+    pub fn include_source(mut self) -> Self {
+        self.args.source = Some(true);
+        self
+    }
+
+    pub fn sorted(mut self) -> Self {
+        self.args.sorting = Some(true);
+        self
+    }
+
+    pub fn include_only_confirmed_blocks(mut self) -> Self {
+        self.args.include_only_confirmed = Some(true);
+        self
+    }
+
+    pub fn build(self) -> AccountsReceivableArgs {
+        self.args
     }
 }
 

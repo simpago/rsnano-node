@@ -9,7 +9,7 @@ impl RpcCommand {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
 pub struct LedgerArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account: Option<Account>,
@@ -32,28 +32,60 @@ pub struct LedgerArgs {
 }
 
 impl LedgerArgs {
-    pub fn new(
-        account: Option<Account>,
-        count: Option<u64>,
-        representative: Option<bool>,
-        weight: Option<bool>,
-        pending: Option<bool>,
-        receivable: Option<bool>,
-        modified_since: Option<u64>,
-        sorting: Option<bool>,
-        threshold: Option<Amount>,
-    ) -> Self {
-        Self {
-            account,
-            count,
-            representative,
-            weight,
-            pending,
-            receivable,
-            modified_since,
-            sorting,
-            threshold,
+    pub fn builder() -> LedgerArgsBuilder {
+        LedgerArgsBuilder {
+            args: LedgerArgs::default(),
         }
+    }
+}
+
+pub struct LedgerArgsBuilder {
+    args: LedgerArgs,
+}
+
+impl LedgerArgsBuilder {
+    pub fn from_account(mut self, account: Account) -> Self {
+        self.args.account = Some(account);
+        self
+    }
+
+    pub fn count(mut self, count: u64) -> Self {
+        self.args.count = Some(count);
+        self
+    }
+
+    pub fn include_representative(mut self) -> Self {
+        self.args.representative = Some(true);
+        self
+    }
+
+    pub fn include_weight(mut self) -> Self {
+        self.args.weight = Some(true);
+        self
+    }
+
+    pub fn include_receivables(mut self) -> Self {
+        self.args.receivable = Some(true);
+        self
+    }
+
+    pub fn modified_since(mut self, modified_since: u64) -> Self {
+        self.args.modified_since = Some(modified_since);
+        self
+    }
+
+    pub fn sorted(mut self) -> Self {
+        self.args.sorting = Some(true);
+        self
+    }
+
+    pub fn with_minimum_balance(mut self, threshold: Amount) -> Self {
+        self.args.threshold = Some(threshold);
+        self
+    }
+
+    pub fn build(self) -> LedgerArgs {
+        self.args
     }
 }
 
@@ -106,29 +138,31 @@ impl LedgerAccountInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::{LedgerAccountInfo, LedgerArgs, LedgerDto, RpcCommand};
+    use std::collections::HashMap;
+
+    use crate::{
+        ledger::{LedgerAccountInfo, LedgerArgs, LedgerDto},
+        RpcCommand,
+    };
     use rsnano_core::{Account, Amount, BlockHash};
     use serde_json::json;
-    use std::collections::HashMap;
 
     #[test]
     fn test_ledger_rpc_command_serialization() {
-        let ledger_args = LedgerArgs::new(
-            Some(
-                Account::decode_account(
-                    "nano_1ipx847tk8o46pwxt5qjdbncjqcbwcc1rrmqnkztrfjy5k7z4imsrata9est",
-                )
-                .unwrap(),
-            ),
-            Some(1000),
-            Some(true),
-            Some(true),
-            Some(true),
-            Some(true),
-            Some(1234567890),
-            Some(true),
-            Some(Amount::raw(1000000000000000000000000000000u128)),
-        );
+        let account = Account::decode_account(
+            "nano_1ipx847tk8o46pwxt5qjdbncjqcbwcc1rrmqnkztrfjy5k7z4imsrata9est",
+        )
+        .unwrap();
+        let ledger_args = LedgerArgs::builder()
+            .from_account(account)
+            .count(1000)
+            .include_representative()
+            .include_weight()
+            .include_receivables()
+            .modified_since(1234567890)
+            .sorted()
+            .with_minimum_balance(Amount::raw(1000000000000000000000000000000u128))
+            .build();
 
         let rpc_command = RpcCommand::Ledger(ledger_args);
 
@@ -140,7 +174,6 @@ mod tests {
             "count": 1000,
             "representative": true,
             "weight": true,
-            "pending": true,
             "receivable": true,
             "modified_since": 1234567890,
             "sorting": true,

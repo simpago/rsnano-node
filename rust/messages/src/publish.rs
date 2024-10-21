@@ -9,7 +9,7 @@ use rsnano_core::{
 use serde_derive::Serialize;
 use std::fmt::{Debug, Display};
 
-#[derive(Clone, Eq, Serialize)]
+#[derive(Clone, Eq, Serialize, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct Publish {
     pub block: BlockEnum,
@@ -90,14 +90,6 @@ impl MessageVariant for Publish {
             flags |= Self::ORIGINATOR_FLAG;
         }
         BitArray::new(flags)
-    }
-}
-
-impl Debug for Publish {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PublishPayload")
-            .field("block", &self.block.hash())
-            .finish()
     }
 }
 

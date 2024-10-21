@@ -1,21 +1,16 @@
 use super::ChainArgs;
 use crate::RpcCommand;
-use rsnano_core::BlockHash;
 
 impl RpcCommand {
-    pub fn successors(
-        block: BlockHash,
-        count: u64,
-        offset: Option<u64>,
-        reverse: Option<bool>,
-    ) -> Self {
-        Self::Successors(ChainArgs::new(block, count, offset, reverse))
+    pub fn successors(args: ChainArgs) -> Self {
+        Self::Successors(args)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rsnano_core::BlockHash;
     use serde_json::{from_value, json};
 
     #[test]
@@ -24,7 +19,11 @@ mod tests {
             "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
         )
         .unwrap();
-        let successors_command = RpcCommand::successors(block_hash, 1, Some(1), Some(false));
+        let args = ChainArgs::builder(block_hash, 1)
+            .offset(1)
+            .reverse()
+            .build();
+        let successors_command = RpcCommand::successors(args);
 
         let serialized = serde_json::to_value(successors_command).unwrap();
         let expected = json!({
@@ -32,7 +31,7 @@ mod tests {
             "block": "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
             "count": 1,
             "offset": 1,
-            "reverse": false
+            "reverse": true
         });
 
         assert_eq!(serialized, expected);
@@ -45,7 +44,7 @@ mod tests {
             "block": "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
             "count": 1,
             "offset": 1,
-            "reverse": false
+            "reverse": true
         });
 
         let deserialized: RpcCommand = from_value(json_value).unwrap();
@@ -53,7 +52,11 @@ mod tests {
             "000D1BAEC8EC208142C99059B393051BAC8380F9B5A2E6B2489A277D81789F3F",
         )
         .unwrap();
-        let expected = RpcCommand::successors(expected_block_hash, 1, Some(1), Some(false));
+        let args = ChainArgs::builder(expected_block_hash, 1)
+            .offset(1)
+            .reverse()
+            .build();
+        let expected = RpcCommand::successors(args);
 
         assert_eq!(deserialized, expected);
     }

@@ -1,16 +1,26 @@
-use crate::{
-    app_model::{make_node_callbacks, AppModel, NodeState},
-    node_factory::NodeFactory,
-    nullable_runtime::NullableRuntime,
-};
+use crate::{node_factory::NodeFactory, nullable_runtime::NullableRuntime};
+use num::FromPrimitive;
+use num_derive::FromPrimitive;
 use rsnano_core::Networks;
-use rsnano_node::{Node, NodeExt};
-use std::sync::Arc;
+use rsnano_node::{Node, NodeCallbacks, NodeExt};
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Arc,
+};
+
+#[derive(FromPrimitive, PartialEq, Eq)]
+pub enum NodeState {
+    Starting,
+    Started,
+    Stopping,
+    Stopped,
+}
 
 pub(crate) struct NodeRunner {
     node_factory: NodeFactory,
     runtime: Arc<NullableRuntime>,
-    pub node: Option<Arc<Node>>,
+    node: Option<Arc<Node>>,
+    state: Arc<AtomicU8>,
 }
 
 impl NodeRunner {
@@ -19,36 +29,61 @@ impl NodeRunner {
             node_factory,
             runtime,
             node: None,
+            state: Arc::new(AtomicU8::new(NodeState::Stopped as u8)),
         }
     }
 
-    pub(crate) fn start_beta_node(&mut self, model: Arc<AppModel>) {
-        let callbacks = make_node_callbacks(model.clone());
+    pub(crate) fn start_live_node(&mut self, callbacks: NodeCallbacks) {
+        self.start_node(Networks::NanoLiveNetwork, callbacks);
+    }
 
-        let node = self
-            .node_factory
-            .create_node(Networks::NanoBetaNetwork, callbacks);
+    pub(crate) fn start_beta_node(&mut self, callbacks: NodeCallbacks) {
+        self.start_node(Networks::NanoBetaNetwork, callbacks);
+    }
+
+    pub fn start_node(&mut self, network: Networks, callbacks: NodeCallbacks) {
+        let node = self.node_factory.create_node(network, callbacks);
 
         let node2 = node.clone();
 
-        model.set_node_state(NodeState::Starting);
+        self.state
+            .store(NodeState::Starting as u8, Ordering::SeqCst);
         self.node = Some(node);
 
+        let state = self.state.clone();
         self.runtime.spawn_blocking(move || {
             node2.start();
-            model.set_node_state(NodeState::Started)
+            state.store(NodeState::Started as u8, Ordering::SeqCst);
         });
     }
 
-    pub(crate) fn stop_node(&mut self, model: Arc<AppModel>) {
+    pub(crate) fn stop(&mut self) {
         if let Some(node) = self.node.take() {
             {
-                model.set_node_state(NodeState::Stopping);
+                self.state
+                    .store(NodeState::Stopping as u8, Ordering::SeqCst);
+                let state = self.state.clone();
                 self.runtime.spawn_blocking(move || {
                     node.stop();
-                    model.set_node_state(NodeState::Stopped)
+                    state.store(NodeState::Stopped as u8, Ordering::SeqCst);
                 });
             }
+        }
+    }
+
+    pub(crate) fn state(&self) -> NodeState {
+        FromPrimitive::from_u8(self.state.load(Ordering::SeqCst)).unwrap()
+    }
+
+    pub(crate) fn node(&self) -> Option<&Node> {
+        self.node.as_ref().map(|n| &**n)
+    }
+}
+
+impl Drop for NodeRunner {
+    fn drop(&mut self) {
+        if let Some(node) = self.node.take() {
+            node.stop();
         }
     }
 }

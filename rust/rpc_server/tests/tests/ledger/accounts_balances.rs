@@ -1,6 +1,7 @@
 use rsnano_core::{Amount, BlockEnum, StateBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::Node;
+use rsnano_rpc_messages::AccountsBalancesArgs;
 use std::sync::Arc;
 use std::time::Duration;
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
@@ -35,7 +36,7 @@ fn accounts_balances_only_confirmed_none() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .accounts_balances(vec![DEV_GENESIS_KEY.public_key().as_account()], None)
+            .accounts_balances(vec![DEV_GENESIS_KEY.public_key().as_account()])
             .await
             .unwrap()
     });
@@ -65,7 +66,7 @@ fn account_balance_only_confirmed_true() {
 
     let result = node.runtime.block_on(async {
         rpc_client
-            .accounts_balances(vec![DEV_GENESIS_KEY.public_key().as_account()], Some(true))
+            .accounts_balances(vec![DEV_GENESIS_KEY.public_key().as_account()])
             .await
             .unwrap()
     });
@@ -93,12 +94,13 @@ fn account_balance_only_confirmed_false() {
 
     let (rpc_client, server) = setup_rpc_client_and_server(node.clone(), false);
 
-    let result = node.runtime.block_on(async {
-        rpc_client
-            .accounts_balances(vec![DEV_GENESIS_KEY.public_key().as_account()], Some(false))
-            .await
-            .unwrap()
-    });
+    let args = AccountsBalancesArgs::new(vec![DEV_GENESIS_KEY.public_key().as_account()])
+        .include_unconfirmed_blocks()
+        .build();
+
+    let result = node
+        .runtime
+        .block_on(async { rpc_client.accounts_balances(args).await.unwrap() });
 
     let account = result.balances.get(&DEV_GENESIS_ACCOUNT).unwrap();
 
