@@ -3,10 +3,6 @@ use rsnano_node::{
     config::NetworkConstants, IpcConfig, IpcConfigDomainSocket, IpcConfigFlatbuffers,
     IpcConfigTcpSocket, IpcConfigTransport,
 };
-use std::{
-    convert::{TryFrom, TryInto},
-    os::unix::prelude::OsStrExt,
-};
 
 #[repr(C)]
 pub struct IpcConfigTransportDto {
@@ -49,7 +45,7 @@ pub fn fill_ipc_config_dto(dto: &mut IpcConfigDto, config: &IpcConfig) {
         &mut dto.domain_transport,
         &config.transport_domain.transport,
     );
-    let bytes = config.transport_domain.path.as_os_str().as_bytes();
+    let bytes = config.transport_domain.path.as_os_str().as_encoded_bytes();
     dto.domain_path[..bytes.len()].copy_from_slice(bytes);
     dto.domain_path_len = bytes.len();
     fill_config_transport_dto(&mut dto.tcp_transport, &config.transport_tcp.transport);

@@ -109,7 +109,7 @@ impl EnvironmentWrapper {
     fn build(options: EnvironmentOptions) -> lmdb::Result<Self> {
         let env = lmdb::Environment::new()
             .set_max_dbs(options.max_dbs)
-            .set_map_size(options.map_size)
+            .set_map_size(10 * 1024 * 1024)
             .set_flags(options.flags)
             .open_with_permissions(options.path, options.file_mode.try_into().unwrap())?;
         Ok(Self(env))

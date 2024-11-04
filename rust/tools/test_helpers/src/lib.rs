@@ -25,6 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tracing_subscriber::EnvFilter;
+use tempfile::TempDir;
 
 pub struct System {
     runtime: Arc<AsyncRuntime>,
@@ -121,7 +122,8 @@ impl System {
     }
 
     fn new_node(&self, config: NodeConfig, flags: NodeFlags) -> Arc<Node> {
-        let path = unique_path().expect("Could not get a unique path");
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let path = temp_dir.path().to_path_buf();
         let node = NodeBuilder::new(self.network_params.network.current_network)
             .runtime(self.runtime.tokio.handle().clone())
             .data_path(path)
@@ -137,7 +139,6 @@ impl System {
     fn stop(&mut self) {
         for node in &self.nodes {
             node.stop();
-            std::fs::remove_dir_all(&node.data_path).expect("Could not delete node data dir");
         }
         self.work.stop();
     }

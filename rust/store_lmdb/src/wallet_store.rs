@@ -13,10 +13,14 @@ use rsnano_core::{
 };
 use std::io::Write;
 use std::{
-    fs::{set_permissions, File, Permissions},
-    os::unix::prelude::PermissionsExt,
+    fs::File,
     path::Path,
     sync::{Mutex, MutexGuard},
+};
+#[cfg(unix)]
+use std::{
+    fs::{set_permissions, Permissions},
+    os::unix::prelude::PermissionsExt,
 };
 
 pub struct Fans {
@@ -619,7 +623,14 @@ impl LmdbWalletStore {
 
     pub fn write_backup(&self, txn: &dyn Transaction, path: &Path) -> anyhow::Result<()> {
         let mut file = File::create(path)?;
+        #[cfg(unix)]
         set_permissions(path, Permissions::from_mode(0o600))?;
+        #[cfg(windows)]
+        {
+            let mut permissions = file.metadata()?.permissions();
+            permissions.set_readonly(false);
+            file.set_permissions(permissions)?;
+        }
         write!(file, "{}", self.serialize_json(txn))?;
         Ok(())
     }

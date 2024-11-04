@@ -12,15 +12,19 @@ use rsnano_nullable_lmdb::{
 };
 use std::{
     ffi::{c_char, CStr, OsStr},
-    fs::{create_dir_all, set_permissions, Permissions},
+    fs::create_dir_all,
     ops::Deref,
-    os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
+};
+#[cfg(unix)]
+use std::{
+    fs::{set_permissions, Permissions},
+    os::unix::prelude::PermissionsExt,
 };
 use tracing::debug;
 
@@ -215,7 +219,15 @@ fn try_create_parent_dir(path: &Path) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         if parent != Path::new("") && !parent.is_dir() {
             create_dir_all(parent)?;
+            #[cfg(unix)]
             set_permissions(parent, Permissions::from_mode(0o700))?;
+            #[cfg(windows)]
+            {
+                let file = std::fs::File::create(path)?;
+                let mut permissions = file.metadata()?.permissions();
+                permissions.set_readonly(false);
+                file.set_permissions(permissions)?;
+            }
         }
     }
     Ok(())

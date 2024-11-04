@@ -13,6 +13,7 @@ output_tracking = []
 mock_instant = "0.2.1"
 tracing-test = "0.2.4"
 test_helpers = { path = "../tools/test_helpers" }
+tempfile = "3.13.0"
 
 [dependencies]
 rsnano_core = { path = "../core" }
