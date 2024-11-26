@@ -23,3 +23,7 @@ tokio = { version = "1", features = [
 ] }
 tokio-tungstenite = "0"
 tracing = "0"
+
+[dev-dependencies]
+rsnano_ledger = { path = "../ledger" }
+test_helpers = { path = "../tools/test_helpers" }

@@ -855,7 +855,7 @@ fn create_node_with_websocket(system: &mut System) -> Arc<Node> {
 }
 
 async fn connect_websocket(node: &Node) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-    sleep(Duration::from_millis(50));
+    sleep(Duration::from_millis(5));
     let (ws_stream, _) = connect_async(format!("ws://[::1]:{}", node.config.websocket_config.port))
         .await
         .expect("Failed to connect");

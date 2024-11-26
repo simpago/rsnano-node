@@ -22,4 +22,3 @@ mod vote_processor;
 mod votes;
 mod wallet;
 mod wallets;
-mod websocket;
