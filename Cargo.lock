@@ -3852,6 +3852,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsnano_websocket_server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "num-derive",
+ "num-traits",
+ "rsnano_core",
+ "rsnano_messages",
+ "rsnano_node",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+]
+
+[[package]]
 name = "rust-argon2"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4375,6 +4393,7 @@ dependencies = [
  "rsnano_nullable_tcp",
  "rsnano_rpc_client",
  "rsnano_rpc_server",
+ "rsnano_websocket_server",
  "tokio",
  "tracing-subscriber",
  "tracing-test",

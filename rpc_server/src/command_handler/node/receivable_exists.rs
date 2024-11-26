@@ -63,7 +63,7 @@ fn block_confirmed(
     // This just checks it's not currently undergoing an active transaction
     if !include_only_confirmed {
         if let Some(block) = node.ledger.any().get_block(txn, hash) {
-            return !node.active.active(&block);
+            return !node.active_elections.active(&block);
         }
     }
 

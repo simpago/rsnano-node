@@ -34,7 +34,7 @@ pub fn activate_one() {
         node.vote_router.active(&block.hash())
     });
     assert_eq!(
-        node.active
+        node.active_elections
             .election(&block.qualified_root())
             .unwrap()
             .behavior,
@@ -71,7 +71,7 @@ pub fn activate_one_zero_conf() {
     });
 
     assert_eq!(
-        node.active
+        node.active_elections
             .election(&block.qualified_root())
             .unwrap()
             .behavior,
@@ -105,7 +105,7 @@ pub fn activate_many() {
             let block = blocks.last().unwrap();
             node.vote_router.active(&block.hash())
                 && node
-                    .active
+                    .active_elections
                     .election(&block.qualified_root())
                     .unwrap()
                     .behavior

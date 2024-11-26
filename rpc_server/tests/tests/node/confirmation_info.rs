@@ -21,7 +21,7 @@ fn confirmation_info() {
 
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.active(&send),
+        || node.active_elections.active(&send),
         "not active on node 1",
     );
 

@@ -11,6 +11,7 @@ rsnano_node = { path = "../../node", features = ["output_tracking"] }
 rsnano_nullable_tcp = { path = "../../nullables/tcp" }
 rsnano_rpc_client = { path = "../../rpc_client" }
 rsnano_rpc_server = { path = "../../rpc_server" }
+rsnano_websocket_server = { path = "../../websocket_server" }
 mock_instant = "0"
 tracing-subscriber = { version = "0", features = ["env-filter"] }
 axum = "0"

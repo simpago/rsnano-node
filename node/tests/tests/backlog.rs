@@ -55,5 +55,5 @@ fn election_activation() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     node.process(send).unwrap();
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
+    assert_timely_eq(Duration::from_secs(5), || node.active_elections.len(), 1);
 }

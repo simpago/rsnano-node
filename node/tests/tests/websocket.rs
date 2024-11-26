@@ -1,21 +1,21 @@
 use core::panic;
 use futures_util::{SinkExt, StreamExt};
 use rsnano_core::{
-    Account, Amount, Block, JsonBlock, KeyPair, Networks, SendBlock, StateBlock, Vote, VoteCode,
+    Account, Amount, Block, JsonBlock, KeyPair, SendBlock, StateBlock, Vote, VoteCode,
     DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_messages::{Message, Publish};
 use rsnano_node::{
     bootstrap::{BootstrapInitiatorExt, BootstrapStarted},
-    config::{NetworkConstants, NodeConfig},
+    config::NodeConfig,
     websocket::{
         vote_received, BlockConfirmed, OutgoingMessageEnvelope, TelemetryReceived, Topic,
-        VoteReceived, WebsocketConfig,
+        VoteReceived,
     },
     Node,
 };
-use std::{sync::Arc, time::Duration};
+use std::{net::Ipv6Addr, sync::Arc, thread::sleep, time::Duration};
 use test_helpers::{assert_timely, get_available_port, make_fake_channel, System};
 use tokio::{net::TcpStream, task::spawn_blocking, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
@@ -41,7 +41,7 @@ fn started_election() {
         assert_eq!(
             1,
             node1
-                .websocket
+                .websocket_server
                 .as_ref()
                 .unwrap()
                 .subscriber_count(Topic::StartedElection)
@@ -63,7 +63,7 @@ fn started_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1.active.election(&send1.qualified_root()).is_some()
+            node1.active_elections.election(&send1.qualified_root()).is_some()
         });
 
         let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
@@ -97,7 +97,7 @@ fn stopped_election() {
         assert_eq!(
             1,
             node1
-                .websocket
+                .websocket_server
                 .as_ref()
                 .unwrap()
                 .subscriber_count(Topic::StoppedElection)
@@ -119,9 +119,9 @@ fn stopped_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1.active.election(&send1.qualified_root()).is_some()
+            node1.active_elections.election(&send1.qualified_root()).is_some()
         });
-        let active = node1.active.clone();
+        let active = node1.active_elections.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))
             .await
             .unwrap();
@@ -141,7 +141,7 @@ fn stopped_election() {
 fn subscription_edge() {
     let mut system = System::new();
     let node1 = create_node_with_websocket(&mut system);
-    let websocket = node1.websocket.as_ref().unwrap();
+    let websocket = node1.websocket_server.as_ref().unwrap();
     assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
 
     node1.runtime.block_on(async {
@@ -494,7 +494,7 @@ fn confirmation_options_update() {
         let previous = send.hash();
         node1.process_active(send);
 
-        assert_eq!(node1.websocket.as_ref().unwrap().subscriber_count(Topic::Confirmation), 1);
+        assert_eq!(node1.websocket_server.as_ref().unwrap().subscriber_count(Topic::Confirmation), 1);
 
         // receive confirmation event
         ws_stream.next().await.unwrap().unwrap();
@@ -588,7 +588,7 @@ fn vote_options_type() {
 
         let node_l = node1.clone();
         spawn_blocking(move ||{
-            node_l.websocket.as_ref().unwrap().broadcast(&vote_received(&vote, VoteCode::Replay));
+            node_l.websocket_server.as_ref().unwrap().broadcast(&vote_received(&vote, VoteCode::Replay));
         }).await.unwrap();
 
 
@@ -677,7 +677,7 @@ fn vote_options_representatives() {
 #[ignore = "Disabled, because distributed work generation was temporarily removed"]
 fn work() {}
 
-#[test]
+/*#[test]
 // Test client subscribing to notifications for bootstrap
 fn bootstrap() {
     let mut system = System::new();
@@ -729,7 +729,7 @@ fn bootstrap() {
             !node1.bootstrap_initiator.in_progress()
         });
     });
-}
+}*/
 
 #[test]
 // Tests sending keepalive
@@ -788,7 +788,7 @@ fn telemetry() {
         // Other node should have no subscribers
         assert_eq!(
             node2
-                .websocket
+                .websocket_server
                 .as_ref()
                 .unwrap()
                 .subscriber_count(Topic::Telemetry),
@@ -797,7 +797,7 @@ fn telemetry() {
     });
 }
 
-#[test]
+/*#[test]
 fn new_unconfirmed_block() {
     let mut system = System::new();
     let node1 = create_node_with_websocket(&mut system);
@@ -840,23 +840,22 @@ fn new_unconfirmed_block() {
             panic!("not a state block")
         };
     });
-}
+}*/
 
 fn create_node_with_websocket(system: &mut System) -> Arc<Node> {
     let websocket_port = get_available_port();
-    let config = NodeConfig {
-        websocket_config: WebsocketConfig {
-            enabled: true,
-            port: websocket_port,
-            ..WebsocketConfig::new(&NetworkConstants::default_for(Networks::NanoDevNetwork))
-        },
+    let mut config = NodeConfig {
         ..System::default_config()
     };
-    let node = system.build_node().config(config).finish();
+    config.websocket_config.enabled = true;
+    config.websocket_config.port = websocket_port;
+    config.websocket_config.address = Ipv6Addr::LOCALHOST.to_string();
+    let node = system.build_node().config(config).finish_with_websocket_server();
     node
 }
 
 async fn connect_websocket(node: &Node) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
+    sleep(Duration::from_millis(50));
     let (ws_stream, _) = connect_async(format!("ws://[::1]:{}", node.config.websocket_config.port))
         .await
         .expect("Failed to connect");

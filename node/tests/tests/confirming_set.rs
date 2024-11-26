@@ -60,7 +60,7 @@ fn observer_callbacks() {
         2
     );
     assert_eq!(node.ledger.cemented_count(), 3);
-    assert_eq!(node.active.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
 }
 
 // The callback and confirmation history should only be updated after confirmation height is set (and not just after voting)
@@ -105,10 +105,10 @@ fn confirmed_history() {
         let _write_guard = node.ledger.write_queue.wait(Writer::Testing);
 
         // Confirm send1
-        node.active.force_confirm(&election);
-        assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
-        assert_eq!(node.active.recently_cemented_count(), 0);
-        assert_eq!(node.active.len(), 0);
+        node.active_elections.force_confirm(&election);
+        assert_timely_eq(Duration::from_secs(10), || node.active_elections.len(), 0);
+        assert_eq!(node.active_elections.recently_cemented_count(), 0);
+        assert_eq!(node.active_elections.len(), 0);
 
         let tx = node.ledger.read_txn();
         assert_eq!(
@@ -142,7 +142,7 @@ fn confirmed_history() {
     let tx = node.ledger.read_txn();
     assert!(node.ledger.confirmed().block_exists(&tx, &send.hash()));
 
-    assert_timely_eq(Duration::from_secs(10), || node.active.len(), 0);
+    assert_timely_eq(Duration::from_secs(10), || node.active_elections.len(), 0);
     assert_timely_eq(
         Duration::from_secs(10),
         || {
@@ -156,8 +156,8 @@ fn confirmed_history() {
     );
 
     // Each block that's confirmed is in the recently_cemented history
-    assert_eq!(node.active.recently_cemented_count(), 2);
-    assert_eq!(node.active.len(), 0);
+    assert_eq!(node.active_elections.recently_cemented_count(), 2);
+    assert_eq!(node.active_elections.len(), 0);
 
     // Confirm the callback is not called under this circumstance
     assert_timely_eq(
@@ -194,7 +194,7 @@ fn confirmed_history() {
         2,
     );
     assert_eq!(node.ledger.cemented_count(), 3);
-    assert_eq!(node.active.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
 }
 
 #[test]
@@ -245,7 +245,7 @@ fn dependent_election() {
     start_election(&node, &send1.hash());
     // Start an election and confirm it
     let election = start_election(&node, &send2.hash());
-    node.active.force_confirm(&election);
+    node.active_elections.force_confirm(&election);
 
     // Wait for blocks to be confirmed in ledger, callbacks will happen after
     assert_timely_eq(
@@ -298,7 +298,7 @@ fn dependent_election() {
         1,
     );
     assert_eq!(node.ledger.cemented_count(), 4);
-    assert_eq!(node.active.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
 }
 
 #[test]
@@ -317,7 +317,7 @@ fn election_winner_details_clearing_node_process_confirmed() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     // Add to election_winner_details. Use an unrealistic iteration so that it should fall into the else case and do a cleanup
-    node.active.vote_applier.add_election_winner_details(
+    node.active_elections.vote_applier.add_election_winner_details(
         send.hash(),
         Arc::new(Election::new(
             1,
@@ -331,7 +331,7 @@ fn election_winner_details_clearing_node_process_confirmed() {
     let mut election = ElectionStatus::default();
     election.winner = Some(send);
 
-    node.active.process_confirmed(election, 1000000);
+    node.active_elections.process_confirmed(election, 1000000);
 
-    assert_eq!(node.active.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
 }

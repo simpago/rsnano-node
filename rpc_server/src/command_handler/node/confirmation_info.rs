@@ -13,11 +13,11 @@ impl RpcCommandHandler {
         let contents = args.contents.unwrap_or(true.into()).inner();
         let election = self
             .node
-            .active
+            .active_elections
             .election(&args.root)
             .ok_or_else(|| anyhow!("Active confirmation not found"))?;
 
-        if self.node.active.confirmed(&election) {
+        if self.node.active_elections.confirmed(&election) {
             bail!("Active confirmation not found");
         }
 

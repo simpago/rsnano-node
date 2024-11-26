@@ -16,6 +16,7 @@ use rsnano_node::{
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
+use rsnano_websocket_server::{create_websocket_server, WebsocketConfig};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
@@ -156,6 +157,80 @@ impl System {
         node
     }
 
+    fn make_node_with_websocket_server(
+        &mut self,
+        config: NodeConfig,
+        flags: NodeFlags,
+        disconnected: bool,
+    ) -> Arc<Node> {
+        let mut node = self.new_node_with_websocket_server(config, flags);
+
+        self.setup_node(&node);
+
+        let wallet_id = WalletId::random();
+        node.wallets.create(wallet_id);
+
+        let websocket_server = create_websocket_server(
+            WebsocketConfig { enabled: node.config.websocket_config.enabled, port: node.config.websocket_config.port, address: node.config.websocket_config.address.clone() },
+            node.wallets.clone(),
+            node.runtime.clone(),
+            &node.active_elections,
+            &node.telemetry,
+            &node.vote_processor,
+            //&node.process_live_dispatcher,
+            //&node.bootstrap_initiator,
+        );
+
+        websocket_server.as_ref().unwrap();
+
+        node.set_websocket_server(websocket_server);
+        let node = Arc::new(node);
+
+        node.websocket_server.as_ref().unwrap();
+
+        node.start();
+
+        // Check that we don't start more nodes than limit for single IP address
+        debug_assert!(
+            self.nodes.len() < node.config.max_peers_per_ip.into()
+                || node.flags.disable_max_peers_per_ip
+        );
+        self.nodes.push(node.clone());
+
+        if self.nodes.len() > 1 && !disconnected {
+            let other = &self.nodes[0];
+            other
+                .peer_connector
+                .connect_to(node.tcp_listener.local_address());
+
+            let start = Instant::now();
+            loop {
+                if node
+                    .network_info
+                    .read()
+                    .unwrap()
+                    .find_node_id(&other.node_id.public_key())
+                    .is_some()
+                    && other
+                        .network_info
+                        .read()
+                        .unwrap()
+                        .find_node_id(&node.node_id.public_key())
+                        .is_some()
+                {
+                    break;
+                }
+
+                if start.elapsed() > Duration::from_secs(5) {
+                    panic!("connection not successfull");
+                }
+                sleep(Duration::from_millis(10));
+            }
+        }
+        
+        node
+    }
+
     fn new_node(&self, config: NodeConfig, flags: NodeFlags) -> Arc<Node> {
         let path = unique_path().expect("Could not get a unique path");
         let node = NodeBuilder::new(self.network_params.network.current_network)
@@ -168,6 +243,20 @@ impl System {
             .finish()
             .unwrap();
         Arc::new(node)
+    }
+
+    fn new_node_with_websocket_server(&self, config: NodeConfig, flags: NodeFlags) -> Node {
+        let path = unique_path().expect("Could not get a unique path");
+        let node = NodeBuilder::new(self.network_params.network.current_network)
+            .runtime(self.runtime.tokio.handle().clone())
+            .data_path(path)
+            .config(config)
+            .network_params(self.network_params.clone())
+            .flags(flags)
+            .work(self.work.clone())
+            .finish()
+            .unwrap();
+        node
     }
 
     fn stop(&mut self) {
@@ -212,6 +301,12 @@ impl<'a> TestNodeBuilder<'a> {
         let config = self.config.unwrap_or_else(|| System::default_config());
         let flags = self.flags.unwrap_or_default();
         self.system.make_node_with(config, flags, self.disconnected)
+    }
+
+    pub fn finish_with_websocket_server(self) -> Arc<Node> {
+        let config = self.config.unwrap_or_else(|| System::default_config());
+        let flags = self.flags.unwrap_or_default();
+        self.system.make_node_with_websocket_server(config, flags, self.disconnected)
     }
 }
 
@@ -351,10 +446,10 @@ pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     // wait for the election to appear
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.election(&block.qualified_root()).is_some(),
+        || node.active_elections.election(&block.qualified_root()).is_some(),
         "election not active",
     );
-    let election = node.active.election(&block.qualified_root()).unwrap();
+    let election = node.active_elections.election(&block.qualified_root()).unwrap();
     election.transition_active();
     election
 }
@@ -363,7 +458,7 @@ pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {
     for hash in hashes {
         let election = start_election(node, hash);
         if forced {
-            node.active.force_confirm(&election);
+            node.active_elections.force_confirm(&election);
         }
     }
 }
@@ -594,7 +689,7 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
     node.process_active(send.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active.active(&send),
+        || node.active_elections.active(&send),
         "not active on node",
     );
 

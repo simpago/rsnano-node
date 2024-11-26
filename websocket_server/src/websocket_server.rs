@@ -1,9 +1,6 @@
-use crate::Topic;
-use super::{OutgoingMessageEnvelope, WebsocketConfig, WebsocketListener};
+use super::WebsocketConfig;
 use rsnano_node::{
-    consensus::{ActiveElections, ElectionStatus, ElectionStatusType, VoteProcessor},
-    wallets::Wallets,
-    Telemetry,
+    consensus::{ActiveElections, ElectionStatus, ElectionStatusType, VoteProcessor}, wallets::Wallets, websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener}, Telemetry
 };
 use rsnano_core::{Account, Amount, BlockHash, BlockType, Vote, VoteCode, VoteWithWeightInfo};
 use rsnano_messages::TelemetryData;
