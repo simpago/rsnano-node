@@ -193,7 +193,9 @@ fn rep_weight() {
 fn recently_confirmed() {
     let mut system = System::new();
     let node1 = system.make_node();
-    node1.active_elections.insert_recently_confirmed(&DEV_GENESIS);
+    node1
+        .active_elections
+        .insert_recently_confirmed(&DEV_GENESIS);
 
     let node2 = system.make_node();
     node2.insert_into_wallet(&DEV_GENESIS_KEY);

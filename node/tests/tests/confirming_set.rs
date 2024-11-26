@@ -60,7 +60,12 @@ fn observer_callbacks() {
         2
     );
     assert_eq!(node.ledger.cemented_count(), 3);
-    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(
+        node.active_elections
+            .vote_applier
+            .election_winner_details_len(),
+        0
+    );
 }
 
 // The callback and confirmation history should only be updated after confirmation height is set (and not just after voting)
@@ -194,7 +199,12 @@ fn confirmed_history() {
         2,
     );
     assert_eq!(node.ledger.cemented_count(), 3);
-    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(
+        node.active_elections
+            .vote_applier
+            .election_winner_details_len(),
+        0
+    );
 }
 
 #[test]
@@ -298,7 +308,12 @@ fn dependent_election() {
         1,
     );
     assert_eq!(node.ledger.cemented_count(), 4);
-    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(
+        node.active_elections
+            .vote_applier
+            .election_winner_details_len(),
+        0
+    );
 }
 
 #[test]
@@ -317,21 +332,28 @@ fn election_winner_details_clearing_node_process_confirmed() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     // Add to election_winner_details. Use an unrealistic iteration so that it should fall into the else case and do a cleanup
-    node.active_elections.vote_applier.add_election_winner_details(
-        send.hash(),
-        Arc::new(Election::new(
-            1,
-            send.clone(),
-            ElectionBehavior::Manual,
-            Box::new(|_| {}),
-            Box::new(|_| {}),
-        )),
-    );
+    node.active_elections
+        .vote_applier
+        .add_election_winner_details(
+            send.hash(),
+            Arc::new(Election::new(
+                1,
+                send.clone(),
+                ElectionBehavior::Manual,
+                Box::new(|_| {}),
+                Box::new(|_| {}),
+            )),
+        );
 
     let mut election = ElectionStatus::default();
     election.winner = Some(send);
 
     node.active_elections.process_confirmed(election, 1000000);
 
-    assert_eq!(node.active_elections.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(
+        node.active_elections
+            .vote_applier
+            .election_winner_details_len(),
+        0
+    );
 }

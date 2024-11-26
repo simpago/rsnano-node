@@ -1,5 +1,5 @@
-use rsnano_node::DEV_NETWORK_PARAMS;
 use rsnano_core::{utils::milliseconds_since_epoch, BlockHash, DifficultyV1, WorkVersion};
+use rsnano_node::DEV_NETWORK_PARAMS;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt::Debug, hash::Hash, time::Duration};

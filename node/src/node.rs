@@ -178,7 +178,12 @@ impl Node {
         Self::new(args, false, NodeIdKeyFile::default(), None)
     }
 
-    fn new(args: NodeArgs, is_nulled: bool, mut node_id_key_file: NodeIdKeyFile, websocket_server: Option<Arc<crate::websocket::WebsocketListener>>) -> Self {
+    fn new(
+        args: NodeArgs,
+        is_nulled: bool,
+        mut node_id_key_file: NodeIdKeyFile,
+        websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
+    ) -> Self {
         let network_params = args.network_params;
         let config = args.config;
         let flags = args.flags;
@@ -1341,7 +1346,10 @@ impl Node {
             .all(|b| self.ledger.confirmed().block_exists(&tx, &b.hash()))
     }
 
-    pub fn set_websocket_server(&mut self, websocket_server: Option<Arc<crate::websocket::WebsocketListener>>) {
+    pub fn set_websocket_server(
+        &mut self,
+        websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
+    ) {
         self.websocket_server = websocket_server;
     }
 }

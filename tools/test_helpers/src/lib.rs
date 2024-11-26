@@ -171,7 +171,11 @@ impl System {
         node.wallets.create(wallet_id);
 
         let websocket_server = create_websocket_server(
-            WebsocketConfig { enabled: node.config.websocket_config.enabled, port: node.config.websocket_config.port, address: node.config.websocket_config.address.clone() },
+            WebsocketConfig {
+                enabled: node.config.websocket_config.enabled,
+                port: node.config.websocket_config.port,
+                address: node.config.websocket_config.address.clone(),
+            },
             node.wallets.clone(),
             node.runtime.clone(),
             &node.active_elections,
@@ -227,7 +231,7 @@ impl System {
                 sleep(Duration::from_millis(10));
             }
         }
-        
+
         node
     }
 
@@ -306,7 +310,8 @@ impl<'a> TestNodeBuilder<'a> {
     pub fn finish_with_websocket_server(self) -> Arc<Node> {
         let config = self.config.unwrap_or_else(|| System::default_config());
         let flags = self.flags.unwrap_or_default();
-        self.system.make_node_with_websocket_server(config, flags, self.disconnected)
+        self.system
+            .make_node_with_websocket_server(config, flags, self.disconnected)
     }
 }
 
@@ -446,10 +451,17 @@ pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     // wait for the election to appear
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active_elections.election(&block.qualified_root()).is_some(),
+        || {
+            node.active_elections
+                .election(&block.qualified_root())
+                .is_some()
+        },
         "election not active",
     );
-    let election = node.active_elections.election(&block.qualified_root()).unwrap();
+    let election = node
+        .active_elections
+        .election(&block.qualified_root())
+        .unwrap();
     election.transition_active();
     election
 }
