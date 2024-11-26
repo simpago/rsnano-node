@@ -16,6 +16,7 @@ pub use network_constants::*;
 pub use node_config::*;
 pub use node_flags::*;
 pub use node_rpc_config::*;
+pub use websocket_config::*;
 pub use opencl_config::*;
 pub use rsnano_core::Networks;
 use serde::de::DeserializeOwned;

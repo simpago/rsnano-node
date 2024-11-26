@@ -6,7 +6,7 @@ use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENE
 use rsnano_network::{Channel, ChannelDirection, ChannelInfo, ChannelMode};
 use rsnano_node::{
     block_processing::BacklogPopulationConfig,
-    config::{NodeConfig, NodeFlags},
+    config::{NodeConfig, NodeFlags, WebsocketConfig},
     consensus::{ActiveElectionsExt, Election},
     unique_path,
     utils::AsyncRuntime,
@@ -16,7 +16,7 @@ use rsnano_node::{
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
-use rsnano_websocket_server::{create_websocket_server, WebsocketConfig, WebsocketListener, WebsocketListenerExt};
+use rsnano_websocket_server::{create_websocket_server, WebsocketListener, WebsocketListenerExt};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{

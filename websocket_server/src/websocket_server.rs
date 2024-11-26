@@ -1,16 +1,13 @@
-use crate::{OutgoingMessageEnvelope, Topic, WebsocketConfig, WebsocketListener};
+use crate::{OutgoingMessageEnvelope, Topic, WebsocketListener};
 use rsnano_core::{
     utils::{PropertyTree, SerdePropertyTree},
     Account, Amount, Block, BlockHash, BlockType, Vote, VoteCode, VoteWithWeightInfo,
 };
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    bootstrap::{BootstrapExited, BootstrapInitiator, BootstrapStarted},
-    consensus::{
+    bootstrap::{BootstrapExited, BootstrapInitiator, BootstrapStarted}, config::WebsocketConfig, consensus::{
         ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
-    },
-    wallets::Wallets,
-    Telemetry,
+    }, wallets::Wallets, Telemetry
 };
 use serde::{Deserialize, Serialize};
 use std::{

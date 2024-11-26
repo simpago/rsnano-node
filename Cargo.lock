@@ -3591,6 +3591,7 @@ dependencies = [
  "rsnano_core",
  "rsnano_node",
  "rsnano_rpc_server",
+ "rsnano_websocket_server",
  "tokio",
 ]
 
