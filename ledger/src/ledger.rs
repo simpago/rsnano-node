@@ -8,7 +8,7 @@ use crate::{
 };
 use rand::{thread_rng, Rng};
 use rsnano_core::{
-    utils::{seconds_since_epoch, ContainerInfoComponent},
+    utils::{seconds_since_epoch, ContainerInfoComponent, ContainerInfos},
     Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo,
     DependentBlocks, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root,
 };
@@ -230,7 +230,7 @@ impl Ledger {
             constants,
             observer: Arc::new(NullLedgerObserver::new()),
             pruning: AtomicBool::new(false),
-            write_queue: Arc::new(WriteQueue::new(false)),
+            write_queue: Arc::new(WriteQueue::new()),
         };
 
         ledger.initialize(&GenerateCacheFlags::new())?;
@@ -654,10 +654,9 @@ impl Ledger {
         self.store.cache.pruned_count.load(Ordering::SeqCst)
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![self.rep_weights.collect_container_info("rep_weights")],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        ContainerInfos::builder()
+            .node("rep_weights", self.rep_weights.container_info())
+            .finish()
     }
 }

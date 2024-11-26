@@ -89,7 +89,7 @@ pub struct ActiveElections {
     recently_cemented: Arc<Mutex<BoundedVecDeque<ElectionStatus>>>,
     block_processor: Arc<BlockProcessor>,
     vote_generators: Arc<VoteGenerators>,
-    publish_filter: Arc<NetworkFilter>,
+    network_filter: Arc<NetworkFilter>,
     network_info: Arc<RwLock<NetworkInfo>>,
     election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
     vote_cache: Arc<Mutex<VoteCache>>,
@@ -116,7 +116,7 @@ impl ActiveElections {
         confirming_set: Arc<ConfirmingSet>,
         block_processor: Arc<BlockProcessor>,
         vote_generators: Arc<VoteGenerators>,
-        publish_filter: Arc<NetworkFilter>,
+        network_filter: Arc<NetworkFilter>,
         network_info: Arc<RwLock<NetworkInfo>>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
@@ -153,7 +153,7 @@ impl ActiveElections {
             node_config,
             block_processor,
             vote_generators,
-            publish_filter,
+            network_filter,
             network_info,
             vote_cache,
             stats,
@@ -363,7 +363,7 @@ impl ActiveElections {
     fn clear_publish_filter(&self, block: &Block) {
         let mut buf = MemoryStream::new();
         block.serialize_without_block_type(&mut buf);
-        self.publish_filter.clear_bytes(buf.as_bytes());
+        self.network_filter.clear_bytes(buf.as_bytes());
     }
 
     /// Maximum number of elections that should be present in this container
@@ -970,9 +970,12 @@ impl ActiveElections {
                     count: guard.count_by_behavior(ElectionBehavior::Optimistic),
                     sizeof_element: 0,
                 }),
-                self.vote_applier.collect_container_info("vote_applier"),
+                self.vote_applier
+                    .container_info()
+                    .into_legacy("vote_applier"),
                 self.recently_confirmed
-                    .collect_container_info("recently_confirmed"),
+                    .container_info()
+                    .into_legacy("recently_confirmed"),
                 ContainerInfoComponent::Composite(
                     "recently_cemented".to_string(),
                     vec![ContainerInfoComponent::Leaf(ContainerInfo {

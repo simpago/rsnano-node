@@ -64,6 +64,11 @@ impl<T: NetworkFilterHasher> NetworkFilter<T> {
         }
         existed
     }
+    /// Checks if the message is in the filter.
+    pub fn check_message(&self, message: &[u8]) -> bool {
+        let digest = self.hash(message);
+        self.check(digest)
+    }
 
     /// Checks if the digest is in the filter.
     pub fn check(&self, digest: u128) -> bool {
