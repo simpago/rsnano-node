@@ -2,7 +2,6 @@ use super::{bootstrap_limits, BootstrapInitiator, BootstrapMode};
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     utils::HardenedConstants,
-    websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
 };
 use anyhow::Result;
 use rsnano_core::{encode_hex, utils::PropertyTree, Account, Block};
@@ -54,7 +53,6 @@ pub struct BootstrapAttempt {
     pub mode: BootstrapMode,
     pub total_blocks: AtomicU64,
     next_log: Mutex<Instant>,
-    websocket_server: Option<Arc<WebsocketListener>>,
     ledger: Arc<Ledger>,
     attempt_start: Instant,
 
@@ -79,7 +77,6 @@ pub struct BootstrapAttempt {
 
 impl BootstrapAttempt {
     pub fn new(
-        websocket_server: Option<Arc<WebsocketListener>>,
         block_processor: Weak<BlockProcessor>,
         bootstrap_initiator: Weak<BootstrapInitiator>,
         ledger: Arc<Ledger>,
@@ -104,7 +101,6 @@ impl BootstrapAttempt {
             block_processor,
             bootstrap_initiator,
             mode,
-            websocket_server,
             ledger,
             attempt_start: Instant::now(),
             total_blocks: AtomicU64::new(0),
@@ -129,9 +125,7 @@ impl BootstrapAttempt {
             "Starting bootstrap attempt with ID: {id} (mode: {}) ",
             self.mode.as_str()
         );
-        if let Some(websocket) = &self.websocket_server {
-            websocket.broadcast(&self.bootstrap_started());
-        }
+
         {
             let callbacks = self.bootstrap_started_observer.lock().unwrap();
             for callback in callbacks.iter() {
@@ -139,30 +133,6 @@ impl BootstrapAttempt {
             }
         }
         Ok(())
-    }
-
-    fn bootstrap_started(&self) -> OutgoingMessageEnvelope {
-        OutgoingMessageEnvelope::new(
-            Topic::Bootstrap,
-            BootstrapStarted {
-                reason: "started".to_owned(),
-                id: self.id.clone(),
-                mode: self.mode.as_str().to_owned(),
-            },
-        )
-    }
-
-    fn bootstrap_exited(&self) -> OutgoingMessageEnvelope {
-        OutgoingMessageEnvelope::new(
-            Topic::Bootstrap,
-            BootstrapExited {
-                reason: "exited".to_owned(),
-                id: self.id.clone(),
-                mode: self.mode.as_str().to_owned(),
-                total_blocks: self.total_blocks.load(Ordering::SeqCst).to_string(),
-                duration: self.duration().as_secs().to_string(),
-            },
-        )
     }
 
     pub fn stop(&self) {
@@ -257,10 +227,6 @@ impl Drop for BootstrapAttempt {
             "Exiting bootstrap attempt with ID: {id} (mode: {})",
             self.mode.as_str()
         );
-
-        if let Some(websocket) = &self.websocket_server {
-            websocket.broadcast(&self.bootstrap_exited());
-        }
 
         {
             let callbacks = self.bootstrap_ended_observer.lock().unwrap();

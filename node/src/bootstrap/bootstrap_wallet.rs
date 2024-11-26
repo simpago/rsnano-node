@@ -2,9 +2,7 @@ use super::{
     BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections, BootstrapConnectionsExt,
     BootstrapInitiator, BootstrapMode, BulkPullAccountClient, BulkPullAccountClientExt,
 };
-use crate::{
-    block_processing::BlockProcessor, stats::Stats, utils::ThreadPool, websocket::WebsocketListener,
-};
+use crate::{block_processing::BlockProcessor, stats::Stats, utils::ThreadPool};
 use rsnano_core::{utils::PropertyTree, Account, Amount, Block};
 use rsnano_ledger::Ledger;
 use std::{
@@ -28,7 +26,6 @@ pub struct BootstrapAttemptWallet {
 
 impl BootstrapAttemptWallet {
     pub fn new(
-        websocket_server: Option<Arc<WebsocketListener>>,
         block_processor: Arc<BlockProcessor>,
         bootstrap_initiator: Arc<BootstrapInitiator>,
         ledger: Arc<Ledger>,
@@ -46,7 +43,6 @@ impl BootstrapAttemptWallet {
     ) -> anyhow::Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
-                websocket_server,
                 Arc::downgrade(&block_processor),
                 Arc::downgrade(&bootstrap_initiator),
                 Arc::clone(&ledger),

@@ -171,19 +171,14 @@ impl Node {
             callbacks,
             ..NodeArgs::create_test_instance()
         };
-        Self::new(args, true, NodeIdKeyFile::new_null(), None)
+        Self::new(args, true, NodeIdKeyFile::new_null())
     }
 
     pub(crate) fn new_with_args(args: NodeArgs) -> Self {
-        Self::new(args, false, NodeIdKeyFile::default(), None)
+        Self::new(args, false, NodeIdKeyFile::default())
     }
 
-    fn new(
-        args: NodeArgs,
-        is_nulled: bool,
-        mut node_id_key_file: NodeIdKeyFile,
-        websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
-    ) -> Self {
+    fn new(args: NodeArgs, is_nulled: bool, mut node_id_key_file: NodeIdKeyFile) -> Self {
         let network_params = args.network_params;
         let config = args.config;
         let flags = args.flags;
@@ -549,14 +544,6 @@ impl Node {
         ));
 
         active_elections.initialize();
-        /*let websocket = create_websocket_server(
-            config.websocket_config.clone(),
-            wallets.clone(),
-            runtime.clone(),
-            &active_elections,
-            &telemetry,
-            &vote_processor,
-        );*/
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
             online_reps.clone(),
@@ -581,7 +568,6 @@ impl Node {
             network_params.clone(),
             stats.clone(),
             block_processor.clone(),
-            websocket_server.clone(),
             ledger.clone(),
             bootstrap_publisher,
             steady_clock.clone(),
@@ -805,7 +791,6 @@ impl Node {
             },
         ));
 
-        //websocket_server.as_ref().unwrap();
         process_live_dispatcher.connect(&block_processor);
 
         let block_processor_w = Arc::downgrade(&block_processor);
@@ -1116,7 +1101,7 @@ impl Node {
             active_elections,
             vote_processor,
             vote_cache_processor,
-            websocket_server,
+            websocket_server: None,
             bootstrap_initiator,
             rep_crawler,
             tcp_listener,

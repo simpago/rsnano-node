@@ -66,7 +66,6 @@ impl NanoResponseServerSpawner {
                 network_params.clone(),
                 stats,
                 block_processor,
-                None,
                 ledger,
                 MessagePublisher::new_null(tokio.clone()),
                 clock,
