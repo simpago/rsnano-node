@@ -58,18 +58,20 @@ impl DaemonBuilder {
         let node = Arc::new(node);
 
         let websocket_server = if daemon_config.node.websocket_config.enabled {
-            Some(create_websocket_server(
-                daemon_config.node.websocket_config,
-                node.wallets.clone(),
-                node.runtime.clone(),
-                &node.active_elections,
-                &node.telemetry,
-                &node.vote_processor,
-                &node.process_live_dispatcher,
-                &node.bootstrap_initiator
-            ).unwrap())
-        }
-        else {
+            Some(
+                create_websocket_server(
+                    daemon_config.node.websocket_config,
+                    node.wallets.clone(),
+                    node.runtime.clone(),
+                    &node.active_elections,
+                    &node.telemetry,
+                    &node.vote_processor,
+                    &node.process_live_dispatcher,
+                    &node.bootstrap_initiator,
+                )
+                .unwrap(),
+            )
+        } else {
             None
         };
 

@@ -183,7 +183,8 @@ impl System {
             &node.vote_processor,
             &node.process_live_dispatcher,
             &node.bootstrap_initiator,
-        ).unwrap();
+        )
+        .unwrap();
 
         websocket_server.start();
 

@@ -16,12 +16,12 @@ pub use network_constants::*;
 pub use node_config::*;
 pub use node_flags::*;
 pub use node_rpc_config::*;
-pub use websocket_config::*;
 pub use opencl_config::*;
 pub use rsnano_core::Networks;
 use serde::de::DeserializeOwned;
 use std::path::{Path, PathBuf};
 pub use toml::DaemonToml;
+pub use websocket_config::*;
 
 pub fn get_node_toml_config_path(data_path: impl Into<PathBuf>) -> PathBuf {
     let mut node_toml = data_path.into();

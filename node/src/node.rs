@@ -37,8 +37,14 @@ use crate::{
     wallets::{Wallets, WalletsExt},
     //websocket::WebsocketListenerExt,
     work::DistributedWorkFactory,
-    NetworkParams, NodeCallbacks, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry,
-    BUILD_INFO, VERSION_STRING,
+    NetworkParams,
+    NodeCallbacks,
+    OnlineWeightSampler,
+    TelementryConfig,
+    TelementryExt,
+    Telemetry,
+    BUILD_INFO,
+    VERSION_STRING,
 };
 use rsnano_core::{
     utils::{as_nano_json, system_time_as_nanoseconds, ContainerInfoComponent, SerdePropertyTree},
@@ -1440,7 +1446,7 @@ impl NodeExt for Arc<Node> {
             self.ascendboot.start();
         }
         //if let Some(ws_listener) = &self.websocket_server {
-            //ws_listener.start();
+        //ws_listener.start();
         //}
         self.telemetry.start();
         self.stats.start();
@@ -1505,7 +1511,7 @@ impl NodeExt for Arc<Node> {
         self.confirming_set.stop();
         self.telemetry.stop();
         //if let Some(ws_listener) = &self.websocket_server {
-            //ws_listener.stop();
+        //ws_listener.stop();
         //}
         self.bootstrap_server.stop();
         self.bootstrap_initiator.stop();

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::config::websocket_config::WebsocketConfig;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct WebsocketToml {

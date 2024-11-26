@@ -5,9 +5,13 @@ use rsnano_core::{
 };
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    bootstrap::{BootstrapExited, BootstrapInitiator, BootstrapStarted}, config::WebsocketConfig, consensus::{
+    bootstrap::{BootstrapExited, BootstrapInitiator, BootstrapStarted},
+    config::WebsocketConfig,
+    consensus::{
         ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
-    }, wallets::Wallets, Telemetry
+    },
+    wallets::Wallets,
+    Telemetry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
