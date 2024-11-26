@@ -36,7 +36,7 @@ impl RealtimeMessageHandler {
     pub(crate) fn new(
         stats: Arc<Stats>,
         network_info: Arc<RwLock<NetworkInfo>>,
-        publish_filter: Arc<NetworkFilter>,
+        network_filter: Arc<NetworkFilter>,
         block_processor: Arc<BlockProcessor>,
         config: NodeConfig,
         wallets: Arc<Wallets>,
@@ -49,7 +49,7 @@ impl RealtimeMessageHandler {
         Self {
             stats,
             network_info,
-            network_filter: publish_filter,
+            network_filter,
             block_processor,
             config,
             wallets,

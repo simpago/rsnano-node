@@ -10,7 +10,7 @@ pub use peered_container::InsertResult;
 pub use peered_rep::PeeredRep;
 use primitive_types::U256;
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     Amount, PublicKey,
 };
 use rsnano_ledger::RepWeightCache;
@@ -211,22 +211,20 @@ impl OnlineReps {
         self.peered_reps.remove(channel_id)
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "online".to_string(),
-                    count: self.online_reps.len(),
-                    sizeof_element: OnlineContainer::ELEMENT_SIZE,
-                }),
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "peered".to_string(),
-                    count: self.peered_reps.len(),
-                    sizeof_element: PeeredContainer::ELEMENT_SIZE,
-                }),
-            ],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        [
+            (
+                "online",
+                self.online_reps.len(),
+                OnlineContainer::ELEMENT_SIZE,
+            ),
+            (
+                "peered",
+                self.peered_reps.len(),
+                PeeredContainer::ELEMENT_SIZE,
+            ),
+        ]
+        .into()
     }
 }
 

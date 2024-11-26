@@ -73,7 +73,6 @@ fn observer_callbacks() {
 fn confirmed_history() {
     let mut system = System::new();
     let flags = NodeFlags {
-        force_use_write_queue: true,
         disable_ascending_bootstrap: true,
         ..Default::default()
     };
@@ -210,12 +209,8 @@ fn confirmed_history() {
 #[test]
 fn dependent_election() {
     let mut system = System::new();
-    let flags = NodeFlags {
-        force_use_write_queue: true,
-        ..Default::default()
-    };
     let config = System::default_config_without_backlog_population();
-    let node = system.build_node().flags(flags).config(config).finish();
+    let node = system.build_node().config(config).finish();
     let latest = node.latest(&DEV_GENESIS_ACCOUNT);
 
     let key1 = KeyPair::new();

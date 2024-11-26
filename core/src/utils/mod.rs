@@ -3,7 +3,7 @@ mod json;
 mod peer;
 mod stream;
 
-pub use container_info::{ContainerInfo, ContainerInfoComponent};
+pub use container_info::*;
 pub use json::*;
 pub use peer::*;
 use std::{
