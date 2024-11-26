@@ -15,7 +15,7 @@ use super::{
     LocalVoteHistory, RecentlyConfirmedCache, TallyKey, VoteGenerators,
 };
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     Amount, Block, BlockHash, PublicKey, VoteCode, VoteSource,
 };
 use rsnano_ledger::Ledger;
@@ -187,15 +187,13 @@ impl VoteApplier {
         }
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                name: "election_winner_details".to_string(),
-                count: self.election_winner_details.lock().unwrap().len(),
-                sizeof_element: size_of::<BlockHash>() + size_of::<Arc<Election>>(),
-            })],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        [(
+            "election_winner_details",
+            self.election_winner_details.lock().unwrap().len(),
+            size_of::<BlockHash>() + size_of::<Arc<Election>>(),
+        )]
+        .into()
     }
 }
 

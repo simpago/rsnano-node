@@ -27,7 +27,7 @@ pub struct NanoResponseServerSpawner {
     pub(crate) block_processor: Arc<BlockProcessor>,
     pub(crate) bootstrap_initiator: Arc<BootstrapInitiator>,
     pub(crate) network: Arc<RwLock<NetworkInfo>>,
-    pub(crate) publish_filter: Arc<NetworkFilter>,
+    pub(crate) network_filter: Arc<NetworkFilter>,
     pub(crate) inbound_queue: Arc<InboundMessageQueue>,
     pub(crate) node_flags: NodeFlags,
     pub(crate) network_params: NetworkParams,
@@ -41,7 +41,7 @@ impl NanoResponseServerSpawner {
         let ledger = Arc::new(Ledger::new_null());
         let flags = NodeFlags::default();
         let network = Arc::new(Network::new_null(tokio.clone()));
-        let publish_filter = Arc::new(NetworkFilter::default());
+        let network_filter = Arc::new(NetworkFilter::default());
         let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
         let workers = Arc::new(ThreadPoolImpl::new_test_instance());
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
@@ -77,7 +77,7 @@ impl NanoResponseServerSpawner {
             network_params,
             syn_cookies: Arc::new(SynCookies::new(1)),
             latest_keepalives: Arc::new(Mutex::new(LatestKeepalives::default())),
-            publish_filter,
+            network_filter,
         }
     }
 
@@ -93,7 +93,7 @@ impl NanoResponseServerSpawner {
             self.network.clone(),
             self.inbound_queue.clone(),
             channel,
-            self.publish_filter.clone(),
+            self.network_filter.clone(),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),
             true,

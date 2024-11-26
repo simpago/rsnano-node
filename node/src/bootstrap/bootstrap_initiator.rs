@@ -72,7 +72,7 @@ impl BootstrapInitiatorConfig {
             frontier_retry_limit: 16,
             disable_bulk_push_client: false,
             bootstrap_initiator_threads: 1,
-            receive_minimum: Amount::xrb(1),
+            receive_minimum: Amount::micronano(1),
         }
     }
 }
