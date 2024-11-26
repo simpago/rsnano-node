@@ -4,7 +4,7 @@ use std::{
 };
 
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     BlockHash, QualifiedRoot,
 };
 
@@ -78,16 +78,13 @@ impl RecentlyConfirmedCache {
             .map(|hash| (guard.by_hash.get(hash).unwrap().clone(), *hash))
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                name: "confirmed".to_string(),
-                count: self.len(),
-                sizeof_element: std::mem::size_of::<BlockHash>() * 3
-                    + std::mem::size_of::<QualifiedRoot>(),
-            })],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        [(
+            "confirmed",
+            self.len(),
+            std::mem::size_of::<BlockHash>() * 3 + std::mem::size_of::<QualifiedRoot>(),
+        )]
+        .into()
     }
 }
 

@@ -15,15 +15,15 @@ impl Amount {
         Self { raw: value }
     }
 
-    /// 10^24 raw
-    pub const fn xrb(value: u128) -> Self {
+    /// 10^24 raw or 0.000001 nano
+    pub const fn micronano(value: u128) -> Self {
         Self {
             raw: value * 10u128.pow(24),
         }
     }
 
-    /// 10^27 raw
-    pub const fn kxrb(value: u128) -> Self {
+    /// 10^27 raw or 0.001 nano
+    pub const fn millinano(value: u128) -> Self {
         Self {
             raw: value * 10u128.pow(27),
         }
@@ -92,10 +92,10 @@ impl Amount {
 
     pub fn format_balance(&self, precision: usize) -> String {
         let precision = std::cmp::min(precision, 30);
-        let mxrb_ratio = Amount::nano(1).number();
-        if self.raw == 0 || self.raw >= mxrb_ratio / num_traits::pow(10, precision) {
-            let whole = self.raw / mxrb_ratio;
-            let decimals = self.raw % mxrb_ratio;
+        let nano_ratio = Amount::nano(1).number();
+        if self.raw == 0 || self.raw >= nano_ratio / num_traits::pow(10, precision) {
+            let whole = self.raw / nano_ratio;
+            let decimals = self.raw % nano_ratio;
             let mut buf = num_format::Buffer::default();
             buf.write_formatted(&whole, &num_format::Locale::en);
             let mut result = buf.to_string();
@@ -358,16 +358,16 @@ mod tests {
                 .unwrap()
                 .format_balance(0)
         );
-        assert_eq!("< 0.01", Amount::xrb(10).format_balance(2));
-        assert_eq!("< 0.1", Amount::xrb(10).format_balance(1));
-        assert_eq!("< 1", Amount::xrb(10).format_balance(0));
-        assert_eq!("< 0.01", Amount::xrb(9999).format_balance(2));
+        assert_eq!("< 0.01", Amount::micronano(10).format_balance(2));
+        assert_eq!("< 0.1", Amount::micronano(10).format_balance(1));
+        assert_eq!("< 1", Amount::micronano(10).format_balance(0));
+        assert_eq!("< 0.01", Amount::micronano(9999).format_balance(2));
         assert_eq!("< 0.001", Amount::raw(1).format_balance(3));
-        assert_eq!("0.01", Amount::xrb(10000).format_balance(2));
+        assert_eq!("0.01", Amount::micronano(10000).format_balance(2));
         assert_eq!("123,456,789", Amount::nano(123456789).format_balance(2));
         assert_eq!(
             "123,456,789.12",
-            (Amount::nano(123456789) + Amount::kxrb(123)).format_balance(2)
+            (Amount::nano(123456789) + Amount::millinano(123)).format_balance(2)
         );
     }
 

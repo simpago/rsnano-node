@@ -1,5 +1,5 @@
 mod account_sets;
-mod iterator;
+mod database_scan;
 mod ordered_blocking;
 mod ordered_priorities;
 mod ordered_tags;
@@ -9,7 +9,6 @@ mod throttle;
 
 use self::{
     account_sets::*,
-    iterator::BufferedIterator,
     ordered_tags::{AsyncTag, OrderedTags},
     peer_scoring::PeerScoring,
     throttle::Throttle,
@@ -21,6 +20,7 @@ use crate::{
     transport::MessagePublisher,
 };
 pub use account_sets::AccountSetsConfig;
+use database_scan::DatabaseScan;
 use num::clamp;
 use ordered_tags::QuerySource;
 use priority::Priority;
@@ -91,7 +91,7 @@ impl BootstrapAscending {
                 stopped: false,
                 accounts: AccountSets::new(config.account_sets.clone()),
                 scoring: PeerScoring::new(config.clone()),
-                iterator: BufferedIterator::new(Arc::clone(&ledger)),
+                database_scan: DatabaseScan::new(ledger.clone()),
                 tags: OrderedTags::default(),
                 throttle: Throttle::new(compute_throttle_size(
                     ledger.account_count(),
@@ -389,7 +389,7 @@ impl BootstrapAscending {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
             // Avoid high churn rate of database requests
-            let should_throttle = !guard.iterator.warmup() && guard.throttle.throttled();
+            let should_throttle = !guard.database_scan.warmed_up() && guard.throttle.throttled();
             drop(guard);
             self.stats
                 .inc(StatType::BootstrapAscending, DetailType::LoopDatabase);
@@ -771,7 +771,7 @@ struct BootstrapAscendingLogic {
     stopped: bool,
     accounts: AccountSets,
     scoring: PeerScoring,
-    iterator: BufferedIterator,
+    database_scan: DatabaseScan,
     tags: OrderedTags,
     throttle: Throttle,
     sync_dependencies_interval: Instant,
@@ -935,7 +935,7 @@ impl BootstrapAscendingLogic {
         }
 
         let account = self
-            .iterator
+            .database_scan
             .next(|account| self.tags.count_by_account(account, QuerySource::Database) == 0);
 
         if account.is_zero() {
@@ -1021,6 +1021,7 @@ impl BootstrapAscendingLogic {
                     sizeof_element: 0,
                 }),
                 self.accounts.collect_container_info("accounts"),
+                self.database_scan.collect_container_info("database_scan"),
             ],
         )
     }

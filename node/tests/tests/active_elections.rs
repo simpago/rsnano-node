@@ -1440,7 +1440,7 @@ fn vote_replays() {
         .finish();
     let key = KeyPair::new();
 
-    // send Gxrb_ratio raw from genesis to key
+    // send 1000 nano from genesis to key
     let send1 = Block::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
@@ -1451,7 +1451,7 @@ fn vote_replays() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
 
-    // create open block for key receing Gxrb_ratio raw
+    // create open block for key receing 1000 nano
     let open1 = Block::State(StateBlock::new(
         key.public_key().as_account(),
         BlockHash::zero(),

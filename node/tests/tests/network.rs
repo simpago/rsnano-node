@@ -1,16 +1,23 @@
-use rsnano_core::{Account, Amount, Block, KeyPair, Root, StateBlock, Vote, DEV_GENESIS_KEY};
+use rsnano_core::{
+    Account, Amount, Block, KeyPair, Networks, Root, StateBlock, Vote, DEV_GENESIS_KEY,
+};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_messages::{ConfirmAck, Keepalive, Message, Publish};
+use rsnano_messages::{
+    ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer, ProtocolInfo, Publish,
+};
 use rsnano_network::{ChannelMode, DropPolicy, TrafficType};
 use rsnano_node::{
     bootstrap::BootstrapInitiatorExt,
+    config::NodeConfig,
+    consensus::VoteProcessorConfig,
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
+    Node,
 };
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{ops::Deref, sync::Arc, thread::sleep, time::Duration};
 use test_helpers::{
-    assert_timely, assert_timely_eq, assert_timely_msg, establish_tcp, make_fake_channel,
-    start_election, System,
+    assert_always_eq, assert_timely, assert_timely_eq, assert_timely_msg, establish_tcp,
+    make_fake_channel, start_election, System,
 };
 
 #[test]
@@ -348,5 +355,230 @@ fn receive_weight_change() {
                 .ledger
                 .weight_exact(&node2.ledger.read_txn(), key2.public_key())
                 == node1.config.receive_minimum
+    });
+}
+
+#[test]
+fn duplicate_vote_detection() {
+    let mut system = System::new();
+    let node0 = system.make_node();
+    let node1 = system.make_node();
+
+    let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
+    let message = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
+
+    // Publish duplicate detection through TCP
+    let channel_id = node0
+        .network_info
+        .read()
+        .unwrap()
+        .find_node_id(&node1.node_id.public_key())
+        .unwrap()
+        .channel_id();
+
+    node0.message_publisher.lock().unwrap().try_send(
+        channel_id,
+        &message,
+        DropPolicy::ShouldNotDrop,
+        TrafficType::Generic,
+    );
+    assert_always_eq(
+        Duration::from_millis(100),
+        || {
+            node1.stats.count(
+                StatType::Filter,
+                DetailType::DuplicateConfirmAckMessage,
+                Direction::In,
+            )
+        },
+        0,
+    );
+    node0.message_publisher.lock().unwrap().try_send(
+        channel_id,
+        &message,
+        DropPolicy::ShouldNotDrop,
+        TrafficType::Generic,
+    );
+    assert_timely_eq(
+        Duration::from_secs(2),
+        || {
+            node1.stats.count(
+                StatType::Filter,
+                DetailType::DuplicateConfirmAckMessage,
+                Direction::In,
+            )
+        },
+        1,
+    );
+}
+
+// Ensures that the filter doesn't filter out votes that could not be queued for processing
+#[test]
+fn duplicate_revert_vote() {
+    let mut system = System::new();
+    let node0 = system
+        .build_node()
+        .config(NodeConfig {
+            enable_vote_processor: false, // do not drain queued votes
+            vote_processor: VoteProcessorConfig {
+                max_non_pr_queue: 1,
+                max_pr_queue: 1,
+                ..VoteProcessorConfig::new(1)
+            },
+            ..System::default_config()
+        })
+        .finish();
+    let node1 = system
+        .build_node()
+        .config(NodeConfig {
+            enable_vote_processor: false,
+            vote_processor: VoteProcessorConfig {
+                max_non_pr_queue: 1,
+                max_pr_queue: 1,
+                ..VoteProcessorConfig::new(1)
+            },
+            ..System::default_config()
+        })
+        .finish();
+
+    let vote1 = Vote::new(&DEV_GENESIS_KEY, 1, 0, vec![*DEV_GENESIS_HASH]);
+    let message1 = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote1));
+
+    let vote2 = Vote::new(&DEV_GENESIS_KEY, 2, 2, vec![*DEV_GENESIS_HASH]);
+    let message2 = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote2));
+
+    // Publish duplicate detection through TCP
+    let channel_id = node0
+        .network_info
+        .read()
+        .unwrap()
+        .find_node_id(&node1.node_id.public_key())
+        .unwrap()
+        .channel_id();
+
+    // First vote should be processed
+    node0.message_publisher.lock().unwrap().try_send(
+        channel_id,
+        &message1,
+        DropPolicy::ShouldNotDrop,
+        TrafficType::Generic,
+    );
+    assert_always_eq(
+        Duration::from_millis(100),
+        || {
+            node1.stats.count(
+                StatType::Filter,
+                DetailType::DuplicateConfirmAckMessage,
+                Direction::In,
+            )
+        },
+        0,
+    );
+
+    // Second vote should get dropped from processor queue
+    node0.message_publisher.lock().unwrap().try_send(
+        channel_id,
+        &message2,
+        DropPolicy::ShouldNotDrop,
+        TrafficType::Generic,
+    );
+    assert_always_eq(
+        Duration::from_millis(100),
+        || {
+            node1.stats.count(
+                StatType::Filter,
+                DetailType::DuplicateConfirmAckMessage,
+                Direction::In,
+            )
+        },
+        0,
+    );
+    // And the filter should not have it
+    sleep(Duration::from_millis(500)); // Give the node time to process the vote
+
+    let mut serializer =
+        MessageSerializer::new(ProtocolInfo::default_for(Networks::NanoDevNetwork));
+    let msg2_bytes = serializer.serialize(&message2);
+    let payload_bytes = &msg2_bytes[MessageHeader::SERIALIZED_SIZE..];
+    assert_eq!(node1.network_filter.check_message(payload_bytes), false);
+}
+
+#[test]
+fn expire_duplicate_filter() {
+    let mut system = System::new();
+    let node0 = system
+        .build_node()
+        .config(NodeConfig {
+            network_duplicate_filter_cutoff: 3, // Expire after 3 seconds
+            ..System::default_config()
+        })
+        .finish();
+    let node1 = system
+        .build_node()
+        .config(NodeConfig {
+            network_duplicate_filter_cutoff: 3, // Expire after 3 seconds
+            ..System::default_config()
+        })
+        .finish();
+
+    let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
+    let message = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
+
+    // Publish duplicate detection through TCP
+    let channel_id = node0
+        .network_info
+        .read()
+        .unwrap()
+        .find_node_id(&node1.node_id.public_key())
+        .unwrap()
+        .channel_id();
+
+    // Send a vote
+    node0.message_publisher.lock().unwrap().try_send(
+        channel_id,
+        &message,
+        DropPolicy::ShouldNotDrop,
+        TrafficType::Generic,
+    );
+
+    assert_always_eq(
+        Duration::from_millis(100),
+        || {
+            node1.stats.count(
+                StatType::Filter,
+                DetailType::DuplicateConfirmAckMessage,
+                Direction::In,
+            )
+        },
+        0,
+    );
+
+    node0.message_publisher.lock().unwrap().try_send(
+        channel_id,
+        &message,
+        DropPolicy::ShouldNotDrop,
+        TrafficType::Generic,
+    );
+
+    assert_timely_eq(
+        Duration::from_secs(2),
+        || {
+            node1.stats.count(
+                StatType::Filter,
+                DetailType::DuplicateConfirmAckMessage,
+                Direction::In,
+            )
+        },
+        1,
+    );
+
+    // The filter should expire the vote after some time
+    let mut serializer =
+        MessageSerializer::new(ProtocolInfo::default_for(Networks::NanoDevNetwork));
+    let msg_bytes = serializer.serialize(&message);
+    let payload_bytes = &msg_bytes[MessageHeader::SERIALIZED_SIZE..];
+    assert!(node1.network_filter.check_message(&payload_bytes));
+    assert_timely(Duration::from_secs(10), || {
+        !node1.network_filter.check_message(&payload_bytes)
     });
 }

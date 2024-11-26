@@ -1,5 +1,5 @@
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     Account, Amount, PublicKey,
 };
 use rsnano_store_lmdb::LedgerCache;
@@ -106,14 +106,7 @@ impl RepWeightCache {
         self.weights.clone()
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                name: "rep_weights".to_string(),
-                count: self.len(),
-                sizeof_element: size_of::<(Account, Amount)>(),
-            })],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        [("rep_weights", self.len(), size_of::<(Account, Amount)>())].into()
     }
 }

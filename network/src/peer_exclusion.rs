@@ -1,4 +1,4 @@
-use rsnano_core::utils::{ContainerInfo, ContainerInfoComponent};
+use rsnano_core::utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos};
 use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -113,15 +113,8 @@ impl PeerExclusion {
         self.by_ip.insert(*peer.address.ip(), peer.clone());
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                name: "peers".to_string(),
-                count: self.by_ip.len(),
-                sizeof_element: size_of::<Peer>(),
-            })],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        [("peers", self.by_ip.len(), size_of::<Peer>())].into()
     }
 }
 
