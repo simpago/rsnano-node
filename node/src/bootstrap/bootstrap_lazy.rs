@@ -36,7 +36,7 @@ struct LazyStateBacklogItem {
  * This attempts to quickly bootstrap a section of the ledger given a hash that's known to be confirmed.
  */
 pub struct BootstrapAttemptLazy {
-    attempt: BootstrapAttempt,
+    pub attempt: BootstrapAttempt,
     flags: NodeFlags,
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,
@@ -229,6 +229,10 @@ impl BootstrapAttemptLazy {
         flags: NodeFlags,
         connections: Arc<BootstrapConnections>,
         network_params: NetworkParams,
+        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
+        bootstrap_ended_observer: Arc<
+            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
+        >,
     ) -> Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -239,6 +243,8 @@ impl BootstrapAttemptLazy {
                 id,
                 BootstrapMode::Lazy,
                 incremental_id,
+                bootstrap_started_observer,
+                bootstrap_ended_observer,
             )?,
             flags: flags.clone(),
             connections,

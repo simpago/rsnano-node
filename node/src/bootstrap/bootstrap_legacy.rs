@@ -32,7 +32,7 @@ pub struct LegacyBootstrapConfig {
 
 /// Legacy bootstrap session. This is made up of 3 phases: frontier requests, bootstrap pulls, bootstrap pushes.
 pub struct BootstrapAttemptLegacy {
-    attempt: BootstrapAttempt,
+    pub attempt: BootstrapAttempt,
     connections: Arc<BootstrapConnections>,
     mutex: Mutex<LegacyData>,
     config: LegacyBootstrapConfig,
@@ -59,6 +59,10 @@ impl BootstrapAttemptLegacy {
         tokio: tokio::runtime::Handle,
         frontiers_age: u32,
         start_account: Account,
+        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
+        bootstrap_ended_observer: Arc<
+            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
+        >,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -69,6 +73,8 @@ impl BootstrapAttemptLegacy {
                 id,
                 BootstrapMode::Legacy,
                 incremental_id,
+                bootstrap_started_observer,
+                bootstrap_ended_observer,
             )?,
             connections,
             mutex: Mutex::new(LegacyData {

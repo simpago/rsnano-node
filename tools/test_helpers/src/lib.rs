@@ -182,7 +182,7 @@ impl System {
             &node.telemetry,
             &node.vote_processor,
             &node.process_live_dispatcher,
-            //&node.bootstrap_initiator,
+            &node.bootstrap_initiator,
         );
 
         websocket_server.as_ref().unwrap();

@@ -106,6 +106,9 @@ pub struct BootstrapInitiator {
     workers: Arc<dyn ThreadPool>,
     tokio: tokio::runtime::Handle,
     clock: Arc<SteadyClock>,
+    bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
+    bootstrap_ended_observer:
+        Arc<Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>>,
 }
 
 impl BootstrapInitiator {
@@ -161,6 +164,8 @@ impl BootstrapInitiator {
                 message_publisher,
                 clock,
             )),
+            bootstrap_started_observer: Arc::new(Mutex::new(Vec::new())),
+            bootstrap_ended_observer: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -248,6 +253,17 @@ impl BootstrapInitiator {
                 sizeof_element: PullsCache::ELEMENT_SIZE,
             })],
         )
+    }
+
+    pub fn add_bootstrap_started_callback(&self, f: Box<dyn Fn(String, String) + Send + Sync>) {
+        self.bootstrap_started_observer.lock().unwrap().push(f);
+    }
+
+    pub fn add_bootstrap_ended_callback(
+        &self,
+        f: Box<dyn Fn(String, String, String, String) + Send + Sync>,
+    ) {
+        self.bootstrap_ended_observer.lock().unwrap().push(f);
     }
 }
 
@@ -344,6 +360,8 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.tokio.clone(),
                     frontiers_age_a,
                     start_account_a,
+                    self.bootstrap_started_observer.clone(),
+                    self.bootstrap_ended_observer.clone(),
                 )
                 .unwrap(),
             );
@@ -381,6 +399,8 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.tokio.clone(),
                     u32::MAX,
                     Account::zero(),
+                    self.bootstrap_started_observer.clone(),
+                    self.bootstrap_ended_observer.clone(),
                 )
                 .unwrap(),
             );
@@ -436,6 +456,8 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.flags.clone(),
                     self.connections.clone(),
                     self.network_params.clone(),
+                    self.bootstrap_started_observer.clone(),
+                    self.bootstrap_ended_observer.clone(),
                 )
                 .unwrap();
 
@@ -490,6 +512,8 @@ impl BootstrapInitiatorExt for Arc<BootstrapInitiator> {
                     self.config.receive_minimum,
                     self.stats.clone(),
                     self.tokio.clone(),
+                    self.bootstrap_started_observer.clone(),
+                    self.bootstrap_ended_observer.clone(),
                 )
                 .unwrap(),
             );

@@ -683,7 +683,7 @@ fn vote_options_representatives() {
 #[ignore = "Disabled, because distributed work generation was temporarily removed"]
 fn work() {}
 
-/*#[test]
+#[test]
 // Test client subscribing to notifications for bootstrap
 fn bootstrap() {
     let mut system = System::new();
@@ -735,7 +735,7 @@ fn bootstrap() {
             !node1.bootstrap_initiator.in_progress()
         });
     });
-}*/
+}
 
 #[test]
 // Tests sending keepalive
