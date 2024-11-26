@@ -7,7 +7,7 @@ use crate::{
 };
 use rand::{seq::SliceRandom, thread_rng};
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     Networks, PublicKey,
 };
 use rsnano_nullable_clock::Timestamp;
@@ -669,23 +669,20 @@ impl NetworkInfo {
         self.stopped
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "channels".to_string(),
-                    count: self.channels.len(),
-                    sizeof_element: size_of::<Arc<ChannelInfo>>(),
-                }),
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "attempts".to_string(),
-                    count: self.attempts.len(),
-                    sizeof_element: AttemptContainer::ELEMENT_SIZE,
-                }),
-                self.excluded_peers.collect_container_info("excluded_peers"),
-            ],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        ContainerInfos::builder()
+            .leaf(
+                "channels",
+                self.channels.len(),
+                size_of::<Arc<ChannelInfo>>(),
+            )
+            .leaf(
+                "attempts",
+                self.attempts.len(),
+                AttemptContainer::ELEMENT_SIZE,
+            )
+            .node("excluded_peers", self.excluded_peers.container_info())
+            .finish()
     }
 }
 

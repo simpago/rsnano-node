@@ -103,6 +103,7 @@ pub struct NodeConfig {
     pub confirming_set: ConfirmingSetConfig,
     pub monitor: MonitorConfig,
     pub backlog: BacklogPopulationConfig,
+    pub network_duplicate_filter_cutoff: u64,
 }
 
 static DEFAULT_LIVE_PEER_NETWORK: Lazy<String> =
@@ -228,7 +229,7 @@ impl NodeConfig {
             peering_port,
             default_peering_port: network_params.network.default_node_port,
             bootstrap_fraction_numerator: 1,
-            receive_minimum: Amount::xrb(1),
+            receive_minimum: Amount::micronano(1),
             online_weight_minimum: Amount::nano(60_000_000),
             representative_vote_weight_minimum: Amount::nano(10),
             password_fanout: 1024,
@@ -332,6 +333,7 @@ impl NodeConfig {
             confirming_set: Default::default(),
             monitor: Default::default(),
             backlog: Default::default(),
+            network_duplicate_filter_cutoff: 60,
         }
     }
 

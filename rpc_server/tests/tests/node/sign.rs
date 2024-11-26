@@ -26,7 +26,7 @@ fn sign() {
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
         *DEV_GENESIS_PUB_KEY,
-        Amount::MAX - Amount::raw(1_000_000), // Equivalent to nano::Gxrb_ratio
+        Amount::MAX - Amount::raw(1_000_000),
         Account::from(key.public_key()).into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev(*DEV_GENESIS_HASH),
