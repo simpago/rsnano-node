@@ -181,7 +181,7 @@ impl System {
             &node.active_elections,
             &node.telemetry,
             &node.vote_processor,
-            //&node.process_live_dispatcher,
+            &node.process_live_dispatcher,
             //&node.bootstrap_initiator,
         );
 

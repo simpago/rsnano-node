@@ -704,7 +704,6 @@ impl Node {
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(
             ledger.clone(),
             election_schedulers.clone(),
-            websocket_server.clone(),
         ));
 
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(

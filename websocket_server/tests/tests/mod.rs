@@ -803,7 +803,7 @@ fn telemetry() {
     });
 }
 
-/*#[test]
+#[test]
 fn new_unconfirmed_block() {
     let mut system = System::new();
     let node1 = create_node_with_websocket(&mut system);
@@ -846,7 +846,7 @@ fn new_unconfirmed_block() {
             panic!("not a state block")
         };
     });
-}*/
+}
 
 fn create_node_with_websocket(system: &mut System) -> Arc<Node> {
     let websocket_port = get_available_port();
