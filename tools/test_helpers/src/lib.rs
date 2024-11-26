@@ -163,7 +163,7 @@ impl System {
         flags: NodeFlags,
         disconnected: bool,
     ) -> (Arc<Node>, Arc<WebsocketListener>) {
-        let mut node = self.new_node_with_websocket_server(config, flags);
+        let node = self.new_node_with_websocket_server(config, flags);
 
         self.setup_node(&node);
 
