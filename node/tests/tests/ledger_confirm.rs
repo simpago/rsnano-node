@@ -814,5 +814,11 @@ fn election_winner_details_clearing_node_process_confirmed() {
     let mut status = ElectionStatus::default();
     status.winner = Some(send);
     node1.active_elections.process_confirmed(status, 1000000);
-    assert_eq!(node1.active_elections.vote_applier.election_winner_details_len(), 0);
+    assert_eq!(
+        node1
+            .active_elections
+            .vote_applier
+            .election_winner_details_len(),
+        0
+    );
 }

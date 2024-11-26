@@ -1,9 +1,17 @@
 use super::WebsocketConfig;
-use rsnano_node::{
-    consensus::{ActiveElections, ElectionStatus, ElectionStatusType, VoteProcessor}, wallets::Wallets, websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener}, Telemetry
+use rsnano_core::{
+    utils::{PropertyTree, SerdePropertyTree},
+    Account, Amount, Block, BlockHash, BlockType, Vote, VoteCode, VoteWithWeightInfo,
 };
-use rsnano_core::{Account, Amount, BlockHash, BlockType, Vote, VoteCode, VoteWithWeightInfo};
 use rsnano_messages::TelemetryData;
+use rsnano_node::{
+    consensus::{
+        ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
+    },
+    wallets::Wallets,
+    websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
+    Telemetry,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, SocketAddr, SocketAddrV6},
@@ -19,6 +27,7 @@ pub fn create_websocket_server(
     active_elections: &ActiveElections,
     telemetry: &Telemetry,
     vote_processor: &VoteProcessor,
+    process_live_dispatcher: &ProcessLiveDispatcher,
 ) -> Option<Arc<WebsocketListener>> {
     if !config.enabled {
         return None;
@@ -102,6 +111,15 @@ pub fn create_websocket_server(
             }
         },
     ));
+
+    let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
+    process_live_dispatcher.add_new_unconfirmed_block_callback(Box::new(move |block: &Block| {
+        if let Some(server) = server_w.upgrade() {
+            if server.any_subscriber(Topic::NewUnconfirmedBlock) {
+                server.broadcast(&new_unconfirmed_block(block));
+            }
+        }
+    }));
 
     Some(server)
 }
@@ -216,4 +234,14 @@ pub struct VoteReceived {
     pub blocks: Vec<String>,
     #[serde(rename = "type")]
     pub vote_type: String,
+}
+
+fn new_unconfirmed_block(block: &Block) -> OutgoingMessageEnvelope {
+    let mut json_block = SerdePropertyTree::new();
+    block.serialize_json(&mut json_block).unwrap();
+    let subtype = block.sideband().unwrap().details.subtype_str();
+    json_block.put_string("subtype", subtype).unwrap();
+    let mut result = OutgoingMessageEnvelope::new(Topic::NewUnconfirmedBlock, json_block.value);
+    result.hash = Some(block.hash());
+    result
 }

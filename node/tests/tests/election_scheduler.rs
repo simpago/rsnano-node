@@ -154,7 +154,9 @@ mod election_scheduler {
             .activate(&node.store.tx_begin_read(), &*DEV_GENESIS_ACCOUNT);
 
         assert_timely(Duration::from_secs(5), || {
-            node.active_elections.election(&send1.qualified_root()).is_some()
+            node.active_elections
+                .election(&send1.qualified_root())
+                .is_some()
         });
     }
 
@@ -186,7 +188,9 @@ mod election_scheduler {
 
         // Assert that the election is created within 5 seconds
         assert_timely(Duration::from_secs(5), || {
-            node.active_elections.election(&send1.qualified_root()).is_some()
+            node.active_elections
+                .election(&send1.qualified_root())
+                .is_some()
         });
     }
 
@@ -309,12 +313,17 @@ mod election_scheduler {
             || node.election_schedulers.priority.len(),
             1,
         );
-        assert!(node.active_elections.election(&block2.qualified_root()).is_none());
+        assert!(node
+            .active_elections
+            .election(&block2.qualified_root())
+            .is_none());
 
         // Election confirmed, next in queue should begin
         node.active_elections.force_confirm(&election.unwrap());
         assert_timely(Duration::from_secs(5), || {
-            node.active_elections.election(&block2.qualified_root()).is_some()
+            node.active_elections
+                .election(&block2.qualified_root())
+                .is_some()
         });
         assert!(node.election_schedulers.priority.is_empty());
     }

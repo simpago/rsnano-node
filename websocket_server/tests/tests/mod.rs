@@ -63,7 +63,10 @@ fn started_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1.active_elections.election(&send1.qualified_root()).is_some()
+            node1
+                .active_elections
+                .election(&send1.qualified_root())
+                .is_some()
         });
 
         let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
@@ -119,7 +122,10 @@ fn stopped_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1.active_elections.election(&send1.qualified_root()).is_some()
+            node1
+                .active_elections
+                .election(&send1.qualified_root())
+                .is_some()
         });
         let active = node1.active_elections.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))
@@ -797,7 +803,7 @@ fn telemetry() {
     });
 }
 
-/*#[test]
+#[test]
 fn new_unconfirmed_block() {
     let mut system = System::new();
     let node1 = create_node_with_websocket(&mut system);
@@ -840,7 +846,7 @@ fn new_unconfirmed_block() {
             panic!("not a state block")
         };
     });
-}*/
+}
 
 fn create_node_with_websocket(system: &mut System) -> Arc<Node> {
     let websocket_port = get_available_port();
@@ -850,7 +856,10 @@ fn create_node_with_websocket(system: &mut System) -> Arc<Node> {
     config.websocket_config.enabled = true;
     config.websocket_config.port = websocket_port;
     config.websocket_config.address = Ipv6Addr::LOCALHOST.to_string();
-    let node = system.build_node().config(config).finish_with_websocket_server();
+    let node = system
+        .build_node()
+        .config(config)
+        .finish_with_websocket_server();
     node
 }
 
