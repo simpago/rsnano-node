@@ -701,8 +701,6 @@ impl Node {
         ));
         local_block_broadcaster.initialize();
 
-        //websocket_server.as_ref().unwrap();
-
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(
             ledger.clone(),
             election_schedulers.clone(),
@@ -808,7 +806,6 @@ impl Node {
             },
         ));
 
-        //websocket_server.as_ref().unwrap();
         process_live_dispatcher.connect(&block_processor);
 
         let block_processor_w = Arc::downgrade(&block_processor);

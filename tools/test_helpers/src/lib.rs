@@ -185,12 +185,8 @@ impl System {
             //&node.bootstrap_initiator,
         );
 
-        websocket_server.as_ref().unwrap();
-
         node.set_websocket_server(websocket_server);
         let node = Arc::new(node);
-
-        node.websocket_server.as_ref().unwrap();
 
         node.start();
 
