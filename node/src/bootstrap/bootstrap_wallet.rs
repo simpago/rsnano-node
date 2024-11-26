@@ -15,7 +15,7 @@ use std::{
 use tracing::{debug, info};
 
 pub struct BootstrapAttemptWallet {
-    attempt: BootstrapAttempt,
+    pub attempt: BootstrapAttempt,
     mutex: Mutex<WalletData>,
     connections: Arc<BootstrapConnections>,
     workers: Arc<dyn ThreadPool>,
@@ -39,6 +39,10 @@ impl BootstrapAttemptWallet {
         receive_minimum: Amount,
         stats: Arc<Stats>,
         tokio: tokio::runtime::Handle,
+        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
+        bootstrap_ended_observer: Arc<
+            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
+        >,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -49,6 +53,8 @@ impl BootstrapAttemptWallet {
                 id,
                 BootstrapMode::WalletLazy,
                 incremental_id,
+                bootstrap_started_observer,
+                bootstrap_ended_observer,
             )?,
             mutex: Mutex::new(WalletData {
                 wallet_accounts: VecDeque::new(),

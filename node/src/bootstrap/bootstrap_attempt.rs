@@ -48,7 +48,7 @@ pub trait BootstrapAttemptTrait {
     ) -> bool;
 }
 
-pub(crate) struct BootstrapAttempt {
+pub struct BootstrapAttempt {
     pub incremental_id: u64,
     pub id: String,
     pub mode: BootstrapMode,
@@ -72,6 +72,9 @@ pub(crate) struct BootstrapAttempt {
     pub started: AtomicBool,
     pub stopped: AtomicBool,
     pub frontiers_received: AtomicBool,
+    bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
+    bootstrap_ended_observer:
+        Arc<Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>>,
 }
 
 impl BootstrapAttempt {
@@ -83,6 +86,10 @@ impl BootstrapAttempt {
         id: String,
         mode: BootstrapMode,
         incremental_id: u64,
+        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
+        bootstrap_ended_observer: Arc<
+            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
+        >,
     ) -> Result<Self> {
         let id = if id.is_empty() {
             encode_hex(HardenedConstants::get().random_128)
@@ -108,6 +115,8 @@ impl BootstrapAttempt {
             stopped: AtomicBool::new(false),
             requeued_pulls: AtomicU32::new(0),
             frontiers_received: AtomicBool::new(false),
+            bootstrap_started_observer,
+            bootstrap_ended_observer,
         };
 
         result.start()?;
@@ -122,6 +131,12 @@ impl BootstrapAttempt {
         );
         if let Some(websocket) = &self.websocket_server {
             websocket.broadcast(&self.bootstrap_started());
+        }
+        {
+            let callbacks = self.bootstrap_started_observer.lock().unwrap();
+            for callback in callbacks.iter() {
+                (callback)(self.id.clone(), self.mode.as_str().to_string());
+            }
         }
         Ok(())
     }
@@ -222,6 +237,17 @@ impl BootstrapAttempt {
     pub fn duration(&self) -> Duration {
         self.attempt_start.elapsed()
     }
+
+    pub fn add_bootstrap_started_callback(&self, f: Box<dyn Fn(String, String) + Send + Sync>) {
+        self.bootstrap_started_observer.lock().unwrap().push(f);
+    }
+
+    pub fn add_bootstrap_ended_callback(
+        &self,
+        f: Box<dyn Fn(String, String, String, String) + Send + Sync>,
+    ) {
+        self.bootstrap_ended_observer.lock().unwrap().push(f);
+    }
 }
 
 impl Drop for BootstrapAttempt {
@@ -234,6 +260,18 @@ impl Drop for BootstrapAttempt {
 
         if let Some(websocket) = &self.websocket_server {
             websocket.broadcast(&self.bootstrap_exited());
+        }
+
+        {
+            let callbacks = self.bootstrap_ended_observer.lock().unwrap();
+            for callback in callbacks.iter() {
+                (callback)(
+                    self.id.clone(),
+                    self.mode.as_str().to_string(),
+                    self.total_blocks.load(Ordering::SeqCst).to_string(),
+                    self.duration().as_secs().to_string(),
+                )
+            }
         }
     }
 }

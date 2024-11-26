@@ -5,6 +5,7 @@ use rsnano_core::{
 };
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
+    bootstrap::{BootstrapExited, BootstrapInitiator, BootstrapStarted},
     consensus::{
         ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
     },
@@ -28,6 +29,7 @@ pub fn create_websocket_server(
     telemetry: &Telemetry,
     vote_processor: &VoteProcessor,
     process_live_dispatcher: &ProcessLiveDispatcher,
+    bootstrap_initiator: &BootstrapInitiator,
 ) -> Option<Arc<WebsocketListener>> {
     if !config.enabled {
         return None;
@@ -120,6 +122,28 @@ pub fn create_websocket_server(
             }
         }
     }));
+
+    let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
+    bootstrap_initiator.add_bootstrap_started_callback(Box::new(
+        move |id: String, mode: String| {
+            if let Some(server) = server_w.upgrade() {
+                if server.any_subscriber(Topic::Bootstrap) {
+                    server.broadcast(&&bootstrap_started(id, mode));
+                }
+            }
+        },
+    ));
+
+    let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
+    bootstrap_initiator.add_bootstrap_ended_callback(Box::new(
+        move |id: String, mode: String, total_blocks: String, duration: String| {
+            if let Some(server) = server_w.upgrade() {
+                if server.any_subscriber(Topic::Bootstrap) {
+                    server.broadcast(&bootstrap_exited(id, mode, total_blocks, duration));
+                }
+            }
+        },
+    ));
 
     Some(server)
 }
@@ -244,4 +268,33 @@ fn new_unconfirmed_block(block: &Block) -> OutgoingMessageEnvelope {
     let mut result = OutgoingMessageEnvelope::new(Topic::NewUnconfirmedBlock, json_block.value);
     result.hash = Some(block.hash());
     result
+}
+
+fn bootstrap_exited(
+    id: String,
+    mode: String,
+    total_blocks: String,
+    duration: String,
+) -> OutgoingMessageEnvelope {
+    OutgoingMessageEnvelope::new(
+        Topic::Bootstrap,
+        BootstrapExited {
+            reason: "exited".to_owned(),
+            id,
+            mode,
+            total_blocks,
+            duration,
+        },
+    )
+}
+
+fn bootstrap_started(id: String, mode: String) -> OutgoingMessageEnvelope {
+    OutgoingMessageEnvelope::new(
+        Topic::Bootstrap,
+        BootstrapStarted {
+            reason: "started".to_owned(),
+            id,
+            mode,
+        },
+    )
 }
