@@ -287,7 +287,7 @@ impl Node {
         );
 
         let mut network_filter = NetworkFilter::new(1024 * 1024);
-        network_filter.age_cutoff = 60;
+        network_filter.age_cutoff = config.network_duplicate_filter_cutoff;
         let network_filter = Arc::new(network_filter);
 
         // empty `config.peering_port` means the user made no port choice at all;
@@ -598,7 +598,7 @@ impl Node {
             network_params: network_params.clone(),
             syn_cookies: syn_cookies.clone(),
             latest_keepalives: latest_keepalives.clone(),
-            publish_filter: network_filter.clone(),
+            network_filter: network_filter.clone(),
         });
 
         let peer_connector = Arc::new(PeerConnector::new(
@@ -1134,26 +1134,30 @@ impl Node {
             .network_info
             .read()
             .unwrap()
-            .collect_container_info("tcp_channels");
+            .container_info()
+            .into_legacy("tcp_channels");
 
         let online_reps = self
             .online_reps
             .lock()
             .unwrap()
-            .collect_container_info("online_reps");
+            .container_info()
+            .into_legacy("online_reps");
 
         let vote_cache = self
             .vote_cache
             .lock()
             .unwrap()
-            .collect_container_info("vote_cache");
+            .container_info()
+            .into_legacy("vote_cache");
 
         ContainerInfoComponent::Composite(
             name.into(),
             vec![
-                self.work.collect_container_info("work"),
-                self.ledger.collect_container_info("ledger"),
+                self.work.container_info().into_legacy("work"),
+                self.ledger.container_info().into_legacy("ledger"),
                 self.active_elections.collect_container_info("active"),
+                self.active.collect_container_info("active"),
                 self.bootstrap_initiator
                     .collect_container_info("bootstrap_initiator"),
                 ContainerInfoComponent::Composite(

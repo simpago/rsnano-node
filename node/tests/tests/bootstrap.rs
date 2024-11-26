@@ -119,7 +119,7 @@ mod bootstrap_processor {
         let key1 = KeyPair::new();
         let key2 = KeyPair::new();
 
-        // send Gxrb_ratio raw from genesis to key1
+        // send 1000 nano from genesis to key1
         let send1 = BlockBuilder::state()
             .account(*DEV_GENESIS_ACCOUNT)
             .previous(*DEV_GENESIS_HASH)
@@ -135,7 +135,7 @@ mod bootstrap_processor {
             BlockStatus::Progress
         );
 
-        // send Gxrb_ratio raw from genesis to key2
+        // send 1000 nano from genesis to key2
         let send2 = BlockBuilder::state()
             .account(*DEV_GENESIS_ACCOUNT)
             .previous(send1.hash())
@@ -412,7 +412,7 @@ mod bootstrap_processor {
         let key1 = KeyPair::new();
         let key2 = KeyPair::new();
 
-        // send Gxrb_ratio raw from genesis to genesis
+        // send 1000 nano from genesis to genesis
         let send1 = Block::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             *DEV_GENESIS_HASH,
@@ -456,7 +456,7 @@ mod bootstrap_processor {
             node0.work_generate_dev(change1.hash()),
         ));
 
-        // send Gxrb_ratio from genesis to key1 and genesis rep back to genesis account
+        // send 1000 nano from genesis to key1 and genesis rep back to genesis account
         let send2 = Block::State(StateBlock::new(
             *DEV_GENESIS_ACCOUNT,
             change2.hash(),
@@ -478,7 +478,7 @@ mod bootstrap_processor {
             node0.work_generate_dev(key1.public_key()),
         ));
 
-        // send Gxrb_ratio raw, all available balance, from key1 to key2
+        // send 1000 nano, all available balance, from key1 to key2
         let send3 = Block::State(StateBlock::new(
             key1.account(),
             receive2.hash(),

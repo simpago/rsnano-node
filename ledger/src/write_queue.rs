@@ -57,15 +57,13 @@ pub struct WriteQueue {
 
 struct WriteQueueData {
     queue: Mutex<VecDeque<Writer>>,
-    use_noops: bool,
     condition: Condvar,
 }
 
 impl WriteQueue {
-    pub fn new(use_noops: bool) -> Self {
+    pub fn new() -> Self {
         let data = Arc::new(WriteQueueData {
             queue: Mutex::new(VecDeque::new()),
-            use_noops,
             condition: Condvar::new(),
         });
 
@@ -74,10 +72,8 @@ impl WriteQueue {
         Self {
             data,
             guard_finish_callback: Arc::new(move || {
-                if !data_clone.use_noops {
-                    let mut guard = data_clone.queue.lock().unwrap();
-                    guard.pop_front();
-                }
+                let mut guard = data_clone.queue.lock().unwrap();
+                guard.pop_front();
                 data_clone.condition.notify_all();
             }),
         }
@@ -85,10 +81,6 @@ impl WriteQueue {
 
     /// Blocks until we are at the head of the queue and blocks other waiters until write_guard goes out of scope
     pub fn wait(&self, writer: Writer) -> WriteGuard {
-        if self.data.use_noops {
-            return WriteGuard::null();
-        }
-
         let mut lk = self.data.queue.lock().unwrap();
         assert!(lk.iter().all(|i| *i != writer));
         lk.push_back(writer);
@@ -103,7 +95,6 @@ impl WriteQueue {
 
     /// Returns true if this writer is anywhere in the queue. Currently only used in tests
     pub fn contains(&self, writer: Writer) -> bool {
-        debug_assert!(!self.data.use_noops);
         self.data.queue.lock().unwrap().contains(&writer)
     }
 

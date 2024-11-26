@@ -24,7 +24,6 @@ pub struct NodeFlags {
     pub allow_bootstrap_peers_duplicates: bool,
     pub disable_max_peers_per_ip: bool,         // For testing only
     pub disable_max_peers_per_subnetwork: bool, // For testing only
-    pub force_use_write_queue: bool,            // For testing only
     pub disable_search_pending: bool,           // For testing only
     pub enable_pruning: bool,
     pub fast_bootstrap: bool,
@@ -63,7 +62,6 @@ impl NodeFlags {
             allow_bootstrap_peers_duplicates: false,
             disable_max_peers_per_ip: false,
             disable_max_peers_per_subnetwork: false,
-            force_use_write_queue: false,
             disable_search_pending: false,
             enable_pruning: false,
             fast_bootstrap: false,

@@ -22,7 +22,7 @@ fn representatives_online() {
     let node2_wallet = WalletId::random();
     node2.wallets.create(node2_wallet);
 
-    let send_amount = Amount::raw(1_000_000_000_000_000_000_000_000u128); // 1 Gxrb
+    let send_amount = Amount::nano(1000);
 
     // Create a new representative on node2
     let new_rep = node2

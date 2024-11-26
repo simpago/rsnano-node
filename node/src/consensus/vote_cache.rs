@@ -3,7 +3,7 @@ use crate::stats::{DetailType, StatType, Stats};
 #[cfg(test)]
 use mock_instant::thread_local::Instant;
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     Amount, BlockHash, PublicKey, Vote, VoteCode,
 };
 #[cfg(not(test))]
@@ -181,15 +181,8 @@ impl VoteCache {
         }
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                name: "cache".to_owned(),
-                count: self.size(),
-                sizeof_element: size_of::<CacheEntry>(),
-            })],
-        )
+    pub fn container_info(&self) -> ContainerInfos {
+        [("cache", self.size(), size_of::<CacheEntry>())].into()
     }
 }
 
