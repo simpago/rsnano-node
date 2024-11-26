@@ -16,7 +16,7 @@ use rsnano_node::{
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
-use rsnano_websocket_server::{create_websocket_server, WebsocketConfig};
+use rsnano_websocket_server::{create_websocket_server, WebsocketConfig, WebsocketListener, WebsocketListenerExt};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
@@ -162,7 +162,7 @@ impl System {
         config: NodeConfig,
         flags: NodeFlags,
         disconnected: bool,
-    ) -> Arc<Node> {
+    ) -> (Arc<Node>, Arc<WebsocketListener>) {
         let mut node = self.new_node_with_websocket_server(config, flags);
 
         self.setup_node(&node);
@@ -183,14 +183,11 @@ impl System {
             &node.vote_processor,
             &node.process_live_dispatcher,
             &node.bootstrap_initiator,
-        );
+        ).unwrap();
 
-        websocket_server.as_ref().unwrap();
+        websocket_server.start();
 
-        node.set_websocket_server(websocket_server);
         let node = Arc::new(node);
-
-        node.websocket_server.as_ref().unwrap();
 
         node.start();
 
@@ -232,7 +229,7 @@ impl System {
             }
         }
 
-        node
+        (node, websocket_server)
     }
 
     fn new_node(&self, config: NodeConfig, flags: NodeFlags) -> Arc<Node> {
@@ -307,7 +304,7 @@ impl<'a> TestNodeBuilder<'a> {
         self.system.make_node_with(config, flags, self.disconnected)
     }
 
-    pub fn finish_with_websocket_server(self) -> Arc<Node> {
+    pub fn finish_with_websocket_server(self) -> (Arc<Node>, Arc<WebsocketListener>) {
         let config = self.config.unwrap_or_else(|| System::default_config());
         let flags = self.flags.unwrap_or_default();
         self.system

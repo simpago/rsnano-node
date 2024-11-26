@@ -25,7 +25,7 @@ mod telemetry;
 pub mod transport;
 pub mod utils;
 pub mod wallets;
-pub mod websocket;
+//pub mod websocket;
 pub mod work;
 
 pub use ipc::*;

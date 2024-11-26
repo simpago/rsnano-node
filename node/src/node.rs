@@ -35,7 +35,7 @@ use crate::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
     },
     wallets::{Wallets, WalletsExt},
-    websocket::WebsocketListenerExt,
+    //websocket::WebsocketListenerExt,
     work::DistributedWorkFactory,
     NetworkParams, NodeCallbacks, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry,
     BUILD_INFO, VERSION_STRING,
@@ -109,7 +109,7 @@ pub struct Node {
     pub vote_router: Arc<VoteRouter>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
-    pub websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
+    //pub websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
     pub bootstrap_initiator: Arc<BootstrapInitiator>,
     pub rep_crawler: Arc<RepCrawler>,
     pub tcp_listener: Arc<TcpListener>,
@@ -1101,7 +1101,7 @@ impl Node {
             active_elections,
             vote_processor,
             vote_cache_processor,
-            websocket_server: None,
+            //websocket_server: None,
             bootstrap_initiator,
             rep_crawler,
             tcp_listener,
@@ -1328,12 +1328,12 @@ impl Node {
             .all(|b| self.ledger.confirmed().block_exists(&tx, &b.hash()))
     }
 
-    pub fn set_websocket_server(
+    /*pub fn set_websocket_server(
         &mut self,
         websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
     ) {
         self.websocket_server = websocket_server;
-    }
+    }*/
 }
 
 pub trait NodeExt {
@@ -1439,9 +1439,9 @@ impl NodeExt for Arc<Node> {
                 .initialize(&self.network_params.ledger.genesis_account);
             self.ascendboot.start();
         }
-        if let Some(ws_listener) = &self.websocket_server {
-            ws_listener.start();
-        }
+        //if let Some(ws_listener) = &self.websocket_server {
+            //ws_listener.start();
+        //}
         self.telemetry.start();
         self.stats.start();
         self.local_block_broadcaster.start();
@@ -1504,9 +1504,9 @@ impl NodeExt for Arc<Node> {
         self.vote_generators.stop();
         self.confirming_set.stop();
         self.telemetry.stop();
-        if let Some(ws_listener) = &self.websocket_server {
-            ws_listener.stop();
-        }
+        //if let Some(ws_listener) = &self.websocket_server {
+            //ws_listener.stop();
+        //}
         self.bootstrap_server.stop();
         self.bootstrap_initiator.stop();
         self.wallets.stop();

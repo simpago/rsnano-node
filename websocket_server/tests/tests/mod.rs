@@ -9,11 +9,11 @@ use rsnano_messages::{Message, Publish};
 use rsnano_node::{
     bootstrap::{BootstrapInitiatorExt, BootstrapStarted},
     config::NodeConfig,
-    websocket::{
-        vote_received, BlockConfirmed, OutgoingMessageEnvelope, TelemetryReceived, Topic,
-        VoteReceived,
-    },
     Node,
+};
+use rsnano_websocket_server::WebsocketListener;
+use rsnano_websocket_server::{
+    vote_received, BlockConfirmed, OutgoingMessageEnvelope, TelemetryReceived, Topic, VoteReceived,
 };
 use std::{net::Ipv6Addr, sync::Arc, thread::sleep, time::Duration};
 use test_helpers::{assert_timely, get_available_port, make_fake_channel, System};
@@ -24,7 +24,7 @@ use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStr
 #[test]
 fn started_election() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, websocket) = create_node_with_websocket(&mut system);
     let channel1 = make_fake_channel(&node1);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
@@ -38,14 +38,7 @@ fn started_election() {
         //await ack
         ws_stream.next().await.unwrap().unwrap();
 
-        assert_eq!(
-            1,
-            node1
-                .websocket_server
-                .as_ref()
-                .unwrap()
-                .subscriber_count(Topic::StartedElection)
-        );
+        assert_eq!(1, websocket.subscriber_count(Topic::StartedElection));
 
         // Create election, causing a websocket message to be emitted
         let key1 = KeyPair::new();
@@ -83,7 +76,7 @@ fn started_election() {
 #[test]
 fn stopped_election() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, websocket) = create_node_with_websocket(&mut system);
     let channel1 = make_fake_channel(&node1);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
@@ -97,14 +90,7 @@ fn stopped_election() {
         //await ack
         ws_stream.next().await.unwrap().unwrap();
 
-        assert_eq!(
-            1,
-            node1
-                .websocket_server
-                .as_ref()
-                .unwrap()
-                .subscriber_count(Topic::StoppedElection)
-        );
+        assert_eq!(1, websocket.subscriber_count(Topic::StoppedElection));
 
         // Create election, then erase it, causing a websocket message to be emitted
         let key1 = KeyPair::new();
@@ -146,8 +132,7 @@ fn stopped_election() {
 // Tests clients subscribing multiple times or unsubscribing without a subscription
 fn subscription_edge() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
-    let websocket = node1.websocket_server.as_ref().unwrap();
+    let (node1, websocket) = create_node_with_websocket(&mut system);
     assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
 
     node1.runtime.block_on(async {
@@ -195,7 +180,7 @@ fn subscription_edge() {
 // Subscribes to block confirmations, confirms a block and then awaits websocket notification
 fn confirmation() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -263,7 +248,7 @@ fn confirmation() {
 #[test]
 fn confirmation_options() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -359,7 +344,7 @@ fn confirmation_options() {
 #[test]
 fn confirmation_options_votes() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -412,7 +397,7 @@ fn confirmation_options_votes() {
 #[test]
 fn confirmation_options_sideband() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -462,7 +447,7 @@ fn confirmation_options_sideband() {
 // Tests updating options of block confirmations
 fn confirmation_options_update() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -500,7 +485,7 @@ fn confirmation_options_update() {
         let previous = send.hash();
         node1.process_active(send);
 
-        assert_eq!(node1.websocket_server.as_ref().unwrap().subscriber_count(Topic::Confirmation), 1);
+        assert_eq!(websocket.subscriber_count(Topic::Confirmation), 1);
 
         // receive confirmation event
         ws_stream.next().await.unwrap().unwrap();
@@ -537,7 +522,7 @@ fn confirmation_options_update() {
 // Subscribes to votes, sends a block and awaits websocket notification of a vote arrival
 fn vote() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -577,7 +562,7 @@ fn vote() {
 // Tests vote subscription options - vote type
 fn vote_options_type() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -592,9 +577,8 @@ fn vote_options_type() {
 	    // Custom made votes for simplicity
         let vote = Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![*DEV_GENESIS_HASH]);
 
-        let node_l = node1.clone();
         spawn_blocking(move ||{
-            node_l.websocket_server.as_ref().unwrap().broadcast(&vote_received(&vote, VoteCode::Replay));
+            websocket.broadcast(&vote_received(&vote, VoteCode::Replay));
         }).await.unwrap();
 
 
@@ -612,7 +596,7 @@ fn vote_options_type() {
 // Tests vote subscription options - list of representatives
 fn vote_options_representatives() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -687,7 +671,7 @@ fn work() {}
 // Test client subscribing to notifications for bootstrap
 fn bootstrap() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -741,7 +725,7 @@ fn bootstrap() {
 // Tests sending keepalive
 fn ws_keepalive() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -759,8 +743,8 @@ fn ws_keepalive() {
 // Tests sending telemetry
 fn telemetry() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
-    let node2 = create_node_with_websocket(&mut system);
+    let (node1, _websocket1) = create_node_with_websocket(&mut system);
+    let (node2, websocket2) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -792,21 +776,14 @@ fn telemetry() {
         );
 
         // Other node should have no subscribers
-        assert_eq!(
-            node2
-                .websocket_server
-                .as_ref()
-                .unwrap()
-                .subscriber_count(Topic::Telemetry),
-            0
-        );
+        assert_eq!(websocket2.subscriber_count(Topic::Telemetry), 0);
     });
 }
 
 #[test]
 fn new_unconfirmed_block() {
     let mut system = System::new();
-    let node1 = create_node_with_websocket(&mut system);
+    let (node1, _websocket) = create_node_with_websocket(&mut system);
     node1.runtime.block_on(async {
         let mut ws_stream = connect_websocket(&node1).await;
         ws_stream
@@ -848,7 +825,7 @@ fn new_unconfirmed_block() {
     });
 }
 
-fn create_node_with_websocket(system: &mut System) -> Arc<Node> {
+fn create_node_with_websocket(system: &mut System) -> (Arc<Node>, Arc<WebsocketListener>) {
     let websocket_port = get_available_port();
     let mut config = NodeConfig {
         ..System::default_config()

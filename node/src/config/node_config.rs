@@ -1,4 +1,4 @@
-use super::{DiagnosticsConfig, Networks};
+use super::{websocket_config::WebsocketConfig, DiagnosticsConfig, Networks};
 use crate::{
     block_processing::{
         BacklogPopulationConfig, BlockProcessorConfig, LocalBlockBroadcasterConfig,
@@ -11,7 +11,6 @@ use crate::{
     },
     stats::StatsConfig,
     transport::{MessageProcessorConfig, TcpConfig},
-    websocket::WebsocketConfig,
     IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use once_cell::sync::Lazy;

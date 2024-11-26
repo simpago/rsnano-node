@@ -7,6 +7,7 @@ mod node_flags;
 mod node_rpc_config;
 mod opencl_config;
 mod toml;
+mod websocket_config;
 
 use crate::NetworkParams;
 pub use daemon_config::*;

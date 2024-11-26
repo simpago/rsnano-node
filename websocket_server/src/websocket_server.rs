@@ -1,4 +1,4 @@
-use super::WebsocketConfig;
+use crate::{OutgoingMessageEnvelope, Topic, WebsocketConfig, WebsocketListener};
 use rsnano_core::{
     utils::{PropertyTree, SerdePropertyTree},
     Account, Amount, Block, BlockHash, BlockType, Vote, VoteCode, VoteWithWeightInfo,
@@ -10,7 +10,6 @@ use rsnano_node::{
         ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
     },
     wallets::Wallets,
-    websocket::{OutgoingMessageEnvelope, Topic, WebsocketListener},
     Telemetry,
 };
 use serde::{Deserialize, Serialize};
