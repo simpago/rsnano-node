@@ -1412,11 +1412,11 @@ fn search_receivable() {
     node.process(send.clone()).unwrap();
 
     // Pending search should start an election
-    assert_eq!(node.active_elections.len(), 0);
+    assert_eq!(node.active.len(), 0);
     node.wallets.search_receivable_wallet(wallet_id).unwrap();
     let mut election = None;
     assert_timely(Duration::from_secs(5), || {
-        match node.active_elections.election(&send.qualified_root()) {
+        match node.active.election(&send.qualified_root()) {
             Some(e) => {
                 election = Some(e);
                 true
@@ -1431,9 +1431,9 @@ fn search_receivable() {
         .unwrap();
 
     // Now confirm the election
-    node.active_elections.force_confirm(&election.unwrap());
+    node.active.force_confirm(&election.unwrap());
     assert_timely(Duration::from_secs(5), || {
-        node.block_confirmed(&send.hash()) && node.active_elections.len() == 0
+        node.block_confirmed(&send.hash()) && node.active.len() == 0
     });
 
     // Re-insert the key

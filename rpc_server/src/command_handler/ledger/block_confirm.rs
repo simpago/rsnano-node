@@ -26,7 +26,7 @@ impl RpcCommandHandler {
             status.election_end = std::time::SystemTime::now();
             status.block_count = 1;
             status.election_status_type = ElectionStatusType::ActiveConfirmationHeight;
-            self.node.active_elections.insert_recently_cemented(status);
+            self.node.active.insert_recently_cemented(status);
         }
         Ok(StartedResponse::new(true))
     }

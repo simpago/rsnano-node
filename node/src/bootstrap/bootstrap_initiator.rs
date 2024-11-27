@@ -14,7 +14,7 @@ use crate::{
     NetworkParams,
 };
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos},
     work::WorkThresholds,
     Account, Amount, HashOrAccount, Networks,
 };
@@ -243,16 +243,9 @@ impl BootstrapInitiator {
         self.cache.lock().unwrap().remove(pull);
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
+    pub fn container_info(&self) -> ContainerInfos {
         let cache_count = self.cache.lock().unwrap().size();
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                name: "pulls_cache".to_string(),
-                count: cache_count,
-                sizeof_element: PullsCache::ELEMENT_SIZE,
-            })],
-        )
+        [("pulls_cache", cache_count, PullsCache::ELEMENT_SIZE)].into()
     }
 
     pub fn add_bootstrap_started_callback(&self, f: Box<dyn Fn(String, String) + Send + Sync>) {

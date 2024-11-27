@@ -37,7 +37,7 @@ fn successors() {
 
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active_elections.active(&block),
+        || node.active.active(&block),
         "block not active on node",
     );
 
