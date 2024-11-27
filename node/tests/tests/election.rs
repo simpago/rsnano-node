@@ -81,15 +81,9 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     assert_timely_eq(Duration::from_secs(15), || node2.ledger.block_count(), 4);
 
     assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election(&send1.qualified_root())
-            .is_some()
+        node1.active.election(&send1.qualified_root()).is_some()
     });
-    let election = node1
-        .active
-        .election(&send1.qualified_root())
-        .unwrap();
+    let election = node1.active.election(&send1.qualified_root()).unwrap();
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
 
     let vote1 = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
@@ -116,9 +110,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .unwrap()
         .set_online(config.online_weight_minimum + Amount::raw(20));
     node1.vote_router.vote(&vote2, VoteSource::Live);
-    assert_timely(Duration::from_secs(5), || {
-        node1.active.confirmed(&election)
-    });
+    assert_timely(Duration::from_secs(5), || node1.active.confirmed(&election));
     assert!(node1.block(&send1.hash()).is_some());
 }
 
@@ -160,9 +152,7 @@ fn continuous_voting() {
     ));
 
     node1.process(send2.clone()).unwrap();
-    assert_timely(Duration::from_secs(5), || {
-        node1.active.active(&send2)
-    });
+    assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
 
     // Ensure votes are broadcasted in continuous manner
     assert_timely(Duration::from_secs(5), || {
@@ -201,15 +191,9 @@ fn quorum_minimum_confirm_fail() {
 
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election(&send1.qualified_root())
-            .is_some()
+        node1.active.election(&send1.qualified_root()).is_some()
     });
-    let election = node1
-        .active
-        .election(&send1.qualified_root())
-        .unwrap();
+    let election = node1.active.election(&send1.qualified_root()).unwrap();
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
@@ -251,24 +235,16 @@ fn quorum_minimum_confirm_success() {
 
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election(&send1.qualified_root())
-            .is_some()
+        node1.active.election(&send1.qualified_root()).is_some()
     });
-    let election = node1
-        .active
-        .election(&send1.qualified_root())
-        .unwrap();
+    let election = node1.active.election(&send1.qualified_root()).unwrap();
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
 
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_router.vote(&vote, VoteSource::Live);
 
     assert!(node1.block(&send1.hash()).is_some());
-    assert_timely(Duration::from_secs(5), || {
-        node1.active.confirmed(&election)
-    });
+    assert_timely(Duration::from_secs(5), || node1.active.confirmed(&election));
 }
 
 #[test]
@@ -305,19 +281,13 @@ fn quorum_minimum_flip_fail() {
     // Process send1 and wait until its election appears
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election(&send1.qualified_root())
-            .is_some()
+        node1.active.election(&send1.qualified_root()).is_some()
     });
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
     assert_timely(Duration::from_secs(5), || {
-        let election = node1
-            .active
-            .election(&send2.qualified_root())
-            .unwrap();
+        let election = node1.active.election(&send2.qualified_root()).unwrap();
         let election_guard = election.mutex.lock().unwrap();
         election_guard.last_blocks.len() == 2
     });
@@ -330,10 +300,7 @@ fn quorum_minimum_flip_fail() {
     // Give the election some time before asserting it is not confirmed
     std::thread::sleep(Duration::from_secs(1));
 
-    let election = node1
-        .active
-        .election(&send2.qualified_root())
-        .unwrap();
+    let election = node1.active.election(&send2.qualified_root()).unwrap();
     assert_eq!(node1.active.confirmed(&election), false);
     assert_eq!(node1.block_confirmed(&send2.hash()), false);
 }
@@ -372,19 +339,13 @@ fn quorum_minimum_flip_success() {
     // Process send1 and wait until its election appears
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
-        node1
-            .active
-            .election(&send1.qualified_root())
-            .is_some()
+        node1.active.election(&send1.qualified_root()).is_some()
     });
 
     // Process send2 and wait until it is added to the existing election
     node1.process_active(send2.clone());
     assert_timely(Duration::from_secs(5), || {
-        let election = node1
-            .active
-            .election(&send2.qualified_root())
-            .unwrap();
+        let election = node1.active.election(&send2.qualified_root()).unwrap();
         let election_guard = election.mutex.lock().unwrap();
         election_guard.last_blocks.len() == 2
     });
@@ -394,13 +355,8 @@ fn quorum_minimum_flip_success() {
     node1.vote_router.vote(&vote, VoteSource::Live);
 
     // Wait for the election to be confirmed
-    let election = node1
-        .active
-        .election(&send2.qualified_root())
-        .unwrap();
-    assert_timely(Duration::from_secs(5), || {
-        node1.active.confirmed(&election)
-    });
+    let election = node1.active.election(&send2.qualified_root()).unwrap();
+    assert_timely(Duration::from_secs(5), || node1.active.confirmed(&election));
 
     // Check that send2 is the winner
     let winner = election.winner_hash();

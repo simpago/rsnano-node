@@ -52,9 +52,7 @@ fn add_existing() {
     start_election(&node1, &send1.hash());
 
     // wait for election to be started before processing send2
-    assert_timely(Duration::from_secs(5), || {
-        node1.active.active(&send1)
-    });
+    assert_timely(Duration::from_secs(5), || node1.active.active(&send1));
 
     let key2 = KeyPair::new();
     let mut send2 = Block::State(StateBlock::new(
@@ -75,9 +73,7 @@ fn add_existing() {
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
     assert!(node1.active.active(&send1));
-    assert_timely(Duration::from_secs(5), || {
-        node1.active.active(&send2)
-    });
+    assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
 }
 
 #[test]
@@ -122,13 +118,7 @@ fn add_two() {
     node.process(send_a.clone()).unwrap();
     node.process(send_b.clone()).unwrap();
     start_elections(&node, &[send_a.hash(), send_b.hash()], false);
-    assert!(node
-        .active
-        .election(&send_a.qualified_root())
-        .is_some());
-    assert!(node
-        .active
-        .election(&send_b.qualified_root())
-        .is_some());
+    assert!(node.active.election(&send_a.qualified_root()).is_some());
+    assert!(node.active.election(&send_b.qualified_root()).is_some());
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 2);
 }
