@@ -549,14 +549,6 @@ impl Node {
         ));
 
         active_elections.initialize();
-        /*let websocket = create_websocket(
-            config.websocket_config.clone(),
-            wallets.clone(),
-            runtime.clone(),
-            &active_elections,
-            &telemetry,
-            &vote_processor,
-        );*/
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
             online_reps.clone(),
