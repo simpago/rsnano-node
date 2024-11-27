@@ -12,7 +12,6 @@ use rsnano_node::{
     consensus::VoteProcessorConfig,
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
-    Node,
 };
 use std::{ops::Deref, sync::Arc, thread::sleep, time::Duration};
 use test_helpers::{

@@ -63,7 +63,7 @@ impl DaemonBuilder {
                     daemon_config.node.websocket_config,
                     node.wallets.clone(),
                     node.runtime.clone(),
-                    &node.active_elections,
+                    &node.active,
                     &node.telemetry,
                     &node.vote_processor,
                     &node.process_live_dispatcher,
