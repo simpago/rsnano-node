@@ -83,14 +83,9 @@ fn add_old() {
     node.process(send1.clone()).unwrap();
     start_election(&node, &send1.hash());
     assert_timely(Duration::from_secs(5), || {
-        node.active_elections
-            .election(&send1.qualified_root())
-            .is_some()
+        node.active.election(&send1.qualified_root()).is_some()
     });
-    let election1 = node
-        .active_elections
-        .election(&send1.qualified_root())
-        .unwrap();
+    let election1 = node.active.election(&send1.qualified_root()).unwrap();
     let vote1 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN * 2,
@@ -153,14 +148,9 @@ fn add_cooldown() {
     node.process(send1.clone()).unwrap();
     start_election(&node, &send1.hash());
     assert_timely(Duration::from_secs(5), || {
-        node.active_elections
-            .election(&send1.qualified_root())
-            .is_some()
+        node.active.election(&send1.qualified_root()).is_some()
     });
-    let election1 = node
-        .active_elections
-        .election(&send1.qualified_root())
-        .unwrap();
+    let election1 = node.active.election(&send1.qualified_root()).unwrap();
     let vote1 = Arc::new(Vote::new(
         &DEV_GENESIS_KEY,
         Vote::TIMESTAMP_MIN * 1,

@@ -57,14 +57,9 @@ fn codes() {
     // First vote from an account for an ongoing election
     start_election(&node, &blocks[0].hash());
     assert_timely(Duration::from_secs(5), || {
-        node.active_elections
-            .election(&blocks[0].qualified_root())
-            .is_some()
+        node.active.election(&blocks[0].qualified_root()).is_some()
     });
-    let _election = node
-        .active_elections
-        .election(&blocks[0].qualified_root())
-        .unwrap();
+    let _election = node.active.election(&blocks[0].qualified_root()).unwrap();
     assert_eq!(
         VoteCode::Vote,
         node.vote_processor
@@ -86,7 +81,7 @@ fn codes() {
     );
 
     // Once the election is removed (confirmed / dropped) the vote is again indeterminate
-    assert!(node.active_elections.erase(&blocks[0].qualified_root()));
+    assert!(node.active.erase(&blocks[0].qualified_root()));
     assert_eq!(
         VoteCode::Indeterminate,
         node.vote_processor
@@ -320,7 +315,7 @@ fn no_broadcast_local() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     node.process_local(send.clone()).unwrap();
-    assert_timely(Duration::from_secs(10), || node.active_elections.len() > 0);
+    assert_timely(Duration::from_secs(10), || node.active.len() > 0);
     assert_eq!(
         node.ledger.weight(&DEV_GENESIS_PUB_KEY),
         node.config.vote_minimum * 2
@@ -339,10 +334,7 @@ fn no_broadcast_local() {
     ));
     node.vote_router.vote(&vote, VoteSource::Live);
     // Make sure the vote was processed.
-    let election = node
-        .active_elections
-        .election(&send.qualified_root())
-        .unwrap();
+    let election = node.active.election(&send.qualified_root()).unwrap();
     let votes = election.mutex.lock().unwrap().last_votes.clone();
     let existing = votes.get(&DEV_GENESIS_PUB_KEY).unwrap();
     assert_eq!(existing.timestamp, vote.timestamp());
@@ -398,7 +390,7 @@ fn local_broadcast_without_a_representative() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     node.process_local(send.clone()).unwrap();
-    assert_timely(Duration::from_secs(10), || node.active_elections.len() > 0);
+    assert_timely(Duration::from_secs(10), || node.active.len() > 0);
     assert_eq!(
         node.ledger.weight(&DEV_GENESIS_PUB_KEY),
         node.config.vote_minimum
@@ -415,7 +407,7 @@ fn local_broadcast_without_a_representative() {
     // Make sure the vote was processed.
     let mut election = None;
     assert_timely(Duration::from_secs(5), || {
-        match node.active_elections.election(&send.qualified_root()) {
+        match node.active.election(&send.qualified_root()) {
             Some(e) => {
                 election = Some(e);
                 true
@@ -472,7 +464,7 @@ fn no_broadcast_local_with_a_principal_representative() {
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     node.process_local(send.clone()).unwrap();
-    assert_timely(Duration::from_secs(10), || node.active_elections.len() > 0);
+    assert_timely(Duration::from_secs(10), || node.active.len() > 0);
     assert_eq!(
         node.ledger.weight(&DEV_GENESIS_PUB_KEY),
         Amount::MAX - node.config.vote_minimum * 2
@@ -492,10 +484,7 @@ fn no_broadcast_local_with_a_principal_representative() {
     ));
     node.vote_router.vote(&vote, VoteSource::Live);
     // Make sure the vote was processed.
-    let election = node
-        .active_elections
-        .election(&send.qualified_root())
-        .unwrap();
+    let election = node.active.election(&send.qualified_root()).unwrap();
     let votes = election.mutex.lock().unwrap().last_votes.clone();
     let existing = votes.get(&DEV_GENESIS_PUB_KEY).unwrap();
     assert_eq!(existing.timestamp, vote.timestamp());

@@ -41,7 +41,7 @@ fn started_election() {
         assert_eq!(
             1,
             node1
-                .websocket_server
+                .websocket
                 .as_ref()
                 .unwrap()
                 .subscriber_count(Topic::StartedElection)
@@ -63,10 +63,7 @@ fn started_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1
-                .active_elections
-                .election(&send1.qualified_root())
-                .is_some()
+            node1.active.election(&send1.qualified_root()).is_some()
         });
 
         let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
@@ -100,7 +97,7 @@ fn stopped_election() {
         assert_eq!(
             1,
             node1
-                .websocket_server
+                .websocket
                 .as_ref()
                 .unwrap()
                 .subscriber_count(Topic::StoppedElection)
@@ -122,12 +119,9 @@ fn stopped_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1
-                .active_elections
-                .election(&send1.qualified_root())
-                .is_some()
+            node1.active.election(&send1.qualified_root()).is_some()
         });
-        let active = node1.active_elections.clone();
+        let active = node1.active.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))
             .await
             .unwrap();
@@ -147,7 +141,7 @@ fn stopped_election() {
 fn subscription_edge() {
     let mut system = System::new();
     let node1 = create_node_with_websocket(&mut system);
-    let websocket = node1.websocket_server.as_ref().unwrap();
+    let websocket = node1.websocket.as_ref().unwrap();
     assert_eq!(websocket.subscriber_count(Topic::Confirmation), 0);
 
     node1.runtime.block_on(async {
@@ -500,7 +494,7 @@ fn confirmation_options_update() {
         let previous = send.hash();
         node1.process_active(send);
 
-        assert_eq!(node1.websocket_server.as_ref().unwrap().subscriber_count(Topic::Confirmation), 1);
+        assert_eq!(node1.websocket.as_ref().unwrap().subscriber_count(Topic::Confirmation), 1);
 
         // receive confirmation event
         ws_stream.next().await.unwrap().unwrap();
@@ -594,7 +588,7 @@ fn vote_options_type() {
 
         let node_l = node1.clone();
         spawn_blocking(move ||{
-            node_l.websocket_server.as_ref().unwrap().broadcast(&vote_received(&vote, VoteCode::Replay));
+            node_l.websocket.as_ref().unwrap().broadcast(&vote_received(&vote, VoteCode::Replay));
         }).await.unwrap();
 
 
@@ -794,7 +788,7 @@ fn telemetry() {
         // Other node should have no subscribers
         assert_eq!(
             node2
-                .websocket_server
+                .websocket
                 .as_ref()
                 .unwrap()
                 .subscriber_count(Topic::Telemetry),

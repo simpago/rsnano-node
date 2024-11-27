@@ -773,8 +773,8 @@ mod bootstrap_processor {
         assert_timely(Duration::from_secs(5), || {
             node2.blocks_confirmed(&[send.clone(), receive.clone()])
         });
-        assert_timely(Duration::from_secs(5), || node1.active_elections.len() == 0);
-        assert_timely(Duration::from_secs(5), || node2.active_elections.len() == 0);
+        assert_timely(Duration::from_secs(5), || node1.active.len() == 0);
+        assert_timely(Duration::from_secs(5), || node2.active.len() == 0);
 
         // create a node manually to avoid making automatic network connections
         let node3 = system.make_disconnected_node();
@@ -2357,7 +2357,7 @@ fn bulk_offline_send() {
         .unwrap();
 
     // Wait to finish election background tasks
-    assert_timely_eq(Duration::from_secs(5), || node1.active_elections.len(), 0);
+    assert_timely_eq(Duration::from_secs(5), || node1.active.len(), 0);
     assert_timely(Duration::from_secs(5), || {
         node1.block_confirmed(&send1.hash())
     });
