@@ -15,7 +15,7 @@ use std::{
 use tracing::{debug, info};
 
 pub struct BootstrapAttemptWallet {
-    pub attempt: BootstrapAttempt,
+    attempt: BootstrapAttempt,
     mutex: Mutex<WalletData>,
     connections: Arc<BootstrapConnections>,
     workers: Arc<dyn ThreadPool>,

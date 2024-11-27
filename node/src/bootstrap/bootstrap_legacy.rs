@@ -32,7 +32,7 @@ pub struct LegacyBootstrapConfig {
 
 /// Legacy bootstrap session. This is made up of 3 phases: frontier requests, bootstrap pulls, bootstrap pushes.
 pub struct BootstrapAttemptLegacy {
-    pub attempt: BootstrapAttempt,
+    attempt: BootstrapAttempt,
     connections: Arc<BootstrapConnections>,
     mutex: Mutex<LegacyData>,
     config: LegacyBootstrapConfig,

@@ -35,7 +35,7 @@ struct LazyStateBacklogItem {
  * Lazy bootstrap session. Started with a block hash, this will "trace down" the blocks obtained to find a connection to the ledger.
  * This attempts to quickly bootstrap a section of the ledger given a hash that's known to be confirmed.
  */
-pub struct BootstrapAttemptLazy {
+pub(crate) struct BootstrapAttemptLazy {
     pub attempt: BootstrapAttempt,
     flags: NodeFlags,
     connections: Arc<BootstrapConnections>,
