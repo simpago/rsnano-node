@@ -447,17 +447,10 @@ pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     // wait for the election to appear
     assert_timely_msg(
         Duration::from_secs(5),
-        || {
-            node.active
-                .election(&block.qualified_root())
-                .is_some()
-        },
+        || node.active.election(&block.qualified_root()).is_some(),
         "election not active",
     );
-    let election = node
-        .active
-        .election(&block.qualified_root())
-        .unwrap();
+    let election = node.active.election(&block.qualified_root()).unwrap();
     election.transition_active();
     election
 }

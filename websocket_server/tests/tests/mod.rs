@@ -63,10 +63,7 @@ fn started_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1
-                .active
-                .election(&send1.qualified_root())
-                .is_some()
+            node1.active.election(&send1.qualified_root()).is_some()
         });
 
         let Ok(response) = timeout(Duration::from_secs(5), ws_stream.next()).await else {
@@ -122,10 +119,7 @@ fn stopped_election() {
             .inbound_message_queue
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
-            node1
-                .active
-                .election(&send1.qualified_root())
-                .is_some()
+            node1.active.election(&send1.qualified_root()).is_some()
         });
         let active = node1.active.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))
