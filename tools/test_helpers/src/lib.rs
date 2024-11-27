@@ -16,7 +16,9 @@ use rsnano_node::{
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
-use rsnano_websocket_server::{create_websocket_server, WebsocketConfig, WebsocketListener, WebsocketListenerExt};
+use rsnano_websocket_server::{
+    create_websocket_server, WebsocketConfig, WebsocketListener, WebsocketListenerExt,
+};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener},
     sync::{
@@ -178,12 +180,13 @@ impl System {
             },
             node.wallets.clone(),
             node.runtime.clone(),
-            &node.active_elections,
+            &node.active,
             &node.telemetry,
             &node.vote_processor,
             &node.process_live_dispatcher,
             &node.bootstrap_initiator,
-        ).unwrap();
+        )
+        .unwrap();
 
         websocket_server.start();
 
@@ -449,14 +452,14 @@ pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
     assert_timely_msg(
         Duration::from_secs(5),
         || {
-            node.active_elections
+            node.active
                 .election(&block.qualified_root())
                 .is_some()
         },
         "election not active",
     );
     let election = node
-        .active_elections
+        .active
         .election(&block.qualified_root())
         .unwrap();
     election.transition_active();
@@ -467,7 +470,7 @@ pub fn start_elections(node: &Node, hashes: &[BlockHash], forced: bool) {
     for hash in hashes {
         let election = start_election(node, hash);
         if forced {
-            node.active_elections.force_confirm(&election);
+            node.active.force_confirm(&election);
         }
     }
 }
@@ -698,7 +701,7 @@ pub fn send_block_to(node: Arc<Node>, account: Account, amount: Amount) -> Block
     node.process_active(send.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active_elections.active(&send),
+        || node.active.active(&send),
         "not active on node",
     );
 

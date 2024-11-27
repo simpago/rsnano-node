@@ -57,7 +57,7 @@ fn started_election() {
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
             node1
-                .active_elections
+                .active
                 .election(&send1.qualified_root())
                 .is_some()
         });
@@ -109,11 +109,11 @@ fn stopped_election() {
             .put(publish1, channel1.info.clone());
         assert_timely(Duration::from_secs(1), || {
             node1
-                .active_elections
+                .active
                 .election(&send1.qualified_root())
                 .is_some()
         });
-        let active = node1.active_elections.clone();
+        let active = node1.active.clone();
         spawn_blocking(move || active.erase(&send1.qualified_root()))
             .await
             .unwrap();

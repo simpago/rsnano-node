@@ -35,7 +35,7 @@ struct LazyStateBacklogItem {
  * This attempts to quickly bootstrap a section of the ledger given a hash that's known to be confirmed.
  */
 pub struct BootstrapAttemptLazy {
-    pub attempt: BootstrapAttempt,
+    attempt: BootstrapAttempt,
     flags: NodeFlags,
     connections: Arc<BootstrapConnections>,
     ledger: Arc<Ledger>,

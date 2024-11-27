@@ -21,7 +21,7 @@ fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     node.process_active(send.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active_elections.active(&send),
+        || node.active.active(&send),
         "send not active on node 1",
     );
 
@@ -37,7 +37,7 @@ fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     node.process_active(open.clone());
     assert_timely_msg(
         Duration::from_secs(5),
-        || node.active_elections.active(&open),
+        || node.active.active(&open),
         "open not active on node 1",
     );
 

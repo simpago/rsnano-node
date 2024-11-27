@@ -14,7 +14,7 @@ mod bucket {
         let bucket = Bucket::new(
             Amount::nano(1000),
             PriorityBucketConfig::default(),
-            node.active_elections.clone(),
+            node.active.clone(),
             node.stats.clone(),
         );
 
@@ -32,7 +32,7 @@ mod bucket {
         let bucket = Bucket::new(
             Amount::zero(),
             PriorityBucketConfig::default(),
-            node.active_elections.clone(),
+            node.active.clone(),
             node.stats.clone(),
         );
 
@@ -48,7 +48,7 @@ mod bucket {
         let bucket = Bucket::new(
             Amount::zero(),
             PriorityBucketConfig::default(),
-            node.active_elections.clone(),
+            node.active.clone(),
             node.stats.clone(),
         );
 
@@ -65,7 +65,7 @@ mod bucket {
         let bucket = Bucket::new(
             Amount::zero(),
             PriorityBucketConfig::default(),
-            node.active_elections.clone(),
+            node.active.clone(),
             node.stats.clone(),
         );
 
@@ -100,7 +100,7 @@ mod bucket {
         let bucket = Bucket::new(
             Amount::zero(),
             config,
-            node.active_elections.clone(),
+            node.active.clone(),
             node.stats.clone(),
         );
 
@@ -154,7 +154,7 @@ mod election_scheduler {
             .activate(&node.store.tx_begin_read(), &*DEV_GENESIS_ACCOUNT);
 
         assert_timely(Duration::from_secs(5), || {
-            node.active_elections
+            node.active
                 .election(&send1.qualified_root())
                 .is_some()
         });
@@ -188,7 +188,7 @@ mod election_scheduler {
 
         // Assert that the election is created within 5 seconds
         assert_timely(Duration::from_secs(5), || {
-            node.active_elections
+            node.active
                 .election(&send1.qualified_root())
                 .is_some()
         });
@@ -236,7 +236,7 @@ mod election_scheduler {
             node.work_generate_dev(*DEV_GENESIS_HASH),
         ));
         node.process(send.clone()).unwrap();
-        node.active_elections.process_confirmed(
+        node.active.process_confirmed(
             rsnano_node::consensus::ElectionStatus {
                 winner: Some(send.clone()),
                 ..Default::default()
@@ -254,7 +254,7 @@ mod election_scheduler {
             node.work_generate_dev(&key),
         ));
         node.process(receive.clone()).unwrap();
-        node.active_elections.process_confirmed(
+        node.active.process_confirmed(
             rsnano_node::consensus::ElectionStatus {
                 winner: Some(receive.clone()),
                 ..Default::default()
@@ -284,7 +284,7 @@ mod election_scheduler {
             .activate(&node.ledger.read_txn(), &DEV_GENESIS_ACCOUNT);
         let mut election = None;
         assert_timely(Duration::from_secs(5), || {
-            match node.active_elections.election(&block1.qualified_root()) {
+            match node.active.election(&block1.qualified_root()) {
                 Some(el) => {
                     election = Some(el);
                     true
@@ -314,14 +314,14 @@ mod election_scheduler {
             1,
         );
         assert!(node
-            .active_elections
+            .active
             .election(&block2.qualified_root())
             .is_none());
 
         // Election confirmed, next in queue should begin
-        node.active_elections.force_confirm(&election.unwrap());
+        node.active.force_confirm(&election.unwrap());
         assert_timely(Duration::from_secs(5), || {
-            node.active_elections
+            node.active
                 .election(&block2.qualified_root())
                 .is_some()
         });

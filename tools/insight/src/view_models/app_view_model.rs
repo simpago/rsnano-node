@@ -84,7 +84,7 @@ impl AppViewModel {
                 &rep_weights,
                 min_rep_weight,
             );
-            self.aec_info = node.active_elections.info();
+            self.aec_info = node.active.info();
             self.confirming_set = node.confirming_set.info();
             self.block_processor_info = node.block_processor.info();
             self.vote_processor_info = node.vote_processor_queue.info();

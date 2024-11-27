@@ -685,7 +685,7 @@ fn cannot_vote() {
     assert_timely_msg(
         Duration::from_secs(5),
         || {
-            node.active_elections
+            node.active
                 .election(&send2.qualified_root())
                 .is_some()
         },
