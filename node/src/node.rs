@@ -1165,14 +1165,15 @@ impl Node {
             vec![
                 self.work.container_info().into_legacy("work"),
                 self.ledger.container_info().into_legacy("ledger"),
-                self.active.collect_container_info("active"),
+                self.active.container_info().into_legacy("active"),
                 self.bootstrap_initiator
-                    .collect_container_info("bootstrap_initiator"),
+                    .container_info()
+                    .into_legacy("bootstrap_initiator"),
                 ContainerInfoComponent::Composite(
                     "network".to_string(),
                     vec![
                         network,
-                        self.syn_cookies.collect_container_info("syn_cookies"),
+                        self.syn_cookies.container_info().into_legacy("syn_cookies"),
                     ],
                 ),
                 self.telemetry.collect_container_info("telemetry"),
