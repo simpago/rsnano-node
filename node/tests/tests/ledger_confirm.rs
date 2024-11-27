@@ -808,17 +808,11 @@ fn election_winner_details_clearing_node_process_confirmed() {
         Box::new(|_| {}),
     ));
     node1
-        .active_elections
+        .active
         .vote_applier
         .add_election_winner_details(send.hash(), election);
     let mut status = ElectionStatus::default();
     status.winner = Some(send);
-    node1.active_elections.process_confirmed(status, 1000000);
-    assert_eq!(
-        node1
-            .active_elections
-            .vote_applier
-            .election_winner_details_len(),
-        0
-    );
+    node1.active.process_confirmed(status, 1000000);
+    assert_eq!(node1.active.vote_applier.election_winner_details_len(), 0);
 }
