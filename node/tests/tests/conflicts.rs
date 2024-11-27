@@ -22,9 +22,9 @@ fn start_stop() {
         node1.work_generate_dev(*DEV_GENESIS_HASH),
     ));
     node1.process(send1.clone()).unwrap();
-    assert_eq!(node1.active_elections.len(), 0);
+    assert_eq!(node1.active.len(), 0);
     let election1 = start_election(&node1, &send1.hash());
-    assert_eq!(node1.active_elections.len(), 1);
+    assert_eq!(node1.active.len(), 1);
     assert_eq!(election1.vote_count(), 1);
 }
 
@@ -53,7 +53,7 @@ fn add_existing() {
 
     // wait for election to be started before processing send2
     assert_timely(Duration::from_secs(5), || {
-        node1.active_elections.active(&send1)
+        node1.active.active(&send1)
     });
 
     let key2 = KeyPair::new();
@@ -74,9 +74,9 @@ fn add_existing() {
         .block_processor
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
-    assert!(node1.active_elections.active(&send1));
+    assert!(node1.active.active(&send1));
     assert_timely(Duration::from_secs(5), || {
-        node1.active_elections.active(&send2)
+        node1.active.active(&send2)
     });
 }
 
@@ -123,12 +123,12 @@ fn add_two() {
     node.process(send_b.clone()).unwrap();
     start_elections(&node, &[send_a.hash(), send_b.hash()], false);
     assert!(node
-        .active_elections
+        .active
         .election(&send_a.qualified_root())
         .is_some());
     assert!(node
-        .active_elections
+        .active
         .election(&send_b.qualified_root())
         .is_some());
-    assert_timely_eq(Duration::from_secs(5), || node.active_elections.len(), 2);
+    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 2);
 }

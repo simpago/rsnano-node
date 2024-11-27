@@ -105,11 +105,11 @@ pub struct Node {
     pub block_processor: Arc<BlockProcessor>,
     pub wallets: Arc<Wallets>,
     pub vote_generators: Arc<VoteGenerators>,
-    pub active_elections: Arc<ActiveElections>,
+    pub active: Arc<ActiveElections>,
     pub vote_router: Arc<VoteRouter>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
-    pub websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
+    pub websocket: Option<Arc<crate::websocket::WebsocketListener>>,
     pub bootstrap_initiator: Arc<BootstrapInitiator>,
     pub rep_crawler: Arc<RepCrawler>,
     pub tcp_listener: Arc<TcpListener>,
@@ -182,7 +182,7 @@ impl Node {
         args: NodeArgs,
         is_nulled: bool,
         mut node_id_key_file: NodeIdKeyFile,
-        websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
+        websocket: Option<Arc<crate::websocket::WebsocketListener>>,
     ) -> Self {
         let network_params = args.network_params;
         let config = args.config;
@@ -549,7 +549,7 @@ impl Node {
         ));
 
         active_elections.initialize();
-        /*let websocket = create_websocket_server(
+        /*let websocket = create_websocket(
             config.websocket_config.clone(),
             wallets.clone(),
             runtime.clone(),
@@ -581,7 +581,7 @@ impl Node {
             network_params.clone(),
             stats.clone(),
             block_processor.clone(),
-            websocket_server.clone(),
+            websocket.clone(),
             ledger.clone(),
             bootstrap_publisher,
             steady_clock.clone(),
@@ -704,7 +704,7 @@ impl Node {
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(
             ledger.clone(),
             election_schedulers.clone(),
-            websocket_server.clone(),
+            websocket.clone(),
         ));
 
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(
@@ -1113,10 +1113,10 @@ impl Node {
             block_processor,
             wallets,
             vote_generators,
-            active_elections,
+            active: active_elections,
             vote_processor,
             vote_cache_processor,
-            websocket_server,
+            websocket,
             bootstrap_initiator,
             rep_crawler,
             tcp_listener,
@@ -1165,7 +1165,7 @@ impl Node {
             vec![
                 self.work.container_info().into_legacy("work"),
                 self.ledger.container_info().into_legacy("ledger"),
-                self.active_elections.collect_container_info("active"),
+                self.active.collect_container_info("active"),
                 self.bootstrap_initiator
                     .collect_container_info("bootstrap_initiator"),
                 ContainerInfoComponent::Composite(
@@ -1348,9 +1348,9 @@ impl Node {
 
     pub fn set_websocket_server(
         &mut self,
-        websocket_server: Option<Arc<crate::websocket::WebsocketListener>>,
+        websocket: Option<Arc<crate::websocket::WebsocketListener>>,
     ) {
-        self.websocket_server = websocket_server;
+        self.websocket = websocket;
     }
 }
 
@@ -1444,7 +1444,7 @@ impl NodeExt for Arc<Node> {
         }
         self.vote_cache_processor.start();
         self.block_processor.start();
-        self.active_elections.start();
+        self.active.start();
         self.vote_generators.start();
         self.request_aggregator.start();
         self.confirming_set.start();
@@ -1457,7 +1457,7 @@ impl NodeExt for Arc<Node> {
                 .initialize(&self.network_params.ledger.genesis_account);
             self.ascendboot.start();
         }
-        if let Some(ws_listener) = &self.websocket_server {
+        if let Some(ws_listener) = &self.websocket {
             ws_listener.start();
         }
         self.telemetry.start();
@@ -1518,11 +1518,11 @@ impl NodeExt for Arc<Node> {
         self.vote_processor.stop();
         self.rep_tiers.stop();
         self.election_schedulers.stop();
-        self.active_elections.stop();
+        self.active.stop();
         self.vote_generators.stop();
         self.confirming_set.stop();
         self.telemetry.stop();
-        if let Some(ws_listener) = &self.websocket_server {
+        if let Some(ws_listener) = &self.websocket {
             ws_listener.stop();
         }
         self.bootstrap_server.stop();

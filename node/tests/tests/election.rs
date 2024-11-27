@@ -82,12 +82,12 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
 
     assert_timely(Duration::from_secs(5), || {
         node1
-            .active_elections
+            .active
             .election(&send1.qualified_root())
             .is_some()
     });
     let election = node1
-        .active_elections
+        .active
         .election(&send1.qualified_root())
         .unwrap();
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
@@ -108,7 +108,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .rep_crawler
         .force_process(vote2.clone(), channel.channel_id());
 
-    assert_eq!(node1.active_elections.confirmed(&election), false);
+    assert_eq!(node1.active.confirmed(&election), false);
     // Modify online_m for online_reps to more than is available, this checks that voting below updates it to current online reps.
     node1
         .online_reps
@@ -117,7 +117,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
         .set_online(config.online_weight_minimum + Amount::raw(20));
     node1.vote_router.vote(&vote2, VoteSource::Live);
     assert_timely(Duration::from_secs(5), || {
-        node1.active_elections.confirmed(&election)
+        node1.active.confirmed(&election)
     });
     assert!(node1.block(&send1.hash()).is_some());
 }
@@ -161,7 +161,7 @@ fn continuous_voting() {
 
     node1.process(send2.clone()).unwrap();
     assert_timely(Duration::from_secs(5), || {
-        node1.active_elections.active(&send2)
+        node1.active.active(&send2)
     });
 
     // Ensure votes are broadcasted in continuous manner
@@ -202,12 +202,12 @@ fn quorum_minimum_confirm_fail() {
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
         node1
-            .active_elections
+            .active
             .election(&send1.qualified_root())
             .is_some()
     });
     let election = node1
-        .active_elections
+        .active
         .election(&send1.qualified_root())
         .unwrap();
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
@@ -220,7 +220,7 @@ fn quorum_minimum_confirm_fail() {
 
     // It should not confirm because there should not be enough quorum
     assert!(node1.block(&send1.hash()).is_some());
-    assert_eq!(node1.active_elections.confirmed(&election), false);
+    assert_eq!(node1.active.confirmed(&election), false);
 }
 
 // This test ensures blocks can be confirmed precisely at the quorum minimum
@@ -252,12 +252,12 @@ fn quorum_minimum_confirm_success() {
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
         node1
-            .active_elections
+            .active
             .election(&send1.qualified_root())
             .is_some()
     });
     let election = node1
-        .active_elections
+        .active
         .election(&send1.qualified_root())
         .unwrap();
     assert_eq!(1, election.mutex.lock().unwrap().last_blocks.len());
@@ -267,7 +267,7 @@ fn quorum_minimum_confirm_success() {
 
     assert!(node1.block(&send1.hash()).is_some());
     assert_timely(Duration::from_secs(5), || {
-        node1.active_elections.confirmed(&election)
+        node1.active.confirmed(&election)
     });
 }
 
@@ -306,7 +306,7 @@ fn quorum_minimum_flip_fail() {
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
         node1
-            .active_elections
+            .active
             .election(&send1.qualified_root())
             .is_some()
     });
@@ -315,7 +315,7 @@ fn quorum_minimum_flip_fail() {
     node1.process_active(send2.clone());
     assert_timely(Duration::from_secs(5), || {
         let election = node1
-            .active_elections
+            .active
             .election(&send2.qualified_root())
             .unwrap();
         let election_guard = election.mutex.lock().unwrap();
@@ -331,10 +331,10 @@ fn quorum_minimum_flip_fail() {
     std::thread::sleep(Duration::from_secs(1));
 
     let election = node1
-        .active_elections
+        .active
         .election(&send2.qualified_root())
         .unwrap();
-    assert_eq!(node1.active_elections.confirmed(&election), false);
+    assert_eq!(node1.active.confirmed(&election), false);
     assert_eq!(node1.block_confirmed(&send2.hash()), false);
 }
 
@@ -373,7 +373,7 @@ fn quorum_minimum_flip_success() {
     node1.process_active(send1.clone());
     assert_timely(Duration::from_secs(5), || {
         node1
-            .active_elections
+            .active
             .election(&send1.qualified_root())
             .is_some()
     });
@@ -382,7 +382,7 @@ fn quorum_minimum_flip_success() {
     node1.process_active(send2.clone());
     assert_timely(Duration::from_secs(5), || {
         let election = node1
-            .active_elections
+            .active
             .election(&send2.qualified_root())
             .unwrap();
         let election_guard = election.mutex.lock().unwrap();
@@ -395,11 +395,11 @@ fn quorum_minimum_flip_success() {
 
     // Wait for the election to be confirmed
     let election = node1
-        .active_elections
+        .active
         .election(&send2.qualified_root())
         .unwrap();
     assert_timely(Duration::from_secs(5), || {
-        node1.active_elections.confirmed(&election)
+        node1.active.confirmed(&election)
     });
 
     // Check that send2 is the winner
