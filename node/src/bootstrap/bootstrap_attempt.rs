@@ -48,7 +48,7 @@ pub trait BootstrapAttemptTrait {
     ) -> bool;
 }
 
-pub struct BootstrapAttempt {
+pub(crate) struct BootstrapAttempt {
     pub incremental_id: u64,
     pub id: String,
     pub mode: BootstrapMode,
