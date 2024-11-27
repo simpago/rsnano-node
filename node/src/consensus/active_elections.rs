@@ -18,7 +18,7 @@ use crate::{
 };
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
-    utils::{ContainerInfo, ContainerInfoComponent, MemoryStream},
+    utils::{ContainerInfo, ContainerInfoComponent, ContainerInfos, MemoryStream},
     Account, Amount, Block, BlockHash, BlockType, QualifiedRoot, Vote, VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
@@ -945,47 +945,40 @@ impl ActiveElections {
         self.vote_applier.remove_election_winner_details(hash);
     }
 
-    pub fn collect_container_info(&self, name: impl Into<String>) -> ContainerInfoComponent {
+    pub fn container_info(&self) -> ContainerInfos {
         let guard = self.mutex.lock().unwrap();
-        ContainerInfoComponent::Composite(
-            name.into(),
-            vec![
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "roots".to_string(),
-                    count: guard.roots.len(),
-                    sizeof_element: OrderedRoots::ELEMENT_SIZE,
-                }),
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "normal".to_string(),
-                    count: guard.count_by_behavior(ElectionBehavior::Priority),
-                    sizeof_element: 0,
-                }),
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "hinted".to_string(),
-                    count: guard.count_by_behavior(ElectionBehavior::Hinted),
-                    sizeof_element: 0,
-                }),
-                ContainerInfoComponent::Leaf(ContainerInfo {
-                    name: "optimistic".to_string(),
-                    count: guard.count_by_behavior(ElectionBehavior::Optimistic),
-                    sizeof_element: 0,
-                }),
-                self.vote_applier
-                    .container_info()
-                    .into_legacy("vote_applier"),
-                self.recently_confirmed
-                    .container_info()
-                    .into_legacy("recently_confirmed"),
-                ContainerInfoComponent::Composite(
-                    "recently_cemented".to_string(),
-                    vec![ContainerInfoComponent::Leaf(ContainerInfo {
-                        name: "cemented".to_string(),
-                        count: self.recently_cemented.lock().unwrap().len(),
-                        sizeof_element: size_of::<ElectionStatus>(),
-                    })],
-                ),
-            ],
-        )
+
+        let recently_cemented: ContainerInfos = [(
+            "cemented",
+            self.recently_cemented.lock().unwrap().len(),
+            size_of::<ElectionStatus>(),
+        )]
+        .into();
+
+        ContainerInfos::builder()
+            .leaf("roots", guard.roots.len(), OrderedRoots::ELEMENT_SIZE)
+            .leaf(
+                "normal",
+                guard.count_by_behavior(ElectionBehavior::Priority),
+                0,
+            )
+            .leaf(
+                "hinted".to_string(),
+                guard.count_by_behavior(ElectionBehavior::Hinted),
+                0,
+            )
+            .leaf(
+                "optimistic".to_string(),
+                guard.count_by_behavior(ElectionBehavior::Optimistic),
+                0,
+            )
+            .node("vote_applier", self.vote_applier.container_info())
+            .node(
+                "recently_confirmed",
+                self.recently_confirmed.container_info(),
+            )
+            .node("recently_cemented", recently_cemented)
+            .finish()
     }
 }
 
