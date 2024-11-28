@@ -4,6 +4,7 @@ use rsnano_node::{
     Node, NodeBuilder, NodeCallbacks, NodeExt,
 };
 use rsnano_rpc_server::{run_rpc_server, RpcServerConfig};
+use rsnano_websocket_server::{create_websocket_server, WebsocketListenerExt};
 use std::{future::Future, path::PathBuf, sync::Arc};
 use tokio::net::TcpListener;
 
@@ -56,8 +57,31 @@ impl DaemonBuilder {
         let node = self.node_builder.finish()?;
         let node = Arc::new(node);
 
+        let websocket_server = if daemon_config.node.websocket_config.enabled {
+            Some(
+                create_websocket_server(
+                    daemon_config.node.websocket_config,
+                    node.wallets.clone(),
+                    node.runtime.clone(),
+                    &node.active,
+                    &node.telemetry,
+                    &node.vote_processor,
+                    &node.process_live_dispatcher,
+                    &node.bootstrap_initiator,
+                )
+                .unwrap(),
+            )
+        } else {
+            None
+        };
+
+        if let Some(ref websocket) = websocket_server {
+            websocket.start();
+        }
+
         // start node
         node.start();
+
         if let Some(mut started_callback) = self.node_started {
             started_callback(node.clone());
         }
@@ -82,6 +106,10 @@ impl DaemonBuilder {
         } else {
             wait_for_shutdown.await;
         };
+
+        if let Some(ref websocket) = websocket_server {
+            websocket.stop();
+        }
 
         node.stop();
         Ok(())
