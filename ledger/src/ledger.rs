@@ -10,7 +10,7 @@ use rand::{thread_rng, Rng};
 use rsnano_core::{
     utils::{seconds_since_epoch, ContainerInfo},
     Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo,
-    DependentBlocks, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root,
+    DependentBlocks, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
 use rsnano_store_lmdb::{
     ConfiguredAccountDatabaseBuilder, ConfiguredBlockDatabaseBuilder,
@@ -21,9 +21,8 @@ use rsnano_store_lmdb::{
     LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, Transaction,
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     net::SocketAddrV6,
-    ops::Deref,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -41,15 +40,22 @@ pub enum BlockStatus {
     Fork,          // Malicious fork based on previous
     /// Source block doesn't exist, has already been received, or requires an account upgrade (epoch blocks)
     Unreceivable,
-    GapPrevious,         // Block marked as previous is unknown
-    GapSource,           // Block marked as source is unknown
-    GapEpochOpenPending, // Block marked as pending blocks required for epoch open block are unknown
-    OpenedBurnAccount,   // Block attempts to open the burn account
+    /// Block marked as previous is unknown
+    GapPrevious,
+    /// Block marked as source is unknown
+    GapSource,
+    /// Block marked as pending blocks required for epoch open block are unknown
+    GapEpochOpenPending,
+    /// Block attempts to open the burn account
+    OpenedBurnAccount,
     /// Balance and amount delta don't match
     BalanceMismatch,
-    RepresentativeMismatch, // Representative is changed when it is not allowed
-    BlockPosition,          // This block cannot follow the previous block
-    InsufficientWork, // Insufficient work for this block, even though it passed the minimal validation
+    /// Representative is changed when it is not allowed
+    RepresentativeMismatch,
+    /// This block cannot follow the previous block
+    BlockPosition,
+    /// Insufficient work for this block, even though it passed the minimal validation
+    InsufficientWork,
 }
 
 impl BlockStatus {
@@ -124,12 +130,12 @@ impl NullLedgerBuilder {
         }
     }
 
-    pub fn block(mut self, block: &Block) -> Self {
+    pub fn block(mut self, block: &SavedBlock) -> Self {
         self.blocks = self.blocks.block(block);
         self
     }
 
-    pub fn blocks<'a>(mut self, blocks: impl IntoIterator<Item = &'a Block>) -> Self {
+    pub fn blocks<'a>(mut self, blocks: impl IntoIterator<Item = &'a SavedBlock>) -> Self {
         for b in blocks.into_iter() {
             self.blocks = self.blocks.block(b);
         }
@@ -308,10 +314,9 @@ impl Ledger {
     }
 
     fn add_genesis_block(&self, txn: &mut LmdbWriteTransaction) {
-        let genesis_block = self.constants.genesis.deref();
-        let genesis_hash = genesis_block.hash();
+        let genesis_hash = self.constants.genesis_block.hash();
         let genesis_account = self.constants.genesis_account;
-        self.store.block.put(txn, genesis_block);
+        self.store.block.put(txn, &self.constants.genesis_block);
 
         self.store.confirmation_height.put(
             txn,
@@ -478,7 +483,7 @@ impl Ledger {
         txn: &dyn Transaction,
         destination: &Account,
         send_block_hash: &BlockHash,
-    ) -> Option<Block> {
+    ) -> Option<SavedBlock> {
         // get the cemented frontier
         let info = self.store.confirmation_height.get(txn, destination)?;
         let mut possible_receive_block = self.any().get_block(txn, &info.frontier);
@@ -538,7 +543,7 @@ impl Ledger {
     ) -> u64 {
         let mut pruned_count = 0;
         let mut hash = *hash;
-        let genesis_hash = self.constants.genesis.hash();
+        let genesis_hash = self.constants.genesis_block.hash();
 
         while !hash.is_zero() && hash != genesis_hash {
             if let Some(block) = self.any().get_block(txn, &hash) {
@@ -562,22 +567,41 @@ impl Ledger {
         pruned_count
     }
 
-    pub fn dependent_blocks(&self, txn: &dyn Transaction, block: &Block) -> DependentBlocks {
-        DependentBlocksFinder::new(self, txn).find_dependent_blocks(block)
-    }
-
-    pub fn dependents_confirmed(&self, txn: &dyn Transaction, block: &Block) -> bool {
+    pub fn dependents_confirmed(&self, txn: &dyn Transaction, block: &SavedBlock) -> bool {
         self.dependent_blocks(txn, block)
             .iter()
             .all(|hash| self.confirmed().block_exists_or_pruned(txn, hash))
     }
 
+    pub fn dependent_blocks(&self, txn: &dyn Transaction, block: &SavedBlock) -> DependentBlocks {
+        DependentBlocksFinder::new(self, txn).find_dependent_blocks(block)
+    }
+
+    pub fn dependents_confirmed_for_unsaved_block(
+        &self,
+        txn: &dyn Transaction,
+        block: &Block,
+    ) -> bool {
+        self.dependent_blocks_for_unsaved_block(txn, block)
+            .iter()
+            .all(|hash| self.confirmed().block_exists_or_pruned(txn, hash))
+    }
+
+    fn dependent_blocks_for_unsaved_block(
+        &self,
+        txn: &dyn Transaction,
+        block: &Block,
+    ) -> DependentBlocks {
+        DependentBlocksFinder::new(self, txn).find_dependent_blocks_for_unsaved_block(block)
+    }
+
+    ///
     /// Rollback blocks until `block' doesn't exist or it tries to penetrate the confirmation height
     pub fn rollback(
         &self,
         txn: &mut LmdbWriteTransaction,
         block: &BlockHash,
-    ) -> anyhow::Result<Vec<Block>> {
+    ) -> anyhow::Result<Vec<SavedBlock>> {
         BlockRollbackPerformer::new(self, txn).roll_back(block)
     }
 
@@ -591,15 +615,15 @@ impl Ledger {
     pub fn process(
         &self,
         txn: &mut LmdbWriteTransaction,
-        block: &mut Block,
-    ) -> Result<(), BlockStatus> {
+        block: &Block,
+    ) -> Result<SavedBlock, BlockStatus> {
         let validator = BlockValidatorFactory::new(self, txn, block).create_validator();
         let instructions = validator.validate()?;
-        BlockInserter::new(self, txn, block, &instructions).insert();
-        Ok(())
+        let inserted = BlockInserter::new(self, txn, block, &instructions).insert();
+        Ok(inserted)
     }
 
-    pub fn get_block(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<Block> {
+    pub fn get_block(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
         self.store.block.get(txn, hash)
     }
 
@@ -619,7 +643,7 @@ impl Ledger {
         self.store.confirmation_height.get(txn, account)
     }
 
-    pub fn confirm(&self, txn: &mut LmdbWriteTransaction, hash: BlockHash) -> VecDeque<Block> {
+    pub fn confirm(&self, txn: &mut LmdbWriteTransaction, hash: BlockHash) -> Vec<SavedBlock> {
         self.confirm_max(txn, hash, 1024 * 128)
     }
 
@@ -630,7 +654,7 @@ impl Ledger {
         txn: &mut LmdbWriteTransaction,
         target_hash: BlockHash,
         max_blocks: usize,
-    ) -> VecDeque<Block> {
+    ) -> Vec<SavedBlock> {
         BlockCementer::new(&self.store, self.observer.as_ref(), &self.constants).confirm(
             txn,
             target_hash,

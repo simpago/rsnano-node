@@ -1,6 +1,6 @@
 use super::BlockValidator;
 use crate::BlockStatus;
-use rsnano_core::validate_message;
+use rsnano_core::PublicKey;
 
 impl<'a> BlockValidator<'a> {
     pub(crate) fn ensure_block_does_not_exist_yet(&self) -> Result<(), BlockStatus> {
@@ -15,11 +15,8 @@ impl<'a> BlockValidator<'a> {
         let result = if self.is_epoch_block() {
             self.epochs.validate_epoch_signature(self.block)
         } else {
-            validate_message(
-                &self.account.into(),
-                self.block.hash().as_bytes(),
-                self.block.block_signature(),
-            )
+            let pub_key: PublicKey = self.account.into();
+            pub_key.verify(self.block.hash().as_bytes(), self.block.block_signature())
         };
         result.map_err(|_| BlockStatus::BadSignature)
     }

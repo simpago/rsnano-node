@@ -15,7 +15,7 @@ use super::{
     LocalVoteHistory, RecentlyConfirmedCache, TallyKey, VoteGenerators,
 };
 use rsnano_core::{
-    utils::ContainerInfo, Amount, Block, BlockHash, PublicKey, VoteCode, VoteSource,
+    utils::ContainerInfo, Amount, BlockHash, PublicKey, SavedOrUnsavedBlock, VoteCode, VoteSource,
 };
 use rsnano_ledger::Ledger;
 use std::{
@@ -100,7 +100,10 @@ impl VoteApplier {
         }
     }
 
-    pub fn tally_impl(&self, guard: &mut MutexGuard<ElectionData>) -> BTreeMap<TallyKey, Block> {
+    pub fn tally_impl(
+        &self,
+        guard: &mut MutexGuard<ElectionData>,
+    ) -> BTreeMap<TallyKey, SavedOrUnsavedBlock> {
         let mut block_weights: HashMap<BlockHash, Amount> = HashMap::new();
         let mut final_weights: HashMap<BlockHash, Amount> = HashMap::new();
         for (account, info) in &guard.last_votes {
@@ -147,7 +150,7 @@ impl VoteApplier {
         }
     }
 
-    pub fn have_quorum(&self, tally: &BTreeMap<TallyKey, Block>) -> bool {
+    pub fn have_quorum(&self, tally: &BTreeMap<TallyKey, SavedOrUnsavedBlock>) -> bool {
         let mut it = tally.keys();
         let first = it.next().map(|i| i.amount()).unwrap_or_default();
         let second = it.next().map(|i| i.amount()).unwrap_or_default();
@@ -294,7 +297,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         {
             election_lock.status.winner = Some(block.clone());
             self.remove_votes(election, &mut election_lock, &status_winner_hash);
-            self.block_processor.force(block.clone());
+            self.block_processor.force(block.clone().into());
         }
 
         if self.have_quorum(&tally) {
@@ -342,7 +345,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
             self.workers.push_task(Box::new(move || {
                 let block = status.winner.as_ref().unwrap().clone();
                 self_l.process_confirmed(status, 0);
-                (election.confirmation_action)(block);
+                (election.confirmation_action)(block.into());
             }));
         }
     }

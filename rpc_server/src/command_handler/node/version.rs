@@ -18,7 +18,7 @@ impl RpcCommandHandler {
                 .current_network
                 .as_str()
                 .to_owned(),
-            network_identifier: self.node.network_params.ledger.genesis.hash(),
+            network_identifier: self.node.network_params.ledger.genesis_block.hash(),
             build_info: BUILD_INFO.to_owned(),
         }
     }

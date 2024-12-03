@@ -1,7 +1,6 @@
 use crate::{
     work::{WorkPool, STUB_WORK_POOL},
-    Account, Amount, Block, BlockBase, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey,
-    ReceiveBlock,
+    Block, BlockHash, PrivateKey, ReceiveBlock,
 };
 
 pub struct LegacyReceiveBlockBuilder {
@@ -9,7 +8,6 @@ pub struct LegacyReceiveBlockBuilder {
     source: Option<BlockHash>,
     key_pair: Option<PrivateKey>,
     work: Option<u64>,
-    build_sideband: bool,
 }
 
 impl LegacyReceiveBlockBuilder {
@@ -19,7 +17,6 @@ impl LegacyReceiveBlockBuilder {
             source: None,
             key_pair: None,
             work: None,
-            build_sideband: false,
         }
     }
 
@@ -43,11 +40,6 @@ impl LegacyReceiveBlockBuilder {
         self
     }
 
-    pub fn with_sideband(mut self) -> Self {
-        self.build_sideband = true;
-        self
-    }
-
     pub fn build(self) -> Block {
         let key_pair = self.key_pair.unwrap_or_default();
         let previous = self.previous.unwrap_or(BlockHash::from(1));
@@ -56,27 +48,7 @@ impl LegacyReceiveBlockBuilder {
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
 
-        let mut block = ReceiveBlock::new(previous, source, &key_pair, work);
-
-        let details = BlockDetails {
-            epoch: Epoch::Epoch0,
-            is_send: false,
-            is_receive: true,
-            is_epoch: false,
-        };
-
-        if self.build_sideband {
-            block.set_sideband(BlockSideband::new(
-                Account::from(42),
-                BlockHash::zero(),
-                Amount::raw(5),
-                1,
-                2,
-                details,
-                Epoch::Epoch0,
-            ));
-        }
-
+        let block = ReceiveBlock::new(previous, source, &key_pair, work);
         Block::LegacyReceive(block)
     }
 }
@@ -89,17 +61,16 @@ impl Default for LegacyReceiveBlockBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::{work::WORK_THRESHOLDS_STUB, Block, BlockBase, BlockBuilder, BlockHash};
+    use crate::{work::WORK_THRESHOLDS_STUB, Block, BlockBuilder, BlockHash};
 
     #[test]
     fn receive_block() {
-        let block = BlockBuilder::legacy_receive().with_sideband().build();
+        let block = BlockBuilder::legacy_receive().build();
         let Block::LegacyReceive(receive) = &block else {
             panic!("not a receive block!")
         };
         assert_eq!(receive.hashables.previous, BlockHash::from(1));
         assert_eq!(receive.hashables.source, BlockHash::from(2));
         assert_eq!(WORK_THRESHOLDS_STUB.validate_entry_block(&block), true);
-        assert!(receive.sideband().is_some())
     }
 }

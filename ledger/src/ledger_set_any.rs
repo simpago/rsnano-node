@@ -1,6 +1,6 @@
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
-    Account, AccountInfo, Amount, Block, BlockHash, PendingInfo, PendingKey, QualifiedRoot,
+    Account, AccountInfo, Amount, BlockHash, PendingInfo, PendingKey, QualifiedRoot, SavedBlock,
 };
 use rsnano_store_lmdb::{LmdbIterator, LmdbPendingStore, LmdbStore, Transaction};
 use std::ops::{Deref, RangeBounds};
@@ -14,7 +14,7 @@ impl<'a> LedgerSetAny<'a> {
         Self { store }
     }
 
-    pub fn get_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<Block> {
+    pub fn get_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
         self.store.block.get(tx, hash)
     }
 
@@ -36,7 +36,7 @@ impl<'a> LedgerSetAny<'a> {
             return 0;
         };
         self.get_block(tx, &head)
-            .map(|b| b.sideband().unwrap().height)
+            .map(|b| b.height())
             .expect("Head block not in ledger!")
     }
 
@@ -49,7 +49,7 @@ impl<'a> LedgerSetAny<'a> {
         self.block_amount_for(tx, &block)
     }
 
-    pub fn block_amount_for(&self, tx: &dyn Transaction, block: &Block) -> Option<Amount> {
+    pub fn block_amount_for(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<Amount> {
         let block_balance = block.balance();
         if block.previous().is_zero() {
             Some(block_balance)
@@ -85,7 +85,7 @@ impl<'a> LedgerSetAny<'a> {
 
     pub fn block_height(&self, tx: &dyn Transaction, hash: &BlockHash) -> u64 {
         self.get_block(tx, hash)
-            .map(|b| b.sideband().unwrap().height)
+            .map(|b| b.height())
             .unwrap_or_default()
     }
 

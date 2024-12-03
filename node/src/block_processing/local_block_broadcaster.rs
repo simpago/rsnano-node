@@ -339,19 +339,18 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
             }));
 
         let self_w = Arc::downgrade(self);
-        self.confirming_set
-            .add_cemented_observer(Box::new(move |block| {
-                let Some(self_l) = self_w.upgrade() else {
-                    return;
-                };
+        self.confirming_set.on_cemented(Box::new(move |block| {
+            let Some(self_l) = self_w.upgrade() else {
+                return;
+            };
 
-                let mut guard = self_l.mutex.lock().unwrap();
-                if guard.local_blocks.remove(&block.hash()) {
-                    self_l
-                        .stats
-                        .inc(StatType::LocalBlockBroadcaster, DetailType::Cemented);
-                }
-            }));
+            let mut guard = self_l.mutex.lock().unwrap();
+            if guard.local_blocks.remove(&block.hash()) {
+                self_l
+                    .stats
+                    .inc(StatType::LocalBlockBroadcaster, DetailType::Cemented);
+            }
+        }));
     }
 
     fn start(&self) {

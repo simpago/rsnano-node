@@ -2,15 +2,15 @@ mod legacy_change_block_builder;
 mod legacy_open_block_builder;
 mod legacy_receive_block_builder;
 mod legacy_send_block_builder;
+mod saved_account_chain;
 mod state_block_builder;
-mod test_account_chain;
 
 pub use legacy_change_block_builder::LegacyChangeBlockBuilder;
 pub use legacy_open_block_builder::LegacyOpenBlockBuilder;
 pub use legacy_receive_block_builder::LegacyReceiveBlockBuilder;
 pub use legacy_send_block_builder::LegacySendBlockBuilder;
+pub use saved_account_chain::SavedAccountChain;
 pub use state_block_builder::StateBlockBuilder;
-pub use test_account_chain::TestAccountChain;
 
 pub struct BlockBuilder {}
 

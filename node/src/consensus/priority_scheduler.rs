@@ -1,7 +1,7 @@
 use super::{ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, Amount, Block, ConfirmationHeightInfo,
+    utils::ContainerInfo, Account, AccountInfo, Amount, ConfirmationHeightInfo, SavedBlock,
 };
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
@@ -147,7 +147,7 @@ impl PriorityScheduler {
 
         let added = self
             .find_bucket(balance_priority)
-            .push(account_info.modified, block);
+            .push(account_info.modified, block.into());
 
         if added {
             self.stats
@@ -236,7 +236,7 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &Block) {
+    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &SavedBlock) {
         self.activate(tx, &block.account());
 
         // Start or vote for the next unconfirmed block in the destination account

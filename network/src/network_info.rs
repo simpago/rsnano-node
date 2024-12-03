@@ -6,7 +6,7 @@ use crate::{
     ChannelId, ChannelInfo, ChannelMode, TrafficType,
 };
 use rand::{seq::SliceRandom, thread_rng};
-use rsnano_core::{utils::ContainerInfo, Networks, NodeId, PublicKey};
+use rsnano_core::{utils::ContainerInfo, Networks, NodeId};
 use rsnano_nullable_clock::Timestamp;
 use std::{
     collections::HashMap,

@@ -21,7 +21,6 @@ use send_block::JsonSendBlock;
 pub use send_block::{valid_send_block_predecessor, SendBlock, SendHashables};
 
 mod state_block;
-use serde::{Deserialize, Serialize};
 use state_block::JsonStateBlock;
 pub use state_block::{StateBlock, StateHashables};
 
@@ -29,7 +28,7 @@ mod builders;
 pub use builders::*;
 
 use crate::{
-    utils::{BufferReader, BufferWriter, MemoryStream, PropertyTree, SerdePropertyTree, Stream},
+    utils::{BufferWriter, Deserialize, MemoryStream, PropertyTree, Stream},
     Account, Amount, BlockHash, BlockHashBuilder, Epoch, Epochs, FullHash, Link, PrivateKey,
     PublicKey, QualifiedRoot, Root, Signature,
 };
@@ -138,14 +137,6 @@ impl std::fmt::Debug for LazyBlockHash {
 pub trait BlockBase: FullHash {
     fn block_type(&self) -> BlockType;
     fn account_field(&self) -> Option<Account>;
-
-    /**
-     * Contextual details about a block, some fields may or may not be set depending on block type.
-     * This field is set via sideband_set in ledger processing or deserializing blocks from the database.
-     * Otherwise it may be null (for example, an old block or fork).
-     */
-    fn sideband(&'_ self) -> Option<&'_ BlockSideband>;
-    fn set_sideband(&mut self, sideband: BlockSideband);
     fn hash(&self) -> BlockHash;
     fn link_field(&self) -> Option<Link>;
     fn block_signature(&self) -> &Signature;
@@ -156,9 +147,7 @@ pub trait BlockBase: FullHash {
     fn serialize_without_block_type(&self, writer: &mut dyn BufferWriter);
     fn serialize_json(&self, writer: &mut dyn PropertyTree) -> anyhow::Result<()>;
     fn to_json(&self) -> anyhow::Result<String> {
-        let mut writer = SerdePropertyTree::new();
-        self.serialize_json(&mut writer)?;
-        Ok(writer.to_json())
+        Ok(serde_json::to_string(&self.json_representation())?)
     }
     fn json_representation(&self) -> JsonBlock;
     fn root(&self) -> Root;
@@ -208,6 +197,10 @@ impl Block {
         Self::State(StateBlock::new_test_instance())
     }
 
+    pub fn new_test_open() -> Self {
+        Self::State(StateBlock::new_test_open())
+    }
+
     pub fn new_test_instance_with_key(key: impl Into<PrivateKey>) -> Self {
         Self::State(StateBlock::new_test_instance_with_key(key.into()))
     }
@@ -236,16 +229,6 @@ impl Block {
         }
     }
 
-    pub fn balance(&self) -> Amount {
-        match self {
-            Block::LegacySend(b) => b.balance(),
-            Block::LegacyReceive(b) => b.sideband().unwrap().balance,
-            Block::LegacyOpen(b) => b.sideband().unwrap().balance,
-            Block::LegacyChange(b) => b.sideband().unwrap().balance,
-            Block::State(b) => b.balance(),
-        }
-    }
-
     pub fn is_open(&self) -> bool {
         match &self {
             Block::LegacyOpen(_) => true,
@@ -258,63 +241,11 @@ impl Block {
         !matches!(self, Block::State(_))
     }
 
-    pub fn is_epoch(&self) -> bool {
-        match self {
-            Block::State(_) => self.sideband().unwrap().details.is_epoch,
-            _ => false,
-        }
-    }
-
-    pub fn is_send(&self) -> bool {
-        match self {
-            Block::LegacySend(_) => true,
-            Block::State(_) => self.sideband().unwrap().details.is_send,
-            _ => false,
-        }
-    }
-
-    pub fn is_receive(&self) -> bool {
-        match self {
-            Block::LegacyReceive(_) | Block::LegacyOpen(_) => true,
-            Block::State(_) => self.sideband().unwrap().details.is_receive,
-            _ => false,
-        }
-    }
-
     pub fn is_change(&self) -> bool {
         match self {
             Block::LegacyChange(_) => true,
             Block::State(state) => state.link().is_zero(),
             _ => false,
-        }
-    }
-
-    pub fn source(&self) -> Option<BlockHash> {
-        match self {
-            Block::LegacyOpen(i) => Some(i.source()),
-            Block::LegacyReceive(i) => Some(i.source()),
-            Block::State(i) => {
-                if i.sideband().unwrap().details.is_receive {
-                    Some(i.link().into())
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
-
-    pub fn destination(&self) -> Option<Account> {
-        match self {
-            Block::LegacySend(i) => Some(*i.destination()),
-            Block::State(i) => {
-                if i.sideband().unwrap().details.is_send {
-                    Some(i.link().into())
-                } else {
-                    None
-                }
-            }
-            _ => None,
         }
     }
 
@@ -328,76 +259,10 @@ impl Block {
             .unwrap_or_else(|| self.link_field().unwrap_or_default().into())
     }
 
-    pub fn account(&self) -> Account {
-        match self.account_field() {
-            Some(account) => account,
-            None => self.sideband().unwrap().account,
-        }
-    }
-
-    pub fn height(&self) -> u64 {
-        self.sideband().map(|s| s.height).unwrap_or_default()
-    }
-
-    pub fn successor(&self) -> Option<BlockHash> {
-        if let Some(sideband) = self.sideband() {
-            if !sideband.successor.is_zero() {
-                Some(sideband.successor)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn epoch(&self) -> Epoch {
-        self.sideband().unwrap().details.epoch
-    }
-
     pub fn serialize(&self, stream: &mut dyn BufferWriter) {
         let block_type = self.block_type() as u8;
         stream.write_u8_safe(block_type);
         self.serialize_without_block_type(stream);
-    }
-
-    pub fn serialize_with_sideband(&self) -> Vec<u8> {
-        let mut stream = MemoryStream::new();
-        self.serialize(&mut stream);
-        self.sideband()
-            .unwrap()
-            .serialize(&mut stream, self.block_type());
-        stream.to_vec()
-    }
-
-    pub fn deserialize_with_sideband(bytes: &[u8]) -> anyhow::Result<Block> {
-        let mut stream = BufferReader::new(bytes);
-        let mut block = Block::deserialize(&mut stream)?;
-        let mut sideband = BlockSideband::from_stream(&mut stream, block.block_type())?;
-        // BlockSideband does not serialize all data depending on the block type.
-        // That's why we fill in the missing data here:
-        match &block {
-            Block::LegacySend(i) => {
-                sideband.balance = i.balance();
-                sideband.details = BlockDetails::new(Epoch::Epoch0, true, false, false)
-            }
-            Block::LegacyOpen(open) => {
-                sideband.account = open.account();
-                sideband.details = BlockDetails::new(Epoch::Epoch0, false, true, false)
-            }
-            Block::LegacyReceive(_) => {
-                sideband.details = BlockDetails::new(Epoch::Epoch0, false, true, false)
-            }
-            Block::LegacyChange(_) => {
-                sideband.details = BlockDetails::new(Epoch::Epoch0, false, false, false)
-            }
-            Block::State(state) => {
-                sideband.account = state.account();
-                sideband.balance = state.balance();
-            }
-        }
-        block.as_block_mut().set_sideband(sideband);
-        Ok(block)
     }
 
     pub fn deserialize_block_type(
@@ -419,34 +284,6 @@ impl Block {
         let block_type =
             BlockType::from_u8(stream.read_u8()?).ok_or_else(|| anyhow!("invalid block type"))?;
         Self::deserialize_block_type(block_type, stream)
-    }
-
-    /// There can be at most two dependencies per block, namely "previous" and "link/source".
-    pub fn dependent_blocks(&self, epochs: &Epochs, genensis_account: &Account) -> DependentBlocks {
-        match self {
-            Block::LegacySend(_) | Block::LegacyChange(_) => {
-                DependentBlocks::new(self.previous(), BlockHash::zero())
-            }
-            Block::LegacyReceive(receive) => {
-                DependentBlocks::new(receive.previous(), receive.source())
-            }
-            Block::LegacyOpen(open) => {
-                if &open.account() == genensis_account {
-                    DependentBlocks::none()
-                } else {
-                    DependentBlocks::new(open.source(), BlockHash::zero())
-                }
-            }
-            Block::State(state) => {
-                let link_refers_to_block = !self.is_send() && !epochs.is_epoch_link(&state.link());
-                let linked_block = if link_refers_to_block {
-                    state.link().into()
-                } else {
-                    BlockHash::zero()
-                };
-                DependentBlocks::new(self.previous(), linked_block)
-            }
-        }
     }
 }
 
@@ -492,7 +329,7 @@ impl serde::Serialize for Block {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum JsonBlock {
     Open(JsonOpenBlock),
@@ -548,18 +385,260 @@ pub fn deserialize_block_json(ptree: &impl PropertyTree) -> anyhow::Result<Block
     }
 }
 
-pub struct BlockWithSideband {
-    pub block: Block,
-    pub sideband: BlockSideband,
+/// A block with additional data about that block (the "sideband")
+/// which is only known when the block is saved.
+/// The sideband contains additional data like block height, block time, etc.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedBlock {
+    block: Block,
+    sideband: BlockSideband,
 }
 
-impl crate::utils::Deserialize for BlockWithSideband {
+impl SavedBlock {
+    pub fn new(block: Block, sideband: BlockSideband) -> Self {
+        Self { block, sideband }
+    }
+
+    pub fn new_test_open_block() -> Self {
+        let block = Block::new_test_open();
+        let sideband = BlockSideband {
+            height: 1,
+            timestamp: 222222,
+            successor: BlockHash::zero(),
+            account: block.account_field().unwrap(),
+            balance: block.balance_field().unwrap(),
+            details: BlockDetails::new(Epoch::Epoch2, false, true, false),
+            source_epoch: Epoch::Epoch0,
+        };
+        Self::new(block, sideband)
+    }
+
+    pub fn new_test_instance() -> Self {
+        let block = Block::new_test_instance();
+        let sideband = Self::test_sideband(&block);
+        Self::new(block, sideband)
+    }
+
+    pub fn new_test_instance_with_key(key: impl Into<PrivateKey>) -> Self {
+        let block = Block::new_test_instance_with_key(key);
+        let sideband = Self::test_sideband(&block);
+        Self::new(block, sideband)
+    }
+
+    fn test_sideband(block: &Block) -> BlockSideband {
+        BlockSideband {
+            height: 2,
+            timestamp: 222222,
+            successor: BlockHash::zero(),
+            account: block.account_field().unwrap(),
+            balance: block.balance_field().unwrap(),
+            details: BlockDetails::new(Epoch::Epoch2, true, false, false),
+            source_epoch: Epoch::Epoch0,
+        }
+    }
+
+    pub fn set_sideband(&mut self, sideband: BlockSideband) {
+        self.sideband = sideband;
+    }
+
+    pub fn account(&self) -> Account {
+        match self.account_field() {
+            Some(account) => account,
+            None => self.sideband.account,
+        }
+    }
+
+    pub fn height(&self) -> u64 {
+        self.sideband.height
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.sideband.timestamp
+    }
+
+    pub fn subtype(&self) -> BlockSubType {
+        self.sideband.details.subtype()
+    }
+
+    pub fn successor(&self) -> Option<BlockHash> {
+        if self.sideband.successor.is_zero() {
+            None
+        } else {
+            Some(self.sideband.successor)
+        }
+    }
+
+    pub fn epoch(&self) -> Epoch {
+        self.sideband.details.epoch
+    }
+
+    pub fn is_epoch(&self) -> bool {
+        self.sideband.details.is_epoch
+    }
+
+    pub fn is_receive(&self) -> bool {
+        self.sideband.details.is_receive
+    }
+
+    pub fn is_send(&self) -> bool {
+        match &self.block {
+            Block::LegacySend(_) => true,
+            Block::State(_) => self.sideband.details.is_send,
+            _ => false,
+        }
+    }
+
+    pub fn source(&self) -> Option<BlockHash> {
+        match &self.block {
+            Block::LegacyOpen(i) => Some(i.source()),
+            Block::LegacyReceive(i) => Some(i.source()),
+            Block::State(i) => {
+                if self.sideband.details.is_receive {
+                    Some(i.link().into())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn source_epoch(&self) -> Epoch {
+        self.sideband.source_epoch
+    }
+
+    pub fn destination(&self) -> Option<Account> {
+        match &self.block {
+            Block::LegacySend(i) => Some(*i.destination()),
+            Block::State(i) => {
+                if self.sideband.details.is_send {
+                    Some(i.link().into())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn serialize_with_sideband(&self) -> Vec<u8> {
+        let mut stream = MemoryStream::new();
+        self.block.serialize(&mut stream);
+        self.sideband
+            .serialize(&mut stream, self.block.block_type());
+        stream.to_vec()
+    }
+
+    pub fn balance(&self) -> Amount {
+        match &self.block {
+            Block::LegacySend(b) => b.balance(),
+            Block::State(b) => b.balance(),
+            _ => self.sideband.balance,
+        }
+    }
+
+    pub fn details(&self) -> &BlockDetails {
+        &self.sideband.details
+    }
+
+    pub fn sideband(&self) -> &BlockSideband {
+        &self.sideband
+    }
+
+    /// There can be at most two dependencies per block, namely "previous" and "link/source".
+    pub fn dependent_blocks(&self, epochs: &Epochs, genesis_account: &Account) -> DependentBlocks {
+        match &self.block {
+            Block::LegacySend(b) => b.dependent_blocks(),
+            Block::LegacyChange(b) => b.dependent_blocks(),
+            Block::LegacyReceive(b) => b.dependent_blocks(),
+            Block::LegacyOpen(b) => b.dependent_blocks(genesis_account),
+            Block::State(state) => {
+                let link_refers_to_block = !self.is_send() && !epochs.is_epoch_link(&state.link());
+                let linked_block = if link_refers_to_block {
+                    state.link().into()
+                } else {
+                    BlockHash::zero()
+                };
+                DependentBlocks::new(self.previous(), linked_block)
+            }
+        }
+    }
+}
+
+impl Deref for SavedBlock {
+    type Target = Block;
+
+    fn deref(&self) -> &Self::Target {
+        &self.block
+    }
+}
+
+impl DerefMut for SavedBlock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.block
+    }
+}
+
+impl From<SavedBlock> for Block {
+    fn from(value: SavedBlock) -> Self {
+        value.block
+    }
+}
+
+impl Deserialize for SavedBlock {
     type Target = Self;
     fn deserialize(stream: &mut dyn Stream) -> anyhow::Result<Self> {
         let mut block = Block::deserialize(stream)?;
-        let sideband = BlockSideband::from_stream(stream, block.block_type())?;
-        block.as_block_mut().set_sideband(sideband.clone());
-        Ok(BlockWithSideband { block, sideband })
+        let mut sideband = BlockSideband::from_stream(stream, block.block_type())?;
+        // BlockSideband does not serialize all data depending on the block type.
+        // That's why we fill in the missing data here:
+        match &block {
+            Block::LegacySend(i) => {
+                sideband.balance = i.balance();
+                sideband.details = BlockDetails::new(Epoch::Epoch0, true, false, false)
+            }
+            Block::LegacyOpen(open) => {
+                sideband.account = open.account();
+                sideband.details = BlockDetails::new(Epoch::Epoch0, false, true, false)
+            }
+            Block::LegacyReceive(_) => {
+                sideband.details = BlockDetails::new(Epoch::Epoch0, false, true, false)
+            }
+            Block::LegacyChange(_) => {
+                sideband.details = BlockDetails::new(Epoch::Epoch0, false, false, false)
+            }
+            Block::State(state) => {
+                sideband.account = state.account();
+                sideband.balance = state.balance();
+            }
+        }
+        Ok(SavedBlock { block, sideband })
+    }
+}
+
+#[derive(Clone)]
+pub enum SavedOrUnsavedBlock {
+    Saved(SavedBlock),
+    Unsaved(Block),
+}
+
+impl From<SavedOrUnsavedBlock> for Block {
+    fn from(value: SavedOrUnsavedBlock) -> Self {
+        match value {
+            SavedOrUnsavedBlock::Saved(b) => b.into(),
+            SavedOrUnsavedBlock::Unsaved(b) => b,
+        }
+    }
+}
+
+impl Deref for SavedOrUnsavedBlock {
+    type Target = Block;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            SavedOrUnsavedBlock::Saved(b) => b,
+            SavedOrUnsavedBlock::Unsaved(b) => b,
+        }
     }
 }
 
@@ -615,38 +694,38 @@ mod tests {
 
     #[test]
     fn serialize_legacy_open() {
-        let block = BlockBuilder::legacy_open().with_sideband().build();
-        assert_serializable(block);
+        let block = BlockBuilder::legacy_open().build_saved();
+        assert_serializable(block.into());
     }
 
     #[test]
     fn serialize_legacy_receive() {
-        let block = BlockBuilder::legacy_receive().with_sideband().build();
+        let block = BlockBuilder::legacy_receive().build();
         assert_serializable(block);
     }
 
     #[test]
     fn serialize_legacy_send() {
-        let block = BlockBuilder::legacy_send().with_sideband().build();
+        let block = BlockBuilder::legacy_send().build();
         assert_serializable(block);
     }
 
     #[test]
     fn serialize_legacy_change() {
-        let block = BlockBuilder::legacy_change().with_sideband().build();
+        let block = BlockBuilder::legacy_change().build();
         assert_serializable(block);
     }
 
     #[test]
     fn serialize_state() {
-        let block = BlockBuilder::state().with_sideband().build();
+        let block = BlockBuilder::state().build();
         assert_serializable(block);
     }
 
     fn assert_serializable(block: Block) {
-        let bytes = block.serialize_with_sideband();
-        let deserialized = Block::deserialize_with_sideband(&bytes).unwrap();
-
+        let mut buffer = MemoryStream::new();
+        block.serialize(&mut buffer);
+        let deserialized = Block::deserialize(&mut buffer).unwrap();
         assert_eq!(deserialized, block);
     }
 }

@@ -122,7 +122,7 @@ impl ResponseServer {
             remote_endpoint: Mutex::new(remote_endpoint),
             last_telemetry_req: Mutex::new(None),
             handshake_process: HandshakeProcess::new(
-                network_params.ledger.genesis.hash(),
+                network_params.ledger.genesis_block.hash(),
                 node_id.clone(),
                 syn_cookies,
                 stats.clone(),

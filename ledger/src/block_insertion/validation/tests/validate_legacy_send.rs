@@ -1,8 +1,7 @@
+use crate::{block_insertion::validation::tests::BlockValidationTest, BlockStatus};
 use rsnano_core::{
     AccountInfo, Amount, BlockDetails, BlockHash, BlockSideband, Epoch, PendingInfo, PendingKey,
 };
-
-use crate::{block_insertion::validation::tests::BlockValidationTest, BlockStatus};
 
 #[test]
 fn valid_legacy_send_block() {

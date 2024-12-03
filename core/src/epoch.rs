@@ -1,4 +1,4 @@
-use crate::{validate_message, Account, Block, Link, PublicKey};
+use crate::{Account, Block, Link, PublicKey};
 use num_traits::FromPrimitive;
 use std::collections::HashMap;
 
@@ -90,14 +90,12 @@ impl Epochs {
     }
 
     pub fn validate_epoch_signature(&self, block: &Block) -> anyhow::Result<()> {
-        validate_message(
-            &self
-                .epoch_signer(&block.link_field().unwrap_or_default())
-                .ok_or_else(|| anyhow!("not an epoch link!"))?
-                .into(),
-            block.hash().as_bytes(),
-            block.block_signature(),
-        )
+        let epoch_signer: PublicKey = self
+            .epoch_signer(&block.link_field().unwrap_or_default())
+            .ok_or_else(|| anyhow!("not an epoch link!"))?
+            .into();
+
+        epoch_signer.verify(block.hash().as_bytes(), block.block_signature())
     }
 
     pub fn epoch_signer(&self, link: &Link) -> Option<Account> {

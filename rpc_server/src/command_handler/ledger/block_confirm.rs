@@ -14,15 +14,12 @@ impl RpcCommandHandler {
         {
             // Start new confirmation for unconfirmed (or not being confirmed) block
             if !self.node.confirming_set.exists(&args.hash) {
-                self.node
-                    .election_schedulers
-                    .manual
-                    .push(block.clone(), None);
+                self.node.election_schedulers.manual.push(block, None);
             }
         } else {
             // Add record in confirmation history for confirmed block
             let mut status = ElectionStatus::default();
-            status.winner = Some(block.clone());
+            status.winner = Some(rsnano_core::SavedOrUnsavedBlock::Saved(block));
             status.election_end = std::time::SystemTime::now();
             status.block_count = 1;
             status.election_status_type = ElectionStatusType::ActiveConfirmationHeight;

@@ -13,6 +13,7 @@ mod account;
 mod amount;
 mod block_hash;
 mod node_id;
+mod public_key;
 mod vote;
 
 pub use account::Account;
@@ -23,14 +24,13 @@ use blake2::{
 };
 pub use block_hash::{BlockHash, BlockHashBuilder};
 pub use node_id::NodeId;
+pub use public_key::PublicKey;
 use rand::{thread_rng, Rng};
 use serde::de::{Unexpected, Visitor};
 pub use vote::*;
 
 mod private_key;
-pub use private_key::{
-    sign_message, validate_block_signature, validate_message, PrivateKey, PrivateKeyFactory,
-};
+pub use private_key::{PrivateKey, PrivateKeyFactory};
 
 mod raw_key;
 pub use raw_key::RawKey;
@@ -109,8 +109,6 @@ u256_struct!(HashOrAccount);
 serialize_32_byte_string!(HashOrAccount);
 u256_struct!(Link);
 serialize_32_byte_string!(Link);
-u256_struct!(PublicKey);
-serialize_32_byte_string!(PublicKey);
 u256_struct!(Root);
 serialize_32_byte_string!(Root);
 u256_struct!(WalletId);
@@ -258,27 +256,6 @@ impl From<BlockHash> for Root {
 impl From<&BlockHash> for Root {
     fn from(hash: &BlockHash) -> Self {
         Root::from_bytes(*hash.as_bytes())
-    }
-}
-
-impl PublicKey {
-    /// IV for Key encryption
-    pub fn initialization_vector(&self) -> [u8; 16] {
-        self.0[..16].try_into().unwrap()
-    }
-
-    pub fn as_account(&self) -> Account {
-        self.into()
-    }
-}
-
-impl TryFrom<&RawKey> for PublicKey {
-    type Error = anyhow::Error;
-    fn try_from(prv: &RawKey) -> Result<Self, Self::Error> {
-        let secret = ed25519_dalek::SecretKey::from(*prv.as_bytes());
-        let signing_key = ed25519_dalek::SigningKey::from(&secret);
-        let public = ed25519_dalek::VerifyingKey::from(&signing_key);
-        Ok(PublicKey::from_bytes(public.to_bytes()))
     }
 }
 

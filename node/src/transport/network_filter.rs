@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn check() {
-        let filter = NetworkFilter::new(10);
+        let filter = NetworkFilter::with_hasher(StubHasher::default(), 10);
         assert_eq!(filter.check(123), false);
         assert_eq!(filter.check(123), false);
 

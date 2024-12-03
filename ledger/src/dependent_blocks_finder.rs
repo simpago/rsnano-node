@@ -1,5 +1,5 @@
 use crate::ledger::Ledger;
-use rsnano_core::{Block, BlockBase, BlockHash, DependentBlocks, StateBlock};
+use rsnano_core::{Block, BlockBase, BlockHash, DependentBlocks, SavedBlock, StateBlock};
 use rsnano_store_lmdb::Transaction;
 
 /// Finds all dependent blocks for a given block.
@@ -14,26 +14,32 @@ impl<'a> DependentBlocksFinder<'a> {
         Self { ledger, txn }
     }
 
-    pub fn find_dependent_blocks(&self, block: &Block) -> DependentBlocks {
-        if block.sideband().is_none() {
-            // a ledger lookup is needed if there is no sideband and it is a state block!
-            if let Block::State(state) = block {
-                let linked_block = if self.link_refers_to_block(state) {
-                    state.link().into()
-                } else {
-                    BlockHash::zero()
-                };
-                return DependentBlocks::new(block.previous(), linked_block);
-            }
-        }
-
+    pub fn find_dependent_blocks(&self, block: &SavedBlock) -> DependentBlocks {
         block.dependent_blocks(
             &self.ledger.constants.epochs,
             &self.ledger.constants.genesis_account,
         )
     }
 
-    fn link_refers_to_block(&self, state: &StateBlock) -> bool {
+    pub fn find_dependent_blocks_for_unsaved_block(&self, block: &Block) -> DependentBlocks {
+        match block {
+            Block::LegacySend(b) => b.dependent_blocks(),
+            Block::LegacyChange(b) => b.dependent_blocks(),
+            Block::LegacyReceive(b) => b.dependent_blocks(),
+            Block::LegacyOpen(b) => b.dependent_blocks(&self.ledger.constants.genesis_account),
+            // a ledger lookup is needed if it is a state block!
+            Block::State(state) => {
+                let linked_block = if self.is_receive_or_change(state) {
+                    state.link().into()
+                } else {
+                    BlockHash::zero()
+                };
+                DependentBlocks::new(block.previous(), linked_block)
+            }
+        }
+    }
+
+    fn is_receive_or_change(&self, state: &StateBlock) -> bool {
         !self.ledger.is_epoch_link(&state.link()) && !self.is_send(state)
     }
 
@@ -43,15 +49,13 @@ impl<'a> DependentBlocksFinder<'a> {
         if block.previous().is_zero() {
             return false;
         }
-        if let Some(sideband) = block.sideband() {
-            sideband.details.is_send
-        } else {
-            block.balance()
-                < self
-                    .ledger
-                    .any()
-                    .block_balance(self.txn, &block.previous())
-                    .unwrap_or_default()
-        }
+
+        let previous_balance = self
+            .ledger
+            .any()
+            .block_balance(self.txn, &block.previous())
+            .unwrap_or_default();
+
+        block.balance() < previous_balance
     }
 }

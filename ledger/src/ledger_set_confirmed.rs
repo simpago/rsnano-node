@@ -1,4 +1,4 @@
-use rsnano_core::{Account, Amount, Block, BlockHash, PendingInfo, PendingKey};
+use rsnano_core::{Account, Amount, BlockHash, PendingInfo, PendingKey, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, Transaction};
 
 pub struct LedgerSetConfirmed<'a> {
@@ -10,10 +10,10 @@ impl<'a> LedgerSetConfirmed<'a> {
         Self { store }
     }
 
-    pub fn get_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<Block> {
+    pub fn get_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
         let block = self.store.block.get(tx, hash)?;
         let info = self.store.confirmation_height.get(tx, &block.account())?;
-        if block.sideband().unwrap().height <= info.height {
+        if block.height() <= info.height {
             Some(block)
         } else {
             None
@@ -30,7 +30,7 @@ impl<'a> LedgerSetConfirmed<'a> {
             return 0;
         };
         self.get_block(tx, &head)
-            .map(|b| b.sideband().unwrap().height)
+            .map(|b| b.height())
             .expect("Head block not in ledger!")
     }
 
@@ -137,19 +137,16 @@ impl<'a> Iterator for ConfirmedReceivableIterator<'a> {
 mod tests {
     use crate::Ledger;
     use rsnano_core::{
-        Account, Block, BlockHash, BlockSideband, ConfirmationHeightInfo, PendingInfo, PendingKey,
+        Account, BlockHash, ConfirmationHeightInfo, PendingInfo, PendingKey, SavedBlock,
     };
 
     #[test]
     fn iter_receivables() {
         let account = Account::from(1);
 
-        let mut block1 = Block::new_test_instance_with_key(42);
-        block1.set_sideband(BlockSideband::new_test_instance());
-        let mut block2 = Block::new_test_instance_with_key(43);
-        block2.set_sideband(BlockSideband::new_test_instance());
-        let mut block3 = Block::new_test_instance_with_key(44);
-        block3.set_sideband(BlockSideband::new_test_instance());
+        let block1 = SavedBlock::new_test_instance_with_key(42);
+        let block2 = SavedBlock::new_test_instance_with_key(43);
+        let block3 = SavedBlock::new_test_instance_with_key(44);
 
         let ledger = Ledger::new_null_builder()
             .blocks([&block1, &block2, &block3])

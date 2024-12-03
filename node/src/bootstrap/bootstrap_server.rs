@@ -357,8 +357,8 @@ impl BootstrapServerImpl {
         if !start_block.is_zero() {
             let mut current = self.ledger.any().get_block(tx, &start_block);
             while let Some(c) = current.take() {
-                let successor = c.sideband().unwrap().successor;
-                result.push_back(c);
+                let successor = c.successor().unwrap_or_default();
+                result.push_back(c.into());
 
                 if result.len() == count {
                     break;

@@ -1,6 +1,6 @@
 use super::election_schedulers::ElectionSchedulers;
 use crate::block_processing::BlockProcessor;
-use rsnano_core::Block;
+use rsnano_core::SavedBlock;
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_store_lmdb::LmdbReadTransaction;
 use std::sync::{Arc, Mutex};
@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 pub struct ProcessLiveDispatcher {
     ledger: Arc<Ledger>,
     election_schedulers: Arc<ElectionSchedulers>,
-    new_unconfirmed_block_observer: Mutex<Vec<Box<dyn Fn(&Block) + Send + Sync>>>,
+    new_unconfirmed_block_observer: Mutex<Vec<Arc<dyn Fn(&SavedBlock) + Send + Sync>>>,
 }
 
 impl ProcessLiveDispatcher {
@@ -21,27 +21,23 @@ impl ProcessLiveDispatcher {
         }
     }
 
-    fn inspect(&self, result: &BlockStatus, block: &Block, tx: &LmdbReadTransaction) {
-        if *result == BlockStatus::Progress {
-            self.process_live(block, tx);
-        }
-    }
-
-    fn process_live(&self, block: &Block, tx: &LmdbReadTransaction) {
+    fn process_live(&self, block: &SavedBlock, tx: &LmdbReadTransaction) {
         // Start collecting quorum on block
         if self.ledger.dependents_confirmed(tx, block) {
             self.election_schedulers.activate(tx, &block.account());
         }
 
-        {
-            let callbacks = self.new_unconfirmed_block_observer.lock().unwrap();
-            for callback in callbacks.iter() {
-                (callback)(&block);
-            }
+        let callbacks = {
+            let callbacks_guard = self.new_unconfirmed_block_observer.lock().unwrap();
+            callbacks_guard.clone()
+        };
+
+        for callback in callbacks.iter() {
+            callback(block);
         }
     }
 
-    pub fn add_new_unconfirmed_block_callback(&self, f: Box<dyn Fn(&Block) + Send + Sync>) {
+    pub fn add_new_unconfirmed_block_callback(&self, f: Arc<dyn Fn(&SavedBlock) + Send + Sync>) {
         self.new_unconfirmed_block_observer.lock().unwrap().push(f);
     }
 }
@@ -57,8 +53,16 @@ impl ProcessLiveDispatcherExt for Arc<ProcessLiveDispatcher> {
             if let Some(self_l) = self_w.upgrade() {
                 let tx = self_l.ledger.read_txn();
                 for (result, context) in batch {
-                    let block = context.block.lock().unwrap().clone();
-                    self_l.inspect(result, &block, &tx);
+                    if *result == BlockStatus::Progress {
+                        let block = context
+                            .saved_block
+                            .lock()
+                            .unwrap()
+                            .as_ref()
+                            .unwrap()
+                            .clone();
+                        self_l.process_live(&block, &tx);
+                    }
                 }
             }
         }));

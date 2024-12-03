@@ -5,21 +5,21 @@ use crate::{
 use lmdb::{DatabaseFlags, WriteFlags};
 use num_traits::FromPrimitive;
 use rsnano_core::{
-    utils::{BufferReader, FixedSizeSerialize},
-    Block, BlockHash, BlockSideband, BlockType, BlockWithSideband,
+    utils::{BufferReader, Deserialize, FixedSizeSerialize},
+    Block, BlockHash, BlockSideband, BlockType, SavedBlock,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 #[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::sync::Arc;
 
-pub type BlockIterator<'txn> = BinaryDbIterator<'txn, BlockHash, BlockWithSideband>;
+pub type BlockIterator<'txn> = BinaryDbIterator<'txn, BlockHash, SavedBlock>;
 
 pub struct LmdbBlockStore {
     _env: Arc<LmdbEnv>,
     database: LmdbDatabase,
     #[cfg(feature = "output_tracking")]
-    put_listener: OutputListenerMt<Block>,
+    put_listener: OutputListenerMt<SavedBlock>,
 }
 
 pub struct ConfiguredBlockDatabaseBuilder {
@@ -33,7 +33,7 @@ impl ConfiguredBlockDatabaseBuilder {
         }
     }
 
-    pub fn block(mut self, block: &Block) -> Self {
+    pub fn block(mut self, block: &SavedBlock) -> Self {
         self.database.entries.insert(
             block.hash().as_bytes().to_vec(),
             block.serialize_with_sideband(),
@@ -68,22 +68,21 @@ impl LmdbBlockStore {
     }
 
     #[cfg(feature = "output_tracking")]
-    pub fn track_puts(&self) -> Arc<OutputTrackerMt<Block>> {
+    pub fn track_puts(&self) -> Arc<OutputTrackerMt<SavedBlock>> {
         self.put_listener.track()
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, block: &Block) {
+    pub fn put(&self, txn: &mut LmdbWriteTransaction, block: &SavedBlock) {
         #[cfg(feature = "output_tracking")]
         self.put_listener.emit(block.clone());
 
         let hash = block.hash();
         debug_assert!(
-            block.sideband().unwrap().successor.is_zero()
-                || self.exists(txn, &block.sideband().unwrap().successor)
+            block.successor().is_none() || self.exists(txn, &block.successor().unwrap_or_default())
         );
 
         self.raw_put(txn, &block.serialize_with_sideband(), &hash);
-        self.update_predecessor(txn, block);
+        self.update_predecessor(txn, &block);
     }
 
     pub fn exists(&self, transaction: &dyn Transaction, hash: &BlockHash) -> bool {
@@ -114,9 +113,10 @@ impl LmdbBlockStore {
         self.raw_put(txn, &data, hash)
     }
 
-    pub fn get(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<Block> {
+    pub fn get(&self, txn: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
         self.block_raw_get(txn, hash).map(|bytes| {
-            Block::deserialize_with_sideband(bytes)
+            let mut stream = BufferReader::new(bytes);
+            SavedBlock::deserialize(&mut stream)
                 .unwrap_or_else(|_| panic!("Could not deserialize block {}!", hash))
         })
     }
@@ -155,14 +155,14 @@ impl LmdbBlockStore {
         LmdbIteratorImpl::null_iterator()
     }
 
-    pub fn random(&self, transaction: &dyn Transaction) -> Option<Block> {
+    pub fn random(&self, transaction: &dyn Transaction) -> Option<SavedBlock> {
         let hash = BlockHash::random();
         let mut existing = self.begin_at_hash(transaction, &hash);
         if existing.is_end() {
             existing = self.begin(transaction);
         }
 
-        existing.current().map(|(_, v)| v.block.clone())
+        existing.current().map(|(_, v)| v.clone())
     }
 
     pub fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {
@@ -183,7 +183,7 @@ impl LmdbBlockStore {
     }
 
     /// Update the "successor" value of the block's predecesssor
-    fn update_predecessor(&self, txn: &mut LmdbWriteTransaction, block: &Block) {
+    fn update_predecessor(&self, txn: &mut LmdbWriteTransaction, block: &SavedBlock) {
         if block.previous().is_zero() {
             return;
         }
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn load_block_by_hash() {
-        let block = BlockBuilder::legacy_open().with_sideband().build();
+        let block = SavedBlock::new_test_instance();
 
         let env = LmdbEnv::new_null_with()
             .database("blocks", LmdbDatabase::new_null(100))
@@ -263,7 +263,7 @@ mod tests {
         let fixture = Fixture::new();
         let mut txn = fixture.env.tx_begin_write();
         let put_tracker = txn.track_puts();
-        let block = BlockBuilder::legacy_open().with_sideband().build();
+        let block = SavedBlock::new_test_open_block();
 
         fixture.store.put(&mut txn, &block);
 
@@ -280,12 +280,12 @@ mod tests {
 
     #[test]
     fn clear_successor() {
-        let mut block = BlockBuilder::legacy_open().build();
+        let block = BlockBuilder::legacy_open().build();
         let sideband = BlockSideband {
             successor: BlockHash::from(123),
             ..BlockSideband::new_test_instance()
         };
-        block.set_sideband(sideband.clone());
+        let block = SavedBlock::new(block, sideband.clone());
 
         let env = LmdbEnv::new_null_with()
             .database("blocks", LmdbDatabase::new_null(100))
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn random() -> anyhow::Result<()> {
-        let block = BlockBuilder::legacy_open().with_sideband().build();
+        let block = SavedBlock::new_test_instance();
 
         let env = LmdbEnv::new_null_with()
             .database("blocks", LmdbDatabase::new_null(100))
@@ -337,12 +337,7 @@ mod tests {
     #[test]
     fn track_inserted_blocks() {
         let fixture = Fixture::new();
-        let mut block = BlockBuilder::state().previous(BlockHash::zero()).build();
-        block.set_sideband(BlockSideband {
-            height: 1,
-            successor: BlockHash::zero(),
-            ..BlockSideband::new_test_instance()
-        });
+        let block = SavedBlock::new_test_open_block();
         let mut txn = fixture.env.tx_begin_write();
         let put_tracker = fixture.store.track_puts();
 
@@ -353,7 +348,7 @@ mod tests {
 
     #[test]
     fn can_be_nulled() {
-        let block = BlockBuilder::state().with_sideband().build();
+        let block = SavedBlock::new_test_instance();
         let configured_responses = LmdbBlockStore::configured_responses().block(&block).build();
         let env = LmdbEnv::new_null_with()
             .configured_database(configured_responses)

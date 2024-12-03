@@ -1,6 +1,6 @@
 use crate::work::WorkPool;
-use crate::{work::STUB_WORK_POOL, BlockBase, BlockHash, ChangeBlock};
-use crate::{Account, Amount, Block, BlockDetails, BlockSideband, Epoch, PrivateKey, PublicKey};
+use crate::{work::STUB_WORK_POOL, BlockHash, ChangeBlock};
+use crate::{Account, Block, PrivateKey, PublicKey};
 
 pub struct LegacyChangeBlockBuilder {
     account: Option<Account>,
@@ -8,7 +8,6 @@ pub struct LegacyChangeBlockBuilder {
     previous: Option<BlockHash>,
     prv_key: Option<PrivateKey>,
     work: Option<u64>,
-    build_sideband: bool,
 }
 
 impl LegacyChangeBlockBuilder {
@@ -19,7 +18,6 @@ impl LegacyChangeBlockBuilder {
             previous: None,
             prv_key: None,
             work: None,
-            build_sideband: false,
         }
     }
 
@@ -48,11 +46,6 @@ impl LegacyChangeBlockBuilder {
         self
     }
 
-    pub fn with_sideband(mut self) -> Self {
-        self.build_sideband = true;
-        self
-    }
-
     pub fn build(self) -> Block {
         let previous = self.previous.unwrap_or(BlockHash::from(1));
         let prv_key = self.prv_key.unwrap_or_default();
@@ -61,26 +54,7 @@ impl LegacyChangeBlockBuilder {
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
 
-        let mut block = ChangeBlock::new(previous, representative, &prv_key, work);
-
-        if self.build_sideband {
-            let details = BlockDetails {
-                epoch: Epoch::Epoch0,
-                is_send: false,
-                is_receive: true,
-                is_epoch: false,
-            };
-            block.set_sideband(BlockSideband::new(
-                Account::from(42),
-                BlockHash::zero(),
-                Amount::raw(5),
-                1,
-                2,
-                details,
-                Epoch::Epoch0,
-            ));
-        }
-
+        let block = ChangeBlock::new(previous, representative, &prv_key, work);
         Block::LegacyChange(block)
     }
 }

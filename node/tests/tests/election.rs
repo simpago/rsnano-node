@@ -243,7 +243,7 @@ fn quorum_minimum_confirm_success() {
     let vote = Arc::new(Vote::new_final(&DEV_GENESIS_KEY, vec![send1.hash()]));
     node1.vote_router.vote(&vote, VoteSource::Live);
 
-    assert!(node1.block(&send1.hash()).is_some());
+    assert!(node1.block_exists(&send1.hash()));
     assert_timely(Duration::from_secs(5), || node1.active.confirmed(&election));
 }
 

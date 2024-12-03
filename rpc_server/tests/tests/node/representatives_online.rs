@@ -43,22 +43,12 @@ fn representatives_online() {
             None,
         )
         .unwrap();
-    node.process_active(send.clone());
+    node.process_active(send.clone().into());
 
     // Ensure both nodes process the send
     assert_timely_msg(
         Duration::from_secs(10),
-        || {
-            node.ledger
-                .any()
-                .get_block(&node.ledger.read_txn(), &send.hash())
-                .is_some()
-                && node2
-                    .ledger
-                    .any()
-                    .get_block(&node2.ledger.read_txn(), &send.hash())
-                    .is_some()
-        },
+        || node.block_exists(&send.hash()) && node2.block_exists(&send.hash()),
         "send block not received by both nodes",
     );
 
@@ -76,22 +66,12 @@ fn representatives_online() {
         )
         .unwrap()
         .unwrap();
-    node2.process_active(receive.clone());
+    node2.process_active(receive.clone().into());
 
     // Ensure both nodes process the receive
     assert_timely_msg(
         Duration::from_secs(10),
-        || {
-            node.ledger
-                .any()
-                .get_block(&node.ledger.read_txn(), &receive.hash())
-                .is_some()
-                && node2
-                    .ledger
-                    .any()
-                    .get_block(&node2.ledger.read_txn(), &receive.hash())
-                    .is_some()
-        },
+        || node.block_exists(&receive.hash()) && node2.block_exists(&receive.hash()),
         "receive block not processed by both nodes",
     );
 
@@ -105,17 +85,7 @@ fn representatives_online() {
     // Ensure both nodes process the change
     assert_timely_msg(
         Duration::from_secs(10),
-        || {
-            node.ledger
-                .any()
-                .get_block(&node.ledger.read_txn(), &change.hash())
-                .is_some()
-                && node2
-                    .ledger
-                    .any()
-                    .get_block(&node2.ledger.read_txn(), &change.hash())
-                    .is_some()
-        },
+        || node.block_exists(&change.hash()) && node2.block_exists(&change.hash()),
         "change block not processed by both nodes",
     );
 

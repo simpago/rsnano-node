@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
-use rsnano_core::{sign_message, Block, RawKey};
+use rsnano_core::{Block, PrivateKey};
 use rsnano_rpc_messages::{SignArgs, SignResponse};
 
 impl RpcCommandHandler {
@@ -19,17 +19,18 @@ impl RpcCommandHandler {
         // Hash is initialized without config permission
         // TODO Check sign hash pemrmission!
 
-        let prv = if let Some(key) = args.key {
+        let prv: PrivateKey = if let Some(key) = args.key {
             // Retrieving private key from request
-            key
+            key.into()
         } else {
             // Retrieving private key from wallet
             if args.wallet.is_some() && args.account.is_some() {
                 self.node
                     .wallets
                     .fetch(&args.wallet.unwrap(), &args.account.unwrap().into())?
+                    .into()
             } else {
-                RawKey::zero()
+                PrivateKey::zero()
             }
         };
 
@@ -38,7 +39,7 @@ impl RpcCommandHandler {
             bail!("Private key or local wallet and account required");
         }
 
-        let signature = sign_message(&prv, hash.as_bytes());
+        let signature = prv.sign(hash.as_bytes());
         let json_block = if let Some(mut block) = block {
             block.set_block_signature(&signature);
             Some(block.json_representation())

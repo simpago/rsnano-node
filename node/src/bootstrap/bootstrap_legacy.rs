@@ -1,7 +1,7 @@
 use super::{
-    BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections, BootstrapInitiator,
-    BootstrapMode, BulkPushClient, BulkPushClientExt, FrontierReqClient, FrontierReqClientExt,
-    PullInfo,
+    BootstrapAttempt, BootstrapAttemptTrait, BootstrapCallbacks, BootstrapConnections,
+    BootstrapInitiator, BootstrapMode, BulkPushClient, BulkPushClientExt, FrontierReqClient,
+    FrontierReqClientExt, PullInfo,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -57,10 +57,7 @@ impl BootstrapAttemptLegacy {
         tokio: tokio::runtime::Handle,
         frontiers_age: u32,
         start_account: Account,
-        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
-        bootstrap_ended_observer: Arc<
-            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
-        >,
+        bootstrap_callbacks: BootstrapCallbacks,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -70,8 +67,7 @@ impl BootstrapAttemptLegacy {
                 id,
                 BootstrapMode::Legacy,
                 incremental_id,
-                bootstrap_started_observer,
-                bootstrap_ended_observer,
+                bootstrap_callbacks,
             )?,
             connections,
             mutex: Mutex::new(LegacyData {

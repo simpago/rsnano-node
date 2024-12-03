@@ -37,12 +37,12 @@ use crate::{
     wallets::{Wallets, WalletsExt},
     work::DistributedWorkFactory,
     NetworkParams, NodeCallbacks, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry,
-    TelemetryDeadChannelCleanup, BUILD_INFO, VERSION_STRING,
+    BUILD_INFO, VERSION_STRING,
 };
 use rsnano_core::{
     utils::{as_nano_json, system_time_as_nanoseconds, ContainerInfo, SerdePropertyTree},
     work::{WorkPool, WorkPoolImpl},
-    Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, PublicKey, Root,
+    Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, Root, SavedBlock,
     VoteCode, VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
@@ -516,11 +516,6 @@ impl Node {
             .on_election_end
             .unwrap_or_else(|| Box::new(|_, _, _, _, _, _| {}));
 
-        let on_balance_changed = args
-            .callbacks
-            .on_balance_changed
-            .unwrap_or_else(|| Box::new(|_, _| {}));
-
         let active_elections = Arc::new(ActiveElections::new(
             network_params.clone(),
             wallets.clone(),
@@ -534,7 +529,6 @@ impl Node {
             vote_cache.clone(),
             stats.clone(),
             on_election_end,
-            on_balance_changed,
             online_reps.clone(),
             flags.clone(),
             recently_confirmed,
@@ -919,7 +913,7 @@ impl Node {
 
         let workers_w = Arc::downgrade(&wallet_workers);
         let wallets_w = Arc::downgrade(&wallets);
-        confirming_set.add_cemented_observer(Box::new(move |block| {
+        confirming_set.on_cemented(Box::new(move |block| {
             let Some(workers) = workers_w.upgrade() else {
                 return;
             };
@@ -945,7 +939,7 @@ impl Node {
             )
             .parse()
             .unwrap();
-            active_elections.add_election_end_callback(Box::new(
+            active_elections.on_election_ended(Box::new(
                 move |status, _weights, account, amount, is_state_send, is_state_epoch| {
                     let block = status.winner.as_ref().unwrap().clone();
                     if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
@@ -1211,12 +1205,17 @@ impl Node {
     }
 
     pub fn process_local(&self, block: Block) -> Option<BlockStatus> {
-        self.block_processor
+        let result = self
+            .block_processor
             .add_blocking(Arc::new(block), BlockSource::Local)
-            .map(|(status, _)| status)
+            .ok()?;
+        match result {
+            Ok(_) => Some(BlockStatus::Progress),
+            Err(status) => Some(status),
+        }
     }
 
-    pub fn process(&self, mut block: Block) -> Result<(), BlockStatus> {
+    pub fn process(&self, mut block: Block) -> Result<SavedBlock, BlockStatus> {
         let mut tx = self.ledger.rw_txn();
         self.ledger.process(&mut tx, &mut block)
     }
@@ -1251,7 +1250,7 @@ impl Node {
         }
     }
 
-    pub fn block(&self, hash: &BlockHash) -> Option<Block> {
+    pub fn block(&self, hash: &BlockHash) -> Option<SavedBlock> {
         let tx = self.ledger.read_txn();
         self.ledger.any().get_block(&tx, hash)
     }
@@ -1312,6 +1311,13 @@ impl Node {
         self.ledger.confirmed().block_exists(&tx, hash)
     }
 
+    pub fn block_hashes_confirmed(&self, blocks: &[BlockHash]) -> bool {
+        let tx = self.ledger.read_txn();
+        blocks
+            .iter()
+            .all(|b| self.ledger.confirmed().block_exists(&tx, b))
+    }
+
     pub fn blocks_confirmed(&self, blocks: &[Block]) -> bool {
         let tx = self.ledger.read_txn();
         blocks
@@ -1345,7 +1351,7 @@ impl NodeExt for Arc<Node> {
 
         if !self.ledger.any().block_exists_or_pruned(
             &self.ledger.read_txn(),
-            &self.network_params.ledger.genesis.hash(),
+            &self.network_params.ledger.genesis_block.hash(),
         ) {
             error!("Genesis block not found. This commonly indicates a configuration issue, check that the --network or --data_path command line arguments are correct, and also the ledger backend node config option. If using a read-only CLI command a ledger must already exist, start the node with --daemon first.");
 

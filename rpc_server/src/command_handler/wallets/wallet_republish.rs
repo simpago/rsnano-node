@@ -42,7 +42,7 @@ impl RpcCommandHandler {
 
             for hash in hashes.into_iter().rev() {
                 if let Some(block) = self.node.ledger.get_block(&tx, &hash) {
-                    republish_bundle.push_back(block);
+                    republish_bundle.push_back(block.into());
                     blocks.push(hash);
                 }
             }

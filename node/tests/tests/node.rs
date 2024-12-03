@@ -153,9 +153,7 @@ fn pruning_automatic() {
 
     node1.process_active(send2.clone().into());
 
-    assert_timely(Duration::from_secs(5), || {
-        node1.block(&send2.hash()).is_some()
-    });
+    assert_timely(Duration::from_secs(5), || node1.block_exists(&send2.hash()));
 
     node1.confirm(send1.hash().clone());
     assert_timely(Duration::from_secs(5), || {
@@ -241,7 +239,7 @@ fn deferred_dependent_elections() {
         .account(*DEV_GENESIS_ACCOUNT)
         .from(&send1_state_block)
         .previous(send1.hash())
-        .balance(send1.balance() - Amount::raw(1))
+        .balance(send1.balance_field().unwrap() - Amount::raw(1))
         .link(key.account())
         .sign(&DEV_GENESIS_KEY)
         .work(node1.work_generate_dev(send1.hash()))
@@ -281,10 +279,10 @@ fn deferred_dependent_elections() {
     node1.process_local(send2.clone().into()).unwrap();
 
     assert_timely(std::time::Duration::from_secs(5), || {
-        node1.block(&open.hash()).is_some()
+        node1.block_exists(&open.hash())
     });
     assert_timely(std::time::Duration::from_secs(5), || {
-        node1.block(&send2.hash()).is_some()
+        node1.block_exists(&send2.hash())
     });
 
     assert_never(std::time::Duration::from_millis(500), || {
@@ -293,10 +291,10 @@ fn deferred_dependent_elections() {
     });
 
     assert_timely(std::time::Duration::from_secs(5), || {
-        node2.block(&open.hash()).is_some()
+        node2.block_exists(&open.hash())
     });
     assert_timely(std::time::Duration::from_secs(5), || {
-        node2.block(&send2.hash()).is_some()
+        node2.block_exists(&send2.hash())
     });
 
     node1.process_local(open.clone().into()).unwrap();
@@ -345,7 +343,7 @@ fn deferred_dependent_elections() {
     });
     assert!(!node1
         .ledger
-        .dependents_confirmed(&node1.store.tx_begin_read(), &receive));
+        .dependents_confirmed_for_unsaved_block(&node1.store.tx_begin_read(), &receive));
 
     assert_never(std::time::Duration::from_millis(500), || {
         node1.active.election(&receive.qualified_root()).is_some()
@@ -355,11 +353,11 @@ fn deferred_dependent_elections() {
         .ledger
         .rollback(&mut node1.store.tx_begin_write(), &receive.hash())
         .unwrap();
-    assert!(node1.block(&receive.hash()).is_none());
+    assert!(!node1.block_exists(&receive.hash()));
 
     node1.process_local(receive.clone().into()).unwrap();
     assert_timely(std::time::Duration::from_secs(5), || {
-        node1.block(&receive.hash()).is_some()
+        node1.block_exists(&receive.hash())
     });
 
     assert_never(std::time::Duration::from_millis(500), || {
@@ -423,7 +421,7 @@ fn rollback_gap_source() {
         .account(*DEV_GENESIS_ACCOUNT)
         .from(&send1_state_block)
         .previous(send1.hash())
-        .balance(send1.balance() - Amount::raw(1))
+        .balance(send1.balance_field().unwrap() - Amount::raw(1))
         .link(key.account())
         .sign(&DEV_GENESIS_KEY)
         .work(node.work_generate_dev(send1.hash()))
@@ -450,7 +448,7 @@ fn rollback_gap_source() {
         node.process_local(fork1a.clone()).unwrap()
     );
 
-    assert!(node.block(&send2.hash()).is_none());
+    assert!(!node.block_exists(&send2.hash()));
     node.block_processor.force(fork1b.clone());
 
     assert_timely_eq(
@@ -468,12 +466,12 @@ fn rollback_gap_source() {
         1,
     );
 
-    assert!(node.block(&fork1b.hash()).is_none());
+    assert!(!node.block_exists(&fork1b.hash()));
 
     node.process_active(fork1a.clone());
     assert_timely_eq(
         Duration::from_secs(5),
-        || node.block(&fork1a.hash()).is_some(),
+        || node.block_exists(&fork1a.hash()),
         true,
     );
 
@@ -494,11 +492,11 @@ fn rollback_gap_source() {
 
     assert_timely_eq(
         Duration::from_secs(5),
-        || node.block(&fork1b.hash()).is_some(),
+        || node.block_exists(&fork1b.hash()),
         true,
     );
 
-    assert!(node.block(&fork1a.hash()).is_none());
+    assert!(!node.block_exists(&fork1a.hash()));
 }
 
 #[test]
@@ -1389,7 +1387,7 @@ fn search_receivable_confirmed() {
         )
         .unwrap();
     assert_timely(Duration::from_secs(5), || {
-        node.blocks_confirmed(&[send1.clone()])
+        node.block_hashes_confirmed(&[send1.hash()])
     });
 
     let send2 = node
@@ -1405,7 +1403,7 @@ fn search_receivable_confirmed() {
         )
         .unwrap();
     assert_timely(Duration::from_secs(5), || {
-        node.blocks_confirmed(&[send2.clone()])
+        node.block_hashes_confirmed(&[send2.hash()])
     });
 
     node.wallets
@@ -2085,7 +2083,7 @@ fn local_block_broadcast() {
 
     // The other node should not have received a block
     assert_never(Duration::from_millis(500), || {
-        node2.block(&send_hash).is_some()
+        node2.block_exists(&send_hash)
     });
 
     // Connect the nodes and check that the block is propagated
@@ -2106,7 +2104,7 @@ fn local_block_broadcast() {
     );
     assert_timely_msg(
         Duration::from_secs(10),
-        || node2.block(&send_hash).is_some(),
+        || node2.block_exists(&send_hash),
         "block not received",
     )
 }
@@ -2756,7 +2754,7 @@ fn rollback_vote_self() {
         key.account(),
         open.hash(),
         key.public_key(),
-        open.balance() - Amount::raw(1),
+        open.balance_field().unwrap() - Amount::raw(1),
         (*DEV_GENESIS_ACCOUNT).into(),
         &key,
         node.work_generate_dev(open.hash()),
@@ -2767,7 +2765,7 @@ fn rollback_vote_self() {
         key.account(),
         open.hash(),
         key.public_key(),
-        open.balance() - Amount::raw(2),
+        open.balance_field().unwrap() - Amount::raw(2),
         (*DEV_GENESIS_ACCOUNT).into(),
         &key,
         node.work_generate_dev(open.hash()),
@@ -3349,12 +3347,7 @@ fn fork_open_flip() {
     assert_ne!(open1.hash(), open2.hash());
 
     // give block open1 to node1, manually trigger an election for open1 and ensure it is in the ledger
-    node1.process_active(open1.clone());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node1.block_exists(&open1.hash()),
-        "open1 not found on node1",
-    );
+    let open1 = node1.process(open1).unwrap();
     node1.election_schedulers.manual.push(open1.clone(), None);
     assert_timely_msg(
         Duration::from_secs(5),
@@ -3370,6 +3363,7 @@ fn fork_open_flip() {
     system.initialization_blocks.push(open2.clone());
     let node2 = system.make_node();
     system.initialization_blocks.clear();
+    let open2 = node2.block(&open2.hash()).unwrap();
 
     // ensure open2 is in node2 ledger (and therefore has sideband) and manually trigger an election for open2
     assert_timely_msg(
@@ -3401,8 +3395,8 @@ fn fork_open_flip() {
     );
 
     // Notify both nodes of both blocks, both nodes will become aware that a fork exists
-    node1.process_active(open2.clone());
-    node2.process_active(open1.clone());
+    node1.process_active(open2.clone().into());
+    node2.process_active(open1.clone().into());
 
     assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2); // one more than expected due to elections having dummy votes
 
@@ -3672,7 +3666,7 @@ fn block_processor_signatures() {
     node.process_active(receive3.clone());
 
     assert_timely(Duration::from_secs(5), || {
-        node.block(&receive2.hash()).is_some()
+        node.block_exists(&receive2.hash())
     });
 
     assert_timely_eq(Duration::from_secs(5), || node.unchecked.len(), 0);

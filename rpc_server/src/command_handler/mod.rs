@@ -4,7 +4,7 @@ mod utils;
 mod wallets;
 
 use anyhow::anyhow;
-use rsnano_core::{Account, AccountInfo, Block, BlockHash};
+use rsnano_core::{Account, AccountInfo, BlockHash, SavedBlock};
 use rsnano_node::Node;
 use rsnano_rpc_messages::{RpcCommand, RpcError, StatsType};
 use rsnano_store_lmdb::Transaction;
@@ -168,7 +168,11 @@ impl RpcCommandHandler {
         }
     }
 
-    fn load_block_any(&self, txn: &dyn Transaction, hash: &BlockHash) -> anyhow::Result<Block> {
+    fn load_block_any(
+        &self,
+        txn: &dyn Transaction,
+        hash: &BlockHash,
+    ) -> anyhow::Result<SavedBlock> {
         self.node
             .ledger
             .any()

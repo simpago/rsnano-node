@@ -609,7 +609,7 @@ fn cannot_vote() {
         node.work_generate_dev(send1.hash()),
     ));
     node.process(send1.clone()).unwrap();
-    node.process(send2.clone()).unwrap();
+    let send2 = node.process(send2.clone()).unwrap();
 
     node.wallets
         .insert_adhoc2(

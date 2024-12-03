@@ -1,6 +1,6 @@
 use rsnano_core::{
     work::WorkPoolImpl, Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey,
-    StateBlock, StateBlockBuilder, WalletId, DEV_GENESIS_KEY,
+    SavedBlock, StateBlock, StateBlockBuilder, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_network::{Channel, ChannelDirection, ChannelInfo, ChannelMode};
@@ -464,7 +464,7 @@ pub fn setup_chains(
     chains
 }
 
-pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) -> Vec<Block> {
+pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) -> Vec<SavedBlock> {
     let mut blocks = Vec::new();
     let account: Account = source.public_key().into();
     let mut latest = node.latest(&account);
@@ -497,7 +497,8 @@ pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) 
             node.work_generate_dev(&key),
         ));
 
-        node.process_multi(&[send.clone(), open.clone()]);
+        node.process(send.clone()).unwrap();
+        let open = node.process(open).unwrap();
         // Ensure blocks are in the ledger
         assert_timely(Duration::from_secs(5), || {
             node.block_hashes_exist([send.hash(), open.hash()])

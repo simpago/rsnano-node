@@ -3,7 +3,7 @@ use crate::WebsocketSession;
 use super::{ConfirmationJsonOptions, ConfirmationOptions, Options, WebsocketSessionEntry};
 use rsnano_core::{
     utils::{PropertyTree, SerdePropertyTree},
-    Account, Amount, Block, BlockSideband, VoteWithWeightInfo,
+    Account, Amount, BlockSideband, SavedOrUnsavedBlock, VoteWithWeightInfo,
 };
 use rsnano_node::{consensus::ElectionStatus, wallets::Wallets};
 use rsnano_websocket_messages::{OutgoingMessageEnvelope, Topic};
@@ -14,7 +14,7 @@ use std::{
     net::SocketAddr,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc, Mutex, Weak,
+        Arc, Condvar, Mutex, Weak,
     },
     time::UNIX_EPOCH,
 };
@@ -32,6 +32,8 @@ pub struct WebsocketListener {
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
     sessions: Arc<Mutex<Vec<Weak<WebsocketSessionEntry>>>>,
     tokio: tokio::runtime::Handle,
+    bound: Mutex<bool>,
+    bound_condition: Condvar,
 }
 
 impl WebsocketListener {
@@ -43,6 +45,8 @@ impl WebsocketListener {
             topic_subscriber_count: Arc::new(std::array::from_fn(|_| AtomicUsize::new(0))),
             sessions: Arc::new(Mutex::new(Vec::new())),
             tokio,
+            bound: Mutex::new(false),
+            bound_condition: Condvar::new(),
         }
     }
 
@@ -54,17 +58,24 @@ impl WebsocketListener {
         self.topic_subscriber_count[topic as usize].load(Ordering::SeqCst)
     }
 
+    fn set_bound(&self) {
+        *self.bound.lock().unwrap() = true;
+        self.bound_condition.notify_one();
+    }
+
     async fn run(&self) {
         let endpoint = self.endpoint.lock().unwrap().clone();
         let listener = match TcpListener::bind(endpoint).await {
             Ok(s) => s,
             Err(e) => {
+                self.set_bound();
                 warn!("Listen failed: {:?}", e);
                 return;
             }
         };
         let ep = listener.local_addr().unwrap();
         *self.endpoint.lock().unwrap() = ep;
+        self.set_bound();
         info!("Websocket listener started on {}", ep);
 
         let (tx_stop, rx_stop) = oneshot::channel::<()>();
@@ -108,7 +119,7 @@ impl WebsocketListener {
     /// Broadcast block confirmation. The content of the message depends on subscription options (such as "include_block")
     pub fn broadcast_confirmation(
         &self,
-        block_a: &Block,
+        block_a: &SavedOrUnsavedBlock,
         account_a: &Account,
         amount_a: &Amount,
         subtype: &str,
@@ -210,6 +221,8 @@ impl WebsocketListenerExt for Arc<WebsocketListener> {
         self.tokio.spawn(async move {
             self_l.run().await;
         });
+        let guard = self.bound.lock().unwrap();
+        drop(self.bound_condition.wait_while(guard, |bound| !*bound));
     }
 
     fn stop(&self) {
@@ -261,7 +274,7 @@ async fn accept_connection(
 }
 
 fn block_confirmed_message(
-    block: &Block,
+    block: &SavedOrUnsavedBlock,
     account: &Account,
     amount: &Amount,
     subtype: String,
@@ -293,7 +306,11 @@ fn block_confirmed_message(
     };
 
     let sideband = if options.include_sideband_info {
-        Some(block.sideband().unwrap().into())
+        if let SavedOrUnsavedBlock::Saved(block) = block {
+            Some(block.sideband().into())
+        } else {
+            None
+        }
     } else {
         None
     };

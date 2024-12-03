@@ -33,10 +33,10 @@ impl ConfirmationHeightArgs {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
 
         let genesis_block = match NetworkConstants::active_network() {
-            Networks::NanoDevNetwork => LedgerConstants::dev().genesis,
-            Networks::NanoBetaNetwork => LedgerConstants::beta().genesis,
-            Networks::NanoLiveNetwork => LedgerConstants::live().genesis,
-            Networks::NanoTestNetwork => LedgerConstants::test().genesis,
+            Networks::NanoDevNetwork => LedgerConstants::dev().genesis_block,
+            Networks::NanoBetaNetwork => LedgerConstants::beta().genesis_block,
+            Networks::NanoLiveNetwork => LedgerConstants::live().genesis_block,
+            Networks::NanoTestNetwork => LedgerConstants::test().genesis_block,
             Networks::Invalid => unreachable!(),
         };
 

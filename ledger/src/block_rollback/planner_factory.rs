@@ -2,18 +2,22 @@ use super::rollback_planner::RollbackPlanner;
 use crate::Ledger;
 use rsnano_core::{
     utils::seconds_since_epoch, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
-    PendingInfo, PendingKey, PublicKey,
+    PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
 use rsnano_store_lmdb::Transaction;
 
 pub(crate) struct RollbackPlannerFactory<'a> {
     ledger: &'a Ledger,
     txn: &'a dyn Transaction,
-    head_block: &'a Block,
+    head_block: &'a SavedBlock,
 }
 
 impl<'a> RollbackPlannerFactory<'a> {
-    pub(crate) fn new(ledger: &'a Ledger, txn: &'a dyn Transaction, head_block: &'a Block) -> Self {
+    pub(crate) fn new(
+        ledger: &'a Ledger,
+        txn: &'a dyn Transaction,
+        head_block: &'a SavedBlock,
+    ) -> Self {
         Self {
             ledger,
             txn,
@@ -25,7 +29,7 @@ impl<'a> RollbackPlannerFactory<'a> {
         let account = self.get_account(self.head_block)?;
         let planner = RollbackPlanner {
             epochs: &self.ledger.constants.epochs,
-            head_block: self.head_block,
+            head_block: self.head_block.clone(),
             account,
             current_account_info: self.load_account(&account),
             previous_representative: self.get_previous_representative()?,
@@ -62,7 +66,7 @@ impl<'a> RollbackPlannerFactory<'a> {
             .unwrap_or_default()
     }
 
-    fn load_previous_block(&self) -> anyhow::Result<Option<Block>> {
+    fn load_previous_block(&self) -> anyhow::Result<Option<SavedBlock>> {
         let previous = self.head_block.previous();
         Ok(if previous.is_zero() {
             None
@@ -92,7 +96,7 @@ impl<'a> RollbackPlannerFactory<'a> {
             .unwrap_or_default()
     }
 
-    fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<Block> {
+    fn load_block(&self, block_hash: &BlockHash) -> anyhow::Result<SavedBlock> {
         self.ledger
             .any()
             .get_block(self.txn, block_hash)

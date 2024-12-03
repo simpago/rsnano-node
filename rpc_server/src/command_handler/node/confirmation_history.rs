@@ -17,11 +17,11 @@ impl RpcCommandHandler {
                 elections.push(ConfirmationEntry {
                     hash: status.winner.as_ref().unwrap().hash(),
                     duration: status.election_duration.as_secs().into(),
-                    time: status
+                    time: (status
                         .election_end
                         .duration_since(UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_secs()
+                        .as_millis() as u64)
                         .into(),
                     tally: status.tally,
                     final_tally: status.final_tally,

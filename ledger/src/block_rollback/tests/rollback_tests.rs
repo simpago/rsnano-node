@@ -1,11 +1,11 @@
 use crate::block_rollback::tests::RollbackTest;
 use rsnano_core::{
-    Account, AccountInfo, Amount, BlockSubType, Epoch, PendingInfo, PendingKey, TestAccountChain,
+    Account, AccountInfo, Amount, BlockSubType, Epoch, PendingInfo, PendingKey, SavedAccountChain,
 };
 
 #[test]
 fn rollback_epoch1() {
-    let mut chain = TestAccountChain::new_opened_chain();
+    let mut chain = SavedAccountChain::new_opened_chain();
     chain.add_epoch_v1();
 
     let instructions = RollbackTest::for_chain(&chain).assert_rollback_succeeds();
@@ -15,7 +15,7 @@ fn rollback_epoch1() {
 
 #[test]
 fn rollback_receive_block_which_performed_epoch1_upgrade_undoes_epoch_upgrade() {
-    let mut chain = TestAccountChain::new_opened_chain();
+    let mut chain = SavedAccountChain::new_opened_chain();
     let receive_block = chain.new_receive_block().amount_received(1).build();
     let receive_block = chain.add_block(receive_block, Epoch::Epoch1).clone();
 
@@ -39,7 +39,7 @@ fn rollback_receive_block_which_performed_epoch1_upgrade_undoes_epoch_upgrade() 
 
 #[test]
 fn rollback_epoch_v2() {
-    let mut chain = TestAccountChain::new_opened_chain();
+    let mut chain = SavedAccountChain::new_opened_chain();
     chain.add_epoch_v1();
     chain.add_epoch_v2();
 
@@ -50,7 +50,7 @@ fn rollback_epoch_v2() {
 
 #[test]
 fn rollback_legacy_change() {
-    let mut chain = TestAccountChain::new_opened_chain();
+    let mut chain = SavedAccountChain::new_opened_chain();
     let previous_account_info = chain.account_info();
     chain.add_legacy_change(123);
 
@@ -71,7 +71,7 @@ fn rollback_legacy_change() {
 
 #[test]
 fn rollback_legacy_open() {
-    let chain = TestAccountChain::new_opened_chain();
+    let chain = SavedAccountChain::new_opened_chain();
 
     let linked_account = Account::from(42);
     let instructions = RollbackTest::for_chain(&chain)

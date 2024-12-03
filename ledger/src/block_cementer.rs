@@ -1,5 +1,5 @@
 use crate::{LedgerConstants, LedgerObserver, LedgerSetAny, LedgerSetConfirmed};
-use rsnano_core::{Block, BlockHash, ConfirmationHeightInfo};
+use rsnano_core::{BlockHash, ConfirmationHeightInfo, SavedBlock};
 use rsnano_store_lmdb::{LmdbStore, LmdbWriteTransaction, Transaction};
 use std::{collections::VecDeque, sync::atomic::Ordering};
 
@@ -32,8 +32,8 @@ impl<'a> BlockCementer<'a> {
         txn: &mut LmdbWriteTransaction,
         target_hash: BlockHash,
         max_blocks: usize,
-    ) -> VecDeque<Block> {
-        let mut result = VecDeque::new();
+    ) -> Vec<SavedBlock> {
+        let mut result = Vec::new();
 
         let mut stack = VecDeque::new();
         stack.push_back(target_hash);
@@ -61,8 +61,7 @@ impl<'a> BlockCementer<'a> {
                 if !self.confirmed.block_exists_or_pruned(txn, &hash) {
                     // We must only confirm blocks that have their dependencies confirmed
 
-                    let conf_height =
-                        ConfirmationHeightInfo::new(block.sideband().unwrap().height, block.hash());
+                    let conf_height = ConfirmationHeightInfo::new(block.height(), block.hash());
 
                     // Update store
                     self.store
@@ -75,7 +74,7 @@ impl<'a> BlockCementer<'a> {
 
                     self.observer.blocks_cemented(1);
 
-                    result.push_back(block);
+                    result.push(block);
                 }
             } else {
                 // Unconfirmed dependencies were added

@@ -105,8 +105,13 @@ pub struct AccountInfoResponse {
     pub modified_timestamp: RpcU64,
     pub block_count: RpcU64,
     pub account_version: RpcU16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirmation_height: Option<RpcU64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmed_height: Option<RpcU64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmed_frontier: Option<BlockHash>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmation_height_frontier: Option<BlockHash>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub representative: Option<Account>,
@@ -278,6 +283,7 @@ mod tests {
             confirmed_receivable: None,
             confirmed_representative: None,
             confirmed_frontier: None,
+            confirmation_height: None,
         };
 
         let serialized = to_string_pretty(&account_info).unwrap();
@@ -307,6 +313,7 @@ mod tests {
             confirmed_receivable: None,
             confirmed_representative: None,
             confirmed_frontier: None,
+            confirmation_height: None,
         };
 
         let serialized = to_string_pretty(&account_info).unwrap();
@@ -342,6 +349,7 @@ mod tests {
             confirmed_receivable: Some(Amount::from(350)),
             confirmed_representative: Some(Account::zero()),
             confirmed_frontier: None,
+            confirmation_height: None,
         }
     }
 

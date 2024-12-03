@@ -19,7 +19,7 @@ impl<'a> RepresentativeBlockFinder<'a> {
             let Some(block) = self.store.block.get(self.txn, &current) else {
                 return BlockHash::zero();
             };
-            (current, result) = match &block {
+            (current, result) = match &*block {
                 Block::LegacySend(_) => (block.previous(), BlockHash::zero()),
                 Block::LegacyReceive(_) => (block.previous(), BlockHash::zero()),
                 Block::LegacyOpen(_) => (BlockHash::zero(), block.hash()),

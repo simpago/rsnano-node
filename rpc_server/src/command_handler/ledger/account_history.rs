@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
-use rsnano_core::{Account, Block, BlockBase, BlockHash};
+use rsnano_core::{Account, Block, BlockBase, BlockHash, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_zero, AccountHistoryArgs, AccountHistoryResponse,
@@ -107,7 +107,7 @@ impl<'a> AccountHistoryHelper<'a> {
         Ok(self.create_response(history))
     }
 
-    fn go_to_next_block(&mut self, tx: &LmdbReadTransaction, block: &Block) -> Option<Block> {
+    fn go_to_next_block(&mut self, tx: &LmdbReadTransaction, block: &Block) -> Option<SavedBlock> {
         self.current_block_hash = if self.reverse {
             self.ledger
                 .any()
@@ -128,10 +128,10 @@ impl<'a> AccountHistoryHelper<'a> {
 
     pub(crate) fn entry_for(
         &self,
-        block: &Block,
+        block: &SavedBlock,
         tx: &LmdbReadTransaction,
     ) -> Option<HistoryEntry> {
-        let mut entry = match &block {
+        let mut entry = match &**block {
             Block::LegacySend(b) => {
                 let mut entry = empty_entry();
                 entry.block_type = Some(BlockTypeDto::Send);
@@ -276,10 +276,14 @@ impl<'a> AccountHistoryHelper<'a> {
         entry
     }
 
-    fn set_common_fields(&self, entry: &mut HistoryEntry, block: &Block, tx: &LmdbReadTransaction) {
-        let sideband = block.sideband().unwrap();
-        entry.local_timestamp = sideband.timestamp.into();
-        entry.height = sideband.height.into();
+    fn set_common_fields(
+        &self,
+        entry: &mut HistoryEntry,
+        block: &SavedBlock,
+        tx: &LmdbReadTransaction,
+    ) {
+        entry.local_timestamp = block.timestamp().into();
+        entry.height = block.height().into();
         entry.hash = block.hash();
         entry.confirmed = self
             .ledger

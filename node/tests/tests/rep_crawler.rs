@@ -1,5 +1,7 @@
 use rsnano_core::{Amount, Block, BlockHash, PrivateKey, StateBlock, Vote, DEV_GENESIS_KEY};
-use rsnano_ledger::{DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{
+    DEV_GENESIS_ACCOUNT, DEV_GENESIS_BLOCK, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
+};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelId, ChannelMode, DropPolicy, TrafficType};
 use rsnano_node::NodeExt;
@@ -193,7 +195,7 @@ fn rep_weight() {
 fn recently_confirmed() {
     let mut system = System::new();
     let node1 = system.make_node();
-    node1.active.insert_recently_confirmed(&DEV_GENESIS);
+    node1.active.insert_recently_confirmed(&DEV_GENESIS_BLOCK);
 
     let node2 = system.make_node();
     node2.insert_into_wallet(&DEV_GENESIS_KEY);

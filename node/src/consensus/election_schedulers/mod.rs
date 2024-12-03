@@ -10,7 +10,7 @@ use super::{
     OptimisticScheduler, OptimisticSchedulerExt, PriorityScheduler, PrioritySchedulerExt,
     VoteCache,
 };
-use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, Block, ConfirmationHeightInfo};
+use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
@@ -75,7 +75,7 @@ impl ElectionSchedulers {
         }
     }
 
-    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &Block) {
+    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &SavedBlock) {
         self.priority.activate_successors(tx, block);
     }
 
@@ -102,7 +102,7 @@ impl ElectionSchedulers {
         self.optimistic.notify();
     }
 
-    pub fn add_manual(&self, block: Block) {
+    pub fn add_manual(&self, block: SavedBlock) {
         self.manual.push(block, None);
     }
 

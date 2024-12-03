@@ -17,11 +17,6 @@ impl RpcCommandHandler {
             .block_balance(&txn, &args.hash)
             .unwrap();
 
-        let sideband = block.sideband().unwrap();
-        let height = sideband.height;
-        let local_timestamp = sideband.timestamp;
-        let successor = sideband.successor;
-
         let confirmed = self
             .node
             .ledger
@@ -31,7 +26,7 @@ impl RpcCommandHandler {
         let contents = block.json_representation();
 
         let subtype: Option<BlockSubTypeDto> = if block.block_type() == BlockType::State {
-            Some(sideband.details.subtype().into())
+            Some(block.subtype().into())
         } else {
             None
         };
@@ -40,9 +35,9 @@ impl RpcCommandHandler {
             block_account: account,
             amount,
             balance,
-            height: height.into(),
-            local_timestamp: local_timestamp.into(),
-            successor,
+            height: block.height().into(),
+            local_timestamp: block.timestamp().into(),
+            successor: block.successor().unwrap_or_default(),
             confirmed: confirmed.into(),
             contents,
             subtype,

@@ -73,7 +73,7 @@ impl<'a> ConfirmationSolicitor<'a> {
 
         let winner_block = guard.status.winner.as_ref().unwrap();
         let hash = winner_block.hash();
-        let winner = Message::Publish(Publish::new_forward(winner_block.clone()));
+        let winner = Message::Publish(Publish::new_forward(winner_block.clone().into()));
         let mut count = 0;
         // Directed broadcasting to principal representatives
         for i in &self.representative_broadcasts {

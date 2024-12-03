@@ -3,7 +3,7 @@ use crate::ledger_tests::LedgerContext;
 use crate::{ledger_constants::LEDGER_CONSTANTS_STUB, DEV_GENESIS_HASH};
 use rsnano_core::{
     work::{WorkPool, STUB_WORK_POOL},
-    Amount, BlockBuilder, BlockDetails, Epoch, PendingKey,
+    Amount, BlockBuilder, Epoch, PendingKey,
 };
 
 #[test]
@@ -66,12 +66,9 @@ fn pruning_action() {
         None
     );
     let receive1_stored = ctx.ledger.any().get_block(&txn, &receive1.hash()).unwrap();
-    assert_eq!(receive1, receive1_stored);
-    assert_eq!(receive1_stored.sideband().unwrap().height, 4);
-    assert_eq!(
-        receive1_stored.sideband().unwrap().details,
-        BlockDetails::new(Epoch::Epoch0, false, true, false)
-    );
+    assert_eq!(&receive1, &*receive1_stored);
+    assert_eq!(receive1_stored.height(), 4);
+    assert!(receive1_stored.is_receive());
 
     // Middle block pruning
     assert!(ctx.ledger.store.block.exists(&txn, &send2.hash()));

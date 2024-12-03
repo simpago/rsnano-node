@@ -37,6 +37,7 @@ impl RpcCommandHandler {
             confirmed_receivable: None,
             confirmed_representative: None,
             confirmed_frontier: None,
+            confirmation_height: None,
         };
 
         if include_confirmed {
@@ -52,9 +53,11 @@ impl RpcCommandHandler {
             };
             account_info.confirmed_balance = Some(confirmed_balance);
             account_info.confirmed_height = Some(confirmation_height_info.height.into());
+            account_info.confirmation_height = Some(confirmation_height_info.height.into());
             account_info.confirmed_frontier = Some(confirmation_height_info.frontier);
         } else {
             // For backwards compatibility purposes
+            account_info.confirmation_height = Some(confirmation_height_info.height.into());
             account_info.confirmed_height = Some(confirmation_height_info.height.into());
             account_info.confirmation_height_frontier = Some(confirmation_height_info.frontier);
         }

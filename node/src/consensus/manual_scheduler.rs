@@ -1,6 +1,6 @@
 use super::{ActiveElections, ActiveElectionsExt, ElectionBehavior};
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{utils::ContainerInfo, Amount, Block};
+use rsnano_core::{utils::ContainerInfo, Amount, Block, SavedBlock};
 use std::{
     collections::VecDeque,
     mem::size_of,
@@ -43,7 +43,7 @@ impl ManualScheduler {
         self.condition.notify_all();
     }
 
-    pub fn push(&self, block: Block, previous_balance: Option<Amount>) {
+    pub fn push(&self, block: SavedBlock, previous_balance: Option<Amount>) {
         let mut guard = self.mutex.lock().unwrap();
         guard
             .queue
@@ -123,7 +123,7 @@ impl ManualSchedulerExt for Arc<ManualScheduler> {
 }
 
 struct ManualSchedulerImpl {
-    queue: VecDeque<(Block, Option<Amount>, ElectionBehavior)>,
+    queue: VecDeque<(SavedBlock, Option<Amount>, ElectionBehavior)>,
     stopped: bool,
 }
 

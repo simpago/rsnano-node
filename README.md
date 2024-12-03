@@ -1,4 +1,4 @@
-<p style="text-align:center;"><img src="/util/images/logo.svg" width"300px" height="auto" alt="Logo"></p>
+<p style="text-align:center;"><img src="/doc/images/logo.svg" width"300px" height="auto" alt="Logo"></p>
 
 
 [![Unit Tests](https://github.com/simpago/rsnano-node/actions/workflows/unit_tests.yml/badge.svg)](https://github.com/simpago/rsnano-node/actions/workflows/unit_tests.yml)

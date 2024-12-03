@@ -13,14 +13,14 @@ use crate::{
     block_insertion::BlockInsertInstructions, ledger_constants::LEDGER_CONSTANTS_STUB, BlockStatus,
 };
 use rsnano_core::{
-    work::WORK_THRESHOLDS_STUB, Account, Amount, Block, Epoch, PendingInfo, TestAccountChain,
+    work::WORK_THRESHOLDS_STUB, Account, Amount, Block, Epoch, PendingInfo, SavedAccountChain,
 };
 
 use super::BlockValidator;
 
 pub(crate) struct BlockValidationTest {
     pub seconds_since_epoch: u64,
-    pub chain: TestAccountChain,
+    pub chain: SavedAccountChain,
     block: Option<Block>,
     pending_receive: Option<PendingInfo>,
     block_already_exists: bool,
@@ -53,7 +53,7 @@ impl BlockValidationTest {
 
     pub fn for_unopened_account() -> Self {
         Self {
-            chain: TestAccountChain::new(),
+            chain: SavedAccountChain::new(),
             block: None,
             pending_receive: None,
             seconds_since_epoch: 123456,
@@ -63,14 +63,14 @@ impl BlockValidationTest {
         }
     }
 
-    pub fn setup_account(mut self, mut setup: impl FnMut(&mut TestAccountChain)) -> Self {
+    pub fn setup_account(mut self, mut setup: impl FnMut(&mut SavedAccountChain)) -> Self {
         setup(&mut self.chain);
         self
     }
 
     pub fn block_to_validate(
         mut self,
-        create_block: impl FnOnce(&TestAccountChain) -> Block,
+        create_block: impl FnOnce(&SavedAccountChain) -> Block,
     ) -> Self {
         self.block = Some(create_block(&self.chain));
         self

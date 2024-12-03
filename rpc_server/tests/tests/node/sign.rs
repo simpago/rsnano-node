@@ -1,7 +1,5 @@
 use rsnano_core::PublicKey;
-use rsnano_core::{
-    validate_block_signature, Account, Amount, Block, StateBlock, WalletId, DEV_GENESIS_KEY,
-};
+use rsnano_core::{Account, Amount, Block, StateBlock, WalletId, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_node::wallets::WalletsExt;
 use rsnano_rpc_messages::SignArgs;
@@ -47,7 +45,7 @@ fn sign() {
     let signed_block: Block = result.block.unwrap().into();
 
     if let Block::State(ref state_block) = signed_block {
-        assert!(validate_block_signature(&state_block).is_ok());
+        assert!(state_block.verify_signature().is_ok());
     } else {
         panic!("Expected a state block");
     }

@@ -1,5 +1,5 @@
 use rsnano_core::{Amount, BlockHash};
-use rsnano_ledger::{DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
+use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_BLOCK, DEV_GENESIS_HASH};
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_helpers::{setup_rpc_client_and_server, System};
 
@@ -21,7 +21,7 @@ fn block_info() {
     assert_eq!(result.height, 1.into());
     assert_eq!(result.subtype, None);
     assert_eq!(result.successor, BlockHash::zero());
-    assert_eq!(result.contents, DEV_GENESIS.json_representation());
+    assert_eq!(result.contents, DEV_GENESIS_BLOCK.json_representation());
 
     let current_unix_timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

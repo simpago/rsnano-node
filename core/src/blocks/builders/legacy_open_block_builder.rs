@@ -1,7 +1,7 @@
 use crate::{
     work::{WorkPool, STUB_WORK_POOL},
-    Account, Amount, Block, BlockBase, BlockDetails, BlockHash, BlockSideband, Epoch, OpenBlock,
-    PrivateKey, PublicKey,
+    Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, OpenBlock, PrivateKey,
+    PublicKey, SavedBlock,
 };
 
 pub struct LegacyOpenBlockBuilder {
@@ -10,8 +10,6 @@ pub struct LegacyOpenBlockBuilder {
     source: Option<BlockHash>,
     prv_key: Option<PrivateKey>,
     work: Option<u64>,
-    build_sideband: bool,
-    height: Option<u64>,
 }
 
 impl LegacyOpenBlockBuilder {
@@ -22,8 +20,6 @@ impl LegacyOpenBlockBuilder {
             source: None,
             prv_key: None,
             work: None,
-            build_sideband: false,
-            height: None,
         }
     }
 
@@ -51,17 +47,6 @@ impl LegacyOpenBlockBuilder {
         self.work = Some(work);
         self
     }
-
-    pub fn with_sideband(mut self) -> Self {
-        self.build_sideband = true;
-        self
-    }
-
-    pub fn height(mut self, height: u64) -> Self {
-        self.height = Some(height);
-        self
-    }
-
     pub fn build(self) -> Block {
         let source = self.source.unwrap_or(BlockHash::from(1));
         let prv_key = self.prv_key.unwrap_or_default();
@@ -71,7 +56,12 @@ impl LegacyOpenBlockBuilder {
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(account.into()).unwrap());
 
-        let mut block = OpenBlock::new(source, representative, account, &prv_key, work);
+        let block = OpenBlock::new(source, representative, account, &prv_key, work);
+        Block::LegacyOpen(block)
+    }
+
+    pub fn build_saved(self) -> SavedBlock {
+        let block = self.build();
 
         let details = BlockDetails {
             epoch: Epoch::Epoch0,
@@ -80,20 +70,17 @@ impl LegacyOpenBlockBuilder {
             is_epoch: false,
         };
 
-        if self.build_sideband || self.height.is_some() {
-            let height = self.height.unwrap_or(1);
-            block.set_sideband(BlockSideband::new(
-                block.account(),
-                BlockHash::zero(),
-                Amount::raw(5),
-                height,
-                2,
-                details,
-                Epoch::Epoch0,
-            ));
-        }
+        let sideband = BlockSideband::new(
+            block.account_field().unwrap(),
+            BlockHash::zero(),
+            Amount::raw(5),
+            1,
+            2,
+            details,
+            Epoch::Epoch0,
+        );
 
-        Block::LegacyOpen(block)
+        SavedBlock::new(block, sideband)
     }
 }
 
@@ -106,12 +93,12 @@ impl Default for LegacyOpenBlockBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{work::WORK_THRESHOLDS_STUB, BlockBuilder, Signature};
+    use crate::{work::WORK_THRESHOLDS_STUB, BlockBase, BlockBuilder, Signature};
 
     #[test]
     fn create_open_block() {
-        let block = BlockBuilder::legacy_open().with_sideband().build();
-        let Block::LegacyOpen(open) = &block else {
+        let block = BlockBuilder::legacy_open().build_saved();
+        let Block::LegacyOpen(open) = &*block else {
             panic!("not an open block")
         };
         assert_eq!(open.hashables.source, BlockHash::from(1));
@@ -120,12 +107,10 @@ mod tests {
         assert_eq!(WORK_THRESHOLDS_STUB.validate_entry_block(&block), true);
         assert_ne!(*open.block_signature(), Signature::new());
 
-        let sideband = open.sideband().unwrap();
-        assert_eq!(sideband.account, open.account());
-        assert!(sideband.successor.is_zero());
-        assert_eq!(sideband.balance, Amount::raw(5));
-        assert_eq!(sideband.height, 1);
-        assert_eq!(sideband.timestamp, 2);
-        assert_eq!(sideband.source_epoch, Epoch::Epoch0);
+        assert!(block.successor().is_none());
+        assert_eq!(block.balance(), Amount::raw(5));
+        assert_eq!(block.height(), 1);
+        assert_eq!(block.timestamp(), 2);
+        assert_eq!(block.source_epoch(), Epoch::Epoch0);
     }
 }

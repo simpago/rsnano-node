@@ -4,9 +4,8 @@ use anyhow::Result;
 use bitvec::prelude::BitArray;
 use rand::{thread_rng, Rng};
 use rsnano_core::{
-    sign_message,
     utils::{BufferWriter, Deserialize, FixedSizeSerialize, MemoryStream, Serialize, Stream},
-    validate_message, write_hex_bytes, Account, BlockHash, NodeId, PrivateKey, Signature,
+    write_hex_bytes, Account, BlockHash, NodeId, PrivateKey, PublicKey, Signature,
 };
 use serde::ser::SerializeStruct;
 use std::fmt::{Display, Write};
@@ -66,13 +65,14 @@ impl NodeIdHandshakeResponse {
     pub fn sign(&mut self, cookie: &Cookie, key: &PrivateKey) {
         debug_assert!(NodeId::from(key.public_key()) == self.node_id);
         let data = self.data_to_sign(cookie);
-        self.signature = sign_message(&key.private_key(), &data);
+        self.signature = key.sign(&data);
         debug_assert!(self.validate(cookie).is_ok());
     }
 
     pub fn validate(&self, cookie: &Cookie) -> anyhow::Result<()> {
         let data = self.data_to_sign(cookie);
-        validate_message(&self.node_id.into(), &data, &self.signature)
+        let pub_key: PublicKey = self.node_id.into();
+        pub_key.verify(&data, &self.signature)
     }
 
     fn data_to_sign(&self, cookie: &Cookie) -> Vec<u8> {

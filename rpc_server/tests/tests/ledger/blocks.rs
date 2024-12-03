@@ -1,4 +1,4 @@
-use rsnano_ledger::{DEV_GENESIS, DEV_GENESIS_HASH};
+use rsnano_ledger::{DEV_GENESIS_BLOCK, DEV_GENESIS_HASH};
 use test_helpers::{setup_rpc_client_and_server, System};
 
 #[test]
@@ -14,6 +14,6 @@ fn blocks() {
 
     assert_eq!(
         result.blocks.get(&DEV_GENESIS_HASH).unwrap(),
-        &DEV_GENESIS.json_representation()
+        &DEV_GENESIS_BLOCK.json_representation()
     );
 }

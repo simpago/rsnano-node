@@ -1,4 +1,6 @@
-use rsnano_core::{Amount, Block, BlockSideband, PrivateKey, StateBlock, DEV_GENESIS_KEY};
+use rsnano_core::{
+    Amount, Block, BlockSideband, PrivateKey, SavedBlock, StateBlock, DEV_GENESIS_KEY,
+};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_network::ChannelId;
 use rsnano_node::block_processing::BlockSource;
@@ -55,7 +57,7 @@ fn add_existing() {
     assert_timely(Duration::from_secs(5), || node1.active.active(&send1));
 
     let key2 = PrivateKey::new();
-    let mut send2 = Block::State(StateBlock::new(
+    let send2 = Block::State(StateBlock::new(
         *DEV_GENESIS_ACCOUNT,
         *DEV_GENESIS_HASH,
         *DEV_GENESIS_PUB_KEY,
@@ -64,7 +66,7 @@ fn add_existing() {
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(*DEV_GENESIS_HASH),
     ));
-    send2.set_sideband(BlockSideband::new_test_instance());
+    let send2 = SavedBlock::new(send2, BlockSideband::new_test_instance());
 
     // the block processor will notice that the block is a fork and it will try to publish it
     // which will update the election object
@@ -73,7 +75,9 @@ fn add_existing() {
         .add(send2.clone().into(), BlockSource::Live, ChannelId::LOOPBACK);
 
     assert!(node1.active.active(&send1));
-    assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
+    assert_timely(Duration::from_secs(5), || {
+        node1.active.active_root(&send2.qualified_root())
+    });
 }
 
 #[test]

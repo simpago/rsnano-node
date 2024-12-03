@@ -1,13 +1,13 @@
 use std::sync::{atomic::Ordering, Arc};
 pub mod helpers;
 use crate::{
-    ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
+    ledger_constants::{DEV_GENESIS_BLOCK, DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     ledger_tests::helpers::{setup_legacy_open_block, setup_open_block, AccountBlockFactory},
-    Ledger, LedgerContext, RepWeightCache, DEV_GENESIS, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
+    Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
     utils::{new_test_timestamp, TEST_ENDPOINT_1},
-    Account, Amount, BlockBuilder, BlockHash, PublicKey, QualifiedRoot, Root, TestAccountChain,
+    Account, Amount, BlockBuilder, BlockHash, PublicKey, QualifiedRoot, Root, SavedAccountChain,
     DEV_GENESIS_KEY,
 };
 
@@ -21,7 +21,7 @@ mod rollback_state;
 
 #[test]
 fn ledger_successor() {
-    let mut chain = TestAccountChain::new_opened_chain();
+    let mut chain = SavedAccountChain::new_opened_chain();
     let send = chain.add_legacy_send().clone();
     let ledger = Ledger::new_null_builder()
         .blocks(chain.blocks())
@@ -40,7 +40,7 @@ fn ledger_successor() {
 
 #[test]
 fn ledger_successor_genesis() {
-    let mut genesis = TestAccountChain::genesis();
+    let mut genesis = SavedAccountChain::genesis();
     genesis.add_legacy_send();
     let ledger = Ledger::new_null_builder()
         .blocks(genesis.blocks())
@@ -66,7 +66,7 @@ fn latest_root_empty() {
 
 #[test]
 fn latest_root() {
-    let mut genesis = TestAccountChain::genesis();
+    let mut genesis = SavedAccountChain::genesis();
     genesis.add_legacy_send();
 
     let ledger = Ledger::new_null_builder()
@@ -204,25 +204,25 @@ fn block_destination_source() {
     let dest_account = Account::from(1000);
 
     let mut send_to_dest = genesis.legacy_send(&txn).destination(dest_account).build();
-    ctx.ledger.process(&mut txn, &mut send_to_dest).unwrap();
+    let send_to_dest = ctx.ledger.process(&mut txn, &mut send_to_dest).unwrap();
 
     let mut send_to_self = genesis
         .legacy_send(&txn)
         .destination(genesis.account())
         .build();
-    ctx.ledger.process(&mut txn, &mut send_to_self).unwrap();
+    let send_to_self = ctx.ledger.process(&mut txn, &mut send_to_self).unwrap();
 
     let mut receive = genesis.legacy_receive(&txn, send_to_self.hash()).build();
-    ctx.ledger.process(&mut txn, &mut receive).unwrap();
+    let receive = ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
     let mut send_to_dest_2 = genesis.send(&txn).link(dest_account).build();
-    ctx.ledger.process(&mut txn, &mut send_to_dest_2).unwrap();
+    let send_to_dest_2 = ctx.ledger.process(&mut txn, &mut send_to_dest_2).unwrap();
 
     let mut send_to_self_2 = genesis.send(&txn).link(genesis.account()).build();
-    ctx.ledger.process(&mut txn, &mut send_to_self_2).unwrap();
+    let send_to_self_2 = ctx.ledger.process(&mut txn, &mut send_to_self_2).unwrap();
 
     let mut receive2 = genesis.receive(&txn, send_to_self_2.hash()).build();
-    ctx.ledger.process(&mut txn, &mut receive2).unwrap();
+    let receive2 = ctx.ledger.process(&mut txn, &mut receive2).unwrap();
 
     let block1 = send_to_dest;
     let block2 = send_to_self;
@@ -274,13 +274,18 @@ fn state_account() {
 
 mod dependents_confirmed {
     use super::*;
+    use crate::ledger_constants::DEV_GENESIS_BLOCK;
 
     #[test]
     fn genesis_is_confirmed() {
         let ctx = LedgerContext::empty();
         let txn = ctx.ledger.read_txn();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &DEV_GENESIS), true);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &DEV_GENESIS_BLOCK),
+            true
+        );
     }
 
     #[test]
@@ -296,7 +301,11 @@ mod dependents_confirmed {
             .build();
         ctx.ledger.process(&mut txn, &mut send).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &send), true);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &send),
+            true
+        );
     }
 
     #[test]
@@ -310,7 +319,11 @@ mod dependents_confirmed {
         let mut send2 = ctx.genesis_block_factory().send(&txn).build();
         ctx.ledger.process(&mut txn, &mut send2).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &send2), false);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &send2),
+            false
+        );
     }
 
     #[test]
@@ -329,7 +342,11 @@ mod dependents_confirmed {
         let mut open = destination.open(&txn, send.hash()).build();
         ctx.ledger.process(&mut txn, &mut open).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &open), false);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &open),
+            false
+        );
     }
 
     #[test]
@@ -349,7 +366,11 @@ mod dependents_confirmed {
         let mut open = destination.open(&txn, send.hash()).build();
         ctx.ledger.process(&mut txn, &mut open).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &open), true);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &open),
+            true
+        );
     }
 
     #[test]
@@ -381,7 +402,11 @@ mod dependents_confirmed {
         let mut receive = destination.receive(&txn, send2.hash()).build();
         ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &receive), false);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &receive),
+            false
+        );
     }
 
     #[test]
@@ -413,7 +438,11 @@ mod dependents_confirmed {
         let mut receive = destination.receive(&txn, send2.hash()).build();
         ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &receive), false);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &receive),
+            false
+        );
     }
 
     #[test]
@@ -446,7 +475,11 @@ mod dependents_confirmed {
         let mut receive = destination.receive(&txn, send2.hash()).build();
         ctx.ledger.process(&mut txn, &mut receive).unwrap();
 
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &receive), true);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &receive),
+            true
+        );
     }
 
     #[test]
@@ -482,7 +515,11 @@ mod dependents_confirmed {
             .link(send1.hash())
             .sign(&destination.key)
             .build();
-        assert_eq!(ctx.ledger.dependents_confirmed(&txn, &receive1), true);
+        assert_eq!(
+            ctx.ledger
+                .dependents_confirmed_for_unsaved_block(&txn, &receive1),
+            true
+        );
     }
 }
 
@@ -632,7 +669,7 @@ fn ledger_cache() {
 
 #[test]
 fn is_send_genesis() {
-    assert_eq!(DEV_GENESIS.is_send(), false);
+    assert_eq!(DEV_GENESIS_BLOCK.is_send(), false);
 }
 
 #[test]
@@ -700,7 +737,7 @@ fn sideband_height() {
 
     let assert_sideband_height = |hash: &BlockHash, expected_height: u64| {
         let block = ctx.ledger.any().get_block(&txn, hash).unwrap();
-        assert_eq!(block.sideband().unwrap().height, expected_height);
+        assert_eq!(block.height(), expected_height);
     };
 
     assert_sideband_height(&DEV_GENESIS_HASH, 1);

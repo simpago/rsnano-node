@@ -15,9 +15,9 @@ use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo},
     work::{WorkPoolImpl, WorkThresholds},
     Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, NoValue,
-    PendingKey, PrivateKey, PublicKey, RawKey, Root, StateBlock, WalletId,
+    PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlock, WalletId,
 };
-use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
+use rsnano_ledger::{Ledger, RepWeightCache};
 use rsnano_messages::{Message, Publish};
 use rsnano_network::DropPolicy;
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
@@ -73,6 +73,11 @@ impl std::error::Error for WalletsError {}
 
 pub type WalletsIterator<'txn> = BinaryDbIterator<'txn, [u8; 64], NoValue>;
 
+pub enum PreparedSend {
+    Cached(SavedBlock),
+    New(Block, BlockDetails),
+}
+
 pub struct Wallets {
     db: Option<LmdbDatabase>,
     send_action_ids_handle: Option<LmdbDatabase>,
@@ -91,7 +96,7 @@ pub struct Wallets {
     pub representative_wallets: Mutex<WalletRepresentatives>,
     online_reps: Arc<Mutex<OnlineReps>>,
     pub kdf: KeyDerivationFunction,
-    start_election: Mutex<Option<Box<dyn Fn(Block) + Send + Sync>>>,
+    start_election: Mutex<Option<Box<dyn Fn(SavedBlock) + Send + Sync>>>,
     confirming_set: Arc<ConfirmingSet>,
     message_publisher: Mutex<MessagePublisher>,
 }
@@ -175,7 +180,7 @@ impl Wallets {
         self.wallet_actions.stop();
     }
 
-    pub fn set_start_election_callback(&self, callback: Box<dyn Fn(Block) + Send + Sync>) {
+    pub fn set_start_election_callback(&self, callback: Box<dyn Fn(SavedBlock) + Send + Sync>) {
         *self.start_election.lock().unwrap() = Some(callback);
     }
 
@@ -607,43 +612,41 @@ impl Wallets {
         account: Account,
         amount: Amount,
         mut work: u64,
-    ) -> (Option<Block>, bool, bool, BlockDetails) {
+    ) -> anyhow::Result<PreparedSend> {
         let block_tx = self.ledger.read_txn();
-        let mut details = BlockDetails::new(Epoch::Epoch0, true, false, false);
-        let mut block = None;
-        if wallet.store.valid_password(tx) {
-            let balance = self
-                .ledger
-                .any()
-                .account_balance(&block_tx, &source)
-                .unwrap_or_default();
-            if !balance.is_zero() && balance >= amount {
-                let info = self.ledger.account_info(&block_tx, &source).unwrap();
-                let prv_key = wallet.store.fetch(tx, &source.into()).unwrap();
-                if work == 0 {
-                    work = wallet
-                        .store
-                        .work_get(tx, &source.into())
-                        .unwrap_or_default();
-                }
-                let keys = PrivateKey::from(prv_key);
-                let state_block = Block::State(StateBlock::new(
-                    source,
-                    info.head,
-                    info.representative,
-                    balance - amount,
-                    account.into(),
-                    &keys,
-                    work,
-                ));
-                block = Some(state_block);
-                details = BlockDetails::new(info.epoch, true, false, false);
-            }
+        if !wallet.store.valid_password(tx) {
+            bail!("invalid password");
+        }
+        let balance = self
+            .ledger
+            .any()
+            .account_balance(&block_tx, &source)
+            .unwrap_or_default();
+
+        if balance.is_zero() || balance < amount {
+            bail!("insufficient balance");
         }
 
-        let error = false;
-        let cached_block = false;
-        (block, error, cached_block, details)
+        let info = self.ledger.account_info(&block_tx, &source).unwrap();
+        let prv_key = wallet.store.fetch(tx, &source.into()).unwrap();
+        if work == 0 {
+            work = wallet
+                .store
+                .work_get(tx, &source.into())
+                .unwrap_or_default();
+        }
+        let keys = PrivateKey::from(prv_key);
+        let state_block = Block::State(StateBlock::new(
+            source,
+            info.head,
+            info.representative,
+            balance - amount,
+            account.into(),
+            &keys,
+            work,
+        ));
+        let details = BlockDetails::new(info.epoch, true, false, false);
+        Ok(PreparedSend::New(state_block, details))
     }
 
     fn prepare_send_with_id(
@@ -655,66 +658,58 @@ impl Wallets {
         account: Account,
         amount: Amount,
         mut work: u64,
-    ) -> (Option<Block>, bool, bool, BlockDetails) {
+    ) -> anyhow::Result<PreparedSend> {
         let block_tx = self.ledger.read_txn();
-        let mut details = BlockDetails::new(Epoch::Epoch0, true, false, false);
 
-        let mut block = match self.get_block_hash(tx, id) {
-            Ok(Some(hash)) => Some(self.ledger.any().get_block(&block_tx, &hash).unwrap()),
-            Ok(None) => None,
-            _ => {
-                return (None, true, false, details);
-            }
+        let block = match self.get_block_hash(tx, id)? {
+            Some(hash) => Some(self.ledger.any().get_block(&block_tx, &hash).unwrap()),
+            None => None,
         };
 
-        let cached_block: bool;
-        let mut error = false;
-
-        if let Some(block) = &block {
-            cached_block = true;
-            let msg = Message::Publish(Publish::new_forward(block.clone()));
+        if let Some(block) = block {
+            let msg = Message::Publish(Publish::new_forward(block.clone().into()));
             self.message_publisher
                 .lock()
                 .unwrap()
                 .flood(&msg, DropPolicy::ShouldNotDrop, 1.0);
+            Ok(PreparedSend::Cached(block))
         } else {
-            cached_block = false;
-            if wallet.store.valid_password(tx) {
-                let balance = self
-                    .ledger
-                    .any()
-                    .account_balance(&block_tx, &source)
-                    .unwrap_or_default();
-                if !balance.is_zero() && balance >= amount {
-                    let info = self.ledger.account_info(&block_tx, &source).unwrap();
-                    let prv_key = wallet.store.fetch(tx, &source.into()).unwrap();
-                    if work == 0 {
-                        work = wallet
-                            .store
-                            .work_get(tx, &source.into())
-                            .unwrap_or_default();
-                    }
-                    let keys = PrivateKey::from(prv_key);
-                    let state_block = Block::State(StateBlock::new(
-                        source,
-                        info.head,
-                        info.representative,
-                        balance - amount,
-                        account.into(),
-                        &keys,
-                        work,
-                    ));
-                    details = BlockDetails::new(info.epoch, true, false, false);
-                    if self.set_block_hash(tx, id, &state_block.hash()).is_err() {
-                        error = true;
-                    } else {
-                        block = Some(state_block);
-                    }
-                }
+            if !wallet.store.valid_password(tx) {
+                bail!("invalid password");
             }
-        }
 
-        (block, error, cached_block, details)
+            let balance = self
+                .ledger
+                .any()
+                .account_balance(&block_tx, &source)
+                .unwrap_or_default();
+
+            if balance.is_zero() || balance < amount {
+                bail!("insufficient balance");
+            }
+
+            let info = self.ledger.account_info(&block_tx, &source).unwrap();
+            let prv_key = wallet.store.fetch(tx, &source.into()).unwrap();
+            if work == 0 {
+                work = wallet
+                    .store
+                    .work_get(tx, &source.into())
+                    .unwrap_or_default();
+            }
+            let keys = PrivateKey::from(prv_key);
+            let state_block = Block::State(StateBlock::new(
+                source,
+                info.head,
+                info.representative,
+                balance - amount,
+                account.into(),
+                &keys,
+                work,
+            ));
+            let details = BlockDetails::new(info.epoch, true, false, false);
+            self.set_block_hash(tx, id, &state_block.hash())?;
+            Ok(PreparedSend::New(state_block, details))
+        }
     }
 
     pub fn work_get(&self, wallet_id: &WalletId, pub_key: &PublicKey) -> u64 {
@@ -952,11 +947,11 @@ pub trait WalletsExt {
     fn action_complete(
         &self,
         wallet: Arc<Wallet>,
-        block: Option<Block>,
+        block: Block,
         account: Account,
         generate_work: bool,
         details: &BlockDetails,
-    ) -> anyhow::Result<Option<Block>>;
+    ) -> anyhow::Result<SavedBlock>;
 
     fn ongoing_compute_reps(&self);
 
@@ -984,7 +979,7 @@ pub trait WalletsExt {
         work: u64,
         generate_work: bool,
         id: Option<String>,
-    ) -> Option<Block>;
+    ) -> anyhow::Result<SavedBlock>;
 
     fn send_action2(
         &self,
@@ -995,7 +990,7 @@ pub trait WalletsExt {
         work: u64,
         generate_work: bool,
         id: Option<String>,
-    ) -> Result<Block, WalletsError>;
+    ) -> Result<SavedBlock, WalletsError>;
 
     fn change_action(
         &self,
@@ -1024,7 +1019,7 @@ pub trait WalletsExt {
         account: Account,
         work: u64,
         generate_work: bool,
-    ) -> Result<Option<Block>, WalletsError>;
+    ) -> Result<Option<SavedBlock>, WalletsError>;
 
     fn receive_action(
         &self,
@@ -1035,7 +1030,7 @@ pub trait WalletsExt {
         account: Account,
         work: u64,
         generate_work: bool,
-    ) -> Option<Block>;
+    ) -> Option<SavedBlock>;
 
     fn receive_async_wallet(
         &self,
@@ -1044,7 +1039,7 @@ pub trait WalletsExt {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        action: Box<dyn Fn(Option<Block>) + Send + Sync>,
+        action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
         work: u64,
         generate_work: bool,
     );
@@ -1056,7 +1051,7 @@ pub trait WalletsExt {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        action: Box<dyn Fn(Option<Block>) + Send + Sync>,
+        action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
         work: u64,
         generate_work: bool,
     ) -> Result<(), WalletsError>;
@@ -1070,7 +1065,7 @@ pub trait WalletsExt {
         account: Account,
         work: u64,
         generate_work: bool,
-    ) -> Result<Block, ()>;
+    ) -> Result<SavedBlock, ()>;
 
     fn send_async_wallet(
         &self,
@@ -1177,7 +1172,7 @@ impl WalletsExt for Arc<Wallets> {
         account: Account,
         work: u64,
         generate_work: bool,
-    ) -> Result<Option<Block>, WalletsError> {
+    ) -> Result<Option<SavedBlock>, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Wallets::get_wallet(&guard, wallet_id)?;
         let tx = self.env.tx_begin_read();
@@ -1328,16 +1323,13 @@ impl WalletsExt for Arc<Wallets> {
     fn action_complete(
         &self,
         wallet: Arc<Wallet>,
-        block: Option<Block>,
+        mut block: Block,
         account: Account,
         generate_work: bool,
         details: &BlockDetails,
-    ) -> anyhow::Result<Option<Block>> {
+    ) -> anyhow::Result<SavedBlock> {
         // Unschedule any work caching for this account
         self.delayed_work.lock().unwrap().remove(&account);
-        let Some(mut block) = block else {
-            return Ok(None);
-        };
         let hash = block.hash();
         let required_difficulty = self.network_params.work.threshold(details);
         if self.network_params.work.difficulty_block(&block) < required_difficulty {
@@ -1351,22 +1343,16 @@ impl WalletsExt for Arc<Wallets> {
                 .ok_or_else(|| anyhow!("no work generated"))?;
         }
         let arc_block = Arc::new(block.clone());
-        let Some((result, block)) = self
+        let saved_block = self
             .block_processor
-            .add_blocking(arc_block.clone(), BlockSource::Local)
-        else {
-            bail!("block processor returned None");
-        };
-
-        if !matches!(result, BlockStatus::Progress) {
-            bail!("block processor failed: {:?}", result);
-        }
+            .add_blocking(arc_block.clone(), BlockSource::Local)?
+            .map_err(|s| anyhow!("block processor failed: {:?}", s))?;
 
         if generate_work {
             // Pregenerate work for next block based on the block just created
             self.work_ensure(&wallet, account, hash.into());
         }
-        Ok(Some(block))
+        Ok(saved_block)
     }
 
     fn ongoing_compute_reps(&self) {
@@ -1435,11 +1421,11 @@ impl WalletsExt for Arc<Wallets> {
         work: u64,
         generate_work: bool,
         id: Option<String>,
-    ) -> Result<Block, WalletsError> {
+    ) -> Result<SavedBlock, WalletsError> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Wallets::get_wallet(&guard, &wallet_id)?;
         self.send_action(wallet, source, account, amount, work, generate_work, id)
-            .ok_or(WalletsError::Generic)
+            .map_err(|_| WalletsError::Generic)
     }
 
     fn send_action(
@@ -1451,34 +1437,24 @@ impl WalletsExt for Arc<Wallets> {
         work: u64,
         generate_work: bool,
         id: Option<String>,
-    ) -> Option<Block> {
-        let (block, error, cached_block, details) = match id {
+    ) -> anyhow::Result<SavedBlock> {
+        let result = match id {
             Some(id) => {
                 let mut tx = self.env.tx_begin_write();
-                self.prepare_send_with_id(&mut tx, &id, wallet, source, account, amount, work)
+                self.prepare_send_with_id(&mut tx, &id, wallet, source, account, amount, work)?
             }
             None => {
                 let tx = self.env.tx_begin_read();
-                self.prepare_send(&tx, wallet, source, account, amount, work)
+                self.prepare_send(&tx, wallet, source, account, amount, work)?
             }
         };
 
-        let block = block?;
-
-        if !error && !cached_block {
-            match self.action_complete(
-                Arc::clone(wallet),
-                Some(block),
-                source,
-                generate_work,
-                &details,
-            ) {
-                Ok(b) => return b,
-                Err(_) => return None,
+        match result {
+            PreparedSend::Cached(block) => Ok(block),
+            PreparedSend::New(block, details) => {
+                self.action_complete(Arc::clone(wallet), block, source, generate_work, &details)
             }
-        };
-
-        Some(block)
+        }
     }
 
     fn change_action(
@@ -1526,16 +1502,9 @@ impl WalletsExt for Arc<Wallets> {
         let block = block?;
 
         let details = BlockDetails::new(epoch, false, false, false);
-        match self.action_complete(
-            Arc::clone(&wallet),
-            Some(block),
-            source,
-            generate_work,
-            &details,
-        ) {
-            Ok(b) => return b,
-            Err(_) => return None,
-        }
+        self.action_complete(Arc::clone(&wallet), block, source, generate_work, &details)
+            .ok()
+            .map(|b| b.into())
     }
 
     fn change_action2(
@@ -1560,7 +1529,7 @@ impl WalletsExt for Arc<Wallets> {
         account: Account,
         mut work: u64,
         generate_work: bool,
-    ) -> Option<Block> {
+    ) -> Option<SavedBlock> {
         if amount < self.node_config.receive_minimum {
             warn!(
                 "Not receiving block {} due to minimum receive threshold",
@@ -1626,16 +1595,8 @@ impl WalletsExt for Arc<Wallets> {
 
         let block = block?;
         let details = BlockDetails::new(epoch, false, true, false);
-        match self.action_complete(
-            Arc::clone(wallet),
-            Some(block),
-            account,
-            generate_work,
-            &details,
-        ) {
-            Ok(b) => b,
-            Err(_) => None,
-        }
+        self.action_complete(Arc::clone(wallet), block, account, generate_work, &details)
+            .ok()
     }
 
     fn receive_async_wallet(
@@ -1645,7 +1606,7 @@ impl WalletsExt for Arc<Wallets> {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        action: Box<dyn Fn(Option<Block>) + Send + Sync>,
+        action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
         work: u64,
         generate_work: bool,
     ) {
@@ -1675,7 +1636,7 @@ impl WalletsExt for Arc<Wallets> {
         representative: PublicKey,
         amount: Amount,
         account: Account,
-        action: Box<dyn Fn(Option<Block>) + Send + Sync>,
+        action: Box<dyn Fn(Option<SavedBlock>) + Send + Sync>,
         work: u64,
         generate_work: bool,
     ) -> Result<(), WalletsError> {
@@ -1712,7 +1673,7 @@ impl WalletsExt for Arc<Wallets> {
         account: Account,
         work: u64,
         generate_work: bool,
-    ) -> Result<Block, ()> {
+    ) -> Result<SavedBlock, ()> {
         let result = Arc::new((Condvar::new(), Mutex::new((false, None)))); // done, result
         let result_clone = Arc::clone(&result);
         self.receive_async_wallet(
@@ -1753,15 +1714,18 @@ impl WalletsExt for Arc<Wallets> {
             HIGH_PRIORITY,
             wallet,
             Box::new(move |wallet| {
-                let block = self_l.send_action(
-                    &wallet,
-                    source,
-                    account,
-                    amount,
-                    work,
-                    generate_work,
-                    id.clone(),
-                );
+                let block = self_l
+                    .send_action(
+                        &wallet,
+                        source,
+                        account,
+                        amount,
+                        work,
+                        generate_work,
+                        id.clone(),
+                    )
+                    .ok()
+                    .map(|b| b.into());
                 action(block);
             }),
         );

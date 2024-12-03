@@ -1,7 +1,7 @@
 use num_traits::FromPrimitive;
 use rsnano_core::{
     utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2},
-    NodeId, PublicKey,
+    NodeId,
 };
 use rsnano_nullable_clock::Timestamp;
 use std::{

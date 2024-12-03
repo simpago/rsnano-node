@@ -4,14 +4,13 @@ use rsnano_core::{
     utils::{get_env_or_default_string, seconds_since_epoch, SerdePropertyTree},
     work::{WorkThresholds, WORK_THRESHOLDS_STUB},
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, Epochs, Networks,
-    PrivateKey, PublicKey, DEV_GENESIS_KEY,
+    PublicKey, SavedBlock, DEV_GENESIS_KEY,
 };
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 
 static BETA_PUBLIC_KEY_DATA: &str =
     "259A438A8F9F9226130C84D902C237AF3E57C0981C7D709C288046B110D8C8AC";
-static LIVE_PUBLIC_KEY_DATA: &str =
-    "E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA"; // xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3
+
 static TEST_PUBLIC_KEY_DATA: LazyLock<String> = LazyLock::new(|| {
     get_env_or_default_string(
         "NANO_TEST_GENESIS_PUB",
@@ -63,14 +62,15 @@ static TEST_GENESIS_DATA: LazyLock<String> = LazyLock::new(|| {
 pub static LEDGER_CONSTANTS_STUB: LazyLock<LedgerConstants> =
     LazyLock::new(|| LedgerConstants::new(WORK_THRESHOLDS_STUB.clone(), Networks::NanoDevNetwork));
 
-pub static DEV_GENESIS: LazyLock<Arc<Block>> =
-    LazyLock::new(|| LEDGER_CONSTANTS_STUB.genesis.clone());
+pub static DEV_GENESIS_BLOCK: LazyLock<SavedBlock> =
+    LazyLock::new(|| LEDGER_CONSTANTS_STUB.genesis_block.clone());
+
 pub static DEV_GENESIS_ACCOUNT: LazyLock<Account> =
-    LazyLock::new(|| DEV_GENESIS.account_field().unwrap());
+    LazyLock::new(|| DEV_GENESIS_BLOCK.account_field().unwrap());
 #[allow(dead_code)]
 pub static DEV_GENESIS_PUB_KEY: LazyLock<PublicKey> =
-    LazyLock::new(|| DEV_GENESIS.account_field().unwrap().into());
-pub static DEV_GENESIS_HASH: LazyLock<BlockHash> = LazyLock::new(|| DEV_GENESIS.hash());
+    LazyLock::new(|| DEV_GENESIS_BLOCK.account_field().unwrap().into());
+pub static DEV_GENESIS_HASH: LazyLock<BlockHash> = LazyLock::new(|| DEV_GENESIS_BLOCK.hash());
 
 fn parse_block_from_genesis_data(genesis_data: &str) -> Result<Block> {
     let ptree = SerdePropertyTree::parse(genesis_data)?;
@@ -94,89 +94,40 @@ mod tests {
 #[derive(Clone)]
 pub struct LedgerConstants {
     pub work: WorkThresholds,
-    pub zero_key: PrivateKey,
-    pub nano_beta_account: Account,
-    pub nano_live_account: Account,
-    pub nano_test_account: Account,
-    pub nano_dev_genesis: Arc<Block>,
-    pub nano_beta_genesis: Arc<Block>,
-    pub nano_live_genesis: Arc<Block>,
-    pub nano_test_genesis: Arc<Block>,
-    pub genesis: Arc<Block>,
+    pub genesis_block: SavedBlock,
     pub genesis_account: Account,
     pub genesis_amount: Amount,
     pub burn_account: Account,
     pub epochs: Epochs,
 }
 
+fn genesis_sideband(genesis_account: Account) -> BlockSideband {
+    BlockSideband::new(
+        genesis_account,
+        BlockHash::from(0),
+        Amount::raw(u128::MAX),
+        1,
+        seconds_since_epoch(),
+        BlockDetails::new(Epoch::Epoch0, false, false, false),
+        Epoch::Epoch0,
+    )
+}
+
 impl LedgerConstants {
     pub fn new(work: WorkThresholds, network: Networks) -> Self {
-        let mut nano_dev_genesis = parse_block_from_genesis_data(DEV_GENESIS_DATA).unwrap();
-        let mut nano_beta_genesis = parse_block_from_genesis_data(BETA_GENESIS_DATA).unwrap();
-        let mut nano_live_genesis = parse_block_from_genesis_data(LIVE_GENESIS_DATA).unwrap();
-        let mut nano_test_genesis =
-            parse_block_from_genesis_data(TEST_GENESIS_DATA.as_str()).unwrap();
+        let dev_genesis_block = parse_block_from_genesis_data(DEV_GENESIS_DATA).unwrap();
+        let beta_genesis_block = parse_block_from_genesis_data(BETA_GENESIS_DATA).unwrap();
+        let live_genesis_block = parse_block_from_genesis_data(LIVE_GENESIS_DATA).unwrap();
+        let test_genesis_block = parse_block_from_genesis_data(TEST_GENESIS_DATA.as_str()).unwrap();
 
-        let beta_genesis_account = nano_beta_genesis.account_field().unwrap();
-        nano_beta_genesis
-            .as_block_mut()
-            .set_sideband(BlockSideband::new(
-                beta_genesis_account,
-                BlockHash::from(0),
-                Amount::raw(u128::MAX),
-                1,
-                seconds_since_epoch(),
-                BlockDetails::new(Epoch::Epoch0, false, false, false),
-                Epoch::Epoch0,
-            ));
-
-        let dev_genesis_account = nano_dev_genesis.account_field().unwrap();
-        nano_dev_genesis
-            .as_block_mut()
-            .set_sideband(BlockSideband::new(
-                dev_genesis_account,
-                BlockHash::from(0),
-                Amount::raw(u128::MAX),
-                1,
-                seconds_since_epoch(),
-                BlockDetails::new(Epoch::Epoch0, false, false, false),
-                Epoch::Epoch0,
-            ));
-
-        let live_genesis_account = nano_live_genesis.account_field().unwrap();
-        nano_live_genesis
-            .as_block_mut()
-            .set_sideband(BlockSideband::new(
-                live_genesis_account,
-                BlockHash::from(0),
-                Amount::raw(u128::MAX),
-                1,
-                seconds_since_epoch(),
-                BlockDetails::new(Epoch::Epoch0, false, false, false),
-                Epoch::Epoch0,
-            ));
-
-        let test_genesis_account = nano_test_genesis.account_field().unwrap();
-        nano_test_genesis
-            .as_block_mut()
-            .set_sideband(BlockSideband::new(
-                test_genesis_account,
-                BlockHash::from(0),
-                Amount::raw(u128::MAX),
-                1,
-                seconds_since_epoch(),
-                BlockDetails::new(Epoch::Epoch0, false, false, false),
-                Epoch::Epoch0,
-            ));
-
-        let genesis = match network {
-            Networks::NanoDevNetwork => nano_dev_genesis.clone(),
-            Networks::NanoBetaNetwork => nano_beta_genesis.clone(),
-            Networks::NanoTestNetwork => nano_test_genesis.clone(),
-            Networks::NanoLiveNetwork => nano_live_genesis.clone(),
+        let genesis_block = match network {
+            Networks::NanoDevNetwork => dev_genesis_block,
+            Networks::NanoBetaNetwork => beta_genesis_block,
+            Networks::NanoTestNetwork => test_genesis_block,
+            Networks::NanoLiveNetwork => live_genesis_block,
             Networks::Invalid => panic!("invalid network"),
         };
-        let genesis_account = genesis.account_field().unwrap();
+        let genesis_account = genesis_block.account_field().unwrap();
 
         let nano_beta_account = Account::decode_hex(BETA_PUBLIC_KEY_DATA).unwrap();
         let nano_test_account = Account::decode_hex(TEST_PUBLIC_KEY_DATA.as_str()).unwrap();
@@ -202,17 +153,11 @@ impl LedgerConstants {
         epochs.add(Epoch::Epoch1, epoch_1_signer, epoch_link_v1);
         epochs.add(Epoch::Epoch2, epoch_2_signer, epoch_link_v2);
 
+        let genesis_block = SavedBlock::new(genesis_block, genesis_sideband(genesis_account));
+
         Self {
             work,
-            zero_key: PrivateKey::zero(),
-            nano_beta_account,
-            nano_live_account: Account::decode_hex(LIVE_PUBLIC_KEY_DATA).unwrap(),
-            nano_test_account,
-            nano_dev_genesis: Arc::new(nano_dev_genesis),
-            nano_beta_genesis: Arc::new(nano_beta_genesis),
-            nano_live_genesis: Arc::new(nano_live_genesis),
-            nano_test_genesis: Arc::new(nano_test_genesis),
-            genesis: Arc::new(genesis),
+            genesis_block,
             genesis_account,
             genesis_amount: Amount::raw(u128::MAX),
             burn_account: Account::zero(),

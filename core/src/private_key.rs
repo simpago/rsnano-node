@@ -1,8 +1,7 @@
 use super::{PublicKey, RawKey, Signature};
-use crate::{Account, BlockBase, Link, Root, StateBlock};
+use crate::{Account, Link, Root};
 use anyhow::Context;
 use ed25519_dalek::ed25519::signature::SignerMut;
-use ed25519_dalek::Verifier;
 use rsnano_nullable_random::NullableRng;
 
 pub struct PrivateKeyFactory {
@@ -134,35 +133,6 @@ impl From<&PrivateKey> for Account {
     }
 }
 
-pub fn sign_message(private_key: &RawKey, data: &[u8]) -> Signature {
-    let secret = ed25519_dalek::SecretKey::from(*private_key.as_bytes());
-    let mut signing_key = ed25519_dalek::SigningKey::from(&secret);
-    let signature = signing_key.sign(data);
-    Signature::from_bytes(signature.to_bytes())
-}
-
-pub fn validate_message(
-    public_key: &PublicKey,
-    message: &[u8],
-    signature: &Signature,
-) -> anyhow::Result<()> {
-    let public = ed25519_dalek::VerifyingKey::from_bytes(public_key.as_bytes())
-        .map_err(|_| anyhow!("could not extract public key"))?;
-    let sig = ed25519_dalek::Signature::from_bytes(signature.as_bytes());
-    public
-        .verify(message, &sig)
-        .map_err(|_| anyhow!("could not verify message"))?;
-    Ok(())
-}
-
-pub fn validate_block_signature(block: &StateBlock) -> anyhow::Result<()> {
-    validate_message(
-        &block.account().into(),
-        block.hash().as_bytes(),
-        block.block_signature(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,10 +158,10 @@ mod tests {
 
     #[test]
     fn sign_message_test() -> anyhow::Result<()> {
-        let keypair = PrivateKey::new();
+        let prv_key = PrivateKey::new();
         let data = [0u8; 32];
-        let signature = sign_message(&keypair.private_key(), &data);
-        validate_message(&keypair.public_key(), &data, &signature)?;
+        let signature = prv_key.sign(&data);
+        prv_key.public_key().verify(&data, &signature)?;
         Ok(())
     }
 
@@ -200,10 +170,10 @@ mod tests {
         // the C++ implementation adds random bytes and a padding when signing for extra security and for making side channel attacks more difficult.
         // Currently the Rust impl does not do that.
         // In C++ signing the same message twice will produce different signatures. In Rust we get the same signature.
-        let keypair = PrivateKey::new();
+        let prv_key = PrivateKey::new();
         let data = [1, 2, 3];
-        let signature_a = sign_message(&keypair.private_key(), &data);
-        let signature_b = sign_message(&keypair.private_key(), &data);
+        let signature_a = prv_key.sign(&data);
+        let signature_b = prv_key.sign(&data);
         assert_eq!(signature_a, signature_b);
     }
 
@@ -223,7 +193,7 @@ mod tests {
 
         let signature = Signature::decode_hex("3C14AF3E82BFC7DFD04EDF1639CDBF3580C02450CED478F269A4169A941617097D73A77721B62847558659371DBC3F6830724A7A55117750E5743562D1CF671E").unwrap();
 
-        validate_message(&public_key, hash.as_bytes(), &signature).unwrap();
+        public_key.verify(hash.as_bytes(), &signature).unwrap();
     }
 
     // This block signature caused issues during live bootstrap. This was fixed by using verify() instead of verify_strict()
@@ -243,7 +213,7 @@ mod tests {
 
         let signature = Signature::decode_hex("1A8CFB63796525E47EBAF0B8696D95E2B893CBCC13454CB34530A59A3725C1A9FEA02A1F072BADE964BE5378CFA5AD50E743F167987444B1C9E3D7B3E6009F07").unwrap();
 
-        validate_message(&public_key, hash.as_bytes(), &signature).unwrap();
+        public_key.verify(hash.as_bytes(), &signature).unwrap();
     }
 
     mod key_pair_factory {

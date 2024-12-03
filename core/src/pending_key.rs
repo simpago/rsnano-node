@@ -33,7 +33,7 @@ impl PendingKey {
 
     pub fn for_receive_block(block: &Block) -> Self {
         Self::new(
-            block.account(),
+            block.account_field().unwrap(),
             block.link_field().unwrap_or_default().into(),
         )
     }

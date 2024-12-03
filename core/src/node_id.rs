@@ -11,6 +11,10 @@ impl NodeId {
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
+
+    pub const fn as_key(&self) -> PublicKey {
+        PublicKey::from_bytes(self.0)
+    }
 }
 
 impl From<i32> for NodeId {
@@ -124,13 +128,13 @@ impl<'de> Visitor<'de> for NodeIdVisitor {
 
 impl From<NodeId> for PublicKey {
     fn from(value: NodeId) -> Self {
-        Self::from_bytes(value.0)
+        value.as_key()
     }
 }
 
 impl From<PublicKey> for NodeId {
     fn from(value: PublicKey) -> Self {
-        Self::from_bytes(value.0)
+        Self::from_bytes(*value.as_bytes())
     }
 }
 

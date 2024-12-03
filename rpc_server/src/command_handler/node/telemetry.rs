@@ -1,10 +1,10 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::bail;
-use rsnano_rpc_messages::{TelemetryArgs, TelemetryDto, TelemetryResponose};
+use rsnano_rpc_messages::{TelemetryArgs, TelemetryDto, TelemetryResponse};
 use std::net::SocketAddrV6;
 
 impl RpcCommandHandler {
-    pub(crate) fn telemetry(&self, args: TelemetryArgs) -> anyhow::Result<TelemetryResponose> {
+    pub(crate) fn telemetry(&self, args: TelemetryArgs) -> anyhow::Result<TelemetryResponse> {
         let mut responses = Vec::new();
         if args.address.is_some() || args.port.is_some() {
             // Check both are specified
@@ -22,7 +22,7 @@ impl RpcCommandHandler {
                 // Requesting telemetry metrics locally
                 let data = self.node.telemetry.local_telemetry();
                 responses.push(TelemetryDto::from(data));
-                return Ok(TelemetryResponose { metrics: responses });
+                return Ok(TelemetryResponse { metrics: responses });
             } else {
                 let Some(telemetry) = self.node.telemetry.get_telemetry(&endpoint) else {
                     bail!("Peer not found");
@@ -49,6 +49,6 @@ impl RpcCommandHandler {
             }
         }
 
-        Ok(TelemetryResponose { metrics: responses })
+        Ok(TelemetryResponse { metrics: responses })
     }
 }

@@ -311,6 +311,10 @@ fn election_winner_details_clearing_node_process_confirmed() {
         &DEV_GENESIS_KEY,
         node.work_generate_dev(*DEV_GENESIS_HASH),
     ));
+    let send = node.process(send).unwrap();
+    node.ledger
+        .rollback(&mut node.ledger.rw_txn(), &send.hash())
+        .unwrap();
     // Add to election_winner_details. Use an unrealistic iteration so that it should fall into the else case and do a cleanup
     node.active.vote_applier.add_election_winner_details(
         send.hash(),
@@ -324,7 +328,7 @@ fn election_winner_details_clearing_node_process_confirmed() {
     );
 
     let mut election = ElectionStatus::default();
-    election.winner = Some(send);
+    election.winner = Some(rsnano_core::SavedOrUnsavedBlock::Saved(send));
 
     node.active.process_confirmed(election, 1000000);
 

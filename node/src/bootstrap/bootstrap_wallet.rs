@@ -1,6 +1,7 @@
 use super::{
-    BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections, BootstrapConnectionsExt,
-    BootstrapInitiator, BootstrapMode, BulkPullAccountClient, BulkPullAccountClientExt,
+    BootstrapAttempt, BootstrapAttemptTrait, BootstrapCallbacks, BootstrapConnections,
+    BootstrapConnectionsExt, BootstrapInitiator, BootstrapMode, BulkPullAccountClient,
+    BulkPullAccountClientExt,
 };
 use crate::{block_processing::BlockProcessor, stats::Stats, utils::ThreadPool};
 use rsnano_core::{utils::PropertyTree, Account, Amount, Block};
@@ -36,10 +37,7 @@ impl BootstrapAttemptWallet {
         receive_minimum: Amount,
         stats: Arc<Stats>,
         tokio: tokio::runtime::Handle,
-        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
-        bootstrap_ended_observer: Arc<
-            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
-        >,
+        bootstrap_callbacks: BootstrapCallbacks,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -49,8 +47,7 @@ impl BootstrapAttemptWallet {
                 id,
                 BootstrapMode::WalletLazy,
                 incremental_id,
-                bootstrap_started_observer,
-                bootstrap_ended_observer,
+                bootstrap_callbacks,
             )?,
             mutex: Mutex::new(WalletData {
                 wallet_accounts: VecDeque::new(),

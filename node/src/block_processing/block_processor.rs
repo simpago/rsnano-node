@@ -5,7 +5,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::ContainerInfo, work::WorkThresholds, Block, BlockType, Epoch, HashOrAccount, Networks,
-    UncheckedInfo,
+    SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
@@ -52,6 +52,7 @@ pub type BlockProcessorCallback = Box<dyn Fn(BlockStatus) + Send + Sync>;
 
 pub struct BlockProcessorContext {
     pub block: Mutex<Block>,
+    pub saved_block: Mutex<Option<SavedBlock>>,
     pub source: BlockSource,
     callback: Option<BlockProcessorCallback>,
     pub arrival: Instant,
@@ -66,6 +67,7 @@ impl BlockProcessorContext {
     ) -> Self {
         Self {
             block: Mutex::new(block),
+            saved_block: Mutex::new(None),
             source,
             arrival: Instant::now(),
             callback,
@@ -254,22 +256,22 @@ impl BlockProcessor {
         self.processor_loop.queue_len(source)
     }
 
-    pub fn add_block_processed_observer(
+    pub fn on_block_processed(
         &self,
         observer: Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>,
     ) {
-        self.processor_loop.add_block_processed_observer(observer);
+        self.processor_loop.on_block_processed(observer);
     }
 
     pub fn add_batch_processed_observer(
         &self,
         observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>,
     ) {
-        self.processor_loop.add_batch_processed_observer(observer);
+        self.processor_loop.on_batch_processed(observer);
     }
 
     pub fn add_rolled_back_observer(&self, observer: Box<dyn Fn(&Block) + Send + Sync>) {
-        self.processor_loop.add_rolled_back_observer(observer);
+        self.processor_loop.on_rolled_back(observer);
     }
 
     pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
@@ -291,7 +293,7 @@ impl BlockProcessor {
         &self,
         block: Arc<Block>,
         source: BlockSource,
-    ) -> Option<(BlockStatus, Block)> {
+    ) -> anyhow::Result<Result<SavedBlock, BlockStatus>> {
         self.processor_loop.add_blocking(block, source)
     }
 
@@ -305,10 +307,9 @@ impl BlockProcessor {
 
     pub fn set_blocks_rolled_back_callback(
         &self,
-        callback: Box<dyn Fn(Vec<Block>, Block) + Send + Sync>,
+        callback: Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>,
     ) {
-        self.processor_loop
-            .set_blocks_rolled_back_callback(callback);
+        self.processor_loop.on_blocks_rolled_back(callback);
     }
     pub fn force(&self, block: Block) {
         self.processor_loop.force(block);
@@ -337,7 +338,7 @@ pub(crate) struct BlockProcessorLoop {
     unchecked_map: Arc<UncheckedMap>,
     config: BlockProcessorConfig,
     stats: Arc<Stats>,
-    blocks_rolled_back: Mutex<Option<Box<dyn Fn(Vec<Block>, Block) + Send + Sync>>>,
+    blocks_rolled_back: Mutex<Option<Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>>>,
     block_rolled_back: Mutex<Vec<Box<dyn Fn(&Block) + Send + Sync>>>,
     block_processed: Mutex<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
     batch_processed:
@@ -396,21 +397,21 @@ impl BlockProcessorLoop {
         }
     }
 
-    pub fn add_block_processed_observer(
+    pub fn on_block_processed(
         &self,
         observer: Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>,
     ) {
         self.block_processed.lock().unwrap().push(observer);
     }
 
-    pub fn add_batch_processed_observer(
+    pub fn on_batch_processed(
         &self,
         observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>,
     ) {
         self.batch_processed.lock().unwrap().push(observer);
     }
 
-    pub fn add_rolled_back_observer(&self, observer: Box<dyn Fn(&Block) + Send + Sync>) {
+    pub fn on_rolled_back(&self, observer: Box<dyn Fn(&Block) + Send + Sync>) {
         self.block_rolled_back.lock().unwrap().push(observer);
     }
 
@@ -420,9 +421,9 @@ impl BlockProcessorLoop {
         }
     }
 
-    pub fn set_blocks_rolled_back_callback(
+    pub fn on_blocks_rolled_back(
         &self,
-        callback: Box<dyn Fn(Vec<Block>, Block) + Send + Sync>,
+        callback: Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>,
     ) {
         *self.blocks_rolled_back.lock().unwrap() = Some(callback);
     }
@@ -463,7 +464,7 @@ impl BlockProcessorLoop {
         &self,
         block: Arc<Block>,
         source: BlockSource,
-    ) -> Option<(BlockStatus, Block)> {
+    ) -> anyhow::Result<Result<SavedBlock, BlockStatus>> {
         self.stats
             .inc(StatType::Blockprocessor, DetailType::ProcessBlocking);
         debug!(
@@ -482,12 +483,13 @@ impl BlockProcessorLoop {
         self.add_impl(ctx.clone(), ChannelId::LOOPBACK);
 
         match waiter.wait_result() {
-            Some(status) => Some((status, ctx.block.lock().unwrap().clone())),
+            Some(BlockStatus::Progress) => Ok(Ok(ctx.saved_block.lock().unwrap().clone().unwrap())),
+            Some(status) => Ok(Err(status)),
             None => {
                 self.stats
                     .inc(StatType::Blockprocessor, DetailType::ProcessBlockingTimeout);
                 error!("Block dropped when processing: {}", hash);
-                None
+                Err(anyhow!("Block dropped when processing"))
             }
         }
     }
@@ -598,12 +600,18 @@ impl BlockProcessorLoop {
     ) -> BlockStatus {
         let mut block = context.block.lock().unwrap().clone();
         let hash = block.hash();
+        let mut saved_block = None;
 
         let result = match self.ledger.process(txn, &mut block) {
-            Ok(()) => BlockStatus::Progress,
+            Ok(saved) => {
+                saved_block = Some(saved.clone());
+                *context.saved_block.lock().unwrap() = Some(saved);
+                BlockStatus::Progress
+            }
             Err(r) => r,
         };
 
+        // reassign to copy sideband
         *context.block.lock().unwrap() = block.clone();
 
         self.stats
@@ -618,10 +626,11 @@ impl BlockProcessorLoop {
                 /* For send blocks check epoch open unchecked (gap pending).
                 For state blocks check only send subtype and only if block epoch is not last epoch.
                 If epoch is last, then pending entry shouldn't trigger same epoch open block for destination account. */
+                let block = saved_block.unwrap();
                 if block.block_type() == BlockType::LegacySend
                     || block.block_type() == BlockType::State
                         && block.is_send()
-                        && block.sideband().unwrap().details.epoch < Epoch::MAX
+                        && block.epoch() < Epoch::MAX
                 {
                     /* block->destination () for legacy send blocks
                     block->link () for state blocks (send subtype) */
@@ -645,8 +654,10 @@ impl BlockProcessorLoop {
             }
             BlockStatus::GapEpochOpenPending => {
                 // Specific unchecked key starting with epoch open block account public key
-                self.unchecked_map
-                    .put(block.account().into(), UncheckedInfo::new(block));
+                self.unchecked_map.put(
+                    block.account_field().unwrap().into(),
+                    UncheckedInfo::new(block),
+                );
                 self.stats.inc(StatType::Ledger, DetailType::GapSource);
             }
             BlockStatus::Old => {

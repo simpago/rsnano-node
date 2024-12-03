@@ -11,6 +11,8 @@
 [rpc_messages]
 [rpc_server]
 [rpc_client]
+[websocket_messages]
+[websocket_server]
 
 folder "nullables"{
 [fs]
@@ -32,6 +34,9 @@ folder "nullables"{
 [node] --> [ledger]
 [node] --> [messages]
 [node] --> [network]
+[node] --> [websocket_server]
+[websocket_server] --> [websocket_messages]
+[websocket_messages] --> [core]
 [messages] --> [core]
 [network] --> [core]
 [ledger] --> [store_lmdb]

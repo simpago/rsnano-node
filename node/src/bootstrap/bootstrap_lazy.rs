@@ -1,6 +1,6 @@
 use super::{
-    bootstrap_limits, BootstrapAttempt, BootstrapAttemptTrait, BootstrapConnections,
-    BootstrapConnectionsExt, BootstrapInitiator, BootstrapMode,
+    bootstrap_limits, BootstrapAttempt, BootstrapAttemptTrait, BootstrapCallbacks,
+    BootstrapConnections, BootstrapConnectionsExt, BootstrapInitiator, BootstrapMode,
 };
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
@@ -227,10 +227,7 @@ impl BootstrapAttemptLazy {
         flags: NodeFlags,
         connections: Arc<BootstrapConnections>,
         network_params: NetworkParams,
-        bootstrap_started_observer: Arc<Mutex<Vec<Box<dyn Fn(String, String) + Send + Sync>>>>,
-        bootstrap_ended_observer: Arc<
-            Mutex<Vec<Box<dyn Fn(String, String, String, String) + Send + Sync>>>,
-        >,
+        bootstrap_callbacks: BootstrapCallbacks,
     ) -> Result<Self> {
         Ok(Self {
             attempt: BootstrapAttempt::new(
@@ -240,8 +237,7 @@ impl BootstrapAttemptLazy {
                 id,
                 BootstrapMode::Lazy,
                 incremental_id,
-                bootstrap_started_observer,
-                bootstrap_ended_observer,
+                bootstrap_callbacks,
             )?,
             flags: flags.clone(),
             connections,

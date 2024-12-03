@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use rand::Rng;
-use rsnano_core::{utils::ContainerInfo, validate_message, Account, Signature};
+use rsnano_core::{utils::ContainerInfo, Account, Signature};
 use rsnano_messages::Cookie;
 
 /// Node ID cookies for node ID handshakes
@@ -65,7 +65,7 @@ impl SynCookies {
         let ip_addr = endpoint.ip();
         let mut lock = self.data.lock().unwrap();
         if let Some(info) = lock.cookies.get(endpoint) {
-            validate_message(&node_id.into(), &info.cookie, signature)?;
+            node_id.as_key().verify(&info.cookie, signature)?;
             lock.cookies.remove(endpoint);
             lock.dec_cookie_count(*ip_addr);
         }

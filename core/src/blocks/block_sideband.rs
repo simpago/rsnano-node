@@ -164,9 +164,8 @@ impl BlockSideband {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::MemoryStream;
-
     use super::*;
+    use crate::utils::MemoryStream;
 
     #[test]
     fn serialize() {

@@ -19,7 +19,8 @@ use crate::{
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
     utils::{ContainerInfo, MemoryStream},
-    Account, Amount, Block, BlockHash, BlockType, QualifiedRoot, Vote, VoteWithWeightInfo,
+    Account, Amount, Block, BlockHash, BlockType, QualifiedRoot, SavedBlock, SavedOrUnsavedBlock,
+    Vote, VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
@@ -42,8 +43,6 @@ const ELECTION_MAX_BLOCKS: usize = 10;
 pub type ElectionEndCallback = Box<
     dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, Amount, bool, bool) + Send + Sync,
 >;
-
-pub type BalanceChangedCallback = Box<dyn Fn(&Account, bool) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActiveElectionsConfig {
@@ -97,7 +96,6 @@ pub struct ActiveElections {
     active_started_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     active_stopped_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     election_end: Mutex<Vec<ElectionEndCallback>>,
-    account_balance_changed: BalanceChangedCallback,
     online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
@@ -121,7 +119,6 @@ impl ActiveElections {
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         election_end: ElectionEndCallback,
-        account_balance_changed: BalanceChangedCallback,
         online_reps: Arc<Mutex<OnlineReps>>,
         flags: NodeFlags,
         recently_confirmed: Arc<RecentlyConfirmedCache>,
@@ -160,7 +157,6 @@ impl ActiveElections {
             active_started_observer: Mutex::new(Vec::new()),
             active_stopped_observer: Mutex::new(Vec::new()),
             election_end: Mutex::new(vec![election_end]),
-            account_balance_changed,
             online_reps,
             thread: Mutex::new(None),
             flags,
@@ -192,15 +188,15 @@ impl ActiveElections {
         }
     }
 
-    pub fn add_election_end_callback(&self, f: ElectionEndCallback) {
+    pub fn on_election_ended(&self, f: ElectionEndCallback) {
         self.election_end.lock().unwrap().push(f);
     }
 
-    pub fn add_active_started_callback(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
+    pub fn on_active_started(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
         self.active_started_observer.lock().unwrap().push(f);
     }
 
-    pub fn add_active_stopped_callback(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
+    pub fn on_active_stopped(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
         self.active_stopped_observer.lock().unwrap().push(f);
     }
 
@@ -230,13 +226,15 @@ impl ActiveElections {
     }
 
     pub fn insert_recently_cemented(&self, status: ElectionStatus) {
+        let SavedOrUnsavedBlock::Saved(block) = status.winner.as_ref().unwrap() else {
+            return;
+        };
         self.recently_cemented
             .lock()
             .unwrap()
             .push_back(status.clone());
 
         // Trigger callback for confirmed block
-        let block = status.winner.as_ref().unwrap();
         let account = block.account();
         let amount = self
             .ledger
@@ -277,6 +275,9 @@ impl ActiveElections {
         votes: &Vec<VoteWithWeightInfo>,
     ) {
         let block = status.winner.as_ref().unwrap();
+        let SavedOrUnsavedBlock::Saved(block) = block else {
+            return;
+        };
         let account = block.account();
 
         match status.election_status_type {
@@ -306,8 +307,12 @@ impl ActiveElections {
                 .block_amount(tx, &block.hash())
                 .unwrap_or_default();
 
-            let is_state_send = block.block_type() == BlockType::State && block.is_send();
-            let is_state_epoch = block.block_type() == BlockType::State && block.is_epoch();
+            let mut is_state_send = false;
+            let mut is_state_epoch = false;
+            if block.block_type() == BlockType::State {
+                is_state_send = block.block_type() == BlockType::State && block.is_send();
+                is_state_epoch = block.block_type() == BlockType::State && block.is_epoch();
+            }
 
             let ended_callbacks = self.election_end.lock().unwrap();
             for callback in ended_callbacks.iter() {
@@ -320,11 +325,6 @@ impl ActiveElections {
                     is_state_epoch,
                 );
             }
-        }
-
-        (self.account_balance_changed)(&account, false);
-        if block.is_send() {
-            (self.account_balance_changed)(&block.destination().unwrap(), true);
         }
     }
 
@@ -439,8 +439,7 @@ impl ActiveElections {
     }
 
     pub fn active(&self, block: &Block) -> bool {
-        let guard = self.mutex.lock().unwrap();
-        guard.roots.get(&block.qualified_root()).is_some()
+        self.active_root(&block.qualified_root())
     }
 
     pub fn replace_by_weight<'a>(
@@ -524,9 +523,10 @@ impl ActiveElections {
                 result = true;
                 election_guard
                     .last_blocks
-                    .insert(block.hash(), block.clone());
+                    .insert(block.hash(), SavedOrUnsavedBlock::Unsaved(block.clone()));
                 if election_guard.status.winner.as_ref().unwrap().hash() == block.hash() {
-                    election_guard.status.winner = Some(block.clone());
+                    election_guard.status.winner =
+                        Some(SavedOrUnsavedBlock::Unsaved(block.clone()));
                     let message = Message::Publish(Publish::new_forward(block.clone()));
                     let mut publisher = self.message_publisher.lock().unwrap();
                     publisher.flood(&message, DropPolicy::ShouldNotDrop, 1.0);
@@ -534,7 +534,7 @@ impl ActiveElections {
             } else {
                 election_guard
                     .last_blocks
-                    .insert(block.hash(), block.clone());
+                    .insert(block.hash(), SavedOrUnsavedBlock::Unsaved(block.clone()));
             }
         }
         /*
@@ -1105,13 +1105,13 @@ pub trait ActiveElectionsExt {
     fn block_cemented_callback(
         &self,
         tx: &LmdbReadTransaction,
-        block: &Block,
+        block: &SavedBlock,
         confirmation_root: &BlockHash,
     );
-    fn publish_block(&self, block: &Arc<Block>) -> bool;
+    fn publish_block(&self, block: &Block) -> bool;
     fn insert(
         &self,
-        block: Block,
+        block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Election>>);
@@ -1121,7 +1121,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
     fn initialize(&self) {
         let self_w = Arc::downgrade(self);
         self.confirming_set
-            .add_batch_cemented_observer(Box::new(move |notification| {
+            .on_batch_cemented(Box::new(move |notification| {
                 if let Some(active) = self_w.upgrade() {
                     {
                         let mut tx = active.ledger.read_txn();
@@ -1139,11 +1139,11 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         let self_w = Arc::downgrade(self);
         // Notify elections about alternative (forked) blocks
         self.block_processor
-            .add_block_processed_observer(Box::new(move |status, context| {
+            .on_block_processed(Box::new(move |status, context| {
                 if matches!(status, BlockStatus::Fork) {
                     if let Some(active) = self_w.upgrade() {
                         let block = context.block.lock().unwrap().clone();
-                        active.publish_block(&block.into());
+                        active.publish_block(&block);
                     }
                 }
             }));
@@ -1197,7 +1197,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
     fn block_cemented_callback(
         &self,
         tx: &LmdbReadTransaction,
-        block: &Block,
+        block: &SavedBlock,
         confirmation_root: &BlockHash,
     ) {
         if let Some(election) = self.election(&block.qualified_root()) {
@@ -1213,7 +1213,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
             votes = self.votes_with_weight(election);
         } else {
             status = ElectionStatus {
-                winner: Some(block.clone()),
+                winner: Some(SavedOrUnsavedBlock::Saved(block.clone())),
                 ..Default::default()
             };
             votes = Vec::new();
@@ -1252,7 +1252,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         }
     }
 
-    fn publish_block(&self, block: &Arc<Block>) -> bool {
+    fn publish_block(&self, block: &Block) -> bool {
         let mut guard = self.mutex.lock().unwrap();
         let root = block.qualified_root();
         let mut result = true;
@@ -1279,7 +1279,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
 
     fn insert(
         &self,
-        block: Block,
+        block: SavedBlock,
         election_behavior: ElectionBehavior,
         erased_callback: Option<ErasedCallback>,
     ) -> (bool, Option<Arc<Election>>) {

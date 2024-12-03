@@ -1,6 +1,6 @@
 use rsnano_core::{
-    Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo, Epoch,
-    Epochs, PendingInfo, PendingKey, PublicKey,
+    Account, AccountInfo, Amount, BlockHash, BlockSubType, ConfirmationHeightInfo, Epoch, Epochs,
+    PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
 
 pub(crate) enum RollbackStep {
@@ -26,11 +26,11 @@ pub(crate) struct RollbackInstructions {
 /// Create RollbackInstructions for a given block
 pub(crate) struct RollbackPlanner<'a> {
     pub epochs: &'a Epochs,
-    pub head_block: &'a Block,
+    pub head_block: SavedBlock,
     pub account: Account,
     pub current_account_info: AccountInfo,
     pub previous_representative: Option<PublicKey>,
-    pub previous: Option<Block>,
+    pub previous: Option<SavedBlock>,
     pub linked_account: Account,
     pub pending_receive: Option<PendingInfo>,
     pub latest_block_for_destination: Option<BlockHash>,
@@ -66,7 +66,7 @@ impl<'a> RollbackPlanner<'a> {
     }
 
     fn ensure_block_is_not_confirmed(&self) -> anyhow::Result<()> {
-        if self.head_block.sideband().unwrap().height <= self.confirmation_height.height {
+        if self.head_block.height() <= self.confirmation_height.height {
             bail!("Only unconfirmed blocks can be rolled back")
         }
 
@@ -99,7 +99,7 @@ impl<'a> RollbackPlanner<'a> {
                     PendingInfo::new(
                         self.linked_account,
                         self.current_account_info.balance - self.previous_balance(),
-                        self.head_block.sideband().unwrap().source_epoch,
+                        self.head_block.source_epoch(),
                     ),
                 ))
             }
@@ -160,7 +160,7 @@ impl<'a> RollbackPlanner<'a> {
 
     fn previous_epoch(&self) -> Epoch {
         match &self.previous {
-            Some(previous) => previous.sideband().unwrap().details.epoch,
+            Some(previous) => previous.epoch(),
             None => Epoch::Epoch0,
         }
     }

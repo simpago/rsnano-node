@@ -1,9 +1,9 @@
-use super::{BlockBase, BlockSideband, BlockType};
+use super::{BlockBase, BlockType};
 use crate::{
     to_hex_string, u64_from_hex_str,
     utils::{BufferWriter, FixedSizeSerialize, PropertyTree, Serialize, Stream},
-    Account, Amount, BlockHash, BlockHashBuilder, JsonBlock, LazyBlockHash, Link, PendingKey,
-    PrivateKey, PublicKey, Root, Signature, WorkNonce,
+    Account, Amount, BlockHash, BlockHashBuilder, DependentBlocks, JsonBlock, LazyBlockHash, Link,
+    PendingKey, PrivateKey, PublicKey, Root, Signature, WorkNonce,
 };
 use anyhow::Result;
 use serde::de::{Unexpected, Visitor};
@@ -71,7 +71,6 @@ pub struct SendBlock {
     pub signature: Signature,
     pub work: u64,
     pub hash: LazyBlockHash,
-    pub sideband: Option<BlockSideband>,
 }
 
 impl SendBlock {
@@ -96,7 +95,6 @@ impl SendBlock {
             work,
             signature,
             hash,
-            sideband: None,
         }
     }
 
@@ -123,7 +121,6 @@ impl SendBlock {
             signature,
             work,
             hash: LazyBlockHash::new(),
-            sideband: None,
         })
     }
 
@@ -168,7 +165,6 @@ impl SendBlock {
             signature,
             work,
             hash: LazyBlockHash::new(),
-            sideband: None,
         })
     }
 
@@ -178,6 +174,10 @@ impl SendBlock {
 
     pub fn destination(&self) -> &Account {
         &self.hashables.destination
+    }
+
+    pub fn dependent_blocks(&self) -> DependentBlocks {
+        DependentBlocks::new(self.previous(), BlockHash::zero())
     }
 }
 
@@ -202,14 +202,6 @@ impl PartialEq for SendBlock {
 impl Eq for SendBlock {}
 
 impl BlockBase for SendBlock {
-    fn sideband(&'_ self) -> Option<&'_ BlockSideband> {
-        self.sideband.as_ref()
-    }
-
-    fn set_sideband(&mut self, sideband: BlockSideband) {
-        self.sideband = Some(sideband);
-    }
-
     fn block_type(&self) -> BlockType {
         BlockType::LegacySend
     }
@@ -312,7 +304,6 @@ impl From<JsonSendBlock> for SendBlock {
             work: value.work.into(),
             signature: value.signature,
             hash,
-            sideband: None,
         }
     }
 }
@@ -396,7 +387,7 @@ mod tests {
     use super::*;
     use crate::{
         utils::{MemoryStream, TestPropertyTree},
-        validate_message, Block, PrivateKey,
+        Block, PrivateKey,
     };
 
     #[test]
@@ -412,10 +403,16 @@ mod tests {
 
         assert_eq!(block.root(), block.previous().into());
         let hash = block.hash().to_owned();
-        assert!(validate_message(&key.public_key(), hash.as_bytes(), &block.signature).is_ok());
+        assert!(key
+            .public_key()
+            .verify(hash.as_bytes(), &block.signature)
+            .is_ok());
 
         block.set_block_signature(&Signature::from_bytes([1; 64]));
-        assert!(validate_message(&key.public_key(), hash.as_bytes(), &block.signature).is_err());
+        assert!(key
+            .public_key()
+            .verify(hash.as_bytes(), &block.signature)
+            .is_err());
     }
 
     // original test: block.send_serialize

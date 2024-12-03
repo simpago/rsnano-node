@@ -1,5 +1,7 @@
 use crate::Ledger;
-use rsnano_core::{Account, AccountInfo, Amount, Block, BlockSideband, PendingInfo, PendingKey};
+use rsnano_core::{
+    Account, AccountInfo, Amount, Block, BlockSideband, PendingInfo, PendingKey, SavedBlock,
+};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::atomic::Ordering;
 
@@ -18,7 +20,7 @@ pub(crate) struct BlockInsertInstructions {
 pub(crate) struct BlockInserter<'a> {
     ledger: &'a Ledger,
     txn: &'a mut LmdbWriteTransaction,
-    block: &'a mut Block,
+    block: &'a Block,
     instructions: &'a BlockInsertInstructions,
 }
 
@@ -26,7 +28,7 @@ impl<'a> BlockInserter<'a> {
     pub(crate) fn new(
         ledger: &'a Ledger,
         txn: &'a mut LmdbWriteTransaction,
-        block: &'a mut Block,
+        block: &'a Block,
         instructions: &'a BlockInsertInstructions,
     ) -> Self {
         Self {
@@ -37,9 +39,10 @@ impl<'a> BlockInserter<'a> {
         }
     }
 
-    pub(crate) fn insert(&mut self) {
-        self.set_block_sideband();
-        self.ledger.store.block.put(self.txn, self.block);
+    pub(crate) fn insert(&mut self) -> SavedBlock {
+        let sideband = self.instructions.set_sideband.clone();
+        let saved_block = SavedBlock::new(self.block.clone(), sideband);
+        self.ledger.store.block.put(self.txn, &saved_block);
         self.update_account();
         self.delete_old_pending_info();
         self.insert_new_pending_info();
@@ -52,11 +55,8 @@ impl<'a> BlockInserter<'a> {
             .cache
             .block_count
             .fetch_add(1, Ordering::SeqCst);
-    }
 
-    fn set_block_sideband(&mut self) {
-        self.block
-            .set_sideband(self.instructions.set_sideband.clone());
+        saved_block
     }
 
     fn update_account(&mut self) {
@@ -113,8 +113,8 @@ mod tests {
 
         let result = insert(&ledger, &mut block, &instructions);
 
-        assert_eq!(block.sideband().unwrap(), &instructions.set_sideband);
-        assert_eq!(result.saved_blocks, vec![block]);
+        let expected_block = SavedBlock::new(block.clone(), instructions.set_sideband.clone());
+        assert_eq!(result.saved_blocks, vec![expected_block]);
         assert_eq!(
             result.saved_accounts,
             vec![(instructions.account, instructions.set_account_info.clone())]
@@ -158,14 +158,14 @@ mod tests {
     fn update_representative() {
         let old_representative = PublicKey::from(1111);
         let new_representative = PublicKey::from(2222);
-        let mut open = BlockBuilder::legacy_open()
+        let open = BlockBuilder::legacy_open()
             .representative(old_representative)
             .build();
         let sideband = BlockSideband {
             successor: BlockHash::zero(),
             ..BlockSideband::new_test_instance()
         };
-        open.set_sideband(sideband.clone());
+        let open = SavedBlock::new(open, sideband.clone());
 
         let state = BlockBuilder::state()
             .previous(open.hash())
@@ -205,7 +205,7 @@ mod tests {
     }
 
     struct InsertResult {
-        saved_blocks: Vec<Block>,
+        saved_blocks: Vec<SavedBlock>,
         saved_accounts: Vec<(Account, AccountInfo)>,
         saved_pending: Vec<(PendingKey, PendingInfo)>,
         deleted_pending: Vec<PendingKey>,
@@ -260,12 +260,12 @@ mod tests {
     }
 
     fn state_block_instructions_for(
-        previous: &Block,
+        previous: &SavedBlock,
         block: Block,
     ) -> (Block, BlockInsertInstructions) {
         let sideband = BlockSideband {
             successor: BlockHash::zero(),
-            balance: block.balance(),
+            balance: block.balance_field().unwrap(),
             account: block.account_field().unwrap(),
             ..BlockSideband::new_test_instance()
         };

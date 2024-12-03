@@ -18,19 +18,16 @@ pub(crate) struct Blocks {
 impl Blocks {
     pub(crate) fn blocks(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
-
         let store = LmdbStore::open(&path).build()?;
-
-        let mut transaction = store.tx_begin_read();
-
-        let mut iter = store.block.begin(&mut transaction);
+        let mut txn = store.tx_begin_read();
+        let mut iter = store.block.begin(&mut txn);
         let end = store.block.end();
 
         while iter != end {
             match iter.current() {
-                Some((hash, sideband)) => {
+                Some((hash, block)) => {
                     println!("{}", hash.to_string());
-                    println!("{} \n", sideband.block.to_json().unwrap());
+                    println!("{} \n", block.to_json().unwrap());
                 }
                 None => break,
             }

@@ -128,7 +128,7 @@ impl Telemetry {
             return false;
         }
 
-        if data.genesis_block != self.network_params.ledger.genesis.hash() {
+        if data.genesis_block != self.network_params.ledger.genesis_block.hash() {
             self.network_info
                 .write()
                 .unwrap()
@@ -358,7 +358,7 @@ impl Telemetry {
             protocol_version: self.network_params.network.protocol_version,
             uptime: self.startup_time.elapsed().as_secs(),
             unchecked_count: self.unchecked.len() as u64,
-            genesis_block: self.network_params.ledger.genesis.hash(),
+            genesis_block: self.network_params.ledger.genesis_block.hash(),
             peer_count,
             account_count: self.ledger.account_count(),
             major_version: MAJOR_VERSION,

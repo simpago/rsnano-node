@@ -1,10 +1,6 @@
-use std::time::Duration;
-
-use rsnano_core::{
-    work::{WorkPool, WorkPoolImpl},
-    Amount, Block, BlockHash, PrivateKey, StateBlock, DEV_GENESIS_KEY,
-};
+use rsnano_core::{Amount, Block, BlockHash, PrivateKey, StateBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use std::time::Duration;
 use test_helpers::{assert_timely, System};
 
 /**

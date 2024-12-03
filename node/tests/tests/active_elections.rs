@@ -460,7 +460,7 @@ fn inactive_votes_cache_election_start() {
         node.work_generate_dev(&key2),
     ));
     node.process(send1.clone()).unwrap();
-    node.process(send2.clone()).unwrap();
+    let send2 = node.process(send2.clone()).unwrap();
     node.process(open1.clone()).unwrap();
     node.process(open2.clone()).unwrap();
 
@@ -478,7 +478,7 @@ fn inactive_votes_cache_election_start() {
         *DEV_GENESIS_ACCOUNT,
         send3.hash(),
         *DEV_GENESIS_PUB_KEY,
-        send3.balance() - Amount::raw(1),
+        send3.balance_field().unwrap() - Amount::raw(1),
         Account::from(3).into(),
         &DEV_GENESIS_KEY,
         node.work_generate_dev(send3.hash()),
@@ -524,7 +524,7 @@ fn inactive_votes_cache_election_start() {
         .vote(vote0, channel, VoteSource::Live);
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
     assert_timely_eq(Duration::from_secs(5), || node.ledger.cemented_count(), 5);
-    assert!(node.blocks_confirmed(&[send1, send2, open1, open2]));
+    assert!(node.block_hashes_confirmed(&[send1.hash(), send2.hash(), open1.hash(), open2.hash()]));
 
     // A late block arrival also checks the inactive votes cache
     assert_eq!(node.active.len(), 0);
@@ -539,7 +539,6 @@ fn inactive_votes_cache_election_start() {
     );
     assert_eq!(node.confirming_set.exists(&send3.hash()), false);
     // send7 cannot be voted on but an election should be started from inactive votes
-    assert_eq!(node.ledger.dependents_confirmed(&tx, &send4), false);
     node.process_active(send4);
     assert_timely_eq(Duration::from_secs(5), || node.ledger.cemented_count(), 7);
 }
@@ -935,15 +934,15 @@ fn broadcast_block_on_activation() {
     ));
 
     // Adds a block to the first node
-    node1.process_active(send1.clone());
+    let send1 = node1.process(send1.clone()).unwrap();
 
     // The second node should not have the block
     assert_never(Duration::from_millis(500), || {
-        node2.block(&send1.hash()).is_some()
+        node2.block_exists(&send1.hash())
     });
 
     // Activating the election should broadcast the block
-    node1.election_schedulers.add_manual(send1.clone().into());
+    node1.election_schedulers.add_manual(send1.clone());
     assert_timely(Duration::from_secs(5), || {
         node1.active.active_root(&send1.qualified_root())
     });

@@ -28,7 +28,7 @@ mod votes {
             &DEV_GENESIS_KEY,
             node1.work_generate_dev(*DEV_GENESIS_HASH),
         ));
-        node1.process(send1.clone()).unwrap();
+        let send1 = node1.process(send1).unwrap();
         node1
             .election_schedulers
             .manual
@@ -120,7 +120,7 @@ mod votes {
         ));
         node1.vote_router.vote(&vote1, VoteSource::Live);
         // Block is already processed from vote
-        assert!(node1.active.publish_block(&send1.clone().into()));
+        assert!(node1.active.publish_block(&send1));
         assert_eq!(
             election1
                 .mutex
@@ -142,7 +142,7 @@ mod votes {
             &DEV_GENESIS_KEY,
             node1.work_generate_dev(*DEV_GENESIS_HASH),
         ));
-        assert_eq!(node1.active.publish_block(&send2.clone().into()), false);
+        assert_eq!(node1.active.publish_block(&send2), false);
         assert_timely(Duration::from_secs(5), || node1.active.active(&send2));
         let vote2 = Arc::new(Vote::new(
             &DEV_GENESIS_KEY,
@@ -238,7 +238,7 @@ fn epoch_open_pending() {
     // Waits for the block to get saved in the database
     assert_timely_eq(Duration::from_secs(10), || node1.unchecked.len(), 1);
     // Open block should be inserted into unchecked
-    let blocks = node1.unchecked.get(&epoch_open.account().into());
+    let blocks = node1.unchecked.get(&key1.account().into());
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0].block.full_hash(), epoch_open.full_hash());
     // New block to process epoch open
@@ -502,13 +502,10 @@ fn unchecked_epoch_invalid() {
         .unwrap();
     assert_eq!(info.epoch, Epoch::Epoch0);
     let epoch2_store = node1.block(&epoch2.hash()).unwrap();
-    assert_eq!(
-        epoch2_store.sideband().unwrap().details.epoch,
-        Epoch::Epoch0
-    );
+    assert_eq!(epoch2_store.epoch(), Epoch::Epoch0);
     assert!(epoch2_store.is_send());
-    assert_eq!(epoch2_store.sideband().unwrap().details.is_epoch, false);
-    assert_eq!(epoch2_store.sideband().unwrap().details.is_receive, false);
+    assert_eq!(epoch2_store.is_epoch(), false);
+    assert_eq!(epoch2_store.is_receive(), false);
 }
 
 #[test]

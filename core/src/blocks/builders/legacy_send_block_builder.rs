@@ -1,44 +1,28 @@
 use crate::{
     work::{WorkPool, STUB_WORK_POOL},
-    Account, Amount, Block, BlockBase, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey,
+    Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, SavedBlock,
     SendBlock,
 };
 
 pub struct LegacySendBlockBuilder {
-    account: Option<Account>,
-    height: Option<u64>,
     previous: Option<BlockHash>,
     destination: Option<Account>,
     balance: Option<Amount>,
     previous_balance: Option<Amount>,
     work: Option<u64>,
     priv_key: Option<PrivateKey>,
-    build_sideband: bool,
 }
 
 impl LegacySendBlockBuilder {
     pub fn new() -> Self {
         Self {
-            account: None,
-            height: None,
             previous: None,
             destination: None,
             balance: None,
             previous_balance: None,
             work: None,
             priv_key: None,
-            build_sideband: false,
         }
-    }
-
-    pub fn account(mut self, account: Account) -> Self {
-        self.account = Some(account);
-        self
-    }
-
-    pub fn height(mut self, height: u64) -> Self {
-        self.height = Some(height);
-        self
     }
 
     pub fn previous(mut self, hash: BlockHash) -> Self {
@@ -79,11 +63,6 @@ impl LegacySendBlockBuilder {
         self
     }
 
-    pub fn with_sideband(mut self) -> Self {
-        self.build_sideband = true;
-        self
-    }
-
     pub fn build(self) -> Block {
         let priv_key = self.priv_key.unwrap_or_default();
         let previous = self.previous.unwrap_or(BlockHash::from(1));
@@ -92,21 +71,24 @@ impl LegacySendBlockBuilder {
         let work = self
             .work
             .unwrap_or_else(|| STUB_WORK_POOL.generate_dev2(previous.into()).unwrap());
-        let mut block = SendBlock::new(&previous, &destination, &balance, &priv_key, work);
-
-        if self.build_sideband || self.account.is_some() || self.height.is_some() {
-            let details = BlockDetails::new(Epoch::Epoch0, true, false, false);
-            block.set_sideband(BlockSideband::new(
-                self.account.unwrap_or(Account::from(4)),
-                BlockHash::zero(),
-                balance,
-                self.height.unwrap_or(5),
-                8,
-                details,
-                Epoch::Epoch0,
-            ));
-        }
+        let block = SendBlock::new(&previous, &destination, &balance, &priv_key, work);
         Block::LegacySend(block)
+    }
+
+    pub fn build_saved(self) -> SavedBlock {
+        let block = self.build();
+
+        let details = BlockDetails::new(Epoch::Epoch0, true, false, false);
+        let sideband = BlockSideband {
+            account: Account::from(4),
+            successor: BlockHash::zero(),
+            balance: block.balance_field().unwrap(),
+            height: 5,
+            timestamp: 8,
+            details,
+            source_epoch: Epoch::Epoch0,
+        };
+        SavedBlock::new(block, sideband)
     }
 }
 

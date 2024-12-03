@@ -1,16 +1,15 @@
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{Block, BlockHash, Root};
+use rsnano_core::{BlockHash, Root, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbReadTransaction;
-use std::sync::Arc;
 
 pub(super) struct RequestAggregatorImpl<'a> {
     ledger: &'a Ledger,
     stats: &'a Stats,
     tx: &'a LmdbReadTransaction,
 
-    pub to_generate: Vec<Arc<Block>>,
-    pub to_generate_final: Vec<Arc<Block>>,
+    pub to_generate: Vec<SavedBlock>,
+    pub to_generate_final: Vec<SavedBlock>,
 }
 
 impl<'a> RequestAggregatorImpl<'a> {
@@ -38,7 +37,7 @@ impl<'a> RequestAggregatorImpl<'a> {
                 if let Some(b) = &block {
                     if final_vote_hashes.len() > 1 {
                         // WTF? This shouldn't be done like this
-                        self.to_generate_final.push(Arc::new(b.clone()));
+                        self.to_generate_final.push(b.clone());
                         block = self.ledger.any().get_block(self.tx, &final_vote_hashes[1]);
                         debug_assert!(final_vote_hashes.len() == 2);
                     }
@@ -56,7 +55,7 @@ impl<'a> RequestAggregatorImpl<'a> {
                         .confirmation_height
                         .get(self.tx, &b.account())
                         .unwrap_or_default();
-                    generate_final_vote = conf_height.height >= b.sideband().unwrap().height;
+                    generate_final_vote = conf_height.height >= b.height();
                 }
             }
 
@@ -76,14 +75,14 @@ impl<'a> RequestAggregatorImpl<'a> {
                             .confirmation_height
                             .get(self.tx, &b.account())
                             .unwrap_or_default();
-                        generate_final_vote = conf_height.height >= b.sideband().unwrap().height;
+                        generate_final_vote = conf_height.height >= b.height();
                     }
                 }
             }
 
             if let Some(block) = block {
                 if generate_final_vote {
-                    self.to_generate_final.push(Arc::new(block));
+                    self.to_generate_final.push(block);
                     self.stats
                         .inc(StatType::Requests, DetailType::RequestsFinal);
                 } else {
@@ -106,6 +105,6 @@ impl<'a> RequestAggregatorImpl<'a> {
 }
 
 pub(super) struct AggregateResult {
-    pub remaining_normal: Vec<Arc<Block>>,
-    pub remaining_final: Vec<Arc<Block>>,
+    pub remaining_normal: Vec<SavedBlock>,
+    pub remaining_final: Vec<SavedBlock>,
 }

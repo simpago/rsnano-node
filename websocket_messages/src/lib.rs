@@ -4,7 +4,7 @@ extern crate num_derive;
 use rsnano_core::{
     utils::{milliseconds_since_epoch, PropertyTree, SerdePropertyTree},
     work::WorkThresholds,
-    Block, BlockHash, DifficultyV1, WorkVersion,
+    BlockHash, DifficultyV1, SavedBlock, WorkVersion,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -184,10 +184,10 @@ pub fn to_topic(topic: impl AsRef<str>) -> Topic {
     }
 }
 
-pub fn new_block_arrived_message(block: &Block) -> OutgoingMessageEnvelope {
+pub fn new_block_arrived_message(block: &SavedBlock) -> OutgoingMessageEnvelope {
     let mut json_block = SerdePropertyTree::new();
     block.serialize_json(&mut json_block).unwrap();
-    let subtype = block.sideband().unwrap().details.subtype_str();
+    let subtype = block.subtype().as_str();
     json_block.put_string("subtype", subtype).unwrap();
     let mut result = OutgoingMessageEnvelope::new(Topic::NewUnconfirmedBlock, json_block.value);
     result.hash = Some(block.hash());

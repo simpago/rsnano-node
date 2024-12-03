@@ -40,10 +40,7 @@ fn update_account_info() {
 
     assert_eq!(account_info.head, receive.open_block.hash());
     assert_eq!(account_info.block_count, 1);
-    assert_eq!(
-        account_info.balance,
-        receive.open_block.sideband().unwrap().balance
-    );
+    assert_eq!(account_info.balance, receive.open_block.balance());
 }
 
 #[test]

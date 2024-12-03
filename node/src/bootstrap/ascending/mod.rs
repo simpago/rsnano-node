@@ -27,6 +27,7 @@ use priority::Priority;
 use rand::{thread_rng, RngCore};
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Block, BlockHash, BlockType, HashOrAccount,
+    SavedBlock,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{
@@ -658,6 +659,7 @@ impl BootstrapAscending {
             let tx = self.ledger.read_txn();
             for (result, context) in batch {
                 let block = context.block.lock().unwrap().clone();
+                let saved_block = context.saved_block.lock().unwrap().clone();
                 let account = block.account_field().unwrap_or_else(|| {
                     self.ledger
                         .any()
@@ -665,7 +667,14 @@ impl BootstrapAscending {
                         .unwrap_or_default()
                 });
 
-                guard.inspect(&self.stats, *result, &block, context.source, &account);
+                guard.inspect(
+                    &self.stats,
+                    *result,
+                    &block,
+                    saved_block,
+                    context.source,
+                    &account,
+                );
             }
         }
 
@@ -787,6 +796,7 @@ impl BootstrapAscendingLogic {
         stats: &Stats,
         status: BlockStatus,
         block: &Block,
+        saved_block: Option<SavedBlock>,
         source: BlockSource,
         account: &Account,
     ) {
@@ -794,7 +804,8 @@ impl BootstrapAscendingLogic {
 
         match status {
             BlockStatus::Progress => {
-                let account = block.account();
+                let saved_block = saved_block.unwrap();
+                let account = saved_block.account();
                 // If we've inserted any block in to an account, unmark it as blocked
                 if self.accounts.unblock(account, None) {
                     stats.inc(StatType::BootstrapAscendingAccounts, DetailType::Unblock);
@@ -825,8 +836,8 @@ impl BootstrapAscendingLogic {
                     PriorityUpResult::InvalidAccount => {}
                 }
 
-                if block.is_send() {
-                    let destination = block.destination().unwrap();
+                if saved_block.is_send() {
+                    let destination = saved_block.destination().unwrap();
                     // Unblocking automatically inserts account into priority set
                     if self.accounts.unblock(destination, Some(hash)) {
                         stats.inc(StatType::BootstrapAscendingAccounts, DetailType::Unblock);

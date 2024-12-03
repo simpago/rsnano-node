@@ -1,8 +1,6 @@
 use crate::{
     config::{get_node_toml_config_path, DaemonConfig, DaemonToml, NodeConfig, NodeFlags},
-    consensus::{
-        BalanceChangedCallback, ElectionEndCallback, ElectionStatus, VoteProcessedCallback2,
-    },
+    consensus::{ElectionEndCallback, ElectionStatus, VoteProcessedCallback2},
     transport::MessageCallback,
     working_path_for, NetworkParams, Node, NodeArgs,
 };
@@ -17,7 +15,6 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 #[derive(Default)]
 pub struct NodeCallbacks {
     pub on_election_end: Option<ElectionEndCallback>,
-    pub on_balance_changed: Option<BalanceChangedCallback>,
     pub on_vote: Option<VoteProcessedCallback2>,
     pub on_publish: Option<MessageCallback>,
     pub on_inbound: Option<MessageCallback>,
@@ -45,14 +42,6 @@ impl NodeCallbacksBuilder {
             + 'static,
     ) -> Self {
         self.0.on_election_end = Some(Box::new(callback));
-        self
-    }
-
-    pub fn on_balance_changed(
-        mut self,
-        callback: impl Fn(&Account, bool) + Send + Sync + 'static,
-    ) -> Self {
-        self.0.on_balance_changed = Some(Box::new(callback));
         self
     }
 

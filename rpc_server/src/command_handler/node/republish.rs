@@ -1,6 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
-use rsnano_core::{BlockHash, PendingKey};
+use rsnano_core::{Block, BlockHash, PendingKey};
 use rsnano_node::NodeExt;
 use rsnano_rpc_messages::{BlockHashesResponse, RepublishArgs};
 use std::time::Duration;
@@ -14,7 +14,7 @@ impl RpcCommandHandler {
         let mut blocks = Vec::new();
         let tx = self.node.store.tx_begin_read();
 
-        let mut republish_bundle = Vec::new();
+        let mut republish_bundle: Vec<Block> = Vec::new();
 
         for _ in 0..count {
             if hash.is_zero() {
@@ -40,14 +40,14 @@ impl RpcCommandHandler {
 
                 for hash in hashes.into_iter().rev() {
                     if let Some(b) = self.node.ledger.any().get_block(&tx, &hash) {
-                        republish_bundle.push(b.clone());
+                        republish_bundle.push(b.into());
                         blocks.push(hash);
                     }
                 }
             }
 
             // Republish block
-            republish_bundle.push(block);
+            republish_bundle.push(block.into());
             blocks.push(hash);
 
             // Republish destination chain
@@ -93,7 +93,7 @@ impl RpcCommandHandler {
 
                         for hash in dest_hashes.iter().rev().take(destinations) {
                             if let Some(b) = self.node.ledger.any().get_block(&tx, &hash) {
-                                republish_bundle.push(b.clone());
+                                republish_bundle.push(b.into());
                                 blocks.push(*hash);
                             }
                         }

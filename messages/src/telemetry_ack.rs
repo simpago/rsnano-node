@@ -4,10 +4,7 @@ use bitvec::prelude::BitArray;
 use rsnano_core::utils::{
     BufferWriter, Deserialize, FixedSizeSerialize, MemoryStream, Serialize, Stream, StreamExt,
 };
-use rsnano_core::{
-    sign_message, to_hex_string, validate_message, Account, BlockHash, NodeId, PrivateKey,
-    Signature,
-};
+use rsnano_core::{to_hex_string, Account, BlockHash, NodeId, PrivateKey, Signature};
 use serde_derive::Serialize;
 use std::fmt::Display;
 use std::mem::size_of;
@@ -185,18 +182,21 @@ impl TelemetryData {
         Ok(data)
     }
 
-    pub fn sign(&mut self, keys: &PrivateKey) -> Result<()> {
-        debug_assert!(keys.public_key() == self.node_id.into());
+    pub fn sign(&mut self, key: &PrivateKey) -> Result<()> {
+        debug_assert!(key.public_key() == self.node_id.into());
         let mut stream = MemoryStream::new();
         self.serialize_without_signature(&mut stream);
-        self.signature = sign_message(&keys.private_key(), stream.as_bytes());
+        self.signature = key.sign(stream.as_bytes());
         Ok(())
     }
 
     pub fn validate_signature(&self) -> bool {
         let mut stream = MemoryStream::new();
         self.serialize_without_signature(&mut stream);
-        validate_message(&self.node_id.into(), stream.as_bytes(), &self.signature).is_ok()
+        self.node_id
+            .as_key()
+            .verify(stream.as_bytes(), &self.signature)
+            .is_ok()
     }
 
     pub fn to_json(&self) -> serde_json::Result<String> {

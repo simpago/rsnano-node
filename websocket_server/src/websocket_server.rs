@@ -1,10 +1,10 @@
 use super::WebsocketListener;
 use rsnano_core::{
-    Account, Amount, Block, BlockHash, BlockType, Vote, VoteCode, VoteWithWeightInfo,
+    Account, Amount, BlockHash, BlockType, SavedBlock, Vote, VoteCode, VoteWithWeightInfo,
 };
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    bootstrap::{BootstrapExited, BootstrapInitiator, BootstrapStarted},
+    bootstrap::{BootstrapCallbackData, BootstrapInitiator, BootstrapStarted, BootstrapStopped},
     config::WebsocketConfig,
     consensus::{
         ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
@@ -44,7 +44,7 @@ pub fn create_websocket_server(
     let server = Arc::new(WebsocketListener::new(endpoint, wallets, tokio.clone()));
 
     let server_w = Arc::downgrade(&server);
-    active_elections.add_election_end_callback(Box::new(
+    active_elections.on_election_ended(Box::new(
         move |status: &ElectionStatus,
               votes: &Vec<VoteWithWeightInfo>,
               account: Account,
@@ -77,7 +77,7 @@ pub fn create_websocket_server(
     ));
 
     let server_w = Arc::downgrade(&server);
-    active_elections.add_active_started_callback(Box::new(move |hash| {
+    active_elections.on_active_started(Box::new(move |hash| {
         if let Some(server) = server_w.upgrade() {
             if server.any_subscriber(Topic::StartedElection) {
                 server.broadcast(&started_election(&hash));
@@ -86,7 +86,7 @@ pub fn create_websocket_server(
     }));
 
     let server_w = Arc::downgrade(&server);
-    active_elections.add_active_stopped_callback(Box::new(move |hash| {
+    active_elections.on_active_stopped(Box::new(move |hash| {
         if let Some(server) = server_w.upgrade() {
             if server.any_subscriber(Topic::StoppedElection) {
                 server.broadcast(&stopped_election(&hash));
@@ -115,35 +115,33 @@ pub fn create_websocket_server(
     ));
 
     let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    process_live_dispatcher.add_new_unconfirmed_block_callback(Box::new(move |block: &Block| {
+    process_live_dispatcher.add_new_unconfirmed_block_callback(Arc::new(
+        move |block: &SavedBlock| {
+            if let Some(server) = server_w.upgrade() {
+                if server.any_subscriber(Topic::NewUnconfirmedBlock) {
+                    server.broadcast(&new_block_arrived_message(block));
+                }
+            }
+        },
+    ));
+
+    let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
+    bootstrap_initiator.on_bootstrap_started(Arc::new(move |bootstrap_callback_data| {
         if let Some(server) = server_w.upgrade() {
-            if server.any_subscriber(Topic::NewUnconfirmedBlock) {
-                server.broadcast(&new_block_arrived_message(block));
+            if server.any_subscriber(Topic::Bootstrap) {
+                server.broadcast(&bootstrap_started(bootstrap_callback_data));
             }
         }
     }));
 
     let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    bootstrap_initiator.add_bootstrap_started_callback(Box::new(
-        move |id: String, mode: String| {
-            if let Some(server) = server_w.upgrade() {
-                if server.any_subscriber(Topic::Bootstrap) {
-                    server.broadcast(&bootstrap_started(id, mode));
-                }
+    bootstrap_initiator.on_bootstrap_stopped(Arc::new(move |bootstrap_callback_data| {
+        if let Some(server) = server_w.upgrade() {
+            if server.any_subscriber(Topic::Bootstrap) {
+                server.broadcast(&bootstrap_stopped(bootstrap_callback_data));
             }
-        },
-    ));
-
-    let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    bootstrap_initiator.add_bootstrap_ended_callback(Box::new(
-        move |id: String, mode: String, total_blocks: String, duration: String| {
-            if let Some(server) = server_w.upgrade() {
-                if server.any_subscriber(Topic::Bootstrap) {
-                    server.broadcast(&bootstrap_exited(id, mode, total_blocks, duration));
-                }
-            }
-        },
-    ));
+        }
+    }));
 
     Some(server)
 }
@@ -260,31 +258,26 @@ pub struct VoteReceived {
     pub vote_type: String,
 }
 
-fn bootstrap_exited(
-    id: String,
-    mode: String,
-    total_blocks: String,
-    duration: String,
-) -> OutgoingMessageEnvelope {
+fn bootstrap_stopped(bootstrap_callback_data: &BootstrapCallbackData) -> OutgoingMessageEnvelope {
     OutgoingMessageEnvelope::new(
         Topic::Bootstrap,
-        BootstrapExited {
+        BootstrapStopped {
             reason: "exited".to_owned(),
-            id,
-            mode,
-            total_blocks,
-            duration,
+            id: bootstrap_callback_data.id.clone(),
+            mode: bootstrap_callback_data.mode.as_str().to_string(),
+            total_blocks: bootstrap_callback_data.total_blocks.to_string(),
+            duration: bootstrap_callback_data.duration.as_secs().to_string(),
         },
     )
 }
 
-fn bootstrap_started(id: String, mode: String) -> OutgoingMessageEnvelope {
+fn bootstrap_started(bootstrap_callback_data: &BootstrapCallbackData) -> OutgoingMessageEnvelope {
     OutgoingMessageEnvelope::new(
         Topic::Bootstrap,
         BootstrapStarted {
             reason: "started".to_owned(),
-            id,
-            mode,
+            id: bootstrap_callback_data.id.clone(),
+            mode: bootstrap_callback_data.mode.as_str().to_string(),
         },
     )
 }

@@ -41,6 +41,10 @@ impl Account {
         EncodedAccountStr(source.as_ref()).to_u512()?.to_account()
     }
 
+    pub fn as_key(&self) -> PublicKey {
+        PublicKey::from_bytes(self.0)
+    }
+
     pub const MAX: Self = Self::from_bytes([0xFF; 32]);
 }
 
@@ -231,7 +235,7 @@ fn account_decode(value: u8) -> u8 {
 
 impl From<Account> for PublicKey {
     fn from(value: Account) -> Self {
-        Self::from_bytes(*value.as_bytes())
+        value.as_key()
     }
 }
 

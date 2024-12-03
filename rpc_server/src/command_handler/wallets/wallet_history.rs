@@ -19,10 +19,7 @@ impl RpcCommandHandler {
 
                 while timestamp >= modified_since && !hash.is_zero() {
                     if let Some(block) = self.node.ledger.any().get_block(&tx, &hash) {
-                        timestamp = block
-                            .sideband()
-                            .map(|sideband| sideband.timestamp)
-                            .unwrap_or_default();
+                        timestamp = block.timestamp();
 
                         let helper = AccountHistoryHelper {
                             ledger: &self.node.ledger,

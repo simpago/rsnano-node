@@ -44,6 +44,7 @@ fn batches() {
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(*DEV_GENESIS_HASH),
     ));
+    let send = node2.process(send).unwrap();
 
     {
         for i in 0..ConfirmReq::HASHES_MAX {
@@ -125,6 +126,7 @@ fn different_hashes() {
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(*DEV_GENESIS_HASH),
     ));
+    let send = node2.process(send).unwrap();
 
     let election = Election::new(
         100,
@@ -195,6 +197,7 @@ fn bypass_max_requests_cap() {
         &DEV_GENESIS_KEY,
         node1.work_generate_dev(*DEV_GENESIS_HASH),
     ));
+    let send = node2.process(send).unwrap();
 
     let election = Election::new(
         100,

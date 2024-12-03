@@ -384,7 +384,7 @@ mod tests {
             .unwrap()
         );
         assert_eq!(
-            block.balance(),
+            block.balance_field().unwrap(),
             Amount::raw(337010421085160209006996005437231978653)
         );
         assert_eq!(thresholds.validate_entry_block(&block), true);
