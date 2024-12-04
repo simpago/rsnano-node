@@ -294,8 +294,7 @@ fn block_confirmed_message(
         let mut block_node_l: serde_json::Value = (**block).clone().into();
         if !subtype.is_empty() {
             if let serde_json::Value::Object(o) = &mut block_node_l {
-                o.insert("subtype".to_string(), Value::String(subtype))
-                    .unwrap();
+                o.insert("subtype".to_string(), Value::String(subtype));
             }
         }
         Some(block_node_l)
