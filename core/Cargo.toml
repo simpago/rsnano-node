@@ -1,0 +1,25 @@
+[package]
+name = "rsnano_core"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rsnano_nullable_random = { path = "../nullables/random" }
+rand = { version = "0" }
+aes = "0"
+anyhow = "1"
+blake2 = "0"
+ctr = "0"
+ed25519-dalek = { git = "https://github.com/rsnano-node/ed25519-dalek.git", rev = "e967e3792ed5aa4d67b89e98c2be1d719ef57aab", features = ["legacy_compatibility", "rand_core"] }
+hex = "0"
+num = "0"
+num-traits = "0"
+num-format = "0"
+num-derive = "0"
+primitive-types = "0"
+rust-argon2 = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+static_assertions = "1"

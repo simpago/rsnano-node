@@ -1,5 +1,0 @@
-nano/lib/rsnano.hpp
-rust/target
-nano/ipc_flatbuffers_lib/generated
-nano/node/rsnano_callbacks.hpp
-nano/node/rsnano_callbacks.cpp

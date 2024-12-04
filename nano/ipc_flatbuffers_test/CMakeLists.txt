@@ -1,3 +1,0 @@
-add_executable(ipc_flatbuffers_test_client entry.cpp)
-
-target_link_libraries(ipc_flatbuffers_test_client node)

@@ -1,0 +1,29 @@
+[workspace]
+members = [
+    "core",
+    "nullables/output_tracker",
+    "nullables/fs",
+    "nullables/tcp",
+    "nullables/lmdb",
+    "nullables/http_client",
+    "nullables/clock",
+    "nullables/random",
+    "messages",
+    "network",
+    "rpc_messages",
+    "rpc_client",
+    "rpc_server",
+	"websocket_server",
+    "store_lmdb",
+    "ledger",
+    "node",
+    "main",
+    "tools/xtask",
+    "tools/test_helpers", 
+	"tools/signature-checker", 
+	"tools/insight", 
+    "daemon", 
+    "nullables/console", 
+    "websocket_messages"
+]
+resolver = "2"

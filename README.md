@@ -1,4 +1,4 @@
-<p style="text-align:center;"><img src="/images/logo.svg" width"300px" height="auto" alt="Logo"></p>
+<p style="text-align:center;"><img src="/doc/images/logo.svg" width"300px" height="auto" alt="Logo"></p>
 
 
 [![Unit Tests](https://github.com/simpago/rsnano-node/actions/workflows/unit_tests.yml/badge.svg)](https://github.com/simpago/rsnano-node/actions/workflows/unit_tests.yml)
@@ -21,40 +21,55 @@ RsNano is a Rust port of the original Nano node.
 
 ## Option 1: Run the official docker image
 
-    docker run -d --name rsnano -p 54000:54000 -v ~/NanoBeta:/root/NanoBeta simpago/rsnano-beta:latest nano_node daemon --network=beta
+    docker run -p 54000:54000 -v ~/NanoBeta:/root/NanoBeta simpago/rsnano:V1.0RC1 nano_node daemon --network=beta
 
 ## Option 2: Build your own docker image
 
-    docker build -f docker/node/Dockerfile -t rsnano-node https://github.com/simpago/rsnano-node.git#develop
+    docker build -f scripts/docker/node/Dockerfile -t rsnano-node https://github.com/simpago/rsnano-node.git#develop
 
-    docker run -d --name rsnano -p 54000:54000 -v ~/NanoBeta:/root/NanoBeta rsnano-node:latest nano_node daemon --network=beta
+    docker run -p 54000:54000 -v ~/NanoBeta:/root/NanoBeta rsnano-node:latest node run --network=beta
 
 ## Option 3: Build from source
 
-Currently you can only build RsNano on Linux.
+Currently you can only build RsNano on Linux and on Mac.
 
-Install the cmake plugin [Corrosion](https://github.com/corrosion-rs/corrosion) for building Rust projects with cmake:
+To just build and run the rsnano_node:
 
-    git clone https://github.com/AndrewGaspar/corrosion.git
-    # Optionally, specify -DCMAKE_INSTALL_PREFIX=<target-install-path>. You can install Corrosion anyway
-    cmake -Scorrosion -Bbuild -DCMAKE_BUILD_TYPE=Release
-    cmake --build build --config Release
-    # This next step may require sudo or admin privileges if you're installing to a system location,
-    # which is the default.
-    cmake --install build --config Release
+    git clone https://github.com/simpago/rsnano-node.git
+    cd rsnano-node/main
+    cargo build --release
+    cargo run --release -- node run --network=beta
 
-Build the nano-node. The official [nano-node build instructions](https://docs.nano.org/integration-guides/build-options/) still apply for RsNano.
+To install and run the rsnano_node executable:
 
-    git clone --recurse-submodules https://github.com/simpago/rsnano-node.git
+    git clone https://github.com/simpago/rsnano-node.git
     cd rsnano-node
-    mkdir build && cd build
-
-    cmake -G "Unix Makefiles" -DNANO_TEST=ON -DCMAKE_BUILD_TYPE=Debug ..
-
-    make nano_node
-    ./nano_node --diagnostics
+    cargo install --path main
+    rsnano_node node run --network=beta
 
 ### Contact us
 
 We want to hear about any trouble, success, delight, or pain you experience when
 using RsNano. Let us know by [filing an issue](https://github.com/simpago/rsnano-node/issues), or joining us on [Discord](https://discord.gg/kBwvAyxEWE).
+
+# The codebase
+
+The Rust code is structured according to A-frame architecture and is built with nullable infrastructure. This design and testing approach is extensively documented here:
+
+[http://www.jamesshore.com/v2/projects/nullables/testing-without-mocks]
+
+The following diagram shows how the crates are organized. The crates will be split up more when the codebase grows.
+
+![crate diagram](http://www.plantuml.com/plantuml/proxy?cache=no&fmt=svg&src=https://raw.github.com/rsnano-node/rsnano-node/develop/doc/crates.puml)
+
+* `main`: The node executable.
+* `daemon`: Starts the node and optionally the RPC server.
+* `node`:The node implementation.
+* `rpc_server`: Implemenation of the RPC server.
+* `ledger`: Ledger implementation. It is responsible for the consinstency of the data stores.
+* `store_lmdb`: LMDB implementation of the data stores.
+* `messages`: Message types that nodes use for communication.
+* `network`: Manage outbound/inbound TCP channels to/from other nodes.
+* `core`: Contains the basic types like `BlockHash`, `Account`, `KeyPair`,...
+* `nullables`: Nullable wrappers for infrastructure libraries.
+

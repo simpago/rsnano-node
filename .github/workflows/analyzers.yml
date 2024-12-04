@@ -3,40 +3,9 @@ name: Static Analyzers
 on: [ push, pull_request ]
 
 jobs:
-  cmake_format:
-    runs-on: ubuntu-20.04
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    steps:
-      - name: Checkout
-        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 #v3.1.0
-
-      - name: Setup Python
-        uses: actions/setup-python@13ae5bb136fac2878aff31522b9efb785519f984 #v4.3.0
-        with:
-          python-version: '3.x'
-          architecture: 'x64'
-
-      - name: Install cmake-format
-        uses: BSFishy/pip-action@8f2d471d809dc20b6ada98c91910b6ae6243f318
-        with:
-          packages: |
-            cmake-format
-
-      - name: Check cmake-format
-        run: ci/cmake-format-check.sh
-
-
-  code_inspector:
-    runs-on: ubuntu-20.04
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    steps:
-      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 #v3.1.0
-      - name: Run code-inspector
-        run: ci/code-inspector-check.sh
-
   cargo_fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@50fbc622fc4ef5163becd7fab6573eac35f8462e
+      - uses: actions/checkout@v4
       - name: Run cargo fmt
-        run: ci/cargo-fmt-check.sh
+        run: scripts/ci/cargo-fmt-check.sh

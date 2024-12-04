@@ -1,1 +1,0 @@
-These are files which wrap other boost files and suppress compiler warnings associated with them.

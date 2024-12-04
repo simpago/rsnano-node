@@ -1,3 +1,0 @@
-# These are triggering TSAN warnings, but are only used in tests
-src:*/fakes/work_peer.hpp
-src:*/fakes/websocket_client.hpp

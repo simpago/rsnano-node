@@ -1,5 +1,0 @@
-ARG ENV_REPOSITORY=simpago/rsnano-env
-FROM ${ENV_REPOSITORY}:base
-
-ARG REPOSITORY=simpago/rsnano-node
-LABEL org.opencontainers.image.source https://github.com/$REPOSITORY

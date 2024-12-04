@@ -7,87 +7,43 @@ jobs:
     name: macOS
     strategy:
       fail-fast: false
-      matrix:
-        RELEASE:
-          - ${{ startsWith(github.ref, 'refs/tags/') }}
-    env:
-      BUILD_TYPE: ${{ matrix.RELEASE && 'RelWithDebInfo' || 'Debug' }}
     runs-on: macos-14
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: "recursive"
+        uses: actions/checkout@v4
 
       - name: Prepare
-        run: ci/prepare/macos/prepare.sh
+        run: scripts/ci/prepare/macos/prepare.sh
 
       - name: Build Tests
         id: build
-        run: ci/build-tests.sh
+        run: cargo build --all-targets
 
-      - name: Core Tests
+      - name: Run Tests
         if: steps.build.outcome == 'success' && (success() || failure())
-        run: ../ci/tests/run-core-tests.sh
-        working-directory: build
-
-      - name: Rust Tests
-        if: steps.build.outcome == 'success' && (success() || failure())
-        run: cd build && ../ci/tests/run-rust-tests.sh
-
-      - name: RPC Tests
-        if: steps.build.outcome == 'success' && (success() || failure())
-        run: ../ci/tests/run-rpc-tests.sh
-        working-directory: build
-
-      - name: System Tests
-        if: steps.build.outcome == 'success' && (success() || failure())
-        run: ../ci/tests/run-system-tests.sh
-        working-directory: build
+        run: cargo test -q
 
   linux_test:
-    name: Linux [${{ matrix.COMPILER }}]
-    timeout-minutes: 90
+    name: Linux
+    timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        COMPILER: [gcc, clang]
-        RELEASE:
-          - ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-22.04
-    env:
-      COMPILER: ${{ matrix.COMPILER }}
-      BUILD_TYPE: ${{ matrix.RELEASE && 'RelWithDebInfo' || 'Debug' }}
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: "recursive"
 
       - name: Prepare
-        run: sudo -E ci/prepare/linux/prepare.sh
+        run: sudo -E scripts/ci/prepare/linux/prepare.sh
 
       - name: Build Tests
         id: build
-        run: ci/build-tests.sh
+        run: cargo build --all-targets
 
-      - name: Core Tests
+      - name: Run Tests
         if: steps.build.outcome == 'success' && (success() || failure())
-        run: ../ci/tests/run-core-tests.sh
-        working-directory: build
-
-      - name: Rust Tests
-        if: steps.build.outcome == 'success' && (success() || failure())
-        run: cd build && ../ci/tests/run-rust-tests.sh
-
-      - name: RPC Tests
-        if: steps.build.outcome == 'success' && (success() || failure())
-        run: ../ci/tests/run-rpc-tests.sh
-        working-directory: build
-
-      - name: System Tests
-        if: steps.build.outcome == 'success' && (success() || failure())
-        run: ../ci/tests/run-system-tests.sh
-        working-directory: build
+        run: cargo test -q
