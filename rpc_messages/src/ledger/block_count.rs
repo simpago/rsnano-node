@@ -12,6 +12,10 @@ pub struct BlockCountResponse {
     pub count: RpcU64,
     pub unchecked: RpcU64,
     pub cemented: RpcU64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full: Option<RpcU64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pruned: Option<RpcU64>
 }
 
 #[cfg(test)]
