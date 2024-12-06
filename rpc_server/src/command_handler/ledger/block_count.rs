@@ -11,13 +11,13 @@ impl RpcCommandHandler {
             unchecked: unchecked.into(),
             cemented: cemented.into(),
             full: None,
-            pruned: None
+            pruned: None,
         };
-        
+
         if self.node.flags.enable_pruning {
             let full = self.node.ledger.block_count() - self.node.ledger.pruned_count();
             let pruned = self.node.ledger.pruned_count();
-            
+
             block_count.full = Some(full.into());
             block_count.pruned = Some(pruned.into())
         }
