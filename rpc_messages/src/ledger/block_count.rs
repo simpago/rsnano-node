@@ -15,7 +15,7 @@ pub struct BlockCountResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full: Option<RpcU64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pruned: Option<RpcU64>
+    pub pruned: Option<RpcU64>,
 }
 
 #[cfg(test)]
@@ -47,6 +47,8 @@ mod tests {
             count: 1.into(),
             unchecked: 1.into(),
             cemented: 1.into(),
+            full: None,
+            pruned: None,
         };
         assert_eq!(
             serde_json::to_string_pretty(&block_count_dto).unwrap(),
@@ -64,6 +66,8 @@ mod tests {
             count: 1.into(),
             unchecked: 1.into(),
             cemented: 1.into(),
+            full: None,
+            pruned: None,
         };
         let serialized = to_string_pretty(&bool_dto).unwrap();
         let deserialized: BlockCountResponse = from_str(&serialized).unwrap();
