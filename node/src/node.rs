@@ -661,12 +661,12 @@ impl Node {
             config.clone(),
             network_params.clone(),
             network_info.clone(),
-            runtime.clone(),
             ledger.clone(),
             active_elections.clone(),
             peer_connector.clone(),
             steady_clock.clone(),
             message_publisher.clone(),
+            runtime.clone(),
         ));
 
         // BEWARE: `bootstrap` takes `network.port` instead of `config.peering_port` because when the user doesn't specify

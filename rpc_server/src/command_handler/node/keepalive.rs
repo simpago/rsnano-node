@@ -3,9 +3,12 @@ use rsnano_rpc_messages::{HostWithPortArgs, StartedResponse};
 
 impl RpcCommandHandler {
     pub(crate) fn keepalive(&self, args: HostWithPortArgs) -> anyhow::Result<StartedResponse> {
-        self.node
-            .rep_crawler
-            .keepalive_or_connect(args.address, args.port.into());
+        let crawler = self.node.rep_crawler.clone();
+        self.node.runtime.spawn(async move {
+            crawler
+                .keepalive_or_connect(args.address, args.port.into())
+                .await
+        });
         Ok(StartedResponse::new(true))
     }
 }
