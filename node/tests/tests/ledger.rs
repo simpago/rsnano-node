@@ -1,8 +1,8 @@
 use rsnano_core::{
-    Account, Amount, Block, BlockHash, Epoch, PrivateKey, SendBlock, Signature, StateBlockArgs,
+    Account, Amount, Block, BlockHash, Epoch, PrivateKey, Signature, StateBlockArgs,
     UnsavedBlockLatticeBuilder, Vote, VoteCode, VoteSource, DEV_GENESIS_KEY,
 };
-use rsnano_ledger::{BlockStatus, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
+use rsnano_ledger::{BlockStatus, DEV_GENESIS_PUB_KEY};
 use rsnano_network::ChannelId;
 use rsnano_node::{block_processing::BlockSource, config::NodeConfig};
 use std::{sync::Arc, time::Duration};
@@ -430,7 +430,7 @@ fn unchecked_open() {
     let open1 = lattice.account(&destination).receive(&send1);
     // Invalid signature for open block
     let mut open2 = open1.clone();
-    open2.set_signature(&Signature::from_bytes([1; 64]));
+    open2.set_signature(Signature::from_bytes([1; 64]));
 
     // Insert open2 in to the queue before open1
     node1

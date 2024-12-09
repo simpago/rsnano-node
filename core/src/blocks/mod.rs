@@ -101,7 +101,7 @@ pub trait BlockBase: FullHash {
     fn hash(&self) -> BlockHash;
     fn link_field(&self) -> Option<Link>;
     fn signature(&self) -> &Signature;
-    fn set_signature(&mut self, signature: &Signature);
+    fn set_signature(&mut self, signature: Signature);
     fn work(&self) -> u64;
     fn set_work(&mut self, work: u64);
     fn previous(&self) -> BlockHash;

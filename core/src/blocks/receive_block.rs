@@ -100,8 +100,8 @@ impl BlockBase for ReceiveBlock {
         &self.signature
     }
 
-    fn set_signature(&mut self, signature: &Signature) {
-        self.signature = signature.clone();
+    fn set_signature(&mut self, signature: Signature) {
+        self.signature = signature;
     }
 
     fn set_work(&mut self, work: u64) {

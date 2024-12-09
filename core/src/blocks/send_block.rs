@@ -124,8 +124,8 @@ impl BlockBase for SendBlock {
         &self.signature
     }
 
-    fn set_signature(&mut self, signature: &Signature) {
-        self.signature = signature.clone();
+    fn set_signature(&mut self, signature: Signature) {
+        self.signature = signature;
     }
 
     fn set_work(&mut self, work: u64) {
@@ -387,7 +387,7 @@ mod tests {
             .verify(hash.as_bytes(), &block.signature)
             .is_ok());
 
-        block.set_signature(&Signature::from_bytes([1; 64]));
+        block.set_signature(Signature::from_bytes([1; 64]));
         assert!(key
             .public_key()
             .verify(hash.as_bytes(), &block.signature)

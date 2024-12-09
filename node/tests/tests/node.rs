@@ -2302,7 +2302,7 @@ fn fork_election_invalid_block_signature() {
         .genesis()
         .send(&*DEV_GENESIS_KEY, Amount::nano(2000));
     let mut send3 = send2.clone();
-    send3.set_signature(&Signature::new()); // Invalid signature
+    send3.set_signature(Signature::new()); // Invalid signature
 
     let channel = make_fake_channel(&node1);
     node1.inbound_message_queue.put(
@@ -3086,11 +3086,11 @@ fn block_processor_signatures() {
     let mut fork_lattice = lattice.clone();
     // Create a block with an invalid signature (tampered signature bits)
     let mut send4 = lattice.genesis().send(&key3, Amount::nano(1000));
-    send4.set_signature(&Signature::new());
+    send4.set_signature(Signature::new());
 
     // Invalid signature bit (force)
     let mut send5 = fork_lattice.genesis().send(&key3, Amount::nano(2000));
-    send5.set_signature(&Signature::new());
+    send5.set_signature(Signature::new());
 
     // Invalid signature to unchecked
     node.unchecked
@@ -3102,7 +3102,7 @@ fn block_processor_signatures() {
 
     // Invalid private key
     let mut receive3 = lattice.account(&key3).receive(&send3);
-    receive3.set_signature(&Signature::new());
+    receive3.set_signature(Signature::new());
 
     node.process_active(send1.clone());
     node.process_active(send2.clone());

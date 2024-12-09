@@ -179,7 +179,7 @@ impl TestStateBlockBuilder {
         };
 
         if let Some(signature) = self.signature {
-            block.set_signature(&signature);
+            block.set_signature(signature);
         }
 
         block

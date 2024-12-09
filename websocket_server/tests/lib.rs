@@ -280,12 +280,12 @@ fn confirmation_options() {
         // Confirm a legacy block
         // When filtering options are enabled, legacy blocks are always filtered
         balance = balance - send_amount;
-        let send: Block = SendBlockArgs{ 
-            key: &DEV_GENESIS_KEY, 
-            previous, 
-            destination: key.account(), 
-            balance, 
-            work:  node1.work_generate_dev(previous)
+        let send: Block = SendBlockArgs{
+            key: &DEV_GENESIS_KEY,
+            previous,
+            destination: key.account(),
+            balance,
+            work: node1.work_generate_dev(previous)
         }.into();
         node1.process_active(send);
         timeout(Duration::from_secs(1), ws_stream.next())

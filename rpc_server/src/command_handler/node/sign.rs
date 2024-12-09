@@ -41,7 +41,7 @@ impl RpcCommandHandler {
 
         let signature = prv.sign(hash.as_bytes());
         let json_block = if let Some(mut block) = block {
-            block.set_signature(&signature);
+            block.set_signature(signature.clone());
             Some(block.json_representation())
         } else {
             None
