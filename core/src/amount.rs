@@ -1,7 +1,7 @@
 use crate::utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream};
 use anyhow::Result;
 use serde::de::{Unexpected, Visitor};
-use std::fmt::Debug;
+use std::{fmt::Debug, iter::Sum};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct Amount {
@@ -213,6 +213,16 @@ impl std::cmp::PartialOrd for Amount {
 impl std::cmp::Ord for Amount {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.raw.cmp(&other.raw)
+    }
+}
+
+impl Sum for Amount {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut sum = Amount::zero();
+        for i in iter {
+            sum += i;
+        }
+        sum
     }
 }
 

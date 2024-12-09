@@ -10,10 +10,10 @@ pub struct RepresentativesArgs {
 }
 
 impl RpcCommand {
-    pub fn representatives(count: Option<usize>, sorting: Option<bool>) -> Self {
+    pub fn representatives() -> Self {
         Self::Representatives(RepresentativesArgs {
-            count: count.map(|i| (i as u64).into()),
-            sorting: sorting.map(|i| i.into()),
+            count: None,
+            sorting: None,
         })
     }
 }
@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn serialize_representatives_command_options_none() {
-        let command = RpcCommand::representatives(None, None);
+        let command = RpcCommand::representatives();
         let serialized = serde_json::to_value(command).unwrap();
         let expected = json!({"action": "representatives"});
         assert_eq!(serialized, expected);
@@ -35,13 +35,16 @@ mod tests {
     fn deserialize_representatives_command_options_none() {
         let json = r#"{"action": "representatives"}"#;
         let deserialized: RpcCommand = serde_json::from_str(json).unwrap();
-        let expected = RpcCommand::representatives(None, None);
+        let expected = RpcCommand::representatives();
         assert_eq!(deserialized, expected);
     }
 
     #[test]
     fn serialize_representatives_command_options_some() {
-        let command = RpcCommand::representatives(Some(10), Some(true));
+        let command = RpcCommand::Representatives(RepresentativesArgs {
+            count: Some(10.into()),
+            sorting: Some(true.into()),
+        });
         let serialized = serde_json::to_value(command).unwrap();
         let expected = json!({
             "action": "representatives",

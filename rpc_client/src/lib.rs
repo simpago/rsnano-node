@@ -495,13 +495,15 @@ impl NanoRpcClient {
         self.request(&RpcCommand::PopulateBacklog).await
     }
 
-    pub async fn representatives(
+    pub async fn representatives(&self) -> Result<RepresentativesResponse> {
+        self.request(&RpcCommand::representatives()).await
+    }
+
+    pub async fn representatives_with(
         &self,
-        count: Option<usize>,
-        sorting: Option<bool>,
+        args: RepresentativesArgs,
     ) -> Result<RepresentativesResponse> {
-        self.request(&RpcCommand::representatives(count, sorting))
-            .await
+        self.request(&RpcCommand::Representatives(args)).await
     }
 
     pub async fn accounts_representatives(
