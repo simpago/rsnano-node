@@ -1118,6 +1118,7 @@ pub trait ActiveElectionsExt {
 impl ActiveElectionsExt for Arc<ActiveElections> {
     fn initialize(&self) {
         let self_w = Arc::downgrade(self);
+        // Cementing blocks might implicitly confirm dependent elections
         self.confirming_set
             .on_batch_cemented(Box::new(move |cemented| {
                 if let Some(active) = self_w.upgrade() {
@@ -1139,11 +1140,13 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         let self_w = Arc::downgrade(self);
         // Notify elections about alternative (forked) blocks
         self.block_processor
-            .on_block_processed(Box::new(move |status, context| {
-                if status == BlockStatus::Fork {
-                    if let Some(active) = self_w.upgrade() {
-                        let block = context.block.lock().unwrap().clone();
-                        active.publish_block(&block);
+            .on_batch_processed(Box::new(move |batch| {
+                if let Some(active) = self_w.upgrade() {
+                    for (status, context) in batch {
+                        if *status == BlockStatus::Fork {
+                            let block = context.block.lock().unwrap().clone();
+                            active.publish_block(&block);
+                        }
                     }
                 }
             }));
