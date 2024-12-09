@@ -12,7 +12,7 @@ pub struct TestLegacyReceiveBlockBuilder {
 }
 
 impl TestLegacyReceiveBlockBuilder {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             previous: None,
             source: None,
@@ -56,12 +56,6 @@ impl TestLegacyReceiveBlockBuilder {
             work,
         }
         .into()
-    }
-}
-
-impl Default for TestLegacyReceiveBlockBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

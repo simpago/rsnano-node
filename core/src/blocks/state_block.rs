@@ -218,6 +218,7 @@ impl StateHashables {
     }
 }
 
+#[derive(Clone)]
 pub struct StateBlockArgs<'a> {
     pub key: &'a PrivateKey,
     pub previous: BlockHash,

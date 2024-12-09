@@ -1,8 +1,8 @@
 use rsnano_core::{
     utils::milliseconds_since_epoch, work::WorkPool, Account, Amount, Block, BlockBase, BlockHash,
     DifficultyV1, PrivateKey, PublicKey, QualifiedRoot, Root, Signature, StateBlockArgs,
-    TestBlockBuilder, TestLegacySendBlockBuilder, UncheckedInfo, UnsavedBlockLatticeBuilder, Vote,
-    VoteSource, VoteWithWeightInfo, DEV_GENESIS_KEY,
+    TestBlockBuilder, UncheckedInfo, UnsavedBlockLatticeBuilder, Vote, VoteSource,
+    VoteWithWeightInfo, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{
     BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
@@ -48,30 +48,17 @@ fn pruning_depth_max_depth() {
         .config(node_config)
         .flags(node_flags)
         .finish();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key1 = PrivateKey::new();
 
     // Create the first send block
-    let latest_hash = *DEV_GENESIS_HASH;
-    let send1 = TestLegacySendBlockBuilder::new()
-        .previous(latest_hash)
-        .destination(key1.account())
-        .balance(Amount::MAX - Amount::nano(1000))
-        .sign(DEV_GENESIS_KEY.clone())
-        .work(node1.work_generate_dev(latest_hash))
-        .build();
+    let send1 = lattice.genesis().legacy_send(&key1, Amount::nano(1000));
 
     // Process the first send block
     node1.process_active(send1.clone().into());
 
     // Create the second send block
-    let latest_hash = send1.hash();
-    let send2 = TestLegacySendBlockBuilder::new()
-        .previous(latest_hash)
-        .destination(key1.account())
-        .balance(Amount::raw(0))
-        .sign(DEV_GENESIS_KEY.clone())
-        .work(node1.work_generate_dev(latest_hash))
-        .build();
+    let send2 = lattice.genesis().send_max(&key1);
 
     // Process the second send block
     node1.process_active(send2.clone().into());
@@ -129,28 +116,15 @@ fn pruning_automatic() {
         .config(node_config)
         .flags(node_flags)
         .finish();
+
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key1 = PrivateKey::new();
 
-    let latest_hash = *DEV_GENESIS_HASH;
-    let send1 = TestLegacySendBlockBuilder::new()
-        .previous(latest_hash)
-        .destination(key1.account())
-        .balance(Amount::MAX - Amount::nano(1000))
-        .sign(DEV_GENESIS_KEY.clone())
-        .work(node1.work_generate_dev(latest_hash))
-        .build();
+    let send1 = lattice.genesis().send(&key1, Amount::nano(1000));
 
     node1.process_active(send1.clone().into());
 
-    let latest_hash = send1.hash();
-    let send2 = TestLegacySendBlockBuilder::new()
-        .previous(latest_hash)
-        .destination(key1.account())
-        .balance(Amount::raw(0))
-        .sign(DEV_GENESIS_KEY.clone())
-        .work(node1.work_generate_dev(latest_hash))
-        .build();
-
+    let send2 = lattice.genesis().send_max(&key1);
     node1.process_active(send2.clone().into());
 
     assert_timely(Duration::from_secs(5), || node1.block_exists(&send2.hash()));
@@ -216,69 +190,18 @@ fn deferred_dependent_elections() {
         .flags(node_flags)
         .finish();
 
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key = PrivateKey::new();
 
-    let send1 = TestBlockBuilder::state()
-        .account(*DEV_GENESIS_ACCOUNT)
-        .previous(*DEV_GENESIS_HASH)
-        .representative(*DEV_GENESIS_ACCOUNT)
-        .link(key.account())
-        .balance(Amount::MAX - Amount::raw(1))
-        .key(&DEV_GENESIS_KEY)
-        .work(node1.work_generate_dev(*DEV_GENESIS_HASH))
-        .build();
+    let send1 = lattice.genesis().send(&key, 1);
+    let open = lattice.account(&key).receive(&send1);
+    let send2 = lattice.genesis().send(&key, 1);
 
-    let open = TestBlockBuilder::state()
-        .account(key.public_key())
-        .previous(BlockHash::zero())
-        .representative(key.public_key())
-        .link(send1.hash())
-        .balance(Amount::raw(1))
-        .key(&key)
-        .work(node1.work_generate_dev(&key))
-        .build();
-
-    let send1_state_block = match &send1 {
-        Block::State(state_block) => state_block,
-        _ => panic!("Expected a StateBlock"),
-    };
-
-    let send2 = TestBlockBuilder::state()
-        .account(*DEV_GENESIS_ACCOUNT)
-        .from(&send1_state_block)
-        .previous(send1.hash())
-        .balance(send1.balance_field().unwrap() - Amount::raw(1))
-        .link(key.account())
-        .key(&DEV_GENESIS_KEY)
-        .work(node1.work_generate_dev(send1.hash()))
-        .build();
-
-    let open_state_block = match &open {
-        Block::State(state_block) => state_block,
-        _ => panic!("Expected a StateBlock"),
-    };
-
-    let receive = TestBlockBuilder::state()
-        .account(key.account())
-        .from(&open_state_block)
-        .previous(open.hash())
-        .link(send2.hash())
-        .balance(Amount::raw(2))
-        .key(&key)
-        .work(node1.work_generate_dev(open.hash()))
-        .build();
-
-    let receive_state_block = match &receive {
-        Block::State(state_block) => state_block,
-        _ => panic!("Expected a StateBlock"),
-    };
-
-    let fork = TestBlockBuilder::state()
-        .account(key.account())
-        .from(&receive_state_block)
-        .representative(*DEV_GENESIS_ACCOUNT)
-        .key(&key)
-        .build();
+    let mut fork_lattice = lattice.clone();
+    let receive = lattice.account(&key).receive(&send2);
+    let fork = fork_lattice
+        .account(&key)
+        .receive_and_change(&send2, &*DEV_GENESIS_KEY);
 
     node1.process_local(send1.clone().into()).unwrap();
     let election_send1 = start_election(&node1, &send1.hash());

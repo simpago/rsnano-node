@@ -24,8 +24,8 @@ use test_helpers::{
 
 mod bootstrap_processor {
     use super::*;
-    use rsnano_core::{PublicKey, TestBlockBuilder, UnsavedBlockLatticeBuilder};
-    use rsnano_ledger::{BlockStatus, DEV_GENESIS_PUB_KEY};
+    use rsnano_core::UnsavedBlockLatticeBuilder;
+    use rsnano_ledger::BlockStatus;
     use rsnano_network::ChannelMode;
     use test_helpers::establish_tcp;
 
@@ -43,39 +43,15 @@ mod bootstrap_processor {
             .config(config.clone())
             .flags(flags.clone())
             .finish();
+
+        let mut lattice = UnsavedBlockLatticeBuilder::new();
         let key1 = PrivateKey::new();
         let key2 = PrivateKey::new();
         // Generating test chain
 
-        let send1 = TestBlockBuilder::state()
-            .account(*DEV_GENESIS_ACCOUNT)
-            .previous(*DEV_GENESIS_HASH)
-            .representative(*DEV_GENESIS_PUB_KEY)
-            .balance(Amount::MAX - Amount::nano(1000))
-            .link(key1.account())
-            .key(&DEV_GENESIS_KEY)
-            .work(node0.work_generate_dev(*DEV_GENESIS_HASH))
-            .build();
-
-        let receive1 = TestBlockBuilder::state()
-            .account(key1.public_key())
-            .previous(BlockHash::zero())
-            .representative(key1.public_key())
-            .balance(Amount::nano(1000))
-            .link(send1.hash())
-            .key(&key1)
-            .work(node0.work_generate_dev(&key1))
-            .build();
-
-        let send2 = TestBlockBuilder::state()
-            .account(key1.public_key())
-            .previous(receive1.hash())
-            .representative(key1.public_key())
-            .balance(Amount::zero())
-            .link(key2.account())
-            .key(&key1)
-            .work(node0.work_generate_dev(receive1.hash()))
-            .build();
+        let send1 = lattice.genesis().send(&key1, Amount::nano(1000));
+        let receive1 = lattice.account(&key1).receive(&send1);
+        let send2 = lattice.account(&key1).send_max(&key2);
 
         // Processing test chain
         node0.process_multi(&[send1.clone(), receive1.clone(), send2.clone()]);
@@ -116,35 +92,20 @@ mod bootstrap_processor {
             .config(config.clone())
             .flags(flags.clone())
             .finish();
+
+        let mut lattice = UnsavedBlockLatticeBuilder::new();
         let key1 = PrivateKey::new();
         let key2 = PrivateKey::new();
 
         // send 1000 nano from genesis to key1
-        let send1 = TestBlockBuilder::state()
-            .account(*DEV_GENESIS_ACCOUNT)
-            .previous(*DEV_GENESIS_HASH)
-            .representative(*DEV_GENESIS_PUB_KEY)
-            .balance(Amount::MAX - Amount::nano(1000))
-            .link(key1.account())
-            .key(&DEV_GENESIS_KEY)
-            .work(node1.work_generate_dev(*DEV_GENESIS_HASH))
-            .build();
-
+        let send1 = lattice.genesis().legacy_send(&key1, Amount::nano(1000));
         assert_eq!(
             node1.process_local(send1.clone()).unwrap(),
             BlockStatus::Progress
         );
 
         // send 1000 nano from genesis to key2
-        let send2 = TestBlockBuilder::state()
-            .account(*DEV_GENESIS_ACCOUNT)
-            .previous(send1.hash())
-            .representative(*DEV_GENESIS_PUB_KEY)
-            .balance(Amount::MAX - Amount::nano(2000))
-            .link(key2.account())
-            .key(&DEV_GENESIS_KEY)
-            .work(node1.work_generate_dev(send1.hash()))
-            .build();
+        let send2 = lattice.genesis().send(&key2, Amount::nano(1000));
 
         assert_eq!(
             node1.process_local(send2.clone()).unwrap(),
@@ -152,12 +113,7 @@ mod bootstrap_processor {
         );
 
         // receive send1 on key1
-        let open = TestBlockBuilder::legacy_open()
-            .source(send1.hash())
-            .representative(key1.public_key())
-            .sign(&key1)
-            .work(node1.work_generate_dev(&key1))
-            .build();
+        let open = lattice.account(&key1).legacy_open(&send1);
 
         assert_eq!(
             node1.process_local(open.clone()).unwrap(),
@@ -165,15 +121,7 @@ mod bootstrap_processor {
         );
 
         // receive send2 on key2
-        let state_open = TestBlockBuilder::state()
-            .account(key2.public_key())
-            .previous(BlockHash::zero())
-            .representative(key2.public_key())
-            .balance(Amount::nano(1000))
-            .link(send2.hash())
-            .key(&key2)
-            .work(node1.work_generate_dev(&key2))
-            .build();
+        let state_open = lattice.account(&key2).receive(&send2);
 
         assert_eq!(
             node1.process_local(state_open.clone()).unwrap(),
@@ -213,46 +161,27 @@ mod bootstrap_processor {
             .config(config.clone())
             .flags(flags.clone())
             .finish();
+
+        let mut lattice = UnsavedBlockLatticeBuilder::new();
         let key = PrivateKey::new();
         let key2 = PrivateKey::new();
         // Generating test chain
 
-        let send1 = TestBlockBuilder::state()
-            .account(*DEV_GENESIS_ACCOUNT)
-            .previous(*DEV_GENESIS_HASH)
-            .representative(*DEV_GENESIS_PUB_KEY)
-            .balance(Amount::MAX - Amount::nano(1000))
-            .link(key.account())
-            .key(&DEV_GENESIS_KEY)
-            .work(node1.work_generate_dev(*DEV_GENESIS_HASH))
-            .build();
+        let send1 = lattice.genesis().legacy_send(&key, Amount::nano(1000));
 
         assert_eq!(
             node1.process_local(send1.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let open = TestBlockBuilder::legacy_open()
-            .source(send1.hash())
-            .representative(key.public_key())
-            .sign(&key)
-            .work(node1.work_generate_dev(&key))
-            .build();
+        let open = lattice.account(&key).legacy_open(&send1);
 
         assert_eq!(
             node1.process_local(open.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let send2 = TestBlockBuilder::state()
-            .account(key.public_key())
-            .previous(open.hash())
-            .representative(key.public_key())
-            .balance(Amount::zero())
-            .link(key2.account())
-            .key(&key)
-            .work(node1.work_generate_dev(open.hash()))
-            .build();
+        let send2 = lattice.account(&key).send_max(&key2);
 
         assert_eq!(
             node1.process_local(send2.clone()).unwrap(),
@@ -303,59 +232,29 @@ mod bootstrap_processor {
             .config(config.clone())
             .flags(flags.clone())
             .finish();
+
+        let mut lattice = UnsavedBlockLatticeBuilder::new();
         let key = PrivateKey::new();
 
-        let send1 = TestBlockBuilder::state()
-            .account(*DEV_GENESIS_ACCOUNT)
-            .previous(*DEV_GENESIS_HASH)
-            .representative(*DEV_GENESIS_PUB_KEY)
-            .balance(Amount::MAX - Amount::nano(1000))
-            .link(key.account())
-            .key(&DEV_GENESIS_KEY)
-            .work(node1.work_generate_dev(*DEV_GENESIS_HASH))
-            .build();
-
+        let send1 = lattice.genesis().send(&key, Amount::nano(1000));
         assert_eq!(
             node1.process_local(send1.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let send2 = TestBlockBuilder::state()
-            .account(*DEV_GENESIS_ACCOUNT)
-            .previous(send1.hash())
-            .representative(*DEV_GENESIS_PUB_KEY)
-            .balance(Amount::MAX - Amount::nano(2000))
-            .link(key.account())
-            .key(&DEV_GENESIS_KEY)
-            .work(node1.work_generate_dev(send1.hash()))
-            .build();
+        let send2 = lattice.genesis().send(&key, Amount::nano(1000));
         assert_eq!(
             node1.process_local(send2.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let open = TestBlockBuilder::legacy_open()
-            .source(send1.hash())
-            .representative(key.public_key())
-            .sign(&key)
-            .work(node1.work_generate_dev(&key))
-            .build();
-
+        let open = lattice.account(&key).receive(&send1);
         assert_eq!(
             node1.process_local(open.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let receive = TestBlockBuilder::state()
-            .account(key.public_key())
-            .previous(open.hash())
-            .representative(key.public_key())
-            .balance(Amount::nano(2000))
-            .link(send2.hash())
-            .key(&key)
-            .work(node1.work_generate_dev(open.hash()))
-            .build();
-
+        let receive = lattice.account(&key).receive(&send2);
         assert_eq!(
             node1.process_local(receive.clone()).unwrap(),
             BlockStatus::Progress
@@ -506,53 +405,28 @@ mod bootstrap_processor {
         flags.disable_bootstrap_bulk_push_client = true;
         let node0 = system.build_node().config(config).flags(flags).finish();
 
+        let mut lattice = UnsavedBlockLatticeBuilder::new();
         let key = PrivateKey::new();
 
-        let send1 = TestBlockBuilder::legacy_send()
-            .previous(node0.latest(&DEV_GENESIS_ACCOUNT))
-            .destination(key.account())
-            .balance(Amount::zero())
-            .sign((*DEV_GENESIS_KEY).clone())
-            .work(node0.work_generate_dev(node0.latest(&DEV_GENESIS_ACCOUNT)))
-            .build();
-
+        let send1 = lattice.genesis().send_max(&key);
         assert_eq!(
             node0.process_local(send1.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let open = TestBlockBuilder::legacy_open()
-            .source(send1.hash())
-            .representative(PublicKey::zero())
-            .sign(&key)
-            .work(node0.work_generate_dev(&key))
-            .build();
-
+        let open = lattice.account(&key).receive(&send1);
         assert_eq!(
             node0.process_local(open.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let send2 = TestBlockBuilder::legacy_send()
-            .previous(open.hash())
-            .destination(*DEV_GENESIS_ACCOUNT)
-            .balance(Amount::MAX - Amount::raw(100))
-            .sign(key)
-            .work(node0.work_generate_dev(open.hash()))
-            .build();
-
+        let send2 = lattice.account(&key).send(&*DEV_GENESIS_KEY, 100);
         assert_eq!(
             node0.process_local(send2.clone()).unwrap(),
             BlockStatus::Progress
         );
 
-        let receive = TestBlockBuilder::legacy_receive()
-            .previous(send1.hash())
-            .source(send2.hash())
-            .sign(&DEV_GENESIS_KEY)
-            .work(node0.work_generate_dev(send1.hash()))
-            .build();
-
+        let receive = lattice.genesis().receive(&send2);
         assert_eq!(
             node0.process_local(receive.clone()).unwrap(),
             BlockStatus::Progress

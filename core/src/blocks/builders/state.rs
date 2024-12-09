@@ -20,7 +20,7 @@ pub struct TestStateBlockBuilder {
 }
 
 impl TestStateBlockBuilder {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         let key = PrivateKey::new();
         Self {
             account: None,
@@ -199,12 +199,6 @@ impl TestStateBlockBuilder {
             Epoch::Epoch0,
         );
         SavedBlock::new(block, sideband)
-    }
-}
-
-impl Default for TestStateBlockBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

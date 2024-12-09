@@ -11,7 +11,7 @@ pub struct TestLegacyChangeBlockBuilder {
 }
 
 impl TestLegacyChangeBlockBuilder {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             account: None,
             representative: None,
@@ -61,11 +61,5 @@ impl TestLegacyChangeBlockBuilder {
             work,
         }
         .into()
-    }
-}
-
-impl Default for TestLegacyChangeBlockBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }

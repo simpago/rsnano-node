@@ -1,4 +1,4 @@
-use rsnano_core::{Amount, BlockHash, JsonBlock, PrivateKey, TestStateBlockBuilder};
+use rsnano_core::{Amount, Block, BlockHash, JsonBlock, PrivateKey, StateBlockArgs};
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 use tokio::time::Duration;
 
@@ -10,15 +10,15 @@ fn unchecked_get() {
 
     let key = PrivateKey::new();
 
-    let open = TestStateBlockBuilder::new()
-        .account(key.account())
-        .previous(BlockHash::zero())
-        .representative(key.account())
-        .balance(1)
-        .link(key.account())
-        .key(&key)
-        .work(node.work_generate_dev(key.account()))
-        .build();
+    let open: Block = StateBlockArgs {
+        key: &key,
+        previous: BlockHash::zero(),
+        representative: key.public_key(),
+        balance: Amount::raw(1),
+        link: key.account().into(),
+        work: node.work_generate_dev(key.account()),
+    }
+    .into();
 
     node.process_active(open.clone());
 

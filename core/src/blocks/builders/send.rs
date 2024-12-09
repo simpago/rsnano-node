@@ -14,7 +14,7 @@ pub struct TestLegacySendBlockBuilder {
 }
 
 impl TestLegacySendBlockBuilder {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             previous: None,
             destination: None,
@@ -96,11 +96,5 @@ impl TestLegacySendBlockBuilder {
             source_epoch: Epoch::Epoch0,
         };
         SavedBlock::new(block, sideband)
-    }
-}
-
-impl Default for TestLegacySendBlockBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }

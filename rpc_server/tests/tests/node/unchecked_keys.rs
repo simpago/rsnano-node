@@ -1,4 +1,4 @@
-use rsnano_core::{BlockHash, PrivateKey, TestStateBlockBuilder};
+use rsnano_core::{Amount, Block, BlockHash, PrivateKey, StateBlockArgs};
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 use tokio::time::Duration;
 
@@ -10,15 +10,22 @@ fn test_unchecked_keys() {
 
     let key = PrivateKey::new();
 
-    let open = TestStateBlockBuilder::new()
-        .account(key.account())
-        .previous(BlockHash::zero())
-        .representative(key.account())
-        .balance(1)
-        .link(key.account())
-        .key(&key)
-        .work(node.work_generate_dev(key.account()))
-        .build();
+    let open = StateBlockArgs {
+        key: &key,
+        previous: BlockHash::zero(),
+        representative: key.public_key(),
+        balance: Amount::raw(1),
+        link: key.account().into(),
+        work: node.work_generate_dev(key.account()),
+    };
+
+    let open2 = StateBlockArgs {
+        balance: Amount::raw(2),
+        ..open.clone()
+    };
+
+    let open = Block::from(open);
+    let open2 = Block::from(open2);
 
     node.process_active(open.clone());
 
@@ -30,16 +37,6 @@ fn test_unchecked_keys() {
         },
         "Expected 1 unchecked block after 30 seconds",
     );
-
-    let open2 = TestStateBlockBuilder::new()
-        .account(key.account())
-        .previous(BlockHash::zero())
-        .representative(key.account())
-        .balance(2)
-        .link(key.account())
-        .key(&key)
-        .work(node.work_generate_dev(key.account()))
-        .build();
 
     node.process_active(open2.clone());
 

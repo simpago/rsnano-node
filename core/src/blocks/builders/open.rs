@@ -14,7 +14,7 @@ pub struct TestLegacyOpenBlockBuilder {
 }
 
 impl TestLegacyOpenBlockBuilder {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             account: None,
             representative: None,
@@ -82,12 +82,6 @@ impl TestLegacyOpenBlockBuilder {
         );
 
         SavedBlock::new(block, sideband)
-    }
-}
-
-impl Default for TestLegacyOpenBlockBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
