@@ -1,4 +1,4 @@
-use rsnano_core::{Amount, BlockHash, TestBlockBuilder, DEV_GENESIS_KEY};
+use rsnano_core::{BlockHash, UnsavedBlockLatticeBuilder};
 use rsnano_ledger::DEV_GENESIS_HASH;
 use rsnano_node::Node;
 use rsnano_rpc_messages::RepublishArgs;
@@ -6,18 +6,11 @@ use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_timely_msg, setup_rpc_client_and_server, System};
 
 fn setup_test_environment(node: Arc<Node>) -> BlockHash {
-    let genesis_hash = *DEV_GENESIS_HASH;
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key = rsnano_core::PrivateKey::new();
 
     // Create and process send block
-    let send = TestBlockBuilder::legacy_send()
-        .previous(genesis_hash)
-        .destination(key.public_key().into())
-        .balance(Amount::raw(100))
-        .sign(DEV_GENESIS_KEY.clone())
-        .work(node.work_generate_dev(genesis_hash))
-        .build();
-
+    let send = lattice.genesis().send(&key, 100);
     node.process_active(send.clone());
     assert_timely_msg(
         Duration::from_secs(5),
@@ -26,13 +19,7 @@ fn setup_test_environment(node: Arc<Node>) -> BlockHash {
     );
 
     // Create and process open block
-    let open = TestBlockBuilder::legacy_open()
-        .source(send.hash())
-        .representative(key.public_key().into())
-        .sign(&key)
-        .work(node.work_generate_dev(key.public_key()))
-        .build();
-
+    let open = lattice.account(&key).receive(&send);
     node.process_active(open.clone());
     assert_timely_msg(
         Duration::from_secs(5),

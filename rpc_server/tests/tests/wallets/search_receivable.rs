@@ -1,5 +1,5 @@
-use rsnano_core::{Account, Amount, TestBlockBuilder, WalletId, DEV_GENESIS_KEY};
-use rsnano_ledger::DEV_GENESIS_PUB_KEY;
+use rsnano_core::{Amount, UnsavedBlockLatticeBuilder, WalletId, DEV_GENESIS_KEY};
+use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_node::wallets::WalletsExt;
 use test_helpers::{setup_rpc_client_and_server, System};
 
@@ -17,19 +17,12 @@ fn search_receivable() {
         .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
         .unwrap();
 
-    // Get the latest block hash for the genesis account
-    let genesis_pub: Account = (*DEV_GENESIS_PUB_KEY).into();
-    let latest = node.latest(&genesis_pub);
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
 
     // Create a send block
     let receive_minimum = node.config.receive_minimum.clone();
     let send_amount = receive_minimum + Amount::raw(1);
-    let block = TestBlockBuilder::legacy_send()
-        .previous(latest)
-        .destination(genesis_pub)
-        .balance(Amount::MAX - send_amount)
-        .sign(DEV_GENESIS_KEY.clone())
-        .build();
+    let block = lattice.genesis().send(&*DEV_GENESIS_KEY, send_amount);
 
     // Process the send block
     node.process_active(block);
@@ -44,7 +37,7 @@ fn search_receivable() {
         let timeout = std::time::Duration::from_secs(10);
         let start = std::time::Instant::now();
         loop {
-            let balance = node.balance(&genesis_pub.into());
+            let balance = node.balance(&DEV_GENESIS_ACCOUNT);
             if balance == Amount::MAX || start.elapsed() > timeout {
                 return balance;
             }

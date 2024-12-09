@@ -1,4 +1,4 @@
-use rsnano_core::{Account, Amount, JsonBlock, TestBlockBuilder, DEV_GENESIS_KEY};
+use rsnano_core::{Account, Amount, JsonBlock, UnsavedBlockLatticeBuilder};
 use rsnano_ledger::DEV_GENESIS_HASH;
 use rsnano_rpc_messages::ConfirmationInfoArgs;
 use std::time::Duration;
@@ -9,14 +9,8 @@ fn confirmation_info() {
     let mut system = System::new();
     let node = system.build_node().finish();
 
-    let send = TestBlockBuilder::legacy_send()
-        .previous(*DEV_GENESIS_HASH)
-        .destination(Account::zero())
-        .balance(Amount::MAX - Amount::raw(100))
-        .sign((*DEV_GENESIS_KEY).clone())
-        .work(node.work_generate_dev(*DEV_GENESIS_HASH))
-        .build();
-
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let send = lattice.genesis().send(Account::zero(), 100);
     node.process_active(send.clone());
 
     assert_timely_msg(
