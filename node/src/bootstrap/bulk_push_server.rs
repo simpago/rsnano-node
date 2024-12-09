@@ -83,7 +83,7 @@ impl BulkPushServerImpl {
         if block_processor.queue_len(BlockSource::BootstrapLegacy) < 1024 {
             self.receive(server_impl);
         } else {
-            thread_pool.add_delayed_task(
+            thread_pool.post_delayed(
                 Duration::from_secs(1),
                 Box::new(move || {
                     let server_impl2 = Arc::clone(&server_impl);

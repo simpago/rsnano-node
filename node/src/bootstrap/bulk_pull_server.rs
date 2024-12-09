@@ -310,7 +310,7 @@ impl BulkPullServerImpl {
         let Some(thread_pool) = self.thread_pool.upgrade() else {
             return;
         };
-        thread_pool.push_task(Box::new(move || {
+        thread_pool.post(Box::new(move || {
             let impl_clone = server_impl.clone();
             server_impl.lock().unwrap().send_next(impl_clone);
         }));

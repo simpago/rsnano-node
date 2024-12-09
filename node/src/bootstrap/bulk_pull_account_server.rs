@@ -99,7 +99,7 @@ impl BulkPullAccountServerImpl {
                     .is_ok()
                 {
                     if let Some(workers) = workers.upgrade() {
-                        workers.push_task(Box::new(move || {
+                        workers.post(Box::new(move || {
                             let server2 = Arc::clone(&server);
                             server.lock().unwrap().send_next_block(server2);
                         }));
@@ -146,7 +146,7 @@ impl BulkPullAccountServerImpl {
                     .is_ok()
                 {
                     if let Some(workers) = workers.upgrade() {
-                        workers.push_task(Box::new(move || {
+                        workers.post(Box::new(move || {
                             let server2 = Arc::clone(&server);
                             server.lock().unwrap().send_next_block(server2);
                         }));

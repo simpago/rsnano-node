@@ -517,7 +517,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
         }
         if !self.stopped.load(Ordering::SeqCst) && repeat {
             let self_w = Arc::downgrade(self);
-            self.workers.add_delayed_task(
+            self.workers.post_delayed(
                 Duration::from_secs(1),
                 Box::new(move || {
                     if let Some(self_l) = self_w.upgrade() {
@@ -678,7 +678,7 @@ impl BootstrapConnectionsExt for Arc<BootstrapConnections> {
                     };
 
                     if let Some(initiator) = initiator {
-                        self.workers.push_task(Box::new(move || {
+                        self.workers.post(Box::new(move || {
                             let client = Arc::new(BulkPullClient::new(
                                 client_config,
                                 Arc::clone(&self_l.stats),

@@ -122,7 +122,7 @@ impl BootstrapAttemptWalletExt for Arc<BootstrapAttemptWallet> {
             // The bulk_pull_account_client destructor attempt to requeue_pull which can cause a deadlock if this is the last reference
             // Dispatch request in an external thread in case it needs to be destroyed
 
-            self.workers.push_task(Box::new(move || {
+            self.workers.post(Box::new(move || {
                 if let Some(bootstrap_initiator) = self_l.bootstrap_initiator.upgrade() {
                     let client = Arc::new(BulkPullAccountClient::new(
                         connection.unwrap(),

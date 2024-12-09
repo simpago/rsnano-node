@@ -959,7 +959,7 @@ impl Node {
             // TODO: Is it neccessary to call this for all blocks?
             if block.is_send() {
                 let block = block.clone();
-                workers.push_task(Box::new(move || {
+                workers.post(Box::new(move || {
                     wallets.receive_confirmed(block.hash(), block.destination().unwrap())
                 }));
             }
@@ -1438,7 +1438,7 @@ impl NodeExt for Arc<Node> {
         if !self.flags.disable_wallet_bootstrap {
             // Delay to start wallet lazy bootstrap
             let node_w = Arc::downgrade(self);
-            self.workers.add_delayed_task(
+            self.workers.post_delayed(
                 Duration::from_secs(60),
                 Box::new(move || {
                     if let Some(node) = node_w.upgrade() {
@@ -1504,9 +1504,6 @@ impl NodeExt for Arc<Node> {
         info!("Node stopping...");
 
         self.tcp_listener.stop();
-        self.bootstrap_workers.stop();
-        self.wallet_workers.stop();
-        self.election_workers.stop();
         self.vote_router.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();
@@ -1535,18 +1532,22 @@ impl NodeExt for Arc<Node> {
         self.bootstrap_initiator.stop();
         self.wallets.stop();
         self.stats.stop();
-        self.workers.stop();
         self.local_block_broadcaster.stop();
         self.message_processor.lock().unwrap().stop();
         self.network_threads.lock().unwrap().stop(); // Stop network last to avoid killing in-use sockets
         self.monitor.stop();
+
+        self.bootstrap_workers.stop();
+        self.wallet_workers.stop();
+        self.election_workers.stop();
+        self.workers.stop();
 
         // work pool is not stopped on purpose due to testing setup
     }
 
     fn ongoing_online_weight_calculation_queue(&self) {
         let node_w = Arc::downgrade(self);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             Duration::from_secs(self.network_params.node.weight_period),
             Box::new(move || {
                 if let Some(node) = node_w.upgrade() {
@@ -1571,7 +1572,7 @@ impl NodeExt for Arc<Node> {
         }
 
         let node_w = Arc::downgrade(self);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             Duration::from_secs(self.network_params.node.backup_interval_m as u64 * 60),
             Box::new(move || {
                 if let Some(node) = node_w.upgrade() {
@@ -1587,7 +1588,7 @@ impl NodeExt for Arc<Node> {
         // Search pending
         self.wallets.search_receivable_all();
         let node_w = Arc::downgrade(self);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             Duration::from_secs(self.network_params.node.search_pending_interval_s as u64),
             Box::new(move || {
                 if let Some(node) = node_w.upgrade() {
@@ -1620,7 +1621,7 @@ impl NodeExt for Arc<Node> {
                 callback()
             } else {
                 let self_w = Arc::downgrade(self);
-                self.workers.add_delayed_task(
+                self.workers.post_delayed(
                     delay,
                     Box::new(move || {
                         if let Some(node) = self_w.upgrade() {

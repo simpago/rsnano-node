@@ -190,10 +190,10 @@ impl BulkPullClientExt for Arc<BulkPullClient> {
             };
             let self_clone = Arc::clone(self);
             self.workers
-                .push_task(Box::new(move || self_clone.received_block(block)));
+                .post(Box::new(move || self_clone.received_block(block)));
         } else {
             let self_clone = Arc::clone(self);
-            self.workers.add_delayed_task(
+            self.workers.post_delayed(
                 Duration::from_secs(1),
                 Box::new(move || {
                     if !self_clone.connection.pending_stop() && !self_clone.attempt.stopped() {

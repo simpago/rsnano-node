@@ -142,7 +142,7 @@ impl BulkPullAccountClientExt for Arc<BulkPullAccountClient> {
         if self.pull_blocks.load(Ordering::SeqCst) == 0 || !pending.is_zero() {
             if self.pull_blocks.load(Ordering::SeqCst) == 0 || balance >= self.receive_minimum {
                 let this_l = Arc::clone(self);
-                self.workers.push_task(Box::new(move || {
+                self.workers.post(Box::new(move || {
                     this_l.pull_blocks.fetch_add(1, Ordering::SeqCst);
                     {
                         if !pending.is_zero() {

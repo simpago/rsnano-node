@@ -560,7 +560,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     self.workers.clone(),
                     self.tokio.clone(),
                 );
-                self.workers.push_task(Box::new(move || {
+                self.workers.post(Box::new(move || {
                     bulk_pull_server.send_next();
                 }));
 
@@ -579,7 +579,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     self.ledger.clone(),
                     self.tokio.clone(),
                 );
-                self.workers.push_task(Box::new(move || {
+                self.workers.post(Box::new(move || {
                     bulk_pull_account_server.send_frontier();
                 }));
 
@@ -597,7 +597,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     self.network_params.network.work.clone(),
                 );
 
-                self.workers.push_task(Box::new(move || {
+                self.workers.post(Box::new(move || {
                     bulk_push_server.throttled_receive();
                 }));
 
@@ -612,7 +612,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     self.ledger.clone(),
                     self.tokio.clone(),
                 );
-                self.workers.push_task(Box::new(move || {
+                self.workers.post(Box::new(move || {
                     response.send_next();
                 }));
 

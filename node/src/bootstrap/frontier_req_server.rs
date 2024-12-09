@@ -188,7 +188,7 @@ impl FrontierReqServerImpl {
         };
 
         self.count += 1;
-        thread_pool.push_task(Box::new(move || {
+        thread_pool.post(Box::new(move || {
             let server_clone = Arc::clone(&server);
             server.lock().unwrap().send_next(server_clone);
         }));

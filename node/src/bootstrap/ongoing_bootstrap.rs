@@ -132,7 +132,7 @@ impl OngoingBootstrapExt for Arc<OngoingBootstrap> {
             Account::zero(),
         );
         let self_w = Arc::downgrade(self);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             next_wakeup,
             Box::new(move || {
                 if let Some(node) = self_w.upgrade() {

@@ -91,7 +91,7 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
             match this_l.connection.send(&message).await {
                 Ok(()) => {
                     let workers = this_l.workers.clone();
-                    workers.push_task(Box::new(move || {
+                    workers.post(Box::new(move || {
                         this_l.push();
                     }));
                 }
@@ -176,7 +176,7 @@ impl BulkPushClientExt for Arc<BulkPushClient> {
             {
                 Ok(()) => {
                     let workers = this_l.workers.clone();
-                    workers.push_task(Box::new(move || this_l.push()));
+                    workers.post(Box::new(move || this_l.push()));
                 }
                 Err(e) => {
                     debug!("Error sending block during bulk push: {:?}", e);

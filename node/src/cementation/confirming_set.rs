@@ -250,7 +250,7 @@ impl ConfirmingSetThread {
 
         let observers = self.observers.clone();
         let stats = self.stats.clone();
-        self.notification_workers.push_task(Box::new(move || {
+        self.notification_workers.post(Box::new(move || {
             stats.inc(StatType::ConfirmingSet, DetailType::Notify);
             observers.lock().unwrap().notify_batch(batch);
         }));

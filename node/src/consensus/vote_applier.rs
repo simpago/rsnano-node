@@ -307,7 +307,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
 
             let election = Arc::clone(election);
             let self_l = Arc::clone(self);
-            self.workers.push_task(Box::new(move || {
+            self.workers.post(Box::new(move || {
                 // This is necessary if the winner of the election is one of the forks.
                 // In that case the winning block is not yet in the ledger and cementing needs to wait for rollbacks to complete.
                 self_l.process_confirmed(
@@ -352,7 +352,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
 
             // Try again later
             let self_w = Arc::downgrade(self);
-            self.workers.add_delayed_task(
+            self.workers.post_delayed(
                 Duration::from_millis(
                     self.network_params.node.process_confirmed_interval_ms as u64,
                 ),

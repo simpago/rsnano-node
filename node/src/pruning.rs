@@ -172,7 +172,7 @@ pub trait LedgerPruningExt {
 impl LedgerPruningExt for Arc<LedgerPruning> {
     fn start(&self) {
         let self_w = Arc::downgrade(self);
-        self.workers.push_task(Box::new(move || {
+        self.workers.post(Box::new(move || {
             if let Some(self_l) = self_w.upgrade() {
                 self_l.ongoing_ledger_pruning();
             }
@@ -196,7 +196,7 @@ impl LedgerPruningExt for Arc<LedgerPruning> {
             Duration::from_secs(std::cmp::min(self.config.max_pruning_age_s as u64, 15 * 60))
         };
         let node_w = Arc::downgrade(self);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             ledger_pruning_interval,
             Box::new(move || {
                 if let Some(node) = node_w.upgrade() {

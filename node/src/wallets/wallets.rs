@@ -1299,7 +1299,7 @@ impl WalletsExt for Arc<Wallets> {
         self.delayed_work.lock().unwrap().insert(account, root);
         let self_clone = Arc::clone(self);
         let wallet = Arc::clone(wallet);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             precache_delay,
             Box::new(move || {
                 let mut guard = self_clone.delayed_work.lock().unwrap();
@@ -1368,7 +1368,7 @@ impl WalletsExt for Arc<Wallets> {
         };
 
         let self_l = Arc::clone(self);
-        self.workers.add_delayed_task(
+        self.workers.post_delayed(
             compute_delay,
             Box::new(move || {
                 self_l.ongoing_compute_reps();

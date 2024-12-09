@@ -184,7 +184,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
             match this_l.connection.send(&request).await {
                 Ok(()) => {
                     let workers = this_l.workers.clone();
-                    workers.push_task(Box::new(move || {
+                    workers.post(Box::new(move || {
                         this_l.receive_frontier();
                     }));
                 }
@@ -219,7 +219,7 @@ impl FrontierReqClientExt for Arc<FrontierReqClient> {
                     let latest = BlockHash::deserialize(&mut stream).unwrap();
 
                     let workers = this_l.workers.clone();
-                    workers.push_task(Box::new(move || {
+                    workers.post(Box::new(move || {
                         this_l.received_frontier(account, latest);
                     }));
                 }

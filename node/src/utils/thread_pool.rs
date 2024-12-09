@@ -11,8 +11,8 @@ use rsnano_output_tracker::OutputTrackerMt;
 use super::{NullTimer, Timer, TimerStrategy, TimerWrapper};
 
 pub trait ThreadPool: Send + Sync {
-    fn push_task(&self, callback: Box<dyn FnOnce() + Send>);
-    fn add_delayed_task(&self, delay: Duration, callback: Box<dyn FnOnce() + Send>);
+    fn post(&self, callback: Box<dyn FnOnce() + Send>);
+    fn post_delayed(&self, delay: Duration, callback: Box<dyn FnOnce() + Send>);
     fn stop(&self);
     fn num_queued_tasks(&self) -> usize;
 }
@@ -70,7 +70,7 @@ impl<T: TimerStrategy> ThreadPoolImpl<T> {
 }
 
 impl<T: TimerStrategy + 'static> ThreadPool for ThreadPoolImpl<T> {
-    fn push_task(&self, callback: Box<dyn FnOnce() + Send>) {
+    fn post(&self, callback: Box<dyn FnOnce() + Send>) {
         let stopped_guard = self.stopped.lock().unwrap();
         if !*stopped_guard {
             let data_guard = self.data.lock().unwrap();
@@ -81,7 +81,7 @@ impl<T: TimerStrategy + 'static> ThreadPool for ThreadPoolImpl<T> {
         }
     }
 
-    fn add_delayed_task(&self, delay: Duration, callback: Box<dyn FnOnce() + Send>) {
+    fn post_delayed(&self, delay: Duration, callback: Box<dyn FnOnce() + Send>) {
         let stopped_guard = self.stopped.lock().unwrap();
         if !*stopped_guard {
             let data_guard = self.data.lock().unwrap();
@@ -146,7 +146,7 @@ mod tests {
     fn push_task() {
         let (tx, rx) = std::sync::mpsc::channel();
         let pool = ThreadPoolImpl::create(1, "test thread".to_string());
-        pool.push_task(Box::new(move || {
+        pool.post(Box::new(move || {
             tx.send("foo").unwrap();
         }));
         let result = rx.recv_timeout(Duration::from_millis(300));
@@ -160,7 +160,7 @@ mod tests {
         let pool = ThreadPoolImpl::new(1, "test pool".to_string(), timer);
         let (tx, rx) = std::sync::mpsc::channel();
 
-        pool.add_delayed_task(
+        pool.post_delayed(
             Duration::from_secs(10),
             Box::new(move || {
                 tx.send("foo").unwrap();
@@ -184,13 +184,13 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let tx2 = tx.clone();
 
-        pool.add_delayed_task(
+        pool.post_delayed(
             Duration::from_secs(10),
             Box::new(move || {
                 tx.send("foo").unwrap();
             }),
         );
-        pool.add_delayed_task(
+        pool.post_delayed(
             Duration::from_secs(10),
             Box::new(move || {
                 tx2.send("bar").unwrap();
@@ -213,7 +213,7 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
 
         let tracker = pool.track();
-        pool.add_delayed_task(
+        pool.post_delayed(
             Duration::from_secs(10),
             Box::new(move || {
                 tx.send("foo").unwrap();
