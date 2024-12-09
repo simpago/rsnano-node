@@ -652,7 +652,6 @@ impl BootstrapAscending {
         );
     }
 
-    // TODO: This is called from a very congested blockprocessor thread. Offload this work to a dedicated processing thread
     fn batch_processed(&self, batch: &[(BlockStatus, Arc<BlockProcessorContext>)]) {
         {
             let mut guard = self.mutex.lock().unwrap();
@@ -862,20 +861,21 @@ impl BootstrapAscendingLogic {
             }
             BlockStatus::GapSource => {
                 if source == BlockSource::Bootstrap {
-                    assert!(!account.is_zero());
                     let source = block.source_or_link();
 
-                    // Mark account as blocked because it is missing the source block
-                    self.accounts.block(*account, source);
-                    stats.inc(StatType::BootstrapAscendingAccounts, DetailType::Block);
-                    stats.inc(
-                        StatType::BootstrapAscendingAccounts,
-                        DetailType::PriorityEraseBlock,
-                    );
-                    stats.inc(
-                        StatType::BootstrapAscendingAccounts,
-                        DetailType::BlockingInsert,
-                    );
+                    if !account.is_zero() && !source.is_zero() {
+                        // Mark account as blocked because it is missing the source block
+                        self.accounts.block(*account, source);
+                        stats.inc(StatType::BootstrapAscendingAccounts, DetailType::Block);
+                        stats.inc(
+                            StatType::BootstrapAscendingAccounts,
+                            DetailType::PriorityEraseBlock,
+                        );
+                        stats.inc(
+                            StatType::BootstrapAscendingAccounts,
+                            DetailType::BlockingInsert,
+                        );
+                    }
                 }
             }
             BlockStatus::GapPrevious => {

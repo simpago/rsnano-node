@@ -58,7 +58,7 @@ impl ConfirmingSet {
                 stats,
                 config,
                 observers: Arc::new(Mutex::new(Observers::default())),
-                notification_workers: ThreadPoolImpl::create(1, "Conf notif"),
+                workers: ThreadPoolImpl::create(1, "Conf notif"),
             }),
         }
     }
@@ -117,7 +117,7 @@ impl ConfirmingSet {
         if let Some(handle) = handle {
             handle.join().unwrap();
         }
-        self.thread.notification_workers.stop();
+        self.thread.workers.stop();
     }
 
     /// Added blocks will remain in this set until after ledger has them marked as confirmed.
@@ -139,7 +139,11 @@ impl ConfirmingSet {
 
     pub fn container_info(&self) -> ContainerInfo {
         let guard = self.thread.mutex.lock().unwrap();
-        [("set", guard.set.len(), std::mem::size_of::<BlockHash>())].into()
+        [
+            ("set", guard.set.len(), std::mem::size_of::<BlockHash>()),
+            ("notifications", self.thread.workers.num_queued_tasks(), 0),
+        ]
+        .into()
     }
 }
 
@@ -162,7 +166,7 @@ struct ConfirmingSetThread {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     config: ConfirmingSetConfig,
-    notification_workers: ThreadPoolImpl,
+    workers: ThreadPoolImpl,
     observers: Arc<Mutex<Observers>>,
 }
 
@@ -233,7 +237,7 @@ impl ConfirmingSetThread {
         let mut guard = self.mutex.lock().unwrap();
 
         // It's possible that ledger cementing happens faster than the notifications can be processed by other components, cooldown here
-        while self.notification_workers.num_queued_tasks() >= self.config.max_queued_notifications {
+        while self.workers.num_queued_tasks() >= self.config.max_queued_notifications {
             self.stats
                 .inc(StatType::ConfirmingSet, DetailType::Cooldown);
             guard = self
@@ -250,7 +254,7 @@ impl ConfirmingSetThread {
 
         let observers = self.observers.clone();
         let stats = self.stats.clone();
-        self.notification_workers.post(Box::new(move || {
+        self.workers.post(Box::new(move || {
             stats.inc(StatType::ConfirmingSet, DetailType::Notify);
             observers.lock().unwrap().notify_batch(batch);
         }));

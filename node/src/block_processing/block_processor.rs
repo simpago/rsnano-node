@@ -2,6 +2,7 @@ use super::UncheckedMap;
 use crate::{
     stats::{DetailType, StatType, Stats},
     transport::{FairQueue, FairQueueInfo},
+    utils::{ThreadPool, ThreadPoolImpl},
 };
 use rsnano_core::{
     utils::ContainerInfo, work::WorkThresholds, Block, BlockType, Epoch, HashOrAccount, Networks,
@@ -138,6 +139,7 @@ pub struct BlockProcessorConfig {
     pub batch_max_time: Duration,
     pub full_size: usize,
     pub batch_size: usize,
+    pub max_queued_notifications: usize,
     pub work_thresholds: WorkThresholds,
 }
 
@@ -155,7 +157,8 @@ impl BlockProcessorConfig {
             priority_local: 16,
             batch_max_time: Duration::from_millis(500),
             full_size: Self::DEFAULT_FULL_SIZE,
-            batch_size: Self::DEFAULT_BATCH_SIZE,
+            batch_size: 256,
+            max_queued_notifications: 8,
         }
     }
 
@@ -166,7 +169,7 @@ impl BlockProcessorConfig {
 
 pub struct BlockProcessor {
     thread: Mutex<Option<JoinHandle<()>>>,
-    pub(crate) processor_loop: Arc<BlockProcessorLoop>,
+    pub(crate) processor_loop: Arc<BlockProcessorLoopImpl>,
 }
 
 impl BlockProcessor {
@@ -193,7 +196,7 @@ impl BlockProcessor {
         });
 
         Self {
-            processor_loop: Arc::new(BlockProcessorLoop {
+            processor_loop: Arc::new(BlockProcessorLoopImpl {
                 mutex: Mutex::new(BlockProcessorImpl {
                     queue: FairQueue::new(max_size_query, priority_query),
                     last_log: None,
@@ -204,6 +207,7 @@ impl BlockProcessor {
                 unchecked_map,
                 config,
                 stats,
+                workers: ThreadPoolImpl::create(1, "Blck proc notif"),
                 blocks_rolled_back: Mutex::new(None),
                 block_rolled_back: Mutex::new(Vec::new()),
                 block_processed: Mutex::new(Vec::new()),
@@ -246,6 +250,7 @@ impl BlockProcessor {
         if let Some(join_handle) = join_handle {
             join_handle.join().unwrap();
         }
+        self.processor_loop.workers.stop();
     }
 
     pub fn total_queue_len(&self) -> usize {
@@ -331,13 +336,14 @@ impl Drop for BlockProcessor {
     }
 }
 
-pub(crate) struct BlockProcessorLoop {
+pub(crate) struct BlockProcessorLoopImpl {
     mutex: Mutex<BlockProcessorImpl>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     unchecked_map: Arc<UncheckedMap>,
     config: BlockProcessorConfig,
     stats: Arc<Stats>,
+    workers: ThreadPoolImpl,
     blocks_rolled_back: Mutex<Option<Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>>>,
     block_rolled_back: Mutex<Vec<Box<dyn Fn(&Block) + Send + Sync>>>,
     block_processed: Mutex<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
@@ -345,11 +351,27 @@ pub(crate) struct BlockProcessorLoop {
         RwLock<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>>>,
 }
 
-impl BlockProcessorLoop {
-    pub fn run(&self) {
+trait BlockProcessorLoop {
+    fn run(&self);
+}
+
+impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
+    fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
             if !guard.queue.is_empty() {
+                // It's possible that ledger processing happens faster than the
+                // notifications can be processed by other components, cooldown here
+                if self.workers.num_queued_tasks() >= self.config.max_queued_notifications {
+                    self.stats
+                        .inc(StatType::Blockprocessor, DetailType::Cooldown);
+                    guard = self
+                        .condition
+                        .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
+                        .unwrap()
+                        .0;
+                }
+
                 if guard.should_log() {
                     info!(
                         "{} blocks (+ {} forced) in processing_queue",
@@ -361,25 +383,33 @@ impl BlockProcessorLoop {
                 }
 
                 let mut processed = self.process_batch(guard);
-
-                // Set results for futures when not holding the lock
-                for (result, context) in processed.iter_mut() {
-                    if let Some(cb) = &context.callback {
-                        cb(*result);
-                    }
-                    context.set_result(*result);
-                }
-
-                self.notify_batch_processed(&processed);
-
                 guard = self.mutex.lock().unwrap();
+
+                // Queue notifications to be dispatched in the background
+                let stats = self.stats.clone();
+                let self_l = Arc::clone(self);
+                self.workers.post(Box::new(move || {
+                    stats.inc(StatType::Blockprocessor, DetailType::Notify);
+                    // Set results for futures when not holding the lock
+                    for (result, context) in processed.iter_mut() {
+                        if let Some(cb) = &context.callback {
+                            cb(*result);
+                        }
+                        context.set_result(*result);
+                    }
+                    self_l.notify_batch_processed(&processed);
+                }));
             } else {
-                self.condition.notify_one();
-                guard = self.condition.wait(guard).unwrap();
+                guard = self
+                    .condition
+                    .wait_while(guard, |i| !i.stopped && i.queue.is_empty())
+                    .unwrap();
             }
         }
     }
+}
 
+impl BlockProcessorLoopImpl {
     fn notify_batch_processed(&self, blocks: &Vec<(BlockStatus, Arc<BlockProcessorContext>)>) {
         {
             let guard = self.block_processed.lock().unwrap();
@@ -552,7 +582,7 @@ impl BlockProcessorLoop {
         &self,
         mut guard: MutexGuard<BlockProcessorImpl>,
     ) -> Vec<(BlockStatus, Arc<BlockProcessorContext>)> {
-        let batch = self.next_batch(&mut guard, 256);
+        let batch = self.next_batch(&mut guard, self.config.batch_size);
         drop(guard);
 
         let mut write_guard = self.ledger.write_queue.wait(Writer::BlockProcessor);
@@ -773,10 +803,10 @@ impl BlockProcessorImpl {
     }
 }
 
-pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoop>);
+pub(crate) struct BlockProcessorCleanup(Arc<BlockProcessorLoopImpl>);
 
 impl BlockProcessorCleanup {
-    pub fn new(processor_loop: Arc<BlockProcessorLoop>) -> Self {
+    pub fn new(processor_loop: Arc<BlockProcessorLoopImpl>) -> Self {
         Self(processor_loop)
     }
 }
