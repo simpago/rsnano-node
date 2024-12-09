@@ -752,9 +752,9 @@ impl ActiveElections {
         }
     }
 
-    pub fn election(&self, hash: &QualifiedRoot) -> Option<Arc<Election>> {
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
         let guard = self.mutex.lock().unwrap();
-        guard.roots.get(hash).map(|i| i.election.clone())
+        guard.election(root)
     }
 
     pub fn votes_with_weight(&self, election: &Election) -> Vec<VoteWithWeightInfo> {
@@ -1021,7 +1021,7 @@ impl From<Amount> for TallyKey {
     }
 }
 
-struct ActiveElectionsState {
+pub struct ActiveElectionsState {
     roots: OrderedRoots,
     stopped: bool,
     manual_count: usize,
@@ -1047,6 +1047,10 @@ impl ActiveElectionsState {
             ElectionBehavior::Hinted => &mut self.hinted_count,
             ElectionBehavior::Optimistic => &mut self.optimistic_count,
         }
+    }
+
+    pub fn election(&self, root: &QualifiedRoot) -> Option<Arc<Election>> {
+        self.roots.get(root).map(|i| i.election.clone())
     }
 }
 
@@ -1101,11 +1105,11 @@ pub trait ActiveElectionsExt {
     /// Distinguishes replay votes, cannot be determined if the block is not in any election
     fn block_cemented(
         &self,
-        tx: &LmdbReadTransaction,
+        guard: &mut ActiveElectionsState,
         block: &SavedBlock,
         confirmation_root: &BlockHash,
         source_election: &Option<Arc<Election>>,
-    );
+    ) -> (ElectionStatus, Vec<VoteWithWeightInfo>);
     fn publish_block(&self, block: &Block) -> bool;
     fn insert(
         &self,
@@ -1123,15 +1127,28 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
             .on_batch_cemented(Box::new(move |cemented| {
                 if let Some(active) = self_w.upgrade() {
                     {
+                        let mut results = Vec::new();
+                        {
+                            let mut guard = active.mutex.lock().unwrap();
+                            // Process all cemented blocks while holding the lock to avoid
+                            // races where an election for a block that is already
+                            // cemented is inserted
+                            for context in cemented {
+                                let result = active.block_cemented(
+                                    &mut guard,
+                                    &context.block,
+                                    &context.confirmation_root,
+                                    &context.election,
+                                );
+                                results.push(result)
+                            }
+                        }
+
+                        // TODO: This could be offloaded to a separate notification worker, profiling is needed
                         let mut tx = active.ledger.read_txn();
-                        for context in cemented {
+                        for (status, votes) in results {
                             tx.refresh_if_needed();
-                            active.block_cemented(
-                                &tx,
-                                &context.block,
-                                &context.confirmation_root,
-                                &context.election,
-                            );
+                            active.notify_observers(&tx, &status, &votes);
                         }
                     }
                 }
@@ -1199,15 +1216,18 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
 
     fn block_cemented(
         &self,
-        tx: &LmdbReadTransaction,
+        guard: &mut ActiveElectionsState,
         block: &SavedBlock,
         confirmation_root: &BlockHash,
         source_election: &Option<Arc<Election>>,
-    ) {
-        let dependent_election = self.election(&block.qualified_root());
+    ) -> (ElectionStatus, Vec<VoteWithWeightInfo>) {
+        // Dependent elections are implicitly confirmed when their block is cemented
+        let dependent_election = guard.election(&block.qualified_root());
         if let Some(dependent_election) = &dependent_election {
             self.stats
                 .inc(StatType::ActiveElections, DetailType::ConfirmDependent);
+
+            // TODO: This should either confirm or cancel the election
             self.try_confirm(&dependent_election, &block.hash());
         }
 
@@ -1249,7 +1269,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
 
         trace!(?block, %confirmation_root, "active cemented");
 
-        self.notify_observers(tx, &status, &votes);
+        (status, votes)
     }
 
     fn publish_block(&self, block: &Block) -> bool {
