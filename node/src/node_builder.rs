@@ -5,11 +5,12 @@ use crate::{
     working_path_for, NetworkParams, Node, NodeArgs,
 };
 use rsnano_core::{
-    utils::get_cpu_count, work::WorkPoolImpl, Account, Amount, Networks, Vote, VoteCode,
-    VoteSource, VoteWithWeightInfo,
+    utils::get_cpu_count, work::WorkPoolImpl, Account, Amount, Networks, SavedBlock, Vote,
+    VoteCode, VoteSource, VoteWithWeightInfo,
 };
 use rsnano_messages::Message;
 use rsnano_network::ChannelId;
+use rsnano_store_lmdb::LmdbReadTransaction;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 #[derive(Default)]
@@ -36,8 +37,16 @@ impl NodeCallbacksBuilder {
 
     pub fn on_election_end(
         mut self,
-        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, Amount, bool, bool)
-            + Send
+        callback: impl Fn(
+                &LmdbReadTransaction,
+                &ElectionStatus,
+                &Vec<VoteWithWeightInfo>,
+                Account,
+                &SavedBlock,
+                Amount,
+                bool,
+                bool,
+            ) + Send
             + Sync
             + 'static,
     ) -> Self {

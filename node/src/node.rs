@@ -511,11 +511,6 @@ impl Node {
             config.vote_processor.clone(),
         ));
 
-        let on_election_end = args
-            .callbacks
-            .on_election_end
-            .unwrap_or_else(|| Box::new(|_, _, _, _, _, _| {}));
-
         let active_elections = Arc::new(ActiveElections::new(
             network_params.clone(),
             wallets.clone(),
@@ -528,7 +523,6 @@ impl Node {
             network_info.clone(),
             vote_cache.clone(),
             stats.clone(),
-            on_election_end,
             online_reps.clone(),
             flags.clone(),
             recently_confirmed,
@@ -552,7 +546,35 @@ impl Node {
             online_reps.clone(),
         ));
 
-        active_elections.set_election_schedulers(&election_schedulers);
+        let schedulers_w = Arc::downgrade(&election_schedulers);
+        active_elections.on_vacancy_updated(Box::new(move || {
+            if let Some(schedulers) = schedulers_w.upgrade() {
+                schedulers.notify();
+            }
+        }));
+
+        if !flags.disable_activate_successors {
+            let schedulers_w = Arc::downgrade(&election_schedulers);
+            let ledger_l = ledger.clone();
+            active_elections.on_election_ended(Box::new(
+                move |txn, status, _, _, block, _, _, _| {
+                    let Some(schedulers) = schedulers_w.upgrade() else {
+                        return;
+                    };
+                    let cemented_bootstrap_count_reached =
+                        ledger_l.cemented_count() >= ledger_l.bootstrap_weight_max_blocks();
+                    let was_active = status.election_status_type
+                        == ElectionStatusType::ActiveConfirmedQuorum
+                        || status.election_status_type
+                            == ElectionStatusType::ActiveConfirmationHeight;
+
+                    // Next-block activations are only done for blocks with previously active elections
+                    if cemented_bootstrap_count_reached && was_active {
+                        schedulers.activate_successors(txn, block)
+                    }
+                },
+            ));
+        }
         vote_applier.set_election_schedulers(&election_schedulers);
 
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(
@@ -940,8 +962,15 @@ impl Node {
             .parse()
             .unwrap();
             active_elections.on_election_ended(Box::new(
-                move |status, _weights, account, amount, is_state_send, is_state_epoch| {
-                    let block = status.winner.as_ref().unwrap().clone();
+                move |_txn,
+                      status,
+                      _weights,
+                      account,
+                      block,
+                      amount,
+                      is_state_send,
+                      is_state_epoch| {
+                    let block = block.clone();
                     if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
                         || status.election_status_type
                             == ElectionStatusType::ActiveConfirmationHeight

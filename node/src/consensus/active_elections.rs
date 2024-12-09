@@ -1,8 +1,7 @@
 use super::{
-    confirmation_solicitor::ConfirmationSolicitor, election_schedulers::ElectionSchedulers,
-    Election, ElectionBehavior, ElectionData, ElectionState, ElectionStatus, ElectionStatusType,
-    RecentlyConfirmedCache, VoteApplier, VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter,
-    NEXT_ELECTION_ID,
+    confirmation_solicitor::ConfirmationSolicitor, Election, ElectionBehavior, ElectionData,
+    ElectionState, ElectionStatus, ElectionStatusType, RecentlyConfirmedCache, VoteApplier,
+    VoteCache, VoteCacheProcessor, VoteGenerators, VoteRouter, NEXT_ELECTION_ID,
 };
 use crate::{
     block_processing::BlockProcessor,
@@ -32,7 +31,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     mem::size_of,
     ops::Deref,
-    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock, Weak},
+    sync::{atomic::Ordering, Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -41,7 +40,17 @@ use tracing::{debug, trace};
 const ELECTION_MAX_BLOCKS: usize = 10;
 
 pub type ElectionEndCallback = Box<
-    dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, Amount, bool, bool) + Send + Sync,
+    dyn Fn(
+            &LmdbReadTransaction,
+            &ElectionStatus,
+            &Vec<VoteWithWeightInfo>,
+            Account,
+            &SavedBlock,
+            Amount,
+            bool,
+            bool,
+        ) + Send
+        + Sync,
 >;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,12 +99,11 @@ pub struct ActiveElections {
     vote_generators: Arc<VoteGenerators>,
     network_filter: Arc<NetworkFilter>,
     network_info: Arc<RwLock<NetworkInfo>>,
-    election_schedulers: RwLock<Option<Weak<ElectionSchedulers>>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     active_started_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
     active_stopped_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
-    election_end: Mutex<Vec<ElectionEndCallback>>,
+    election_ended_observers: RwLock<Vec<ElectionEndCallback>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     flags: NodeFlags,
@@ -103,6 +111,7 @@ pub struct ActiveElections {
     pub vote_router: Arc<VoteRouter>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
     message_publisher: Mutex<MessagePublisher>,
+    vacancy_updated_observers: RwLock<Vec<Box<dyn Fn() + Send + Sync>>>,
 }
 
 impl ActiveElections {
@@ -118,7 +127,6 @@ impl ActiveElections {
         network_info: Arc<RwLock<NetworkInfo>>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
-        election_end: ElectionEndCallback,
         online_reps: Arc<Mutex<OnlineReps>>,
         flags: NodeFlags,
         recently_confirmed: Arc<RecentlyConfirmedCache>,
@@ -156,7 +164,7 @@ impl ActiveElections {
             stats,
             active_started_observer: Mutex::new(Vec::new()),
             active_stopped_observer: Mutex::new(Vec::new()),
-            election_end: Mutex::new(vec![election_end]),
+            election_ended_observers: RwLock::new(Vec::new()),
             online_reps,
             thread: Mutex::new(None),
             flags,
@@ -165,12 +173,8 @@ impl ActiveElections {
             vote_cache_processor,
             steady_clock,
             message_publisher: Mutex::new(message_publisher),
-            election_schedulers: RwLock::new(None),
+            vacancy_updated_observers: RwLock::new(Vec::new()),
         }
-    }
-
-    pub(crate) fn set_election_schedulers(&self, schedulers: &Arc<ElectionSchedulers>) {
-        *self.election_schedulers.write().unwrap() = Some(Arc::downgrade(&schedulers));
     }
 
     pub fn len(&self) -> usize {
@@ -189,7 +193,7 @@ impl ActiveElections {
     }
 
     pub fn on_election_ended(&self, f: ElectionEndCallback) {
-        self.election_end.lock().unwrap().push(f);
+        self.election_ended_observers.write().unwrap().push(f);
     }
 
     pub fn on_active_started(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
@@ -198,6 +202,10 @@ impl ActiveElections {
 
     pub fn on_active_stopped(&self, f: Box<dyn Fn(BlockHash) + Send + Sync>) {
         self.active_stopped_observer.lock().unwrap().push(f);
+    }
+
+    pub fn on_vacancy_updated(&self, f: Box<dyn Fn() + Send + Sync>) {
+        self.vacancy_updated_observers.write().unwrap().push(f);
     }
 
     pub fn clear_recently_confirmed(&self) {
@@ -236,10 +244,8 @@ impl ActiveElections {
 
         // Trigger callback for confirmed block
         let account = block.account();
-        let amount = self
-            .ledger
-            .any()
-            .block_amount(&self.ledger.read_txn(), &block.hash());
+        let txn = self.ledger.read_txn();
+        let amount = self.ledger.any().block_amount_for(&txn, &block);
         let mut is_state_send = false;
         let mut is_state_epoch = false;
         if amount.is_some() {
@@ -249,12 +255,14 @@ impl ActiveElections {
             }
         }
 
-        let callbacks = self.election_end.lock().unwrap();
+        let callbacks = self.election_ended_observers.read().unwrap();
         for callback in callbacks.iter() {
             (callback)(
+                &txn,
                 &status,
                 &Vec::new(),
                 account,
+                block,
                 amount.unwrap_or_default(),
                 is_state_send,
                 is_state_epoch,
@@ -299,32 +307,35 @@ impl ActiveElections {
             _ => {}
         }
 
-        let is_end_empty = self.election_end.lock().unwrap().is_empty();
-        if !is_end_empty {
-            let amount = self
-                .ledger
-                .any()
-                .block_amount(tx, &block.hash())
-                .unwrap_or_default();
+        let ended_callbacks = self.election_ended_observers.read().unwrap();
+        if ended_callbacks.is_empty() {
+            return;
+        }
 
-            let mut is_state_send = false;
-            let mut is_state_epoch = false;
-            if block.block_type() == BlockType::State {
-                is_state_send = block.block_type() == BlockType::State && block.is_send();
-                is_state_epoch = block.block_type() == BlockType::State && block.is_epoch();
-            }
+        let amount = self
+            .ledger
+            .any()
+            .block_amount_for(tx, &block)
+            .unwrap_or_default();
 
-            let ended_callbacks = self.election_end.lock().unwrap();
-            for callback in ended_callbacks.iter() {
-                (callback)(
-                    status,
-                    votes,
-                    account,
-                    amount,
-                    is_state_send,
-                    is_state_epoch,
-                );
-            }
+        let mut is_state_send = false;
+        let mut is_state_epoch = false;
+        if block.block_type() == BlockType::State {
+            is_state_send = block.block_type() == BlockType::State && block.is_send();
+            is_state_epoch = block.block_type() == BlockType::State && block.is_epoch();
+        }
+
+        for callback in ended_callbacks.iter() {
+            (callback)(
+                tx,
+                status,
+                votes,
+                account,
+                block,
+                amount,
+                is_state_send,
+                is_state_epoch,
+            );
         }
     }
 
@@ -417,19 +428,10 @@ impl ActiveElections {
 
     /// Notify election schedulers when AEC frees election slot
     fn vacancy_updated(&self) {
-        self.do_election_schedulers(|s| s.notify());
-    }
-
-    fn do_election_schedulers(&self, f: impl FnOnce(&ElectionSchedulers)) {
-        let schedulers = self.election_schedulers.read().unwrap();
-        let Some(schedulers) = &*schedulers else {
-            return;
-        };
-        let Some(schedulers) = schedulers.upgrade() else {
-            return;
-        };
-
-        f(&schedulers)
+        let guard = self.vacancy_updated_observers.read().unwrap();
+        for observer in &*guard {
+            observer();
+        }
     }
 
     pub fn active_root(&self, root: &QualifiedRoot) -> bool {
@@ -1245,17 +1247,6 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
         trace!(?block, %confirmation_root, "active cemented");
 
         self.notify_observers(tx, &status, &votes);
-
-        let cemented_bootstrap_count_reached =
-            self.ledger.cemented_count() >= self.ledger.bootstrap_weight_max_blocks();
-        let was_active = status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
-            || status.election_status_type == ElectionStatusType::ActiveConfirmationHeight;
-
-        // Next-block activations are only done for blocks with previously active elections
-        if cemented_bootstrap_count_reached && was_active && !self.flags.disable_activate_successors
-        {
-            self.do_election_schedulers(|s| s.activate_successors(tx, block));
-        }
     }
 
     fn publish_block(&self, block: &Block) -> bool {

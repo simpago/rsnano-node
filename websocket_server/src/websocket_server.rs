@@ -45,9 +45,11 @@ pub fn create_websocket_server(
 
     let server_w = Arc::downgrade(&server);
     active_elections.on_election_ended(Box::new(
-        move |status: &ElectionStatus,
+        move |_,
+              status: &ElectionStatus,
               votes: &Vec<VoteWithWeightInfo>,
               account: Account,
+              block: &SavedBlock,
               amount: Amount,
               is_state_send: bool,
               is_state_epoch: bool| {
@@ -55,7 +57,6 @@ pub fn create_websocket_server(
                 debug_assert!(status.election_status_type != ElectionStatusType::Ongoing);
 
                 if server.any_subscriber(Topic::Confirmation) {
-                    let block = status.winner.as_ref().unwrap();
                     let subtype = if is_state_send {
                         "send"
                     } else if block.block_type() == BlockType::State {
