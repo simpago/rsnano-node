@@ -103,7 +103,6 @@ mod tests {
         unchecked_cutoff_time = 999
         use_memory_pools = false
         vote_generator_delay = 999
-        vote_generator_threshold = 9
         vote_minimum = "999"
         work_peers = ["dev.org:999"]
         work_threads = 999
@@ -419,10 +418,6 @@ mod tests {
         assert_ne!(
             deserialized.node.vote_generator_delay_ms,
             default_cfg.node.vote_generator_delay_ms
-        );
-        assert_ne!(
-            deserialized.node.vote_generator_threshold,
-            default_cfg.node.vote_generator_threshold
         );
         assert_ne!(
             deserialized.node.vote_minimum,

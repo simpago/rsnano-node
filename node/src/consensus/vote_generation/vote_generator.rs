@@ -22,7 +22,7 @@ use std::{
         Arc, Condvar, Mutex, MutexGuard,
     },
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub(crate) struct VoteGenerator {
@@ -46,7 +46,6 @@ impl VoteGenerator {
         message_publisher: MessagePublisher,
         voting_delay: Duration,
         vote_generator_delay: Duration,
-        vote_generator_threshold: usize,
         vote_broadcaster: Arc<VoteBroadcaster>,
     ) -> Self {
         let shared_state = Arc::new(SharedState {
@@ -55,14 +54,17 @@ impl VoteGenerator {
             history,
             wallets,
             condition: Condvar::new(),
-            queues: Mutex::new(Queues::default()),
+            queues: Mutex::new(Queues {
+                requests: Default::default(),
+                candidates: Default::default(),
+                next_broadcast: Instant::now(),
+            }),
             is_final,
             stopped: AtomicBool::new(false),
             stats: Arc::clone(&stats),
             vote_broadcaster,
             spacing: Mutex::new(VoteSpacing::new(voting_delay)),
             vote_generator_delay,
-            vote_generator_threshold,
         });
 
         let shared_state_clone = Arc::clone(&shared_state);
@@ -186,43 +188,29 @@ struct SharedState {
     vote_broadcaster: Arc<VoteBroadcaster>,
     spacing: Mutex<VoteSpacing>,
     vote_generator_delay: Duration,
-    vote_generator_threshold: usize,
 }
 
 impl SharedState {
     fn run(&self) {
         let mut queues = self.queues.lock().unwrap();
         while !self.stopped.load(Ordering::SeqCst) {
-            if queues.candidates.len() >= VoteGenerator::MAX_HASHES {
+            queues = self
+                .condition
+                .wait_timeout_while(queues, self.vote_generator_delay, |i| {
+                    i.requests.is_empty() && !i.should_broadcast()
+                })
+                .unwrap()
+                .0;
+
+            if queues.should_broadcast() {
                 queues = self.broadcast(queues);
-            } else if let Some(request) = queues.requests.pop_front() {
+                queues.next_broadcast = Instant::now() + self.vote_generator_delay;
+            }
+
+            if let Some(request) = queues.requests.pop_front() {
                 drop(queues);
                 self.reply(request);
                 queues = self.queues.lock().unwrap();
-            } else {
-                queues = self
-                    .condition
-                    .wait_timeout_while(queues, self.vote_generator_delay, |lk| {
-                        lk.candidates.len() < VoteGenerator::MAX_HASHES
-                    })
-                    .unwrap()
-                    .0;
-
-                if queues.candidates.len() >= self.vote_generator_threshold
-                    && queues.candidates.len() < VoteGenerator::MAX_HASHES
-                {
-                    queues = self
-                        .condition
-                        .wait_timeout_while(queues, self.vote_generator_delay, |lk| {
-                            lk.candidates.len() < VoteGenerator::MAX_HASHES
-                        })
-                        .unwrap()
-                        .0;
-                }
-
-                if !queues.candidates.is_empty() {
-                    queues = self.broadcast(queues);
-                }
             }
         }
     }
@@ -427,8 +415,18 @@ impl SharedState {
     }
 }
 
-#[derive(Default)]
 struct Queues {
     candidates: VecDeque<(Root, BlockHash)>,
     requests: VecDeque<(Vec<(Root, BlockHash)>, ChannelId)>,
+    next_broadcast: Instant,
+}
+
+impl Queues {
+    fn should_broadcast(&self) -> bool {
+        if self.candidates.len() >= ConfirmAck::HASHES_MAX {
+            return true;
+        }
+
+        self.candidates.len() > 0 && Instant::now() >= self.next_broadcast
+    }
 }

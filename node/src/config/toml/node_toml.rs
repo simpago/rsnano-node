@@ -47,7 +47,6 @@ pub struct NodeToml {
     pub unchecked_cutoff_time: Option<i64>,
     pub use_memory_pools: Option<bool>,
     pub vote_generator_delay: Option<i64>,
-    pub vote_generator_threshold: Option<u32>,
     pub vote_minimum: Option<String>,
     pub work_peers: Option<Vec<String>>,
     pub work_threads: Option<u32>,
@@ -212,9 +211,6 @@ impl NodeConfig {
         }
         if let Some(vote_generator_delay_ms) = toml.vote_generator_delay {
             self.vote_generator_delay_ms = vote_generator_delay_ms;
-        }
-        if let Some(vote_generator_threshold) = toml.vote_generator_threshold {
-            self.vote_generator_threshold = vote_generator_threshold;
         }
         if let Some(vote_minimum) = &toml.vote_minimum {
             self.vote_minimum = Amount::decode_dec(&vote_minimum).expect("Invalid vote minimum");
@@ -397,7 +393,6 @@ impl From<&NodeConfig> for NodeToml {
             unchecked_cutoff_time: Some(config.unchecked_cutoff_time_s),
             use_memory_pools: Some(config.use_memory_pools),
             vote_generator_delay: Some(config.vote_generator_delay_ms),
-            vote_generator_threshold: Some(config.vote_generator_threshold),
             vote_minimum: Some(config.vote_minimum.to_string_dec()),
             work_peers: Some(
                 config

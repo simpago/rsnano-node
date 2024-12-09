@@ -33,7 +33,6 @@ impl VoteGenerators {
             message_publisher.clone(),
             Duration::from_secs(network_params.voting.delay_s as u64),
             Duration::from_millis(config.vote_generator_delay_ms as u64),
-            config.vote_generator_threshold as usize,
             vote_broadcaster.clone(),
         );
 
@@ -46,7 +45,6 @@ impl VoteGenerators {
             message_publisher.clone(),
             Duration::from_secs(network_params.voting.delay_s as u64),
             Duration::from_millis(config.vote_generator_delay_ms as u64),
-            config.vote_generator_threshold as usize,
             vote_broadcaster,
         );
 
