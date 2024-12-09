@@ -1,3 +1,4 @@
+use blake2::digest::typenum::assert_type_eq;
 use rsnano_core::{
     utils::MemoryStream, Account, Amount, PrivateKey, UnsavedBlockLatticeBuilder, Vote, VoteCode,
     VoteSource, DEV_GENESIS_KEY,
@@ -1359,4 +1360,70 @@ fn active_inactive() {
         },
         0,
     );
+}
+
+#[test]
+fn activate_inactive() {
+    let mut system = System::new();
+    let node = system
+        .build_node()
+        .config(System::default_config_without_backlog_population())
+        .finish();
+
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let key = PrivateKey::new();
+    let send = lattice.genesis().send(&key, 1);
+    let send2 = lattice.genesis().send(Account::from(1), 1);
+    let open = lattice.account(&key).receive(&send);
+
+    node.process_multi(&[send.clone(), send2.clone(), open.clone()]);
+
+    start_elections(&node, &[send2.hash()], true);
+
+    assert_timely(Duration::from_secs(5), || {
+        !node.confirming_set.contains(&send2.hash())
+    });
+    assert_timely(Duration::from_secs(5), || {
+        node.block_confirmed(&send2.hash())
+    });
+    assert_timely(Duration::from_secs(5), || {
+        node.block_confirmed(&send.hash())
+    });
+
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || {
+            node.stats.count(
+                StatType::ConfirmationObserver,
+                DetailType::InactiveConfHeight,
+                Direction::Out,
+            )
+        },
+        1,
+    );
+    assert_timely_eq(
+        Duration::from_secs(5),
+        || {
+            node.stats.count(
+                StatType::ConfirmationObserver,
+                DetailType::ActiveQuorum,
+                Direction::Out,
+            )
+        },
+        1,
+    );
+    assert_always_eq(
+        Duration::from_millis(50),
+        || {
+            node.stats.count(
+                StatType::ConfirmationObserver,
+                DetailType::ActiveConfHeight,
+                Direction::Out,
+            )
+        },
+        0,
+    );
+
+    // Cementing of send should activate open
+    assert_timely(Duration::from_secs(5), || node.active.active(&open))
 }

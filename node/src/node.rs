@@ -577,27 +577,20 @@ impl Node {
         }));
 
         if !flags.disable_activate_successors {
-            let schedulers_w = Arc::downgrade(&election_schedulers);
             let ledger_l = ledger.clone();
-            active_elections.on_election_ended(Box::new(
-                move |txn, status, _, _, block, _, _, _| {
-                    let Some(schedulers) = schedulers_w.upgrade() else {
-                        return;
-                    };
-                    let cemented_bootstrap_count_reached =
-                        ledger_l.cemented_count() >= ledger_l.bootstrap_weight_max_blocks();
-                    let was_active = status.election_status_type
-                        == ElectionStatusType::ActiveConfirmedQuorum
-                        || status.election_status_type
-                            == ElectionStatusType::ActiveConfirmationHeight;
-
-                    // Next-block activations are only done for blocks with previously active elections
-                    if cemented_bootstrap_count_reached && was_active {
-                        schedulers.activate_successors(txn, block)
-                    }
-                },
-            ));
+            let schedulers_w = Arc::downgrade(&election_schedulers);
+            // Activate successors of cemented blocks
+            confirming_set.on_batch_cemented(Box::new(move |batch| {
+                let Some(schedulers) = schedulers_w.upgrade() else {
+                    return;
+                };
+                let tx = ledger_l.read_txn();
+                for context in batch {
+                    schedulers.activate_successors(&tx, &context.block);
+                }
+            }));
         }
+
         vote_applier.set_election_schedulers(&election_schedulers);
 
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(ledger.clone()));

@@ -236,15 +236,16 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &SavedBlock) {
-        self.activate(tx, &block.account());
+    pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &SavedBlock) -> bool {
+        let mut result = self.activate(tx, &block.account());
 
         // Start or vote for the next unconfirmed block in the destination account
         if let Some(destination) = block.destination() {
             if block.is_send() && !destination.is_zero() && destination != block.account() {
-                self.activate(tx, &destination);
+                result |= self.activate(tx, &destination);
             }
         }
+        result
     }
 
     pub fn container_info(&self) -> ContainerInfo {
