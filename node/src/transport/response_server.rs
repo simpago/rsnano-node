@@ -68,7 +68,7 @@ pub struct ResponseServer {
     pub connections_max: usize,
 
     // Remote endpoint used to remove response channel even after socket closing
-    remote_endpoint: Mutex<SocketAddrV6>,
+    peer_addr: Mutex<SocketAddrV6>,
 
     network_params: Arc<NetworkParams>,
     last_telemetry_req: Mutex<Option<Instant>>,
@@ -112,21 +112,21 @@ impl ResponseServer {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        let remote_endpoint = channel.info.peer_addr();
+        let peer_addr = channel.info.peer_addr();
         Self {
             network_info,
             inbound_queue,
             channel,
             disable_bootstrap_listener: false,
             connections_max: 64,
-            remote_endpoint: Mutex::new(remote_endpoint),
+            peer_addr: Mutex::new(peer_addr),
             last_telemetry_req: Mutex::new(None),
             handshake_process: HandshakeProcess::new(
                 network_params.ledger.genesis_block.hash(),
                 node_id.clone(),
                 syn_cookies,
                 stats.clone(),
-                remote_endpoint,
+                peer_addr,
                 network_constants.protocol_info(),
             ),
             network_params,
@@ -158,8 +158,8 @@ impl ResponseServer {
         !self.channel.info.is_alive()
     }
 
-    pub fn remote_endpoint(&self) -> SocketAddrV6 {
-        *self.remote_endpoint.lock().unwrap()
+    pub fn peer_addr(&self) -> SocketAddrV6 {
+        *self.peer_addr.lock().unwrap()
     }
 
     fn is_outside_cooldown_period(&self) -> bool {
@@ -196,7 +196,7 @@ impl ResponseServer {
         }
 
         self.channel.info.set_mode(ChannelMode::Bootstrap);
-        debug!("Switched to bootstrap mode ({})", self.remote_endpoint());
+        debug!("Switched to bootstrap mode ({})", self.peer_addr());
         true
     }
 
@@ -248,8 +248,8 @@ impl ResponseServer {
 
 impl Drop for ResponseServer {
     fn drop(&mut self) {
-        let remote_ep = { *self.remote_endpoint.lock().unwrap() };
-        debug!("Exiting server: {}", remote_ep);
+        let peer_addr = { *self.peer_addr.lock().unwrap() };
+        debug!("Exiting server: {}", peer_addr);
         self.channel.info.close();
     }
 }
@@ -318,9 +318,8 @@ impl ResponseServerExt for Arc<ResponseServer> {
     }
 
     async fn run(&self) {
-        // Set remote_endpoint
         {
-            let mut guard = self.remote_endpoint.lock().unwrap();
+            let mut guard = self.peer_addr.lock().unwrap();
             if guard.port() == 0 {
                 *guard = self.channel.info.peer_addr();
             }
@@ -383,11 +382,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     // IO error or critical error when deserializing message
                     self.stats
                         .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
-                    debug!(
-                        "Error reading message: {:?} ({})",
-                        e,
-                        self.remote_endpoint()
-                    );
+                    debug!("Error reading message: {:?} ({})", e, self.peer_addr());
                     ProcessResult::Abort
                 }
             };
@@ -454,7 +449,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     debug!(
                         "Aborting handshake: {:?} ({})",
                         message.message_type(),
-                        self.remote_endpoint()
+                        self.peer_addr()
                     );
                     if matches!(result, HandshakeStatus::AbortOwnNodeId) {
                         if let Some(peering_addr) = self.channel.info.peering_addr() {
@@ -473,10 +468,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                             DetailType::HandshakeError,
                             Direction::In,
                         );
-                        debug!(
-                            "Error switching to realtime mode ({})",
-                            self.remote_endpoint()
-                        );
+                        debug!("Error switching to realtime mode ({})", self.peer_addr());
                         return ProcessResult::Abort;
                     }
                     self.queue_realtime(message);
@@ -492,7 +484,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         debug!(
                             "Error switching to bootstrap mode: {:?} ({})",
                             message.message_type(),
-                            self.remote_endpoint()
+                            self.peer_addr()
                         );
                         return ProcessResult::Abort;
                     } else {

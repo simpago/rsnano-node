@@ -79,22 +79,22 @@ pub struct WebsocketSession {
     entry: Arc<WebsocketSessionEntry>,
     wallets: Arc<Wallets>,
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
-    remote_endpoint: SocketAddr,
+    peer_addr: SocketAddr,
 }
 
 impl WebsocketSession {
     pub fn new(
         wallets: Arc<Wallets>,
         topic_subscriber_count: Arc<[AtomicUsize; 11]>,
-        remote_endpoint: SocketAddr,
+        peer_addr: SocketAddr,
         entry: Arc<WebsocketSessionEntry>,
     ) -> Self {
-        trace!(remote = %remote_endpoint, "new websocket session created");
+        trace!(remote = %peer_addr, "new websocket session created");
         Self {
             entry,
             wallets,
             topic_subscriber_count,
-            remote_endpoint,
+            peer_addr,
         }
     }
 
@@ -210,7 +210,7 @@ impl WebsocketSession {
             if subs.remove(&topic).is_some() {
                 info!(
                     "Removed subscription to topic: {:?} ({})",
-                    topic, self.remote_endpoint
+                    topic, self.peer_addr
                 );
                 self.topic_subscriber_count[topic as usize].fetch_sub(1, Ordering::SeqCst);
             }
@@ -234,7 +234,7 @@ impl WebsocketSession {
 
 impl Drop for WebsocketSession {
     fn drop(&mut self) {
-        trace!(remote = %self.remote_endpoint, "websocket session dropped");
+        trace!(remote = %self.peer_addr, "websocket session dropped");
         let subs = self.entry.subscriptions.lock().unwrap();
         for (topic, _) in subs.iter() {
             self.topic_subscriber_count[*topic as usize].fetch_sub(1, Ordering::SeqCst);

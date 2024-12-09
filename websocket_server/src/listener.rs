@@ -178,20 +178,14 @@ impl WebsocketListener {
     async fn accept(&self, listener: TcpListener) {
         loop {
             match listener.accept().await {
-                Ok((stream, remote_endpoint)) => {
+                Ok((stream, peer_addr)) => {
                     let wallets = Arc::clone(&self.wallets);
                     let sub_count = Arc::clone(&self.topic_subscriber_count);
                     let (tx_send, rx_send) = mpsc::channel::<OutgoingMessageEnvelope>(1024);
                     let sessions = Arc::clone(&self.sessions);
                     tokio::spawn(async move {
                         if let Err(e) = accept_connection(
-                            stream,
-                            wallets,
-                            sub_count,
-                            remote_endpoint,
-                            tx_send,
-                            rx_send,
-                            sessions,
+                            stream, wallets, sub_count, peer_addr, tx_send, rx_send, sessions,
                         )
                         .await
                         {
@@ -233,7 +227,7 @@ async fn accept_connection(
     stream: TcpStream,
     wallets: Arc<Wallets>,
     topic_subscriber_count: Arc<[AtomicUsize; 11]>,
-    remote_endpoint: SocketAddr,
+    peer_addr: SocketAddr,
     tx_send: mpsc::Sender<OutgoingMessageEnvelope>,
     mut rx_send: mpsc::Receiver<OutgoingMessageEnvelope>,
     sessions: Arc<Mutex<Vec<Weak<WebsocketSessionEntry>>>>,
@@ -250,7 +244,7 @@ async fn accept_connection(
         sessions.push(Arc::downgrade(&entry));
     }
 
-    let session = WebsocketSession::new(wallets, topic_subscriber_count, remote_endpoint, entry);
+    let session = WebsocketSession::new(wallets, topic_subscriber_count, peer_addr, entry);
 
     tokio::select! {
         _ = rx_close =>{

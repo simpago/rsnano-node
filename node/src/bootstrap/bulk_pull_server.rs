@@ -282,7 +282,7 @@ impl BulkPullServerImpl {
 
     pub fn send_next(&mut self, server_impl: Arc<Mutex<Self>>) {
         if let Some(block) = self.get_next() {
-            trace!(block = %block.hash(), remote = %self.connection.remote_endpoint(), "Sending block");
+            trace!(block = %block.hash(), remote = %self.connection.peer_addr(), "Sending block");
             let mut stream = MemoryStream::new();
 
             block.serialize(&mut stream);

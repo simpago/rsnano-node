@@ -78,7 +78,7 @@ impl FrontierReqServerImpl {
             trace!(
                 account = %self.current,
                 frontier = %self.frontier,
-                socket = %self.connection.remote_endpoint(),
+                socket = %self.connection.peer_addr(),
                 "Sending frontier");
 
             let mut send_buffer = Vec::with_capacity(64);
