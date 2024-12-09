@@ -66,6 +66,8 @@ impl ElectionSchedulers {
             active_elections.clone(),
         ));
 
+        let priority_w = Arc::downgrade(&priority);
+
         Self {
             priority,
             optimistic,

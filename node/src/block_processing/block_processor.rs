@@ -13,7 +13,7 @@ use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
     collections::VecDeque,
     mem::size_of,
-    sync::{Arc, Condvar, Mutex, MutexGuard},
+    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -207,7 +207,7 @@ impl BlockProcessor {
                 blocks_rolled_back: Mutex::new(None),
                 block_rolled_back: Mutex::new(Vec::new()),
                 block_processed: Mutex::new(Vec::new()),
-                batch_processed: Mutex::new(Vec::new()),
+                batch_processed: RwLock::new(Vec::new()),
             }),
             thread: Mutex::new(None),
         }
@@ -263,7 +263,7 @@ impl BlockProcessor {
         self.processor_loop.on_block_processed(observer);
     }
 
-    pub fn add_batch_processed_observer(
+    pub fn on_batch_processed(
         &self,
         observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>,
     ) {
@@ -342,7 +342,7 @@ pub(crate) struct BlockProcessorLoop {
     block_rolled_back: Mutex<Vec<Box<dyn Fn(&Block) + Send + Sync>>>,
     block_processed: Mutex<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
     batch_processed:
-        Mutex<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>>>,
+        RwLock<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>>>,
 }
 
 impl BlockProcessorLoop {
@@ -390,7 +390,7 @@ impl BlockProcessorLoop {
             }
         }
         {
-            let guard = self.batch_processed.lock().unwrap();
+            let guard = self.batch_processed.read().unwrap();
             for observer in guard.iter() {
                 observer(&blocks);
             }
@@ -408,7 +408,7 @@ impl BlockProcessorLoop {
         &self,
         observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>,
     ) {
-        self.batch_processed.lock().unwrap().push(observer);
+        self.batch_processed.write().unwrap().push(observer);
     }
 
     pub fn on_rolled_back(&self, observer: Box<dyn Fn(&Block) + Send + Sync>) {

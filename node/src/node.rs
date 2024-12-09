@@ -547,6 +547,29 @@ impl Node {
         ));
 
         let schedulers_w = Arc::downgrade(&election_schedulers);
+        let ledger_l = ledger.clone();
+        // Activate accounts with fresh blocks
+        block_processor.on_batch_processed(Box::new(move |batch| {
+            let Some(schedulers) = schedulers_w.upgrade() else {
+                return;
+            };
+
+            let tx = ledger_l.read_txn();
+            for (status, context) in batch {
+                if *status == BlockStatus::Progress {
+                    let account = context
+                        .saved_block
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .account();
+                    schedulers.activate(&tx, &account);
+                }
+            }
+        }));
+
+        let schedulers_w = Arc::downgrade(&election_schedulers);
         active_elections.on_vacancy_updated(Box::new(move || {
             if let Some(schedulers) = schedulers_w.upgrade() {
                 schedulers.notify();
@@ -577,10 +600,7 @@ impl Node {
         }
         vote_applier.set_election_schedulers(&election_schedulers);
 
-        let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(
-            ledger.clone(),
-            election_schedulers.clone(),
-        ));
+        let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(ledger.clone()));
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
             online_reps.clone(),

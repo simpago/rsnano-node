@@ -286,7 +286,7 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
 
         let self_w = Arc::downgrade(self);
         self.block_processor
-            .add_batch_processed_observer(Box::new(move |batch| {
+            .on_batch_processed(Box::new(move |batch| {
                 let Some(self_l) = self_w.upgrade() else {
                     return;
                 };

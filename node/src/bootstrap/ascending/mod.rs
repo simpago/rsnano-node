@@ -702,7 +702,7 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
     fn initialize(&self, genesis_account: &Account) {
         let self_w = Arc::downgrade(self);
         self.block_processor
-            .add_batch_processed_observer(Box::new(move |batch| {
+            .on_batch_processed(Box::new(move |batch| {
                 if let Some(self_l) = self_w.upgrade() {
                     self_l.batch_processed(batch);
                 }
