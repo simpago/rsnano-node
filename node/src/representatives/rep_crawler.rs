@@ -691,7 +691,7 @@ impl RepCrawlerExt for Arc<RepCrawler> {
     }
 }
 
-/// Connect to preconfigured peers or send keepalives
+/// Connect to preconfigured peers or send keepalive messages
 struct PreconfiguredPeersKeepalive {
     peers: Vec<Peer>,
     keepalive: PeersKeeplive,

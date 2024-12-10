@@ -1,5 +1,5 @@
 use super::VoteProcessorQueue;
-use crate::transport::MessagePublisher;
+use crate::transport::MessageFlooder;
 use rsnano_core::{Vote, VoteSource};
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelId, DropPolicy, TrafficType};
@@ -11,17 +11,17 @@ use std::{
 /// Broadcast a vote to PRs and some non-PRs
 pub struct VoteBroadcaster {
     vote_processor_queue: Arc<VoteProcessorQueue>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_flooder: Mutex<MessageFlooder>,
 }
 
 impl VoteBroadcaster {
     pub fn new(
         vote_processor_queue: Arc<VoteProcessorQueue>,
-        message_publisher: MessagePublisher,
+        message_flooder: MessageFlooder,
     ) -> Self {
         Self {
             vote_processor_queue,
-            message_publisher: Mutex::new(message_publisher),
+            message_flooder: Mutex::new(message_flooder),
         }
     }
 
@@ -29,7 +29,7 @@ impl VoteBroadcaster {
     pub fn broadcast(&self, vote: Arc<Vote>) {
         let ack = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote.deref().clone()));
 
-        self.message_publisher
+        self.message_flooder
             .lock()
             .unwrap()
             .flood_prs_and_some_non_prs(&ack, DropPolicy::ShouldNotDrop, TrafficType::Generic, 2.0);

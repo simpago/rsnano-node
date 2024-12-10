@@ -5,7 +5,7 @@ use crate::{
     config::{NetworkConstants, NodeConfig},
     representatives::OnlineReps,
     stats::Stats,
-    transport::MessagePublisher,
+    transport::MessageFlooder,
     utils::{ThreadPool, ThreadPoolImpl},
     work::DistributedWorkFactory,
     NetworkParams,
@@ -98,7 +98,7 @@ pub struct Wallets {
     pub kdf: KeyDerivationFunction,
     start_election: Mutex<Option<Box<dyn Fn(SavedBlock) + Send + Sync>>>,
     confirming_set: Arc<ConfirmingSet>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_flooder: Mutex<MessageFlooder>,
 }
 
 impl Wallets {
@@ -126,7 +126,7 @@ impl Wallets {
                 Arc::new(Ledger::new_null()),
                 Arc::new(Stats::default()),
             )),
-            MessagePublisher::new_null(tokio_handle.clone()),
+            MessageFlooder::new_null(tokio_handle.clone()),
         )
     }
 
@@ -142,7 +142,7 @@ impl Wallets {
         block_processor: Arc<BlockProcessor>,
         online_reps: Arc<Mutex<OnlineReps>>,
         confirming_set: Arc<ConfirmingSet>,
-        message_publisher: MessagePublisher,
+        message_flooder: MessageFlooder,
     ) -> Self {
         let kdf = KeyDerivationFunction::new(kdf_work);
         Self {
@@ -168,7 +168,7 @@ impl Wallets {
             kdf: kdf.clone(),
             start_election: Mutex::new(None),
             confirming_set,
-            message_publisher: Mutex::new(message_publisher),
+            message_flooder: Mutex::new(message_flooder),
         }
     }
 
@@ -668,7 +668,7 @@ impl Wallets {
 
         if let Some(block) = block {
             let msg = Message::Publish(Publish::new_forward(block.clone().into()));
-            self.message_publisher
+            self.message_flooder
                 .lock()
                 .unwrap()
                 .flood(&msg, DropPolicy::ShouldNotDrop, 1.0);

@@ -10,7 +10,7 @@ use crate::{
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{MessagePublisher, NetworkFilter},
+    transport::{MessageFlooder, NetworkFilter},
     utils::HardenedConstants,
     wallets::Wallets,
     NetworkParams,
@@ -110,7 +110,7 @@ pub struct ActiveElections {
     pub vote_applier: Arc<VoteApplier>,
     pub vote_router: Arc<VoteRouter>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_flooder: Mutex<MessageFlooder>,
     vacancy_updated_observers: RwLock<Vec<Box<dyn Fn() + Send + Sync>>>,
 }
 
@@ -134,7 +134,7 @@ impl ActiveElections {
         vote_router: Arc<VoteRouter>,
         vote_cache_processor: Arc<VoteCacheProcessor>,
         steady_clock: Arc<SteadyClock>,
-        message_publisher: MessagePublisher,
+        message_flooder: MessageFlooder,
     ) -> Self {
         Self {
             mutex: Mutex::new(ActiveElectionsState {
@@ -172,7 +172,7 @@ impl ActiveElections {
             vote_router,
             vote_cache_processor,
             steady_clock,
-            message_publisher: Mutex::new(message_publisher),
+            message_flooder: Mutex::new(message_flooder),
             vacancy_updated_observers: RwLock::new(Vec::new()),
         }
     }
@@ -528,7 +528,7 @@ impl ActiveElections {
                 if election_guard.status.winner.as_ref().unwrap().hash() == block.hash() {
                     election_guard.status.winner = Some(MaybeSavedBlock::Unsaved(block.clone()));
                     let message = Message::Publish(Publish::new_forward(block.clone()));
-                    let mut publisher = self.message_publisher.lock().unwrap();
+                    let mut publisher = self.message_flooder.lock().unwrap();
                     publisher.flood(&message, DropPolicy::ShouldNotDrop, 1.0);
                 }
             } else {
@@ -803,7 +803,7 @@ impl ActiveElections {
         let elections = Self::list_active_impl(this_loop_target, &guard);
         drop(guard);
 
-        let publisher = self.message_publisher.lock().unwrap().clone();
+        let publisher = self.message_flooder.lock().unwrap().clone();
         let mut solicitor =
             ConfirmationSolicitor::new(&self.network_params, &self.network_info, publisher);
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();

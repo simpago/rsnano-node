@@ -1,10 +1,7 @@
-use crate::{
-    representatives::OnlineReps,
-    stats::{Direction, StatType, Stats},
-};
+use crate::stats::{Direction, StatType, Stats};
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
-use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, Network, TrafficType};
-use std::sync::{Arc, Mutex};
+use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
+use std::sync::Arc;
 use tracing::trace;
 
 pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
@@ -12,7 +9,6 @@ pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 /// Publishes messages to peered nodes
 #[derive(Clone)]
 pub struct MessagePublisher {
-    online_reps: Arc<Mutex<OnlineReps>>,
     network: Arc<Network>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
@@ -20,14 +16,8 @@ pub struct MessagePublisher {
 }
 
 impl MessagePublisher {
-    pub fn new(
-        online_reps: Arc<Mutex<OnlineReps>>,
-        network: Arc<Network>,
-        stats: Arc<Stats>,
-        protocol_info: ProtocolInfo,
-    ) -> Self {
+    pub fn new(network: Arc<Network>, stats: Arc<Stats>, protocol_info: ProtocolInfo) -> Self {
         Self {
-            online_reps,
             network,
             stats,
             message_serializer: MessageSerializer::new(protocol_info),
@@ -36,14 +26,12 @@ impl MessagePublisher {
     }
 
     pub fn new_with_buffer_size(
-        online_reps: Arc<Mutex<OnlineReps>>,
         network: Arc<Network>,
         stats: Arc<Stats>,
         protocol_info: ProtocolInfo,
         buffer_size: usize,
     ) -> Self {
         Self {
-            online_reps,
             network,
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
@@ -57,7 +45,6 @@ impl MessagePublisher {
 
     pub(crate) fn new_null(handle: tokio::runtime::Handle) -> Self {
         Self::new(
-            Arc::new(Mutex::new(OnlineReps::default())),
             Arc::new(Network::new_null(handle)),
             Arc::new(Stats::default()),
             Default::default(),
@@ -110,64 +97,38 @@ impl MessagePublisher {
         Ok(())
     }
 
-    pub(crate) fn flood_prs_and_some_non_prs(
-        &mut self,
+    pub fn get_serializer(&self) -> MessageSerializer {
+        self.message_serializer.clone()
+    }
+
+    pub fn try_send_serialized_message(
+        &self,
+        channel_id: ChannelId,
+        buffer: &[u8],
         message: &Message,
         drop_policy: DropPolicy,
         traffic_type: TrafficType,
-        scale: f32,
-    ) {
-        let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
-        for rep in peered_prs {
-            self.try_send(rep.channel_id, &message, drop_policy, traffic_type);
-        }
-
-        let mut channels;
-        let fanout;
-        {
-            let network = self.network.info.read().unwrap();
-            fanout = network.fanout(scale);
-            channels = network.random_list_realtime(usize::MAX, 0)
-        }
-
-        self.remove_no_pr(&mut channels, fanout);
-        for peer in channels {
-            self.try_send(peer.channel_id(), &message, drop_policy, traffic_type);
-        }
-    }
-
-    fn remove_no_pr(&self, channels: &mut Vec<Arc<ChannelInfo>>, count: usize) {
-        {
-            let reps = self.online_reps.lock().unwrap();
-            channels.retain(|c| !reps.is_pr(c.channel_id()));
-        }
-        channels.truncate(count);
-    }
-
-    pub fn flood(&mut self, message: &Message, drop_policy: DropPolicy, scale: f32) {
-        let buffer = self.message_serializer.serialize(message);
-        let channels = self
+    ) -> bool {
+        let sent = self
             .network
-            .info
-            .read()
-            .unwrap()
-            .random_fanout_realtime(scale);
+            .try_send_buffer(channel_id, buffer, drop_policy, traffic_type);
 
-        for channel in channels {
-            try_send_serialized_message(
-                &self.network,
-                &self.stats,
-                channel.channel_id(),
-                buffer,
-                message,
-                drop_policy,
-                TrafficType::Generic,
-            );
+        if sent {
+            self.stats
+                .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);
+            trace!(%channel_id, message = ?message, "Message sent");
+        } else {
+            let detail_type = message.into();
+            self.stats
+                .inc_dir_aggregate(StatType::Drop, detail_type, Direction::Out);
+            trace!(%channel_id, message = ?message, "Message dropped");
         }
+
+        sent
     }
 }
 
-fn try_send_serialized_message(
+pub(crate) fn try_send_serialized_message(
     network: &Network,
     stats: &Stats,
     channel_id: ChannelId,

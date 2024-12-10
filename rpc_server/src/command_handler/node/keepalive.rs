@@ -4,7 +4,7 @@ use rsnano_rpc_messages::{HostWithPortArgs, StartedResponse};
 impl RpcCommandHandler {
     pub(crate) fn keepalive(&self, args: HostWithPortArgs) -> anyhow::Result<StartedResponse> {
         let crawler = self.node.rep_crawler.clone();
-        self.node.runtime.spawn(async move {
+        self.node.runtime.block_on(async move {
             crawler
                 .keepalive_or_connect(args.address, args.port.into())
                 .await
@@ -20,7 +20,7 @@ mod tests {
     use rsnano_core::utils::Peer;
     use rsnano_node::Node;
     use rsnano_rpc_messages::RpcCommand;
-    use std::sync::Arc;
+    use std::{sync::Arc, thread::spawn};
 
     #[tokio::test]
     async fn keepalive() {
@@ -28,8 +28,9 @@ mod tests {
         let keepalive_tracker = node.rep_crawler.track_keepalives();
         let cmd = RpcCommand::keepalive("foobar.com", 123);
 
-        let result: StartedResponse = test_rpc_command_with_node(cmd, node);
-
+        let result: StartedResponse = spawn(move || test_rpc_command_with_node(cmd, node))
+            .join()
+            .unwrap();
         assert_eq!(result, StartedResponse::new(true));
 
         let keepalives = keepalive_tracker.output();

@@ -27,9 +27,9 @@ use crate::{
     },
     transport::{
         InboundMessageQueue, InboundMessageQueueCleanup, KeepaliveFactory, LatestKeepalives,
-        LatestKeepalivesCleanup, MessageProcessor, MessagePublisher, NanoResponseServerSpawner,
-        NetworkFilter, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
-        RealtimeMessageHandler, SynCookies,
+        LatestKeepalivesCleanup, MessageFlooder, MessageProcessor, MessagePublisher,
+        NanoResponseServerSpawner, NetworkFilter, NetworkThreads, PeerCacheConnector,
+        PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -129,6 +129,7 @@ pub struct Node {
     stopped: AtomicBool,
     pub network_filter: Arc<NetworkFilter>,
     pub message_publisher: Arc<Mutex<MessagePublisher>>, // TODO remove this. It is needed right now
+    pub message_flooder: Arc<Mutex<MessageFlooder>>,     // TODO remove this. It is needed right now
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
 }
@@ -340,7 +341,6 @@ impl Node {
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let mut message_publisher = MessagePublisher::new(
-            online_reps.clone(),
             network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
@@ -349,6 +349,13 @@ impl Node {
         if let Some(callback) = &args.callbacks.on_publish {
             message_publisher.set_published_callback(callback.clone());
         }
+
+        let message_flooder = MessageFlooder::new(
+            online_reps.clone(),
+            network.clone(),
+            stats.clone(),
+            message_publisher.clone(),
+        );
 
         let telemetry = Arc::new(Telemetry::new(
             telemetry_config,
@@ -444,7 +451,7 @@ impl Node {
             block_processor.clone(),
             online_reps.clone(),
             confirming_set.clone(),
-            message_publisher.clone(),
+            message_flooder.clone(),
         );
         if !is_nulled {
             wallets.initialize().expect("Could not create wallet");
@@ -456,7 +463,7 @@ impl Node {
 
         let vote_broadcaster = Arc::new(VoteBroadcaster::new(
             vote_processor_queue.clone(),
-            message_publisher.clone(),
+            message_flooder.clone(),
         ));
 
         let vote_generators = Arc::new(VoteGenerators::new(
@@ -530,7 +537,7 @@ impl Node {
             vote_router.clone(),
             vote_cache_processor.clone(),
             steady_clock.clone(),
-            message_publisher.clone(),
+            message_flooder.clone(),
         ));
 
         active_elections.initialize();
@@ -596,7 +603,6 @@ impl Node {
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(ledger.clone()));
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
-            online_reps.clone(),
             network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
@@ -718,7 +724,7 @@ impl Node {
             stats.clone(),
             ledger.clone(),
             confirming_set.clone(),
-            message_publisher.clone(),
+            message_flooder.clone(),
             !flags.disable_block_processor_republishing,
         ));
         local_block_broadcaster.initialize();
@@ -753,7 +759,7 @@ impl Node {
             keepalive_factory.clone(),
             latest_keepalives.clone(),
             dead_channel_cleanup,
-            message_publisher.clone(),
+            message_flooder.clone(),
             steady_clock.clone(),
         )));
 
@@ -836,7 +842,7 @@ impl Node {
         }));
 
         let wallets_w = Arc::downgrade(&wallets);
-        let publisher_l = Mutex::new(message_publisher.clone());
+        let flooder_l = Mutex::new(message_flooder.clone());
         vote_router.add_vote_processed_observer(Box::new(move |vote, _source, results| {
             let Some(wallets) = wallets_w.upgrade() else {
                 return;
@@ -849,7 +855,7 @@ impl Node {
                     let ack = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(
                         vote.as_ref().clone(),
                     ));
-                    publisher_l
+                    flooder_l
                         .lock()
                         .unwrap()
                         .flood(&ack, DropPolicy::CanDrop, 0.5);
@@ -1147,6 +1153,7 @@ impl Node {
             inbound_message_queue,
             monitor,
             message_publisher: message_publisher_l,
+            message_flooder: Arc::new(Mutex::new(message_flooder.clone())),
             network_filter,
             stopped: AtomicBool::new(false),
             start_stop_listener: OutputListenerMt::new(),
@@ -1613,7 +1620,7 @@ impl NodeExt for Arc<Node> {
     ) {
         if let Some(block) = blocks.pop_front() {
             let publish = Message::Publish(Publish::new_forward(block));
-            self.message_publisher
+            self.message_flooder
                 .lock()
                 .unwrap()
                 .flood(&publish, DropPolicy::CanDrop, 1.0);

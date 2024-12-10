@@ -1,5 +1,5 @@
 use super::{Election, ElectionData};
-use crate::{representatives::PeeredRep, transport::MessagePublisher, NetworkParams};
+use crate::{representatives::PeeredRep, transport::MessageFlooder, NetworkParams};
 use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message, Publish};
 use rsnano_network::{ChannelId, DropPolicy, NetworkInfo, TrafficType};
@@ -24,14 +24,14 @@ pub struct ConfirmationSolicitor<'a> {
     channels: HashSet<ChannelId>,
     prepared: bool,
     rebroadcasted: usize,
-    message_publisher: MessagePublisher,
+    message_flooder: MessageFlooder,
 }
 
 impl<'a> ConfirmationSolicitor<'a> {
     pub fn new(
         network_params: &NetworkParams,
         network_info: &'a RwLock<NetworkInfo>,
-        message_publisher: MessagePublisher,
+        message_flooder: MessageFlooder,
     ) -> Self {
         let max_election_broadcasts = max(network_info.read().unwrap().fanout(1.0) / 2, 1);
         Self {
@@ -49,7 +49,7 @@ impl<'a> ConfirmationSolicitor<'a> {
             requests: HashMap::new(),
             channels: HashSet::new(),
             rebroadcasted: 0,
-            message_publisher,
+            message_flooder,
         }
     }
 
@@ -87,7 +87,7 @@ impl<'a> ConfirmationSolicitor<'a> {
                 true
             };
             if should_broadcast {
-                self.message_publisher.try_send(
+                self.message_flooder.try_send(
                     i.channel_id,
                     &winner,
                     DropPolicy::CanDrop,
@@ -96,7 +96,7 @@ impl<'a> ConfirmationSolicitor<'a> {
             }
         }
         // Random flood for block propagation
-        self.message_publisher
+        self.message_flooder
             .flood(&winner, DropPolicy::CanDrop, 0.5);
         Ok(())
     }
@@ -168,7 +168,7 @@ impl<'a> ConfirmationSolicitor<'a> {
                     roots_hashes.push(root_hash.clone());
                     if roots_hashes.len() == ConfirmReq::HASHES_MAX {
                         let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
-                        self.message_publisher.try_send(
+                        self.message_flooder.try_send(
                             *channel_id,
                             &req,
                             DropPolicy::CanDrop,
@@ -180,7 +180,7 @@ impl<'a> ConfirmationSolicitor<'a> {
             }
             if !roots_hashes.is_empty() {
                 let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
-                self.message_publisher.try_send(
+                self.message_flooder.try_send(
                     *channel_id,
                     &req,
                     DropPolicy::CanDrop,

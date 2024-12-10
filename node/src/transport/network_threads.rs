@@ -1,4 +1,4 @@
-use super::{LatestKeepalives, MessagePublisher, NetworkFilter, SynCookies};
+use super::{LatestKeepalives, MessageFlooder, NetworkFilter, SynCookies};
 use crate::{
     config::{NodeConfig, NodeFlags},
     stats::{DetailType, StatType, Stats},
@@ -30,7 +30,7 @@ pub(crate) struct NetworkThreads {
     keepalive_factory: Arc<KeepaliveFactory>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     dead_channel_cleanup: Option<DeadChannelCleanup>,
-    message_publisher: MessagePublisher,
+    message_flooder: MessageFlooder,
     clock: Arc<SteadyClock>,
 }
 
@@ -46,7 +46,7 @@ impl NetworkThreads {
         keepalive_factory: Arc<KeepaliveFactory>,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         dead_channel_cleanup: DeadChannelCleanup,
-        message_publisher: MessagePublisher,
+        message_flooder: MessageFlooder,
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
@@ -64,7 +64,7 @@ impl NetworkThreads {
             keepalive_factory,
             latest_keepalives,
             dead_channel_cleanup: Some(dead_channel_cleanup),
-            message_publisher,
+            message_flooder,
             clock,
         }
     }
@@ -92,7 +92,7 @@ impl NetworkThreads {
             keepalive_period: self.network_params.network.keepalive_period,
             stats: Arc::clone(&self.stats),
             keepalive_factory: Arc::clone(&self.keepalive_factory),
-            message_publisher: self.message_publisher.clone(),
+            message_flooder: self.message_flooder.clone(),
             clock: self.clock.clone(),
         };
 
@@ -230,7 +230,7 @@ struct KeepaliveLoop {
     stats: Arc<Stats>,
     network: Arc<RwLock<NetworkInfo>>,
     keepalive_factory: Arc<KeepaliveFactory>,
-    message_publisher: MessagePublisher,
+    message_flooder: MessageFlooder,
     clock: Arc<SteadyClock>,
     keepalive_period: Duration,
 }
@@ -272,7 +272,7 @@ impl KeepaliveLoop {
         };
 
         for channel_id in keepalive_list {
-            self.message_publisher.try_send(
+            self.message_flooder.try_send(
                 channel_id,
                 &message,
                 DropPolicy::CanDrop,
@@ -287,13 +287,13 @@ impl KeepaliveLoop {
             .read()
             .unwrap()
             .random_fill_realtime(&mut keepalive.peers);
-        self.message_publisher
+        self.message_flooder
             .flood(&Message::Keepalive(keepalive), DropPolicy::CanDrop, scale);
     }
 
     fn flood_keepalive_self(&mut self, scale: f32) {
         let keepalive = self.keepalive_factory.create_keepalive_self();
-        self.message_publisher
+        self.message_flooder
             .flood(&Message::Keepalive(keepalive), DropPolicy::CanDrop, scale);
     }
 }

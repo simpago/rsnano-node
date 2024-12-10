@@ -2,7 +2,7 @@ use super::{BlockProcessor, BlockSource};
 use crate::{
     cementation::ConfirmingSet,
     stats::{DetailType, Direction, StatType, Stats},
-    transport::MessagePublisher,
+    transport::MessageFlooder,
 };
 use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
 use rsnano_ledger::{BlockStatus, Ledger};
@@ -71,7 +71,7 @@ pub struct LocalBlockBroadcaster {
     mutex: Mutex<LocalBlockBroadcasterData>,
     condition: Condvar,
     limiter: RateLimiter,
-    message_publisher: Mutex<MessagePublisher>,
+    message_flooder: Mutex<MessageFlooder>,
 }
 
 impl LocalBlockBroadcaster {
@@ -81,7 +81,7 @@ impl LocalBlockBroadcaster {
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
         confirming_set: Arc<ConfirmingSet>,
-        message_publisher: MessagePublisher,
+        message_flooder: MessageFlooder,
         enabled: bool,
     ) -> Self {
         Self {
@@ -102,7 +102,7 @@ impl LocalBlockBroadcaster {
                 cleanup_interval: Instant::now(),
             }),
             condition: Condvar::new(),
-            message_publisher: Mutex::new(message_publisher),
+            message_flooder: Mutex::new(message_flooder),
         }
     }
 
@@ -256,7 +256,7 @@ impl LocalBlockBroadcaster {
     /// Flood block to all PRs and a random selection of non-PRs
     fn flood_block_initial(&self, block: Block) {
         let message = Message::Publish(Publish::new_from_originator(block));
-        let mut publisher = self.message_publisher.lock().unwrap();
+        let mut publisher = self.message_flooder.lock().unwrap();
         publisher.flood_prs_and_some_non_prs(
             &message,
             DropPolicy::ShouldNotDrop,

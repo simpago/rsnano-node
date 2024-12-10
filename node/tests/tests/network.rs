@@ -135,7 +135,7 @@ fn send_discarded_publish() {
     }
     .into();
 
-    node1.message_publisher.lock().unwrap().flood(
+    node1.message_flooder.lock().unwrap().flood(
         &Message::Publish(Publish::new_forward(block)),
         DropPolicy::ShouldNotDrop,
         1.0,
