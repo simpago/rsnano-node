@@ -547,10 +547,8 @@ impl BootstrapAscending {
                 tag.query_type,
                 QueryType::BlocksByHash | QueryType::BlocksByAccount
             ),
-            AscPullAckType::AccountInfo(_) => {
-                matches!(tag.query_type, QueryType::AccountInfoByHash)
-            }
-            AscPullAckType::Frontiers(_) => false,
+            AscPullAckType::AccountInfo(_) => tag.query_type == QueryType::AccountInfoByHash,
+            AscPullAckType::Frontiers(_) => tag.query_type == QueryType::Frontiers,
         };
 
         if !valid {
@@ -1197,6 +1195,7 @@ impl BootstrapAscendingLogic {
             .leaf("throttle_success", self.throttle.successes(), 0)
             .node("accounts", self.accounts.container_info())
             .node("database_scan", self.database_scan.container_info())
+            .node("frontiers", self.frontiers.container_info())
             .finish()
     }
 }
