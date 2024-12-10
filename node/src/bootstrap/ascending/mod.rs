@@ -1287,9 +1287,9 @@ impl Default for BootstrapAscendingConfig {
     fn default() -> Self {
         Self {
             enable: true,
-            enable_database_scan: true,
+            enable_database_scan: false,
             enable_dependency_walker: true,
-            enable_frontier_scan: false,
+            enable_frontier_scan: true,
             channel_limit: 16,
             database_rate_limit: 256,
             frontier_rate_limit: 100,

@@ -526,7 +526,8 @@ mod tests {
         let toml = NodeToml::from(&cfg);
         let ascending_toml = toml.bootstrap_ascending.as_ref().unwrap();
         assert_eq!(ascending_toml.enable, Some(true));
-        assert_eq!(ascending_toml.enable_databaser_scan, Some(true));
+        assert_eq!(ascending_toml.enable_databaser_scan, Some(false));
+        assert_eq!(ascending_toml.enable_frontier_scan, Some(true));
         assert_eq!(ascending_toml.enable_dependency_walker, Some(true));
         assert_eq!(ascending_toml.block_processor_threshold, Some(1000));
         assert_eq!(ascending_toml.database_rate_limit, Some(256));
