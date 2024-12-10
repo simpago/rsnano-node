@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lmdb-rkv = "0"
-lmdb-rkv-sys = "0"
+lmdb-rkv = "0.14.0"
+lmdb-rkv-sys = "0.11.2"

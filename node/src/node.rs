@@ -1703,6 +1703,7 @@ mod tests {
     use crate::{utils::TimerStartEvent, NodeBuilder};
     use rsnano_core::Networks;
     use std::ops::Deref;
+    use tempfile::TempDir;
     use uuid::Uuid;
 
     #[tokio::test]
@@ -1765,7 +1766,8 @@ mod tests {
 
     impl TestNode {
         pub async fn new() -> Self {
-            let mut app_path = std::env::temp_dir();
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let mut app_path = temp_dir.path().to_path_buf();
             app_path.push(format!("rsnano-test-{}", Uuid::new_v4().simple()));
             let config = NodeConfig::new_test_instance();
             let network_params = NetworkParams::new(Networks::NanoDevNetwork);
@@ -1792,7 +1794,6 @@ mod tests {
     impl Drop for TestNode {
         fn drop(&mut self) {
             self.node.stop();
-            std::fs::remove_dir_all(&self.app_path).unwrap();
         }
     }
 

@@ -113,8 +113,13 @@ mod tests {
         #[traced_test]
         fn log_reading_file() {
             let _ = initialize_node_id_with_valid_existing_file();
+            #[cfg(unix)]
             assert!(logs_contain(
                 "Reading node id from: \"/path/to/node/node_id_private.key\""
+            ));
+            #[cfg(windows)]
+            assert!(logs_contain(
+                "Reading node id from: \"/path/to/node\\\\node_id_private.key\""
             ));
         }
 
@@ -124,10 +129,16 @@ mod tests {
             let (Err(err), _) = initialize_node_id(fs, PrivateKeyFactory::new_null()) else {
                 panic!("initialization should fail")
             };
+            #[cfg(unix)]
             assert_eq!(
                 err.to_string(),
                 "Could not read node id file \"/path/to/node/node_id_private.key\""
-            )
+            );
+            #[cfg(windows)]
+            assert_eq!(
+                err.to_string(),
+                "Could not read node id file \"/path/to/node\\\\node_id_private.key\""
+            );
         }
 
         #[test]
@@ -136,10 +147,16 @@ mod tests {
             let (Err(err), _) = initialize_node_id(fs, PrivateKeyFactory::new_null()) else {
                 panic!("initialization should fail")
             };
+            #[cfg(unix)]
             assert_eq!(
                 err.to_string(),
                 "Could not decode node id key from file \"/path/to/node/node_id_private.key\""
-            )
+            );
+            #[cfg(windows)]
+            assert_eq!(
+                err.to_string(),
+                "Could not decode node id key from file \"/path/to/node\\\\node_id_private.key\""
+            );
         }
     }
 
@@ -170,8 +187,13 @@ mod tests {
         #[traced_test]
         fn log_file_creation() {
             let _ = initialize_node_id_without_existing_file();
+            #[cfg(unix)]
             assert!(logs_contain(
                 "Generating a new node id, saving to: \"/path/to/node/node_id_private.key\""
+            ));
+            #[cfg(windows)]
+            assert!(logs_contain(
+                "Generating a new node id, saving to: \"/path/to/node\\\\node_id_private.key\""
             ));
         }
 
@@ -205,9 +227,15 @@ mod tests {
             let (Err(err), _) = initialize_node_id(fs, PrivateKeyFactory::new_null()) else {
                 panic!("should fail");
             };
+            #[cfg(unix)]
             assert_eq!(
                 err.to_string(),
                 "Could not write node id key file: \"/path/to/node/node_id_private.key\""
+            );
+            #[cfg(windows)]
+            assert_eq!(
+                err.to_string(),
+                "Could not write node id key file: \"/path/to/node\\\\node_id_private.key\""
             );
         }
     }

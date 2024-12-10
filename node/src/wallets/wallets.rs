@@ -29,12 +29,15 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    fs::Permissions,
     mem::size_of,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     sync::{Arc, Condvar, Mutex},
     time::{Duration, Instant},
+};
+#[cfg(unix)]
+use std::{
+    fs::{set_permissions, Permissions},
+    os::unix::prelude::PermissionsExt,
 };
 use tracing::{info, warn};
 
@@ -589,7 +592,15 @@ impl Wallets {
         let tx = self.env.tx_begin_read();
         for (id, wallet) in guard.iter() {
             std::fs::create_dir_all(path)?;
-            std::fs::set_permissions(path, Permissions::from_mode(0o700))?;
+            #[cfg(unix)]
+            set_permissions(path, Permissions::from_mode(0o700))?;
+            #[cfg(windows)]
+            {
+                let file = std::fs::File::create(path)?;
+                let mut permissions = file.metadata()?.permissions();
+                permissions.set_readonly(false);
+                file.set_permissions(permissions)?;
+            }
             let mut backup_path = PathBuf::from(path);
             backup_path.push(format!("{}.json", id));
             wallet.store.write_backup(&tx, &backup_path)?;
