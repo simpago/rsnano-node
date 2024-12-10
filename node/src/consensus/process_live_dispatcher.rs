@@ -1,18 +1,16 @@
 use crate::block_processing::BlockProcessor;
 use rsnano_core::SavedBlock;
-use rsnano_ledger::{BlockStatus, Ledger};
+use rsnano_ledger::BlockStatus;
 use std::sync::{Arc, RwLock};
 
 /// Observes confirmed blocks and dispatches the process_live function.
 pub struct ProcessLiveDispatcher {
-    ledger: Arc<Ledger>,
     new_unconfirmed_block_observer: RwLock<Vec<Arc<dyn Fn(&SavedBlock) + Send + Sync>>>,
 }
 
 impl ProcessLiveDispatcher {
-    pub fn new(ledger: Arc<Ledger>) -> Self {
+    pub fn new() -> Self {
         Self {
-            ledger,
             new_unconfirmed_block_observer: RwLock::new(Vec::new()),
         }
     }

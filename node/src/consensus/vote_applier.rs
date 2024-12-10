@@ -152,15 +152,6 @@ impl VoteApplier {
         let delta = self.online_reps.lock().unwrap().quorum_delta();
         first - second >= delta
     }
-
-    fn vacancy_changed(&self) {
-        let schedulers = self.election_schedulers.read().unwrap();
-        if let Some(schedulers) = &*schedulers {
-            if let Some(schedulers) = schedulers.upgrade() {
-                schedulers.notify();
-            }
-        }
-    }
 }
 
 pub trait VoteApplierExt {

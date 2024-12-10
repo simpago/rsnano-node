@@ -29,7 +29,7 @@ use crate::{
         InboundMessageQueue, InboundMessageQueueCleanup, KeepaliveFactory, LatestKeepalives,
         LatestKeepalivesCleanup, MessageFlooder, MessageProcessor, MessagePublisher,
         NanoResponseServerSpawner, NetworkFilter, NetworkThreads, PeerCacheConnector,
-        PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
+        PeerCacheUpdater, PeerKeeplive, RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -130,6 +130,7 @@ pub struct Node {
     pub network_filter: Arc<NetworkFilter>,
     pub message_publisher: Arc<Mutex<MessagePublisher>>, // TODO remove this. It is needed right now
     pub message_flooder: Arc<Mutex<MessageFlooder>>,     // TODO remove this. It is needed right now
+    pub peer_keepalive: Arc<PeerKeeplive>,
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
 }
@@ -600,7 +601,7 @@ impl Node {
 
         vote_applier.set_election_schedulers(&election_schedulers);
 
-        let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new(ledger.clone()));
+        let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new());
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
             network.clone(),
@@ -660,6 +661,12 @@ impl Node {
             steady_clock.clone(),
         ));
 
+        let peer_keepalive = Arc::new(PeerKeeplive::new(
+            network_info.clone(),
+            peer_connector.clone(),
+            message_publisher.clone(),
+        ));
+
         let rep_crawler = Arc::new(RepCrawler::new(
             online_reps.clone(),
             stats.clone(),
@@ -669,9 +676,9 @@ impl Node {
             network_info.clone(),
             ledger.clone(),
             active_elections.clone(),
-            peer_connector.clone(),
             steady_clock.clone(),
             message_publisher.clone(),
+            peer_keepalive.clone(),
             runtime.clone(),
         ));
 
@@ -1155,6 +1162,7 @@ impl Node {
             message_publisher: message_publisher_l,
             message_flooder: Arc::new(Mutex::new(message_flooder.clone())),
             network_filter,
+            peer_keepalive,
             stopped: AtomicBool::new(false),
             start_stop_listener: OutputListenerMt::new(),
         }

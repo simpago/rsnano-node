@@ -3,32 +3,28 @@ use crate::{
     config::NodeConfig,
     consensus::ActiveElections,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::MessagePublisher,
+    transport::{MessagePublisher, PeerKeeplive, PreconfiguredPeersKeepalive},
     NetworkParams,
 };
 use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{
-    utils::{ContainerInfo, Peer, NULL_ENDPOINT},
+    utils::{ContainerInfo, Peer},
     Account, BlockHash, Root, Vote,
 };
 use rsnano_ledger::Ledger;
-use rsnano_messages::{ConfirmReq, Keepalive, Message};
-use rsnano_network::{
-    utils::into_ipv6_socket_address, ChannelId, ChannelInfo, DropPolicy, NetworkInfo,
-    PeerConnector, TrafficType,
-};
+use rsnano_messages::{ConfirmReq, Message};
+use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, NetworkInfo, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
+use rsnano_output_tracker::OutputTrackerMt;
 use std::{
     collections::HashMap,
     mem::size_of,
-    net::SocketAddr,
     ops::DerefMut,
     sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Crawls the network for representatives. Queries are performed by requesting confirmation of a
 /// random block and observing the corresponding vote.
@@ -44,7 +40,7 @@ pub struct RepCrawler {
     active: Arc<ActiveElections>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
-    message_publisher: Arc<Mutex<MessagePublisher>>,
+    message_publisher: Mutex<MessagePublisher>,
     preconfigured_peers: Arc<PreconfiguredPeersKeepalive>,
     tokio: tokio::runtime::Handle,
 }
@@ -61,34 +57,28 @@ impl RepCrawler {
         network_info: Arc<RwLock<NetworkInfo>>,
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
-        peer_connector: Arc<PeerConnector>,
         steady_clock: Arc<SteadyClock>,
         message_publisher: MessagePublisher,
+        peer_keepalive: Arc<PeerKeeplive>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();
-        let message_publisher = Arc::new(Mutex::new(message_publisher));
         Self {
             online_reps: Arc::clone(&online_reps),
             stats: Arc::clone(&stats),
             config: config.clone(),
             network_params,
-            network_info: network_info.clone(),
+            network_info,
             condition: Condvar::new(),
             ledger,
             active,
             thread: Mutex::new(None),
             steady_clock,
-            message_publisher: message_publisher.clone(),
-            preconfigured_peers: Arc::new(PreconfiguredPeersKeepalive {
-                keepalive: PeersKeeplive {
-                    keepalive_listener: OutputListenerMt::new(),
-                    peer_connector,
-                    network: network_info,
-                    message_publisher,
-                },
-                peers: config.preconfigured_peers,
-            }),
+            message_publisher: Mutex::new(message_publisher),
+            preconfigured_peers: Arc::new(PreconfiguredPeersKeepalive::new(
+                config.preconfigured_peers,
+                peer_keepalive,
+            )),
             rep_crawler_impl: Mutex::new(RepCrawlerImpl {
                 is_dev_network,
                 queries: OrderedQueries::new(),
@@ -408,17 +398,7 @@ impl RepCrawler {
     }
 
     pub fn track_keepalives(&self) -> Arc<OutputTrackerMt<Peer>> {
-        self.preconfigured_peers
-            .keepalive
-            .keepalive_listener
-            .track()
-    }
-
-    pub async fn keepalive_or_connect(&self, address: String, port: u16) {
-        self.preconfigured_peers
-            .keepalive
-            .keepalive_or_connect(address, port)
-            .await;
+        self.preconfigured_peers.keepalive.track_keepalives()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
@@ -688,88 +668,5 @@ impl RepCrawlerExt for Arc<RepCrawler> {
                 }))
                 .unwrap(),
         );
-    }
-}
-
-/// Connect to preconfigured peers or send keepalive messages
-struct PreconfiguredPeersKeepalive {
-    peers: Vec<Peer>,
-    keepalive: PeersKeeplive,
-}
-
-impl PreconfiguredPeersKeepalive {
-    pub async fn keepalive(&self) {
-        for peer in &self.peers {
-            self.keepalive
-                .keepalive_or_connect(peer.address.clone(), peer.port)
-                .await;
-        }
-    }
-}
-
-struct PeersKeeplive {
-    keepalive_listener: OutputListenerMt<Peer>,
-    peer_connector: Arc<PeerConnector>,
-    network: Arc<RwLock<NetworkInfo>>,
-    message_publisher: Arc<Mutex<MessagePublisher>>,
-}
-
-impl PeersKeeplive {
-    pub async fn keepalive_or_connect(&self, address: String, port: u16) {
-        self.keepalive_listener
-            .emit(Peer::new(address.clone(), port));
-        match tokio::net::lookup_host((address.as_str(), port)).await {
-            Ok(addresses) => {
-                for addr in addresses {
-                    self.keepalive_or_connect_socket(addr);
-                }
-            }
-            Err(e) => {
-                error!(
-                    "Error resolving address for keepalive: {}:{} ({})",
-                    address, port, e
-                )
-            }
-        }
-    }
-
-    fn keepalive_or_connect_socket(&self, peer: SocketAddr) {
-        let peer_v6 = into_ipv6_socket_address(peer);
-
-        let channel_id = self
-            .network
-            .read()
-            .unwrap()
-            .find_realtime_channel_by_peering_addr(&peer_v6);
-
-        match channel_id {
-            Some(channel_id) => {
-                self.try_send_keepalive(channel_id);
-            }
-            None => {
-                self.peer_connector.connect_to(peer_v6);
-            }
-        }
-    }
-
-    fn try_send_keepalive(&self, channel_id: ChannelId) {
-        let keepalive = self.create_keepalive_message();
-
-        self.message_publisher.lock().unwrap().try_send(
-            channel_id,
-            &keepalive,
-            DropPolicy::CanDrop,
-            TrafficType::Generic,
-        );
-    }
-
-    fn create_keepalive_message(&self) -> Message {
-        let mut peers = [NULL_ENDPOINT; 8];
-        self.network
-            .read()
-            .unwrap()
-            .random_fill_realtime(&mut peers);
-
-        Message::Keepalive(Keepalive { peers })
     }
 }

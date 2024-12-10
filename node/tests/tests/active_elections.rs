@@ -1,4 +1,3 @@
-use blake2::digest::typenum::assert_type_eq;
 use rsnano_core::{
     utils::MemoryStream, Account, Amount, PrivateKey, UnsavedBlockLatticeBuilder, Vote, VoteCode,
     VoteSource, DEV_GENESIS_KEY,
