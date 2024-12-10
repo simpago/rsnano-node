@@ -1,5 +1,6 @@
-use rsnano_core::utils::{Peer, NULL_ENDPOINT};
-use rsnano_messages::{Keepalive, Message};
+use super::KeepaliveMessageFactory;
+use crate::transport::MessagePublisher;
+use rsnano_core::utils::Peer;
 use rsnano_network::{
     utils::into_ipv6_socket_address, ChannelId, DropPolicy, NetworkInfo, PeerConnector, TrafficType,
 };
@@ -10,28 +11,29 @@ use std::{
 };
 use tracing::error;
 
-use super::MessagePublisher;
-
 /// Connects to a peer if we don't have a connection
 /// or it sends a keepalive message if we are already connected
-pub struct PeerKeeplive {
+pub struct KeepalivePublisher {
     keepalive_listener: OutputListenerMt<Peer>,
     network: Arc<RwLock<NetworkInfo>>,
     peer_connector: Arc<PeerConnector>,
     message_publisher: Mutex<MessagePublisher>,
+    message_factory: Arc<KeepaliveMessageFactory>,
 }
 
-impl PeerKeeplive {
+impl KeepalivePublisher {
     pub fn new(
         network: Arc<RwLock<NetworkInfo>>,
         peer_connector: Arc<PeerConnector>,
         message_publisher: MessagePublisher,
+        message_factory: Arc<KeepaliveMessageFactory>,
     ) -> Self {
         Self {
             keepalive_listener: OutputListenerMt::new(),
             network,
             peer_connector,
             message_publisher: Mutex::new(message_publisher),
+            message_factory,
         }
     }
 
@@ -77,7 +79,7 @@ impl PeerKeeplive {
     }
 
     fn try_send_keepalive(&self, channel_id: ChannelId) {
-        let keepalive = self.create_keepalive_message();
+        let keepalive = self.message_factory.create_keepalive();
 
         self.message_publisher.lock().unwrap().try_send(
             channel_id,
@@ -85,36 +87,5 @@ impl PeerKeeplive {
             DropPolicy::CanDrop,
             TrafficType::Generic,
         );
-    }
-
-    fn create_keepalive_message(&self) -> Message {
-        let mut peers = [NULL_ENDPOINT; 8];
-        self.network
-            .read()
-            .unwrap()
-            .random_fill_realtime(&mut peers);
-
-        Message::Keepalive(Keepalive { peers })
-    }
-}
-
-/// Connect to preconfigured peers or send keepalive messages
-/// if we are already connected
-pub(crate) struct PreconfiguredPeersKeepalive {
-    peers: Vec<Peer>,
-    pub keepalive: Arc<PeerKeeplive>,
-}
-
-impl PreconfiguredPeersKeepalive {
-    pub(crate) fn new(peers: Vec<Peer>, keepalive: Arc<PeerKeeplive>) -> Self {
-        Self { peers, keepalive }
-    }
-
-    pub async fn keepalive(&self) {
-        for peer in &self.peers {
-            self.keepalive
-                .keepalive_or_connect(peer.address.clone(), peer.port)
-                .await;
-        }
     }
 }

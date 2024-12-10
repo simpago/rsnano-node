@@ -26,10 +26,11 @@ use crate::{
         DetailType, Direction, StatType, Stats,
     },
     transport::{
-        InboundMessageQueue, InboundMessageQueueCleanup, KeepaliveFactory, LatestKeepalives,
-        LatestKeepalivesCleanup, MessageFlooder, MessageProcessor, MessagePublisher,
-        NanoResponseServerSpawner, NetworkFilter, NetworkThreads, PeerCacheConnector,
-        PeerCacheUpdater, PeerKeeplive, RealtimeMessageHandler, SynCookies,
+        keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
+        InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup,
+        MessageFlooder, MessageProcessor, MessagePublisher, NanoResponseServerSpawner,
+        NetworkFilter, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
+        RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -40,7 +41,7 @@ use crate::{
     BUILD_INFO, VERSION_STRING,
 };
 use rsnano_core::{
-    utils::{system_time_as_nanoseconds, ContainerInfo},
+    utils::{system_time_as_nanoseconds, ContainerInfo, Peer},
     work::{WorkPool, WorkPoolImpl},
     Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, Root, SavedBlock,
     VoteCode, VoteSource,
@@ -130,7 +131,7 @@ pub struct Node {
     pub network_filter: Arc<NetworkFilter>,
     pub message_publisher: Arc<Mutex<MessagePublisher>>, // TODO remove this. It is needed right now
     pub message_flooder: Arc<Mutex<MessageFlooder>>,     // TODO remove this. It is needed right now
-    pub peer_keepalive: Arc<PeerKeeplive>,
+    pub keepalive_publisher: Arc<KeepalivePublisher>,
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
 }
@@ -661,10 +662,16 @@ impl Node {
             steady_clock.clone(),
         ));
 
-        let peer_keepalive = Arc::new(PeerKeeplive::new(
+        let keepalive_factory = Arc::new(KeepaliveMessageFactory::new(
+            network_info.clone(),
+            Peer::new(config.external_address.clone(), config.external_port),
+        ));
+
+        let keepalive_publisher = Arc::new(KeepalivePublisher::new(
             network_info.clone(),
             peer_connector.clone(),
             message_publisher.clone(),
+            keepalive_factory.clone(),
         ));
 
         let rep_crawler = Arc::new(RepCrawler::new(
@@ -678,7 +685,7 @@ impl Node {
             active_elections.clone(),
             steady_clock.clone(),
             message_publisher.clone(),
-            peer_keepalive.clone(),
+            keepalive_publisher.clone(),
             runtime.clone(),
         ));
 
@@ -749,11 +756,6 @@ impl Node {
             bootstrap_server.clone(),
             ascendboot.clone(),
         ));
-
-        let keepalive_factory = Arc::new(KeepaliveFactory {
-            network: network_info.clone(),
-            config: config.clone(),
-        });
 
         let network_threads = Arc::new(Mutex::new(NetworkThreads::new(
             network_info.clone(),
@@ -877,6 +879,7 @@ impl Node {
             .write()
             .unwrap()
             .on_new_realtime_channel(Arc::new(move |channel| {
+                // Send a keepalive message to the new channel
                 let Some(factory) = keepalive_factory_w.upgrade() else {
                     return;
                 };
@@ -884,10 +887,9 @@ impl Node {
                     return;
                 };
                 let keepalive = factory.create_keepalive_self();
-                let msg = Message::Keepalive(keepalive);
                 publisher.lock().unwrap().try_send(
                     channel.channel_id(),
-                    &msg,
+                    &keepalive,
                     DropPolicy::CanDrop,
                     TrafficType::Generic,
                 );
@@ -1162,7 +1164,7 @@ impl Node {
             message_publisher: message_publisher_l,
             message_flooder: Arc::new(Mutex::new(message_flooder.clone())),
             network_filter,
-            peer_keepalive,
+            keepalive_publisher,
             stopped: AtomicBool::new(false),
             start_stop_listener: OutputListenerMt::new(),
         }

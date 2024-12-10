@@ -3,7 +3,10 @@ use crate::{
     config::NodeConfig,
     consensus::ActiveElections,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{MessagePublisher, PeerKeeplive, PreconfiguredPeersKeepalive},
+    transport::{
+        keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
+        MessagePublisher,
+    },
     NetworkParams,
 };
 use bounded_vec_deque::BoundedVecDeque;
@@ -59,7 +62,7 @@ impl RepCrawler {
         active: Arc<ActiveElections>,
         steady_clock: Arc<SteadyClock>,
         message_publisher: MessagePublisher,
-        peer_keepalive: Arc<PeerKeeplive>,
+        keepalive_publisher: Arc<KeepalivePublisher>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
         let is_dev_network = network_params.network.is_dev_network();
@@ -77,7 +80,7 @@ impl RepCrawler {
             message_publisher: Mutex::new(message_publisher),
             preconfigured_peers: Arc::new(PreconfiguredPeersKeepalive::new(
                 config.preconfigured_peers,
-                peer_keepalive,
+                keepalive_publisher,
             )),
             rep_crawler_impl: Mutex::new(RepCrawlerImpl {
                 is_dev_network,
@@ -395,10 +398,6 @@ impl RepCrawler {
         } else {
             self.network_params.network.rep_crawler_warmup_interval
         }
-    }
-
-    pub fn track_keepalives(&self) -> Arc<OutputTrackerMt<Peer>> {
-        self.preconfigured_peers.keepalive.track_keepalives()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
