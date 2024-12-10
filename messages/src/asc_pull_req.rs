@@ -122,6 +122,10 @@ pub struct FrontiersReqPayload {
 }
 
 impl FrontiersReqPayload {
+    /// Header allows for 16 bit extensions; 65536 bytes / 64 bytes (account + frontier) ~ 1024,
+    /// but we need some space for null frontier terminator
+    pub const MAX_FRONTIERS: u16 = 1000;
+
     fn deserialize(&mut self, stream: &mut dyn Stream) -> anyhow::Result<()> {
         self.start = Account::deserialize(stream)?;
         let mut count_bytes = [0u8; 2];

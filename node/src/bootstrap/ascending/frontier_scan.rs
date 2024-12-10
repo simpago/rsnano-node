@@ -1,5 +1,5 @@
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{utils::ContainerInfo, Account, BlockHash};
+use rsnano_core::{utils::ContainerInfo, Account, Frontier};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     cmp::max,
@@ -99,10 +99,10 @@ impl FrontierScan {
         next_account
     }
 
-    pub fn process(&mut self, start: Account, response: Vec<(Account, BlockHash)>) -> bool {
+    pub fn process(&mut self, start: Account, response: &[Frontier]) -> bool {
         debug_assert!(response
             .iter()
-            .all(|(acc, _)| acc.number() >= start.number()));
+            .all(|f| f.account.number() >= start.number()));
 
         self.stats
             .inc(StatType::BootstrapAscendingFrontiers, DetailType::Process);
@@ -114,10 +114,10 @@ impl FrontierScan {
         self.heads.modify(&it, |entry| {
             entry.completed += 1;
 
-            for (account, _) in &response {
+            for frontier in response {
                 // Only consider candidates that actually advance the current frontier
-                if account.number() > entry.next.number() {
-                    entry.candidates.insert(*account);
+                if frontier.account.number() > entry.next.number() {
+                    entry.candidates.insert(frontier.account);
                 }
             }
 

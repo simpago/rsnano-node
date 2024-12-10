@@ -14,6 +14,7 @@ pub(crate) enum QueryType {
     BlocksByHash,
     BlocksByAccount,
     AccountInfoByHash,
+    Frontiers,
 }
 
 impl From<QueryType> for DetailType {
@@ -23,6 +24,7 @@ impl From<QueryType> for DetailType {
             QueryType::BlocksByHash => DetailType::BlocksByHash,
             QueryType::BlocksByAccount => DetailType::BlocksByAccount,
             QueryType::AccountInfoByHash => DetailType::AccountInfoByHash,
+            QueryType::Frontiers => DetailType::Frontiers,
         }
     }
 }
@@ -34,6 +36,7 @@ pub(crate) enum QuerySource {
     Priority,
     Database,
     Blocking,
+    Frontiers,
 }
 
 #[derive(Clone)]

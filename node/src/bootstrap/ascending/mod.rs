@@ -19,22 +19,23 @@ use crate::{
     bootstrap::{ascending::ordered_tags::QueryType, BootstrapServer},
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::MessagePublisher,
+    utils::{ThreadPool, ThreadPoolImpl},
 };
 pub use account_sets::AccountSetsConfig;
 use database_scan::DatabaseScan;
-use frontier_scan::FrontierScanConfig;
+use frontier_scan::{FrontierScan, FrontierScanConfig};
 use num::clamp;
 use ordered_tags::QuerySource;
 use priority::Priority;
 use rand::{thread_rng, RngCore};
 use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, Block, BlockHash, BlockType, HashOrAccount,
-    SavedBlock,
+    utils::ContainerInfo, Account, AccountInfo, Block, BlockHash, BlockType, Frontier,
+    HashOrAccount, SavedBlock,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
-    AscPullReqType, BlocksAckPayload, BlocksReqPayload, HashType, Message,
+    AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
 use rsnano_network::{
     bandwidth_limiter::RateLimiter, ChannelId, DropPolicy, NetworkInfo, TrafficType,
@@ -66,7 +67,9 @@ pub struct BootstrapAscending {
     /// Requests for accounts from database have much lower hitrate and could introduce strain on the network
     /// A separate (lower) limiter ensures that we always reserve resources for querying accounts from priority queue
     database_limiter: RateLimiter,
+    frontiers_limiter: RateLimiter,
     clock: Arc<SteadyClock>,
+    workers: ThreadPoolImpl,
 }
 
 struct Threads {
@@ -74,6 +77,7 @@ struct Threads {
     priorities: JoinHandle<()>,
     database: Option<JoinHandle<()>>,
     dependencies: Option<JoinHandle<()>>,
+    frontiers: Option<JoinHandle<()>>,
 }
 
 impl BootstrapAscending {
@@ -94,6 +98,11 @@ impl BootstrapAscending {
                 accounts: AccountSets::new(config.account_sets.clone()),
                 scoring: PeerScoring::new(config.clone()),
                 database_scan: DatabaseScan::new(ledger.clone()),
+                frontiers: FrontierScan::new(
+                    config.frontier_scan.clone(),
+                    stats.clone(),
+                    clock.clone(),
+                ),
                 tags: OrderedTags::default(),
                 throttle: Throttle::new(compute_throttle_size(
                     ledger.account_count(),
@@ -105,11 +114,13 @@ impl BootstrapAscending {
             })),
             condition: Arc::new(Condvar::new()),
             database_limiter: RateLimiter::new(config.database_rate_limit),
+            frontiers_limiter: RateLimiter::new(config.frontier_rate_limit),
             config,
             stats,
             ledger,
             message_publisher: Mutex::new(message_publisher),
             clock,
+            workers: ThreadPoolImpl::create(1, "Ascboot work"),
         }
     }
 
@@ -125,6 +136,9 @@ impl BootstrapAscending {
             }
             if let Some(dependencies) = threads.dependencies {
                 dependencies.join().unwrap();
+            }
+            if let Some(frontiers) = threads.frontiers {
+                frontiers.join().unwrap();
             }
         }
     }
@@ -155,6 +169,8 @@ impl BootstrapAscending {
             guard.tags.insert(tag.clone());
         }
 
+        // TODO: on_request.notify(tag, channel);
+
         let req_type = match tag.query_type {
             QueryType::BlocksByHash | QueryType::BlocksByAccount => {
                 let start_type = if tag.query_type == QueryType::BlocksByHash {
@@ -174,6 +190,12 @@ impl BootstrapAscending {
                 target_type: HashType::Block, // Query account info by block hash
             }),
             QueryType::Invalid => panic!("invalid query type"),
+            QueryType::Frontiers => {
+                AscPullReqType::Frontiers(rsnano_messages::FrontiersReqPayload {
+                    start: tag.start.into(),
+                    count: FrontiersReqPayload::MAX_FRONTIERS,
+                })
+            }
         };
 
         Message::AscPullReq(AscPullReq {
@@ -418,6 +440,67 @@ impl BootstrapAscending {
         self.send(channel_id, &request);
     }
 
+    fn run_frontiers(&self) {
+        let mut guard = self.mutex.lock().unwrap();
+        while !guard.stopped {
+            drop(guard);
+
+            self.stats
+                .inc(StatType::BootstrapAscending, DetailType::LoopFrontiers);
+            self.run_one_frontier();
+
+            guard = self.mutex.lock().unwrap();
+        }
+    }
+
+    fn run_one_frontier(&self) {
+        self.wait(|i| !i.accounts.priority_half_full());
+        self.wait(|_| !self.frontiers_limiter.should_pass(1));
+        self.wait(|_| !self.workers.num_queued_tasks() < self.config.frontier_scan.max_pending);
+        self.wait_tags();
+        let Some(channel) = self.wait_channel() else {
+            return;
+        };
+        let frontier = self.wait_frontier();
+        if frontier.is_zero() {
+            return;
+        }
+        self.request_frontiers(frontier, channel, QuerySource::Frontiers);
+    }
+
+    fn request_frontiers(&self, start: Account, channel: ChannelId, source: QuerySource) {
+        let id = thread_rng().next_u64();
+        let timestamp = self.clock.now();
+        let tag = AsyncTag {
+            query_type: QueryType::Frontiers,
+            source,
+            start: start.into(),
+            account: Account::zero(),
+            hash: BlockHash::zero(),
+            count: 0,
+            id,
+            timestamp,
+        };
+        let message = self.create_asc_pull_request(&tag);
+        self.send(channel, &message);
+    }
+
+    fn wait_frontier(&self) -> Account {
+        let mut result = Account::zero();
+        self.wait(|i| {
+            result = i.frontiers.next();
+            if !result.is_zero() {
+                self.stats
+                    .inc(StatType::BootstrapAscendingNext, DetailType::NextFrontier);
+                true
+            } else {
+                false
+            }
+        });
+
+        result
+    }
+
     fn run_dependencies(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
@@ -446,7 +529,7 @@ impl BootstrapAscending {
     }
 
     /// Process `asc_pull_ack` message coming from network
-    pub fn process(&self, message: &AscPullAck, channel_id: ChannelId) {
+    pub fn process(&self, message: AscPullAck, channel_id: ChannelId) {
         let mut guard = self.mutex.lock().unwrap();
 
         // Only process messages that have a known tag
@@ -492,17 +575,91 @@ impl BootstrapAscending {
         drop(guard);
 
         // Process the response payload
-        match &message.pull_type {
-            AscPullAckType::Blocks(blocks) => self.process_blocks(blocks, &tag),
-            AscPullAckType::AccountInfo(info) => self.process_accounts(info, &tag),
-            AscPullAckType::Frontiers(_) => {
-                // TODO: Make use of frontiers info
-                self.stats
-                    .inc(StatType::BootstrapAscendingProcess, DetailType::Frontiers);
-            }
+        match message.pull_type {
+            AscPullAckType::Blocks(blocks) => self.process_blocks(&blocks, &tag),
+            AscPullAckType::AccountInfo(info) => self.process_accounts(&info, &tag),
+            AscPullAckType::Frontiers(frontiers) => self.process_frontiers(frontiers, &tag),
         }
 
         self.condition.notify_all();
+    }
+
+    fn process_frontiers(&self, frontiers: Vec<Frontier>, tag: &AsyncTag) {
+        debug_assert_eq!(tag.query_type, QueryType::Frontiers);
+        debug_assert!(!tag.start.is_zero());
+
+        if frontiers.is_empty() {
+            self.stats.inc(
+                StatType::BootstrapAscendingProcess,
+                DetailType::FrontiersEmpty,
+            );
+            return;
+        }
+
+        self.stats
+            .inc(StatType::BootstrapAscendingProcess, DetailType::Frontiers);
+
+        let result = self.verify_frontiers(&frontiers, tag);
+        match result {
+            VerifyResult::Ok => {
+                self.stats
+                    .inc(StatType::BootstrapAscendingVerifyFrontiers, DetailType::Ok);
+                self.stats.add_dir(
+                    StatType::BootstrapAscending,
+                    DetailType::Frontiers,
+                    Direction::In,
+                    frontiers.len() as u64,
+                );
+
+                {
+                    let mut guard = self.mutex.lock().unwrap();
+                    guard.frontiers.process(tag.start.into(), &frontiers);
+                }
+
+                // Allow some overfill to avoid unnecessarily dropping responses
+                if self.workers.num_queued_tasks() < self.config.frontier_scan.max_pending * 4 {
+                    let stats = self.stats.clone();
+                    let ledger = self.ledger.clone();
+                    let mutex = self.mutex.clone();
+                    self.workers.post(Box::new(move || {
+                        process_frontiers(ledger, stats, frontiers, mutex)
+                    }));
+                } else {
+                    self.stats
+                        .inc(StatType::BootstrapAscending, DetailType::DropppedFrontiers);
+                }
+            }
+            VerifyResult::NothingNew => self.stats.inc(
+                StatType::BootstrapAscendingVerifyFrontiers,
+                DetailType::NothingNew,
+            ),
+            VerifyResult::Invalid => self.stats.inc(
+                StatType::BootstrapAscendingVerifyFrontiers,
+                DetailType::Invalid,
+            ),
+        }
+    }
+
+    fn verify_frontiers(&self, frontiers: &[Frontier], tag: &AsyncTag) -> VerifyResult {
+        if frontiers.is_empty() {
+            return VerifyResult::NothingNew;
+        }
+
+        // Ensure frontiers accounts are in ascending order
+        let mut previous = Account::zero();
+        for f in frontiers {
+            if f.account.number() <= previous.number() {
+                return VerifyResult::Invalid;
+            }
+            previous = f.account;
+        }
+
+        // Ensure the frontiers are larger or equal to the requested frontier
+        if frontiers[0].account.number() < tag.start.number() {
+            return VerifyResult::Invalid;
+        }
+
+        VerifyResult::Ok
     }
 
     fn process_blocks(&self, response: &BlocksAckPayload, tag: &AsyncTag) {
@@ -613,34 +770,36 @@ impl BootstrapAscending {
                 StatType::BootstrapAscendingProcess,
                 DetailType::AccountInfoEmpty,
             );
-        } else {
-            self.stats
-                .inc(StatType::BootstrapAscendingProcess, DetailType::AccountInfo);
-            // Prioritize account containing the dependency
-            {
-                let mut guard = self.mutex.lock().unwrap();
-                let updated = guard
-                    .accounts
-                    .dependency_update(&tag.hash, response.account);
-                if updated > 0 {
-                    self.stats.add(
-                        StatType::BootstrapAscendingAccounts,
-                        DetailType::DependencyUpdate,
-                        updated as u64,
-                    );
-                } else {
-                    self.stats.inc(
-                        StatType::BootstrapAscendingAccounts,
-                        DetailType::DependencyUpdateFailed,
-                    );
-                }
+            return;
+        }
 
-                if guard.accounts.priority_set(&response.account) {
-                    self.priority_inserted();
-                } else {
-                    self.priority_insertion_failed()
-                };
+        self.stats
+            .inc(StatType::BootstrapAscendingProcess, DetailType::AccountInfo);
+
+        // Prioritize account containing the dependency
+        {
+            let mut guard = self.mutex.lock().unwrap();
+            let updated = guard
+                .accounts
+                .dependency_update(&tag.hash, response.account);
+            if updated > 0 {
+                self.stats.add(
+                    StatType::BootstrapAscendingAccounts,
+                    DetailType::DependencyUpdate,
+                    updated as u64,
+                );
+            } else {
+                self.stats.inc(
+                    StatType::BootstrapAscendingAccounts,
+                    DetailType::DependencyUpdateFailed,
+                );
             }
+
+            if guard.accounts.priority_set(&response.account) {
+                self.priority_inserted();
+            } else {
+                self.priority_insertion_failed()
+            };
         }
     }
 
@@ -765,6 +924,18 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
             None
         };
 
+        let frontiers = if self.config.enable_frontier_scan {
+            let self_l = Arc::clone(self);
+            Some(
+                std::thread::Builder::new()
+                    .name("Ascboot".to_string())
+                    .spawn(Box::new(move || self_l.run_frontiers()))
+                    .unwrap(),
+            )
+        } else {
+            None
+        };
+
         let self_l = Arc::clone(self);
         let timeout = std::thread::Builder::new()
             .name("Ascboot".to_string())
@@ -775,6 +946,7 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
             timeout,
             priorities,
             database,
+            frontiers,
             dependencies,
         });
     }
@@ -787,6 +959,7 @@ struct BootstrapAscendingLogic {
     database_scan: DatabaseScan,
     tags: OrderedTags,
     throttle: Throttle,
+    frontiers: FrontierScan,
     sync_dependencies_interval: Instant,
     config: BootstrapAscendingConfig,
     network_info: Arc<RwLock<NetworkInfo>>,
@@ -1070,7 +1243,7 @@ fn verify_response(response: &BlocksAckPayload, tag: &AsyncTag) -> VerifyResult 
                 return VerifyResult::Invalid;
             }
         }
-        QueryType::AccountInfoByHash | QueryType::Invalid => {
+        QueryType::AccountInfoByHash | QueryType::Frontiers | QueryType::Invalid => {
             return VerifyResult::Invalid;
         }
     }
@@ -1117,7 +1290,7 @@ impl Default for BootstrapAscendingConfig {
             enable: true,
             enable_database_scan: true,
             enable_dependency_walker: true,
-            enable_frontier_scan: true,
+            enable_frontier_scan: false,
             channel_limit: 16,
             database_rate_limit: 256,
             frontier_rate_limit: 100,
@@ -1149,5 +1322,79 @@ impl From<&Message> for QueryType {
         } else {
             QueryType::Invalid
         }
+    }
+}
+
+fn process_frontiers(
+    ledger: Arc<Ledger>,
+    stats: Arc<Stats>,
+    frontiers: Vec<Frontier>,
+    mutex: Arc<Mutex<BootstrapAscendingLogic>>,
+) {
+    stats.inc(StatType::BootstrapAscending, DetailType::ProcessFrontiers);
+    let mut outdated = 0;
+    let mut pending = 0;
+
+    // Accounts with outdated frontiers to sync
+    let mut result = Vec::new();
+    {
+        let tx = ledger.read_txn();
+
+        let mut should_prioritize = |frontier: &Frontier| {
+            if ledger.any().block_exists_or_pruned(&tx, &frontier.hash) {
+                return false;
+            }
+            if let Some(info) = ledger.any().get_account(&tx, &frontier.account) {
+                if info.head != frontier.hash {
+                    outdated += 1;
+                    return true; // Frontier is outdated
+                }
+                return false;
+            }
+            if let Some((key, _)) = ledger
+                .any()
+                .account_receivable_upper_bound(&tx, frontier.account, BlockHash::zero())
+                .next()
+            {
+                if key.receiving_account == frontier.account {
+                    pending += 1;
+                    return true; // Account doesn't exist but has pending blocks in the ledger
+                }
+                return false;
+            }
+            false
+        };
+
+        for frontier in &frontiers {
+            if should_prioritize(frontier) {
+                result.push(frontier.account);
+            }
+        }
+    }
+
+    stats.add(
+        StatType::BootstrapAscending,
+        DetailType::FrontiersProcessed,
+        frontiers.len() as u64,
+    );
+    stats.add(
+        StatType::BootstrapAscending,
+        DetailType::FrontiersPrioritized,
+        result.len() as u64,
+    );
+    stats.add(
+        StatType::BootstrapAscending,
+        DetailType::FrontiersOutdated,
+        outdated,
+    );
+    stats.add(
+        StatType::BootstrapAscending,
+        DetailType::FrontiersPending,
+        pending,
+    );
+
+    let mut guard = mutex.lock().unwrap();
+    for account in result {
+        guard.accounts.priority_set(&account);
     }
 }

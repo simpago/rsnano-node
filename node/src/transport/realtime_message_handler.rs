@@ -155,7 +155,7 @@ impl RealtimeMessageHandler {
             Message::AscPullReq(req) => {
                 self.bootstrap_server.request(req, channel.clone());
             }
-            Message::AscPullAck(ack) => self.ascend_boot.process(&ack, channel.channel_id()),
+            Message::AscPullAck(ack) => self.ascend_boot.process(ack, channel.channel_id()),
             Message::FrontierReq(_)
             | Message::BulkPush
             | Message::BulkPull(_)
