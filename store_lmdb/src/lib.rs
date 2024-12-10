@@ -21,7 +21,7 @@ mod store;
 mod version_store;
 mod wallet_store;
 
-pub use account_store::{ConfiguredAccountDatabaseBuilder, LmdbAccountStore};
+pub use account_store::{AccountIterator, ConfiguredAccountDatabaseBuilder, LmdbAccountStore};
 pub use block_store::{ConfiguredBlockDatabaseBuilder, LmdbBlockStore};
 pub use confirmation_height_store::*;
 pub use fan::Fan;

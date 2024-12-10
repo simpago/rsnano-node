@@ -1,6 +1,6 @@
 use crate::{
-    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
-    PENDING_TEST_DATABASE,
+    iterator::LmdbRangeIterator, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
+    LmdbWriteTransaction, Transaction, PENDING_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -10,7 +10,7 @@ use rsnano_core::{
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 #[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::sync::Arc;
+use std::{ops::RangeBounds, sync::Arc};
 
 pub type PendingIterator<'txn> = BinaryDbIterator<'txn, PendingKey, PendingInfo>;
 
@@ -86,6 +86,15 @@ impl LmdbPendingStore {
                 panic!("Could not load pending info: {:?}", e);
             }
         }
+    }
+
+    pub fn iter_range<'txn>(
+        &self,
+        tx: &'txn dyn Transaction,
+        range: impl RangeBounds<PendingKey> + 'static,
+    ) -> impl Iterator<Item = (PendingKey, PendingInfo)> + 'txn {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+        LmdbRangeIterator::new(cursor, range)
     }
 
     pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> PendingIterator<'txn> {

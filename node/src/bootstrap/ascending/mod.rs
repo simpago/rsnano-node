@@ -1,6 +1,7 @@
 mod account_sets;
 mod database_scan;
 mod frontier_scan;
+mod iterators;
 mod ordered_blocking;
 mod ordered_priorities;
 mod ordered_tags;
