@@ -255,6 +255,9 @@ impl NodeConfig {
             if let Some(enable) = &ascending_toml.enable_databaser_scan {
                 config.enable_database_scan = *enable;
             }
+            if let Some(enable) = &ascending_toml.enable_frontier_scan {
+                config.enable_frontier_scan = *enable;
+            }
             if let Some(account_sets) = &ascending_toml.account_sets {
                 config.account_sets = account_sets.into();
             }
@@ -474,6 +477,7 @@ mod tests {
             enable: Some(false),
             enable_databaser_scan: Some(false),
             enable_dependency_walker: Some(false),
+            enable_frontier_scan: Some(false),
             block_processor_threshold: Some(100),
             database_rate_limit: Some(101),
             max_pull_count: Some(102),
@@ -498,6 +502,7 @@ mod tests {
         assert_eq!(ascending.enable, false);
         assert_eq!(ascending.enable_database_scan, false);
         assert_eq!(ascending.enable_dependency_walker, false);
+        assert_eq!(ascending.enable_frontier_scan, false);
         assert_eq!(ascending.block_processor_theshold, 100);
         assert_eq!(ascending.database_rate_limit, 101);
         assert_eq!(ascending.max_pull_count, 102);

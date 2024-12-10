@@ -1,5 +1,6 @@
 mod account_sets;
 mod database_scan;
+mod frontier_scan;
 mod ordered_blocking;
 mod ordered_priorities;
 mod ordered_tags;
@@ -21,6 +22,7 @@ use crate::{
 };
 pub use account_sets::AccountSetsConfig;
 use database_scan::DatabaseScan;
+use frontier_scan::FrontierScanConfig;
 use num::clamp;
 use ordered_tags::QuerySource;
 use priority::Priority;
@@ -1091,9 +1093,11 @@ pub struct BootstrapAscendingConfig {
     pub enable: bool,
     pub enable_database_scan: bool,
     pub enable_dependency_walker: bool,
+    pub enable_frontier_scan: bool,
     /// Maximum number of un-responded requests per channel, should be lower or equal to bootstrap server max queue size
     pub channel_limit: usize,
     pub database_rate_limit: usize,
+    pub frontier_rate_limit: usize,
     pub database_warmup_ratio: usize,
     pub max_pull_count: usize,
     pub request_timeout: Duration,
@@ -1104,6 +1108,7 @@ pub struct BootstrapAscendingConfig {
     pub min_protocol_version: u8,
     pub max_requests: usize,
     pub account_sets: AccountSetsConfig,
+    pub frontier_scan: FrontierScanConfig,
 }
 
 impl Default for BootstrapAscendingConfig {
@@ -1112,17 +1117,20 @@ impl Default for BootstrapAscendingConfig {
             enable: true,
             enable_database_scan: true,
             enable_dependency_walker: true,
+            enable_frontier_scan: true,
             channel_limit: 16,
             database_rate_limit: 256,
+            frontier_rate_limit: 100,
             database_warmup_ratio: 10,
             max_pull_count: BlocksAckPayload::MAX_BLOCKS,
             request_timeout: Duration::from_secs(3),
             throttle_coefficient: 8 * 1024,
             throttle_wait: Duration::from_millis(100),
-            account_sets: Default::default(),
             block_processor_theshold: 1000,
             min_protocol_version: 0x14, // TODO don't hard code
             max_requests: 1024,
+            account_sets: Default::default(),
+            frontier_scan: Default::default(),
         }
     }
 }
