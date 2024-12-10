@@ -43,7 +43,7 @@ impl TimeSource {
 
 const DEFAULT_STUB_DURATION: i64 = 1000 * 60 * 60 * 24 * 365;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Hash)]
 pub struct Timestamp(i64);
 
 impl Timestamp {
