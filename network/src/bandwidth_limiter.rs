@@ -6,7 +6,11 @@ pub struct RateLimiter {
 }
 
 impl RateLimiter {
-    pub fn new(limit_burst_ratio: f64, limit: usize) -> Self {
+    pub fn new(limit: usize) -> Self {
+        Self::with_burst_ratio(limit, 1.0)
+    }
+
+    pub fn with_burst_ratio(limit: usize, limit_burst_ratio: f64) -> Self {
         Self {
             bucket: Mutex::new(TokenBucket::new(
                 (limit as f64 * limit_burst_ratio) as usize,
@@ -54,10 +58,13 @@ pub struct BandwidthLimiter {
 impl BandwidthLimiter {
     pub fn new(config: BandwidthLimiterConfig) -> Self {
         Self {
-            limiter_generic: RateLimiter::new(config.generic_burst_ratio, config.generic_limit),
-            limiter_bootstrap: RateLimiter::new(
-                config.bootstrap_burst_ratio,
+            limiter_generic: RateLimiter::with_burst_ratio(
+                config.generic_limit,
+                config.generic_burst_ratio,
+            ),
+            limiter_bootstrap: RateLimiter::with_burst_ratio(
                 config.bootstrap_limit,
+                config.bootstrap_burst_ratio,
             ),
         }
     }
@@ -96,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_limit() {
-        let limiter = RateLimiter::new(1.5, 10);
+        let limiter = RateLimiter::with_burst_ratio(10, 1.5);
         assert_eq!(limiter.should_pass(15), true);
         assert_eq!(limiter.should_pass(1), false);
         MockClock::advance(Duration::from_millis(100));

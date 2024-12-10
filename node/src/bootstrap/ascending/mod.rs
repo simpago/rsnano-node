@@ -102,7 +102,7 @@ impl BootstrapAscending {
                 network_info,
             })),
             condition: Arc::new(Condvar::new()),
-            database_limiter: RateLimiter::new(1.0, config.database_rate_limit),
+            database_limiter: RateLimiter::new(config.database_rate_limit),
             config,
             stats,
             ledger,

@@ -85,9 +85,9 @@ impl LocalBlockBroadcaster {
         enabled: bool,
     ) -> Self {
         Self {
-            limiter: RateLimiter::new(
-                config.broadcast_rate_burst_ratio,
+            limiter: RateLimiter::with_burst_ratio(
                 config.broadcast_rate_limit,
+                config.broadcast_rate_burst_ratio,
             ),
             config,
             block_processor,
