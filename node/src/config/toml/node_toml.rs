@@ -129,6 +129,11 @@ impl NodeConfig {
         if let Some(enable_voting) = toml.enable_voting {
             self.enable_voting = enable_voting;
         }
+        if let Some(opt) = &toml.optimistic_scheduler {
+            if let Some(enable) = opt.enable {
+                self.enable_optimistic_scheduler = enable;
+            }
+        }
         if let Some(external_address) = &toml.external_address {
             self.external_address = external_address.clone();
         }
@@ -224,11 +229,17 @@ impl NodeConfig {
         if let Some(work_threads) = toml.work_threads {
             self.work_threads = work_threads;
         }
-        if let Some(optimistic_scheduler_toml) = &toml.optimistic_scheduler {
-            self.optimistic_scheduler = optimistic_scheduler_toml.into();
+        if let Some(cfg) = &toml.optimistic_scheduler {
+            if let Some(enable) = cfg.enable {
+                self.enable_optimistic_scheduler = enable;
+            }
+            self.optimistic_scheduler.merge_toml(cfg);
         }
-        if let Some(hinted_scheduler_toml) = &toml.hinted_scheduler {
-            self.hinted_scheduler = hinted_scheduler_toml.into();
+        if let Some(cfg) = &toml.hinted_scheduler {
+            if let Some(enable) = cfg.enable {
+                self.enable_hinted_scheduler = enable;
+            }
+            self.hinted_scheduler.merge_toml(&cfg);
         }
         if let Some(priority_bucket_toml) = &toml.priority_bucket {
             self.priority_bucket = priority_bucket_toml.into();
@@ -311,8 +322,13 @@ impl NodeConfig {
         if let Some(message_processor_toml) = &toml.message_processor {
             self.message_processor.merge_toml(message_processor_toml);
         }
-        if let Some(monitor_toml) = &toml.monitor {
-            self.monitor = monitor_toml.into();
+        if let Some(cfg) = &toml.monitor {
+            if let Some(enable) = cfg.enable {
+                self.enable_monitor = enable;
+            }
+            if let Some(secs) = cfg.interval {
+                self.monitor.interval = Duration::from_secs(secs);
+            }
         }
         if let Some(rep_crawler_weight_minimum) = &toml.rep_crawler_weight_minimum {
             self.rep_crawler_weight_minimum = Amount::decode_dec(&rep_crawler_weight_minimum)
@@ -402,8 +418,18 @@ impl From<&NodeConfig> for NodeToml {
                     .collect(),
             ),
             work_threads: Some(config.work_threads),
-            optimistic_scheduler: Some((&config.optimistic_scheduler).into()),
-            hinted_scheduler: Some((&config.hinted_scheduler).into()),
+            optimistic_scheduler: Some(OptimisticSchedulerToml {
+                enable: Some(config.enable_optimistic_scheduler),
+                gap_threshold: Some(config.optimistic_scheduler.gap_threshold),
+                max_size: Some(config.optimistic_scheduler.max_size),
+            }),
+            hinted_scheduler: Some(HintedSchedulerToml {
+                enable: Some(config.enable_hinted_scheduler),
+                hinting_threshold: Some(config.hinted_scheduler.hinting_threshold_percent),
+                check_interval: Some(config.hinted_scheduler.check_interval.as_millis() as u64),
+                block_cooldown: Some(config.hinted_scheduler.block_cooldown.as_millis() as u64),
+                vacancy_threshold: Some(config.hinted_scheduler.vacancy_threshold_percent),
+            }),
             priority_bucket: Some((&config.priority_bucket).into()),
             bootstrap_ascending: Some((&config.bootstrap_ascending).into()),
             bootstrap_server: Some((&config.bootstrap_server).into()),
@@ -418,7 +444,10 @@ impl From<&NodeConfig> for NodeToml {
             vote_processor: Some((&config.vote_processor).into()),
             request_aggregator: Some((&config.request_aggregator).into()),
             message_processor: Some((&config.message_processor).into()),
-            monitor: Some((&config.monitor).into()),
+            monitor: Some(MonitorToml {
+                enable: Some(config.enable_monitor),
+                interval: Some(config.monitor.interval.as_secs()),
+            }),
             httpcallback: Some(config.into()),
             rep_crawler: Some(config.into()),
             experimental: Some(config.into()),

@@ -20,8 +20,6 @@ use std::{
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptimisticSchedulerConfig {
-    pub enabled: bool,
-
     /// Minimum difference between confirmation frontier and account frontier to become a candidate for optimistic confirmation
     pub gap_threshold: u64,
 
@@ -32,7 +30,6 @@ pub struct OptimisticSchedulerConfig {
 impl OptimisticSchedulerConfig {
     pub fn new() -> Self {
         Self {
-            enabled: true,
             gap_threshold: 32,
             max_size: 1024 * 64,
         }
@@ -64,7 +61,7 @@ impl OptimisticScheduler {
         Self {
             thread: Mutex::new(None),
             config,
-            stopped: AtomicBool::new(false),
+            stopped: AtomicBool::new(true),
             condition: Condvar::new(),
             candidates: Mutex::new(OrderedCandidates::default()),
             stats,
@@ -109,7 +106,7 @@ impl OptimisticScheduler {
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
     ) -> bool {
-        if !self.config.enabled {
+        if self.stopped.load(Ordering::Relaxed) {
             return false;
         }
 
@@ -230,9 +227,7 @@ pub trait OptimisticSchedulerExt {
 impl OptimisticSchedulerExt for Arc<OptimisticScheduler> {
     fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
-        if !self.config.enabled {
-            return;
-        }
+        self.stopped.store(false, Ordering::SeqCst);
         let self_l = Arc::clone(self);
         *self.thread.lock().unwrap() = Some(
             std::thread::Builder::new()

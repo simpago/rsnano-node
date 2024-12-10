@@ -334,8 +334,8 @@ fn inactive_votes_cache_multiple_votes() {
 fn inactive_votes_cache_election_start() {
     let mut system = System::new();
     let mut config = System::default_config_without_backlog_population();
-    config.optimistic_scheduler.enabled = false;
-    config.priority_scheduler_enabled = false;
+    config.enable_optimistic_scheduler = false;
+    config.enable_priority_scheduler = false;
     let node = system.build_node().config(config).finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key1 = PrivateKey::new();

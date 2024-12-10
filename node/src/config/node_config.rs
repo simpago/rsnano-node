@@ -43,6 +43,10 @@ pub struct NodeConfig {
     pub signature_checker_threads: u32,
     pub enable_voting: bool,
     pub enable_vote_processor: bool,
+    pub enable_priority_scheduler: bool,
+    pub enable_optimistic_scheduler: bool,
+    pub enable_hinted_scheduler: bool,
+    pub enable_monitor: bool,
     pub bootstrap_connections: u32,
     pub bootstrap_connections_max: u32,
     pub bootstrap_initiator_threads: u32,
@@ -96,7 +100,6 @@ pub struct NodeConfig {
     pub tcp: TcpConfig,
     pub request_aggregator: RequestAggregatorConfig,
     pub message_processor: MessageProcessorConfig,
-    pub priority_scheduler_enabled: bool,
     pub local_block_broadcaster: LocalBlockBroadcasterConfig,
     pub confirming_set: ConfirmingSetConfig,
     pub monitor: MonitorConfig,
@@ -239,6 +242,10 @@ impl NodeConfig {
             signature_checker_threads: (parallelism / 2) as u32,
             enable_voting,
             enable_vote_processor: true,
+            enable_priority_scheduler: true,
+            enable_optimistic_scheduler: true,
+            enable_hinted_scheduler: true,
+            enable_monitor: true,
             bootstrap_connections: bootstrap_initiator_cfg.bootstrap_connections,
             bootstrap_connections_max: bootstrap_initiator_cfg.bootstrap_connections_max,
             bootstrap_initiator_threads: 1,
@@ -323,7 +330,6 @@ impl NodeConfig {
             },
             request_aggregator: RequestAggregatorConfig::new(parallelism),
             message_processor: MessageProcessorConfig::new(parallelism),
-            priority_scheduler_enabled: true,
             local_block_broadcaster: LocalBlockBroadcasterConfig::new(
                 network_params.network.current_network,
             ),
@@ -346,14 +352,12 @@ impl NodeConfig {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MonitorConfig {
-    pub enabled: bool,
     pub interval: Duration,
 }
 
 impl Default for MonitorConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
             interval: Duration::from_secs(60),
         }
     }

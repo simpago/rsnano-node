@@ -10,15 +10,11 @@ use crate::{
     NetworkParams,
 };
 use bounded_vec_deque::BoundedVecDeque;
-use rsnano_core::{
-    utils::{ContainerInfo, Peer},
-    Account, BlockHash, Root, Vote,
-};
+use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmReq, Message};
 use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, NetworkInfo, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use rsnano_output_tracker::OutputTrackerMt;
 use std::{
     collections::HashMap,
     mem::size_of,

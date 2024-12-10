@@ -545,7 +545,7 @@ impl Node {
         active_elections.initialize();
 
         let election_schedulers = Arc::new(ElectionSchedulers::new(
-            &config,
+            config.clone(),
             network_params.network.clone(),
             active_elections.clone(),
             ledger.clone(),
@@ -1477,8 +1477,7 @@ impl NodeExt for Arc<Node> {
         self.vote_generators.start();
         self.request_aggregator.start();
         self.confirming_set.start();
-        self.election_schedulers
-            .start(self.config.priority_scheduler_enabled);
+        self.election_schedulers.start();
         self.backlog_population.start();
         self.bootstrap_server.start();
         if !self.flags.disable_ascending_bootstrap {
@@ -1503,7 +1502,7 @@ impl NodeExt for Arc<Node> {
         }
         self.vote_router.start();
 
-        if self.config.monitor.enabled {
+        if self.config.enable_monitor {
             self.monitor.start(self.config.monitor.interval);
         }
     }

@@ -21,7 +21,6 @@ use std::{
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HintedSchedulerConfig {
-    pub enabled: bool,
     pub check_interval: Duration,
     pub block_cooldown: Duration,
     pub hinting_threshold_percent: u32,
@@ -41,7 +40,6 @@ impl HintedSchedulerConfig {
 impl Default for HintedSchedulerConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
             check_interval: Duration::from_millis(1000),
             block_cooldown: Duration::from_millis(5000),
             hinting_threshold_percent: 10,
@@ -294,9 +292,6 @@ pub trait HintedSchedulerExt {
 impl HintedSchedulerExt for Arc<HintedScheduler> {
     fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
-        if !self.config.enabled {
-            return;
-        }
         let self_l = Arc::clone(self);
         *self.thread.lock().unwrap() = Some(
             std::thread::Builder::new()

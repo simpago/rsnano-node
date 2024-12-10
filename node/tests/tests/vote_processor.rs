@@ -20,8 +20,8 @@ use test_helpers::{assert_timely, assert_timely_eq, setup_chain, start_election,
 fn codes() {
     let mut system = System::new();
     let mut config = System::default_config_without_backlog_population();
-    config.hinted_scheduler.enabled = false;
-    config.optimistic_scheduler.enabled = false;
+    config.enable_hinted_scheduler = false;
+    config.enable_optimistic_scheduler = false;
     let node = system.build_node().config(config).finish();
     let blocks = setup_chain(&node, 1, &DEV_GENESIS_KEY, false);
     let vote = Vote::new(

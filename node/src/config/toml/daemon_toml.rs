@@ -577,8 +577,8 @@ mod tests {
 
         // Monitor section
         assert_ne!(
-            deserialized.node.monitor.enabled,
-            default_cfg.node.monitor.enabled
+            deserialized.node.enable_monitor,
+            default_cfg.node.enable_monitor
         );
         assert_ne!(
             deserialized.node.monitor.interval,
@@ -765,8 +765,8 @@ mod tests {
 
         // Optimistic Scheduler section
         assert_ne!(
-            deserialized.node.optimistic_scheduler.enabled,
-            default_cfg.node.optimistic_scheduler.enabled
+            deserialized.node.enable_optimistic_scheduler,
+            default_cfg.node.enable_optimistic_scheduler
         );
         assert_ne!(
             deserialized.node.optimistic_scheduler.gap_threshold,
@@ -779,8 +779,8 @@ mod tests {
 
         // Hinted Scheduler section
         assert_ne!(
-            deserialized.node.hinted_scheduler.enabled,
-            default_cfg.node.hinted_scheduler.enabled
+            deserialized.node.enable_hinted_scheduler,
+            default_cfg.node.enable_hinted_scheduler
         );
         assert_ne!(
             deserialized.node.hinted_scheduler.hinting_threshold_percent,

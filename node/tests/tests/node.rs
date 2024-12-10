@@ -1795,9 +1795,9 @@ fn local_block_broadcast() {
     let mut system = System::new();
 
     let mut node_config = System::default_config();
-    node_config.priority_scheduler_enabled = false;
-    node_config.hinted_scheduler.enabled = false;
-    node_config.optimistic_scheduler.enabled = false;
+    node_config.enable_priority_scheduler = false;
+    node_config.enable_hinted_scheduler = false;
+    node_config.enable_optimistic_scheduler = false;
     node_config.local_block_broadcaster.rebroadcast_interval = Duration::from_secs(1);
 
     let node1 = system.build_node().config(node_config).finish();

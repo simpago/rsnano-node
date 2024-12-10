@@ -22,11 +22,12 @@ pub struct ElectionSchedulers {
     hinted: Arc<HintedScheduler>,
     pub manual: Arc<ManualScheduler>,
     notify_listener: OutputListenerMt<()>,
+    config: NodeConfig,
 }
 
 impl ElectionSchedulers {
     pub fn new(
-        config: &NodeConfig,
+        config: NodeConfig,
         network_constants: NetworkConstants,
         active_elections: Arc<ActiveElections>,
         ledger: Arc<Ledger>,
@@ -72,6 +73,7 @@ impl ElectionSchedulers {
             hinted,
             manual,
             notify_listener: OutputListenerMt::new(),
+            config,
         }
     }
 
@@ -106,11 +108,15 @@ impl ElectionSchedulers {
         self.manual.push(block, None);
     }
 
-    pub fn start(&self, priority_scheduler_enabled: bool) {
-        self.hinted.start();
+    pub fn start(&self) {
+        if self.config.enable_hinted_scheduler {
+            self.hinted.start();
+        }
         self.manual.start();
-        self.optimistic.start();
-        if priority_scheduler_enabled {
+        if self.config.enable_optimistic_scheduler {
+            self.optimistic.start();
+        }
+        if self.config.enable_priority_scheduler {
             self.priority.start();
         }
     }
