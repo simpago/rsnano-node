@@ -511,7 +511,7 @@ impl BootstrapAscending {
         match result {
             VerifyResult::Ok => {
                 self.stats
-                    .inc(StatType::BootstrapAscendingVerify, DetailType::Ok);
+                    .inc(StatType::BootstrapAscendingVerifyBlocks, DetailType::Ok);
                 self.stats.add_dir(
                     StatType::BootstrapAscending,
                     DetailType::Blocks,
@@ -561,8 +561,10 @@ impl BootstrapAscending {
                 }
             }
             VerifyResult::NothingNew => {
-                self.stats
-                    .inc(StatType::BootstrapAscendingVerify, DetailType::NothingNew);
+                self.stats.inc(
+                    StatType::BootstrapAscendingVerifyBlocks,
+                    DetailType::NothingNew,
+                );
 
                 let mut guard = self.mutex.lock().unwrap();
                 match guard.accounts.priority_down(&tag.account) {
@@ -595,8 +597,10 @@ impl BootstrapAscending {
                 }
             }
             VerifyResult::Invalid => {
-                self.stats
-                    .inc(StatType::BootstrapAscendingVerify, DetailType::Invalid);
+                self.stats.inc(
+                    StatType::BootstrapAscendingVerifyBlocks,
+                    DetailType::Invalid,
+                );
             }
         }
     }
@@ -731,7 +735,7 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
 
         let self_l = Arc::clone(self);
         let priorities = std::thread::Builder::new()
-            .name("Bootstrap asc".to_string())
+            .name("Ascboot".to_string())
             .spawn(Box::new(move || self_l.run_priorities()))
             .unwrap();
 
@@ -739,7 +743,7 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
             let self_l = Arc::clone(self);
             Some(
                 std::thread::Builder::new()
-                    .name("Bootstrap asc".to_string())
+                    .name("Ascboot".to_string())
                     .spawn(Box::new(move || self_l.run_database()))
                     .unwrap(),
             )
@@ -751,7 +755,7 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
             let self_l = Arc::clone(self);
             Some(
                 std::thread::Builder::new()
-                    .name("Bootstrap asc".to_string())
+                    .name("Ascboot".to_string())
                     .spawn(Box::new(move || self_l.run_dependencies()))
                     .unwrap(),
             )
@@ -761,7 +765,7 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
 
         let self_l = Arc::clone(self);
         let timeout = std::thread::Builder::new()
-            .name("Bootstrap asc".to_string())
+            .name("Ascboot".to_string())
             .spawn(Box::new(move || self_l.run_timeouts()))
             .unwrap();
 

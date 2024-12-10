@@ -52,11 +52,13 @@ pub enum StatType {
     BlockprocessorOverfill,
     BootstrapAscending,
     BootstrapAscendingAccounts,
-    BootstrapAscendingVerify,
+    BootstrapAscendingVerifyBlocks,
+    BootstrapAscendingVerifyFrontiers,
     BootstrapAscendingProcess,
     BootstrapAscendingRequest,
     BootstrapAscendingReply,
     BootstrapAscendingNext,
+    BootstrapAscendingFrontiers,
     BootstrapServer,
     BootstrapServerRequest,
     BootstrapServerOverfill,
@@ -113,6 +115,7 @@ pub enum DetailType {
     Inserted,
     Erased,
     Request,
+    RequestFailed,
     Broadcast,
     Cleanup,
     Top,
@@ -419,7 +422,7 @@ pub enum DetailType {
     MissingCookie,
     InvalidGenesis,
 
-    // bootstrap ascending
+    // bootstrap_ascending
     MissingTag,
     Reply,
     Throttled,
@@ -427,13 +430,18 @@ pub enum DetailType {
     Timeout,
     NothingNew,
     AccountInfoEmpty,
+    FrontiersEmpty,
     LoopDatabase,
     LoopDependencies,
+    LoopFrontiers,
+    LoopFrontiersProcessing,
     DuplicateRequest,
     InvalidResponseType,
     TimestampReset,
+    ProcessFrontiers,
+    DropppedFrontiers,
 
-    // bootstrap ascending accounts
+    // bootstrap_ascending_accounts
     Prioritize,
     PrioritizeFailed,
     Block,
@@ -442,11 +450,20 @@ pub enum DetailType {
     DependencyUpdate,
     DependencyUpdateFailed,
 
+    // bootstrap_ascending_frontiers
+    DoneRange,
+    DoneEmpty,
+    NextByRequests,
+    NextByTimestamp,
+    Advance,
+    AdvanceFailed,
+
     NextNone,
     NextPriority,
     NextDatabase,
     NextBlocking,
     NextDependency,
+    NextFrontier,
 
     BlockingInsert,
     BlockingEraseOverflow,
@@ -459,6 +476,10 @@ pub enum DetailType {
     Deprioritize,
     DeprioritizeFailed,
     SyncDependencies,
+    FrontiersProcessed,
+    FrontiersPrioritized,
+    FrontiersOutdated,
+    FrontiersPending,
 
     RequestBlocks,
     RequestAccountInfo,
