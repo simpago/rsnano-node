@@ -6,7 +6,7 @@ pub(super) struct AccountDatabaseCrawler<'a> {
     ledger: &'a Ledger,
     tx: &'a LmdbReadTransaction,
     it: Option<Box<dyn Iterator<Item = (Account, AccountInfo)> + 'a>>,
-    current: Option<(Account, AccountInfo)>,
+    pub current: Option<(Account, AccountInfo)>,
 }
 
 impl<'a> AccountDatabaseCrawler<'a> {
@@ -43,7 +43,7 @@ impl<'a> AccountDatabaseCrawler<'a> {
         }
     }
 
-    fn advance_to(&mut self, account: &Account) {
+    pub fn advance_to(&mut self, account: &Account) {
         let Some(it) = &mut self.it else {
             return;
         };
@@ -76,7 +76,7 @@ pub(super) struct PendingDatabaseCrawler<'a> {
     ledger: &'a Ledger,
     tx: &'a LmdbReadTransaction,
     it: Option<Box<dyn Iterator<Item = (PendingKey, PendingInfo)> + 'a>>,
-    current: Option<(PendingKey, PendingInfo)>,
+    pub current: Option<(PendingKey, PendingInfo)>,
 }
 
 impl<'a> PendingDatabaseCrawler<'a> {
@@ -143,7 +143,7 @@ impl<'a> PendingDatabaseCrawler<'a> {
         }
     }
 
-    fn advance_to(&mut self, account: &Account) {
+    pub fn advance_to(&mut self, account: &Account) {
         let Some(it) = &mut self.it else {
             return;
         };

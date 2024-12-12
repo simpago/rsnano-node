@@ -25,6 +25,7 @@ use crate::{
 pub use account_sets::AccountSetsConfig;
 use database_scan::DatabaseScan;
 use frontier_scan::{FrontierScan, FrontierScanConfig};
+use iterators::{AccountDatabaseCrawler, PendingDatabaseCrawler};
 use num::clamp;
 use ordered_tags::QuerySource;
 use priority::Priority;
@@ -1331,6 +1332,8 @@ fn process_frontiers(
     frontiers: Vec<Frontier>,
     mutex: Arc<Mutex<BootstrapAscendingLogic>>,
 ) {
+    assert!(!frontiers.is_empty());
+
     stats.inc(StatType::BootstrapAscending, DetailType::ProcessFrontiers);
     let mut outdated = 0;
     let mut pending = 0;
@@ -1340,29 +1343,40 @@ fn process_frontiers(
     {
         let tx = ledger.read_txn();
 
+        let start = frontiers[0].account;
+        let mut account_crawler = AccountDatabaseCrawler::new(&ledger, &tx);
+        let mut pending_crawler = PendingDatabaseCrawler::new(&ledger, &tx);
+        account_crawler.initialize(start);
+        pending_crawler.initialize(start);
+
         let mut should_prioritize = |frontier: &Frontier| {
-            if ledger.any().block_exists_or_pruned(&tx, &frontier.hash) {
-                return false;
-            }
-            if let Some(info) = ledger.any().get_account(&tx, &frontier.account) {
-                if info.head != frontier.hash {
-                    outdated += 1;
-                    return true; // Frontier is outdated
+            account_crawler.advance_to(&frontier.account);
+            pending_crawler.advance_to(&frontier.account);
+
+            // Check if account exists in our ledger
+            if let Some((cur_acc, info)) = &account_crawler.current {
+                if *cur_acc == frontier.account {
+                    // Check for frontier mismatch
+                    if info.head != frontier.hash {
+                        // Check if frontier block exists in our ledger
+                        if !ledger.any().block_exists_or_pruned(&tx, &frontier.hash) {
+                            outdated += 1;
+                            return true; // Frontier is outdated
+                        }
+                    }
+                    return false; // Account exists and frontier is up-to-date
                 }
-                return false;
             }
-            if let Some((key, _)) = ledger
-                .any()
-                .account_receivable_upper_bound(&tx, frontier.account, BlockHash::zero())
-                .next()
-            {
+
+            // Check if account has pending blocks in our ledger
+            if let Some((key, _)) = &pending_crawler.current {
                 if key.receiving_account == frontier.account {
                     pending += 1;
                     return true; // Account doesn't exist but has pending blocks in the ledger
                 }
-                return false;
             }
-            false
+
+            false // Account doesn't exist in the ledger and has no pending blocks, can't be prioritized right now
         };
 
         for frontier in &frontiers {
