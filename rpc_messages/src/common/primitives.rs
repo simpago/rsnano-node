@@ -77,6 +77,12 @@ rpc_number!(RpcU32, u32, RpcU32Visitor);
 rpc_number!(RpcU64, u64, RpcU64Visitor);
 rpc_number!(RpcUsize, usize, RpcUsizeVisitor);
 
+impl From<RpcU64> for usize {
+    fn from(value: RpcU64) -> Self {
+        value.inner() as usize
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Default, PartialOrd)]
 pub struct RpcF32(f32);
 

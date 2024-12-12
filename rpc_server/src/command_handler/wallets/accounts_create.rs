@@ -9,7 +9,7 @@ impl RpcCommandHandler {
         args: AccountsCreateArgs,
     ) -> anyhow::Result<AccountsRpcMessage> {
         let generate_work = unwrap_bool_or_false(args.work);
-        let count = args.count.into();
+        let count: usize = args.count.into();
         let wallet = &args.wallet;
 
         let accounts: Result<Vec<Account>, _> = (0..count)

@@ -107,7 +107,7 @@ impl LmdbAccountStore {
         LmdbRangeIterator::new(cursor, range)
     }
 
-    pub fn begin_account<'txn>(
+    fn begin_account<'txn>(
         &self,
         transaction: &'txn dyn Transaction,
         account: &Account,
@@ -335,11 +335,10 @@ mod tests {
         ]);
         let txn = fixture.env.tx_begin_read();
 
-        let mut it = fixture.store.begin_account(&txn, &Account::from(2));
+        let mut it = fixture.store.iter_range(&txn, Account::from(2)..);
 
-        assert_eq!(it.current(), Some((&account3, &info3)));
-        it.next();
-        assert_eq!(it.current(), None);
+        assert_eq!(it.next(), Some((account3, info3)));
+        assert_eq!(it.next(), None);
     }
 
     #[test]
