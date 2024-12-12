@@ -1,14 +1,12 @@
 use crate::{
-    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
     PRUNED_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rand::{thread_rng, Rng};
 use rsnano_core::{BlockHash, NoValue};
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-use std::sync::Arc;
-
-pub type PrunedIterator<'txn> = BinaryDbIterator<'txn, BlockHash, NoValue>;
+use std::{ops::RangeBounds, sync::Arc};
 
 pub struct LmdbPrunedStore {
     database: LmdbDatabase,
@@ -26,51 +24,51 @@ impl LmdbPrunedStore {
         self.database
     }
 
-    pub fn put(&self, txn: &mut LmdbWriteTransaction, hash: &BlockHash) {
-        txn.put(self.database, hash.as_bytes(), &[0; 0], WriteFlags::empty())
+    pub fn put(&self, tx: &mut LmdbWriteTransaction, hash: &BlockHash) {
+        tx.put(self.database, hash.as_bytes(), &[0; 0], WriteFlags::empty())
             .unwrap();
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, hash: &BlockHash) {
-        txn.delete(self.database, hash.as_bytes(), None).unwrap();
+    pub fn del(&self, tx: &mut LmdbWriteTransaction, hash: &BlockHash) {
+        tx.delete(self.database, hash.as_bytes(), None).unwrap();
     }
 
-    pub fn exists(&self, txn: &dyn Transaction, hash: &BlockHash) -> bool {
-        txn.exists(self.database, hash.as_bytes())
+    pub fn exists(&self, tx: &dyn Transaction, hash: &BlockHash) -> bool {
+        tx.exists(self.database, hash.as_bytes())
     }
 
-    pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> PrunedIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, None, true)
+    pub fn iter<'tx>(&self, tx: &'tx dyn Transaction) -> impl Iterator<Item = BlockHash> + 'tx {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+
+        LmdbIterator::new(cursor, |key, _| {
+            let hash = BlockHash::from_slice(key).unwrap();
+            (hash, NoValue {})
+        })
+        .map(|(k, _)| k)
     }
 
-    pub fn begin_at_hash<'txn>(
+    pub fn iter_range<'tx>(
         &self,
-        txn: &'txn dyn Transaction,
-        hash: &BlockHash,
-    ) -> PrunedIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, Some(hash.as_bytes()), true)
+        tx: &'tx dyn Transaction,
+        range: impl RangeBounds<BlockHash> + 'static,
+    ) -> impl Iterator<Item = BlockHash> + 'tx {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+        LmdbRangeIterator::<BlockHash, NoValue, _>::new(cursor, range).map(|(k, _)| k)
     }
 
-    pub fn random(&self, txn: &dyn Transaction) -> Option<BlockHash> {
+    pub fn random(&self, tx: &dyn Transaction) -> Option<BlockHash> {
         let random_hash = BlockHash::from_bytes(thread_rng().gen());
-        let mut existing = self.begin_at_hash(txn, &random_hash);
-        if existing.is_end() {
-            existing = self.begin(txn);
-        }
-
-        existing.current().map(|(k, _)| *k)
+        self.iter_range(tx, random_hash..)
+            .next()
+            .or_else(|| self.iter(tx).next())
     }
 
-    pub fn count(&self, txn: &dyn Transaction) -> u64 {
-        txn.count(self.database)
+    pub fn count(&self, tx: &dyn Transaction) -> u64 {
+        tx.count(self.database)
     }
 
-    pub fn clear(&self, txn: &mut LmdbWriteTransaction) {
-        txn.clear_db(self.database).unwrap();
-    }
-
-    pub fn end(&self) -> PrunedIterator<'static> {
-        LmdbIteratorImpl::null_iterator()
+    pub fn clear(&self, tx: &mut LmdbWriteTransaction) {
+        tx.clear_db(self.database).unwrap();
     }
 }
 
@@ -135,23 +133,23 @@ mod tests {
     #[test]
     fn empty_store() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let tx = fixture.env.tx_begin_read();
         let store = &fixture.store;
 
-        assert_eq!(store.count(&txn), 0);
-        assert_eq!(store.exists(&txn, &BlockHash::from(1)), false);
-        assert_eq!(store.begin(&txn).is_end(), true);
-        assert!(store.random(&txn).is_none());
+        assert_eq!(store.count(&tx), 0);
+        assert_eq!(store.exists(&tx, &BlockHash::from(1)), false);
+        assert!(store.iter(&tx).next().is_none());
+        assert!(store.random(&tx).is_none());
     }
 
     #[test]
     fn add_pruned_info() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
-        let put_tracker = txn.track_puts();
+        let mut tx = fixture.env.tx_begin_write();
+        let put_tracker = tx.track_puts();
         let hash = BlockHash::from(1);
 
-        fixture.store.put(&mut txn, &hash);
+        fixture.store.put(&mut tx, &hash);
 
         assert_eq!(
             put_tracker.output(),
@@ -167,39 +165,33 @@ mod tests {
     #[test]
     fn count() {
         let fixture = Fixture::with_stored_data(vec![BlockHash::from(1), BlockHash::from(2)]);
-        let txn = fixture.env.tx_begin_read();
+        let tx = fixture.env.tx_begin_read();
 
-        assert_eq!(fixture.store.count(&txn), 2);
-        assert_eq!(fixture.store.exists(&txn, &BlockHash::from(1)), true);
-        assert_eq!(fixture.store.exists(&txn, &BlockHash::from(3)), false);
+        assert_eq!(fixture.store.count(&tx), 2);
+        assert_eq!(fixture.store.exists(&tx, &BlockHash::from(1)), true);
+        assert_eq!(fixture.store.exists(&tx, &BlockHash::from(3)), false);
     }
 
     #[test]
     fn iterate() {
         let fixture = Fixture::with_stored_data(vec![BlockHash::from(1), BlockHash::from(2)]);
-        let txn = fixture.env.tx_begin_read();
+        let tx = fixture.env.tx_begin_read();
 
+        assert_eq!(fixture.store.iter(&tx).next(), Some(BlockHash::from(1)));
         assert_eq!(
-            fixture.store.begin(&txn).current(),
-            Some((&BlockHash::from(1), &NoValue {}))
-        );
-        assert_eq!(
-            fixture
-                .store
-                .begin_at_hash(&txn, &BlockHash::from(2))
-                .current(),
-            Some((&BlockHash::from(2), &NoValue {}))
+            fixture.store.iter_range(&tx, BlockHash::from(2)..).next(),
+            Some(BlockHash::from(2))
         );
     }
 
     #[test]
     fn delete() {
         let fixture = Fixture::new();
-        let mut txn = fixture.env.tx_begin_write();
-        let delete_tracker = txn.track_deletions();
+        let mut tx = fixture.env.tx_begin_write();
+        let delete_tracker = tx.track_deletions();
         let hash = BlockHash::from(1);
 
-        fixture.store.del(&mut txn, &hash);
+        fixture.store.del(&mut tx, &hash);
 
         assert_eq!(
             delete_tracker.output(),
@@ -213,8 +205,8 @@ mod tests {
     #[test]
     fn pruned_random() {
         let fixture = Fixture::with_stored_data(vec![BlockHash::from(42)]);
-        let txn = fixture.env.tx_begin_read();
-        let random_hash = fixture.store.random(&txn);
+        let tx = fixture.env.tx_begin_read();
+        let random_hash = fixture.store.random(&tx);
         assert_eq!(random_hash, Some(BlockHash::from(42)));
     }
 }
