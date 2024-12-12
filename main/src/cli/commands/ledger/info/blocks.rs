@@ -19,19 +19,11 @@ impl Blocks {
     pub(crate) fn blocks(&self) -> Result<()> {
         let path = get_path(&self.data_path, &self.network).join("data.ldb");
         let store = LmdbStore::open(&path).build()?;
-        let mut txn = store.tx_begin_read();
-        let mut iter = store.block.begin(&mut txn);
-        let end = store.block.end();
-
-        while iter != end {
-            match iter.current() {
-                Some((hash, block)) => {
-                    println!("{}", hash.to_string());
-                    println!("{} \n", block.to_json().unwrap());
-                }
-                None => break,
-            }
-            iter.next();
+        let tx = store.tx_begin_read();
+        for block in store.block.iter(&tx) {
+            println!("{}", block.hash().to_string());
+            println!("{}", block.to_json().unwrap());
+            println!();
         }
 
         Ok(())

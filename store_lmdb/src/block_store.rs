@@ -1,5 +1,5 @@
 use crate::{
-    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
     BLOCK_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -11,9 +11,7 @@ use rsnano_core::{
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 #[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
-use std::sync::Arc;
-
-pub type BlockIterator<'txn> = BinaryDbIterator<'txn, BlockHash, SavedBlock>;
+use std::{ops::RangeBounds, sync::Arc};
 
 pub struct LmdbBlockStore {
     _env: Arc<LmdbEnv>,
@@ -139,30 +137,36 @@ impl LmdbBlockStore {
         txn.count(self.database)
     }
 
-    pub fn begin<'txn>(&self, transaction: &'txn dyn Transaction) -> BlockIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(transaction, self.database, None, true)
+    pub fn iter<'tx>(&self, tx: &'tx dyn Transaction) -> impl Iterator<Item = SavedBlock> + 'tx {
+        let cursor = tx
+            .open_ro_cursor(self.database)
+            .expect("Could not open cursor for block table");
+
+        LmdbIterator::new(cursor, |k, v| {
+            let hash = BlockHash::from_slice(k).unwrap();
+            let mut stream = BufferReader::new(v);
+            let block = SavedBlock::deserialize(&mut stream).unwrap();
+            (hash, block)
+        })
+        .map(|(_, v)| v)
     }
 
-    pub fn begin_at_hash<'txn>(
+    pub fn iter_range<'txn>(
         &self,
-        transaction: &'txn dyn Transaction,
-        hash: &BlockHash,
-    ) -> BlockIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(transaction, self.database, Some(hash.as_bytes()), true)
+        tx: &'txn dyn Transaction,
+        range: impl RangeBounds<BlockHash> + 'static,
+    ) -> impl Iterator<Item = SavedBlock> + 'txn {
+        let cursor = tx
+            .open_ro_cursor(self.database)
+            .expect("Could not open cursor for block table");
+
+        LmdbRangeIterator::new(cursor, range).map(|(_, v)| v)
     }
 
-    pub fn end(&self) -> BlockIterator {
-        LmdbIteratorImpl::null_iterator()
-    }
-
-    pub fn random(&self, transaction: &dyn Transaction) -> Option<SavedBlock> {
+    pub fn random(&self, tx: &dyn Transaction) -> Option<SavedBlock> {
         let hash = BlockHash::random();
-        let mut existing = self.begin_at_hash(transaction, &hash);
-        if existing.is_end() {
-            existing = self.begin(transaction);
-        }
-
-        existing.current().map(|(_, v)| v.clone())
+        let existing = self.iter_range(tx, hash..).next();
+        existing.or_else(|| self.iter(tx).next())
     }
 
     pub fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {

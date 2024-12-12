@@ -25,7 +25,6 @@ fn main() {
 fn check_ledger_file(ledger_file: impl AsRef<Path>) {
     let store = Arc::new(LmdbStore::open(ledger_file.as_ref()).build().unwrap());
     let tx = store.tx_begin_read();
-    let mut it = store.block.begin(&tx);
     let total_blocks = store.block.count(&tx);
     let mut checked: u64 = 0;
     let problematic = Mutex::new(Vec::new());
@@ -51,7 +50,7 @@ fn check_ledger_file(ledger_file: impl AsRef<Path>) {
         }
 
         println!("Checking signatures...");
-        while let Some((_hash, block)) = it.current() {
+        for block in store.block.iter(&tx) {
             if checked % 100_000 == 0 {
                 print!(
                     "\r{}% done - {} found",
@@ -65,7 +64,6 @@ fn check_ledger_file(ledger_file: impl AsRef<Path>) {
                 .send(block.clone().into())
                 .unwrap();
             checked += 1;
-            it.next();
         }
     });
 
