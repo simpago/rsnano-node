@@ -29,6 +29,9 @@ impl Default for FrontierScanConfig {
     }
 }
 
+/// Frontier scan divides the account space into ranges and scans each range for
+/// outdated frontiers in parallel.
+/// This class is used to track the progress of each range.
 pub struct FrontierScan {
     config: FrontierScanConfig,
     stats: Arc<Stats>,
@@ -171,11 +174,14 @@ impl FrontierScan {
     }
 }
 
+/// Represents a range of accounts to scan, once the full range is scanned (goes past `end`)
+/// the head wraps around (to the `start`)
 struct FrontierHead {
-    // The range of accounts to scan is [start, end)
+    /// The range of accounts to scan is [start, end)
     start: Account,
     end: Account,
 
+    /// We scan the range by querying frontiers starting at 'next' and gathering candidates
     next: Account,
     candidates: BTreeSet<Account>,
 
