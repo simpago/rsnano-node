@@ -119,10 +119,8 @@ impl LedgerPruning {
             .store
             .confirmation_height
             .begin_at_account(&tx, &last_account_a);
+
         while let Some((&account, info)) = it.current() {
-            if finish_transaction {
-                break;
-            }
             read_operations += 1;
             let mut hash = info.frontier;
             let mut depth = 0;
@@ -155,6 +153,7 @@ impl LedgerPruning {
             if read_operations >= batch_read_size_a {
                 *last_account_a = account.inc().unwrap_or_default();
                 finish_transaction = true;
+                break;
             } else {
                 it.next();
             }

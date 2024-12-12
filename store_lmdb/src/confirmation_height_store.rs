@@ -1,6 +1,7 @@
 use crate::{
-    parallel_traversal, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
-    LmdbReadTransaction, LmdbWriteTransaction, Transaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
+    parallel_traversal, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbIteratorImpl,
+    LmdbRangeIterator, LmdbReadTransaction, LmdbWriteTransaction, Transaction,
+    CONFIRMATION_HEIGHT_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -8,7 +9,7 @@ use rsnano_core::{
     Account, ConfirmationHeightInfo,
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
-use std::sync::Arc;
+use std::{ops::RangeBounds, sync::Arc};
 
 pub type ConfirmationHeightIterator<'txn> = BinaryDbIterator<'txn, Account, ConfirmationHeightInfo>;
 
@@ -73,8 +74,27 @@ impl LmdbConfirmationHeightStore {
         txn.clear_db(self.database).unwrap()
     }
 
-    pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> ConfirmationHeightIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, None, true)
+    pub fn iter<'tx>(
+        &self,
+        tx: &'tx dyn Transaction,
+    ) -> impl Iterator<Item = (Account, ConfirmationHeightInfo)> + 'tx {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+
+        LmdbIterator::new(cursor, |key, value| {
+            let account = Account::from_bytes(key.try_into().unwrap());
+            let mut stream = BufferReader::new(value);
+            let info = ConfirmationHeightInfo::deserialize(&mut stream).unwrap();
+            (account, info)
+        })
+    }
+
+    pub fn iter_range<'txn>(
+        &self,
+        tx: &'txn dyn Transaction,
+        range: impl RangeBounds<Account> + 'static,
+    ) -> impl Iterator<Item = (Account, ConfirmationHeightInfo)> + 'txn {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+        LmdbRangeIterator::new(cursor, range)
     }
 
     pub fn begin_at_account<'txn>(
@@ -85,26 +105,22 @@ impl LmdbConfirmationHeightStore {
         LmdbIteratorImpl::new_iterator(txn, self.database, Some(account.as_bytes()), true)
     }
 
-    pub fn end(&self) -> ConfirmationHeightIterator {
-        LmdbIteratorImpl::null_iterator()
-    }
-
     pub fn for_each_par(
         &self,
-        action: &(dyn Fn(&LmdbReadTransaction, ConfirmationHeightIterator, ConfirmationHeightIterator)
-              + Send
-              + Sync),
+        action: impl Fn(&mut dyn Iterator<Item = (Account, ConfirmationHeightInfo)>) + Send + Sync,
     ) {
         parallel_traversal(&|start, end, is_last| {
-            let transaction = self.env.tx_begin_read();
-            let begin_it = self.begin_at_account(&transaction, &start.into());
-            let end_it = if !is_last {
-                self.begin_at_account(&transaction, &end.into())
+            let tx = self.env.tx_begin_read();
+            let start_account = Account::from(start);
+            let end_account = Account::from(end);
+            if is_last {
+                let mut iter = self.iter_range(&tx, start_account..);
+                action(&mut iter);
             } else {
-                self.end()
-            };
-            action(&transaction, begin_it, end_it);
-        });
+                let mut iter = self.iter_range(&tx, start_account..end_account);
+                action(&mut iter);
+            }
+        })
     }
 }
 
@@ -171,11 +187,11 @@ mod tests {
     fn empty_store() {
         let fixture = Fixture::new();
         let store = &fixture.store;
-        let txn = fixture.env.tx_begin_read();
-        assert!(store.get(&txn, &Account::from(0)).is_none());
-        assert_eq!(store.exists(&txn, &Account::from(0)), false);
-        assert!(store.begin(&txn).is_end());
-        assert!(store.begin_at_account(&txn, &Account::from(0)).is_end());
+        let tx = fixture.env.tx_begin_read();
+        assert!(store.get(&tx, &Account::from(0)).is_none());
+        assert_eq!(store.exists(&tx, &Account::from(0)), false);
+        assert!(store.iter(&tx).next().is_none());
+        assert!(store.iter_range(&tx, Account::from(0)..).next().is_none());
     }
 
     #[test]
@@ -229,12 +245,10 @@ mod tests {
             .build();
 
         let fixture = Fixture::with_env(env);
-        let txn = fixture.env.tx_begin_read();
-        let mut it = fixture.store.begin(&txn);
-        assert_eq!(it.current(), Some((&account, &info)));
-
-        it.next();
-        assert!(it.is_end());
+        let tx = fixture.env.tx_begin_read();
+        let mut it = fixture.store.iter(&tx);
+        assert_eq!(it.next(), Some((account, info)));
+        assert!(it.next().is_none());
         Ok(())
     }
 

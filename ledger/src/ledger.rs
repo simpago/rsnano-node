@@ -287,19 +287,16 @@ impl Ledger {
         }
 
         if generate_cache.cemented_count {
-            self.store
-                .confirmation_height
-                .for_each_par(&|_txn, mut i, n| {
-                    let mut cemented_count = 0;
-                    while !i.eq(&n) {
-                        cemented_count += i.current().unwrap().1.height;
-                        i.next();
-                    }
-                    self.store
-                        .cache
-                        .cemented_count
-                        .fetch_add(cemented_count, Ordering::SeqCst);
-                });
+            self.store.confirmation_height.for_each_par(|iter| {
+                let mut cemented_count = 0;
+                for (_, info) in iter {
+                    cemented_count += info.height;
+                }
+                self.store
+                    .cache
+                    .cemented_count
+                    .fetch_add(cemented_count, Ordering::SeqCst);
+            });
         }
 
         let transaction = self.store.tx_begin_read();

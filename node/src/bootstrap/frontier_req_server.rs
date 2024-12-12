@@ -150,21 +150,21 @@ impl FrontierReqServerImpl {
                     }
                 }
             } else {
-                let mut i = self.ledger.store.confirmation_height.begin_at_account(
-                    &transaction,
-                    &self.current.number().overflowing_add(1.into()).0.into(),
-                );
-                while let Some((account, info)) = i.current() {
+                let start: Account = self.current.number().overflowing_add(1.into()).0.into();
+                for (account, info) in self
+                    .ledger
+                    .store
+                    .confirmation_height
+                    .iter_range(&transaction, start..)
+                {
                     if self.accounts.len() >= max_size {
                         break;
                     }
 
                     let confirmed_frontier = info.frontier;
                     if !confirmed_frontier.is_zero() {
-                        self.accounts.push_back((*account, confirmed_frontier));
+                        self.accounts.push_back((account, confirmed_frontier));
                     }
-
-                    i.next();
                 }
             }
 
