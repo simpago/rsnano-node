@@ -1,6 +1,4 @@
-use crate::{
-    Fan, LmdbDatabase, LmdbIteratorImpl, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
-};
+use crate::{Fan, LmdbDatabase, LmdbRangeIterator, LmdbWriteTransaction, Transaction};
 use anyhow::bail;
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -587,21 +585,15 @@ impl LmdbWalletStore {
         Ok(prv)
     }
 
-    pub fn serialize_json(&self, txn: &dyn Transaction) -> String {
+    pub fn serialize_json(&self, tx: &dyn Transaction) -> String {
         let mut map = serde_json::Map::new();
-        let mut it = LmdbIteratorImpl::new_iterator::<Account, WalletValue>(
-            txn,
-            self.db_handle(),
-            None,
-            true,
-        );
 
-        while let Some((k, v)) = it.current() {
+        // include special keys...
+        for (k, v) in self.iter_range(tx, PublicKey::zero()..) {
             map.insert(
                 k.encode_hex(),
                 serde_json::Value::String(v.key.encode_hex()),
             );
-            it.next();
         }
 
         serde_json::Value::Object(map).to_string()
