@@ -1,7 +1,7 @@
 use crate::{
     iterator::{LmdbIterator, LmdbRangeIterator},
-    parallel_traversal, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
-    LmdbReadTransaction, LmdbWriteTransaction, Transaction, ACCOUNT_TEST_DATABASE,
+    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbWriteTransaction, Transaction,
+    ACCOUNT_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -12,8 +12,6 @@ use rsnano_nullable_lmdb::ConfiguredDatabase;
 #[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{ops::RangeBounds, sync::Arc};
-
-pub type AccountIterator<'txn> = BinaryDbIterator<'txn, Account, AccountInfo>;
 
 pub struct LmdbAccountStore {
     env: Arc<LmdbEnv>,
@@ -107,18 +105,6 @@ impl LmdbAccountStore {
         LmdbRangeIterator::new(cursor, range)
     }
 
-    fn begin_account<'txn>(
-        &self,
-        transaction: &'txn dyn Transaction,
-        account: &Account,
-    ) -> AccountIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(transaction, self.database, Some(account.as_bytes()), true)
-    }
-
-    pub fn begin<'txn>(&self, transaction: &'txn dyn Transaction) -> AccountIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(transaction, self.database, None, true)
-    }
-
     pub fn for_each_par(
         &self,
         action: impl Fn(&mut dyn Iterator<Item = (Account, AccountInfo)>) + Send + Sync,
@@ -135,10 +121,6 @@ impl LmdbAccountStore {
                 action(&mut iter);
             }
         })
-    }
-
-    pub fn end(&self) -> AccountIterator {
-        LmdbIteratorImpl::null_iterator()
     }
 
     pub fn count(&self, txn: &dyn Transaction) -> u64 {
@@ -287,8 +269,8 @@ mod tests {
     fn begin_empty_store_nullable() {
         let fixture = Fixture::new();
         let txn = fixture.env.tx_begin_read();
-        let it = fixture.store.begin(&txn);
-        assert_eq!(it.is_end(), true);
+        let mut it = fixture.store.iter(&txn);
+        assert_eq!(it.next(), None);
     }
 
     #[test]
@@ -310,12 +292,10 @@ mod tests {
         ]);
         let txn = fixture.env.tx_begin_read();
 
-        let mut it = fixture.store.begin(&txn);
-        assert_eq!(it.current(), Some((&account1, &info1)));
-        it.next();
-        assert_eq!(it.current(), Some((&account2, &info2)));
-        it.next();
-        assert_eq!(it.current(), None);
+        let mut it = fixture.store.iter(&txn);
+        assert_eq!(it.next(), Some((account1, info1)));
+        assert_eq!(it.next(), Some((account2, info2)));
+        assert_eq!(it.next(), None);
     }
 
     #[test]

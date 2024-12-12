@@ -257,7 +257,7 @@ impl Ledger {
     }
 
     fn initialize(&mut self, generate_cache: &GenerateCacheFlags) -> anyhow::Result<()> {
-        if self.store.account.begin(&self.read_txn()).is_end() {
+        if self.store.account.iter(&self.read_txn()).next().is_none() {
             self.add_genesis_block(&mut self.rw_txn());
         }
 
