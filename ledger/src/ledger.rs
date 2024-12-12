@@ -262,19 +262,17 @@ impl Ledger {
         }
 
         if generate_cache.reps || generate_cache.account_count || generate_cache.block_count {
-            self.store.account.for_each_par(&|_txn, mut i, n| {
+            self.store.account.for_each_par(|iter| {
                 let mut block_count = 0;
                 let mut account_count = 0;
                 let mut rep_weights: HashMap<PublicKey, Amount> = HashMap::new();
-                while !i.eq(&n) {
-                    let info = i.current().unwrap().1;
+                for (_, info) in iter {
                     block_count += info.block_count;
                     account_count += 1;
                     if !info.balance.is_zero() {
                         let total = rep_weights.entry(info.representative).or_default();
                         *total += info.balance;
                     }
-                    i.next();
                 }
                 self.store
                     .cache

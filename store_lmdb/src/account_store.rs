@@ -121,17 +121,19 @@ impl LmdbAccountStore {
 
     pub fn for_each_par(
         &self,
-        action: &(dyn Fn(&LmdbReadTransaction, AccountIterator, AccountIterator) + Send + Sync),
+        action: impl Fn(&mut dyn Iterator<Item = (Account, AccountInfo)>) + Send + Sync,
     ) {
         parallel_traversal(&|start, end, is_last| {
-            let txn = self.env.tx_begin_read();
-            let begin_it = self.begin_account(&txn, &start.into());
-            let end_it = if !is_last {
-                self.begin_account(&txn, &end.into())
+            let tx = self.env.tx_begin_read();
+            let start_account = Account::from(start);
+            let end_account = Account::from(end);
+            if is_last {
+                let mut iter = self.iter_range(&tx, start_account..);
+                action(&mut iter);
             } else {
-                self.end()
-            };
-            action(&txn, begin_it, end_it);
+                let mut iter = self.iter_range(&tx, start_account..end_account);
+                action(&mut iter);
+            }
         })
     }
 
@@ -360,12 +362,9 @@ mod tests {
         ]);
 
         let balance_sum = Mutex::new(Amount::zero());
-        fixture.store.for_each_par(&|_, mut begin, end| {
-            while !begin.eq(&end) {
-                if let Some((_, v)) = begin.current() {
-                    *balance_sum.lock().unwrap() += v.balance
-                }
-                begin.next();
+        fixture.store.for_each_par(|iter| {
+            for (_, info) in iter {
+                *balance_sum.lock().unwrap() += info.balance;
             }
         });
         assert_eq!(*balance_sum.lock().unwrap(), Amount::raw(4));
