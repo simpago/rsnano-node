@@ -86,15 +86,15 @@ impl<'a> LedgerSetConfirmed<'a> {
         let mut it = self
             .store
             .pending
-            .begin_at_key(txn, &PendingKey::new(account, send_hash));
-        let (mut key, mut info) = it.current()?;
+            .iter_range(txn, PendingKey::new(account, send_hash)..);
+
+        let (mut key, mut info) = it.next()?;
 
         while !self.block_exists(txn, &key.send_block_hash) {
-            it.next();
-            (key, info) = it.current()?;
+            (key, info) = it.next()?;
         }
 
-        Some((key.clone(), info.clone()))
+        Some((key, info))
     }
 }
 

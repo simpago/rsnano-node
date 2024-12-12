@@ -6,7 +6,7 @@ use primitive_types::U512;
 
 /// This struct represents the data written into the pending (receivable) database table key
 /// the receiving account and hash of the send block identify a pending db table entry
-#[derive(Default, PartialEq, Eq, Debug, Clone, Hash, Ord)]
+#[derive(Default, PartialEq, Eq, Debug, Clone, Hash, Ord, Copy)]
 pub struct PendingKey {
     pub receiving_account: Account,
     pub send_block_hash: BlockHash,

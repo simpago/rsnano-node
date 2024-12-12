@@ -16,13 +16,18 @@ impl RpcCommandHandler {
             .node
             .store
             .pending
-            .begin_at_key(&tx, &PendingKey::new(start, BlockHash::zero()));
+            .iter_range(&tx, PendingKey::new(start, BlockHash::zero())..);
 
         let mut current_account = start;
         let mut current_account_sum = Amount::zero();
 
-        while !iterator.is_end() && accounts.len() < count {
-            let (key, info) = iterator.current().unwrap();
+        let mut current = iterator.next();
+        while let Some(cur) = current {
+            if accounts.len() >= count {
+                break;
+            }
+
+            let (key, info) = cur;
             let account = key.receiving_account;
 
             if self.node.store.account.get(&tx, &account).is_some() {
@@ -30,10 +35,11 @@ impl RpcCommandHandler {
                     break;
                 }
                 // Skip existing accounts
-                iterator = self.node.store.pending.begin_at_key(
+                iterator = self.node.store.pending.iter_range(
                     &tx,
-                    &PendingKey::new(account.inc().unwrap(), BlockHash::zero()),
+                    PendingKey::new(account.inc().unwrap(), BlockHash::zero())..,
                 );
+                current = iterator.next();
             } else {
                 if account != current_account {
                     if !current_account_sum.is_zero() {
@@ -46,6 +52,7 @@ impl RpcCommandHandler {
                 }
                 current_account_sum += info.amount;
                 iterator.next();
+                current = iterator.next();
             }
         }
 

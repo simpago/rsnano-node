@@ -1,6 +1,6 @@
 use crate::{
-    iterator::LmdbRangeIterator, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl,
-    LmdbWriteTransaction, Transaction, PENDING_TEST_DATABASE,
+    iterator::LmdbRangeIterator, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbWriteTransaction,
+    Transaction, PENDING_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -11,8 +11,6 @@ use rsnano_nullable_lmdb::ConfiguredDatabase;
 #[cfg(feature = "output_tracking")]
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{ops::RangeBounds, sync::Arc};
-
-pub type PendingIterator<'txn> = BinaryDbIterator<'txn, PendingKey, PendingInfo>;
 
 pub struct LmdbPendingStore {
     _env: Arc<LmdbEnv>,
@@ -88,44 +86,43 @@ impl LmdbPendingStore {
         }
     }
 
-    pub fn iter_range<'txn>(
+    pub fn iter<'tx>(
         &self,
-        tx: &'txn dyn Transaction,
+        tx: &'tx dyn Transaction,
+    ) -> impl Iterator<Item = (PendingKey, PendingInfo)> + 'tx {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+
+        LmdbIterator::new(cursor, |key, value| {
+            let mut stream = BufferReader::new(key);
+            let key = PendingKey::deserialize(&mut stream).unwrap();
+            let mut stream = BufferReader::new(value);
+            let info = PendingInfo::deserialize(&mut stream).unwrap();
+            (key, info)
+        })
+    }
+
+    pub fn iter_range<'tx>(
+        &self,
+        tx: &'tx dyn Transaction,
         range: impl RangeBounds<PendingKey> + 'static,
-    ) -> impl Iterator<Item = (PendingKey, PendingInfo)> + 'txn {
+    ) -> impl Iterator<Item = (PendingKey, PendingInfo)> + 'tx {
         let cursor = tx.open_ro_cursor(self.database).unwrap();
         LmdbRangeIterator::new(cursor, range)
     }
 
-    pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> PendingIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, None, true)
-    }
-
-    pub fn begin_at_key<'txn>(
-        &self,
-        txn: &'txn dyn Transaction,
-        key: &PendingKey,
-    ) -> PendingIterator<'txn> {
-        let key_bytes = key.to_bytes();
-        LmdbIteratorImpl::new_iterator(txn, self.database, Some(&key_bytes), true)
-    }
-
     pub fn exists(&self, txn: &dyn Transaction, key: &PendingKey) -> bool {
-        let iterator = self.begin_at_key(txn, key);
-        iterator.current().map(|(k, _)| k == key).unwrap_or(false)
-    }
-
-    pub fn any(&self, txn: &dyn Transaction, account: &Account) -> bool {
-        let key = PendingKey::new(*account, BlockHash::zero());
-        let iterator = self.begin_at_key(txn, &key);
-        iterator
-            .current()
-            .map(|(k, _)| k.receiving_account == *account)
+        self.iter_range(txn, *key..)
+            .next()
+            .map(|(k, _)| k == *key)
             .unwrap_or(false)
     }
 
-    pub fn end(&self) -> PendingIterator {
-        LmdbIteratorImpl::null_iterator()
+    pub fn any(&self, tx: &dyn Transaction, account: &Account) -> bool {
+        let key = PendingKey::new(*account, BlockHash::zero());
+        self.iter_range(tx, key..)
+            .next()
+            .map(|(k, _)| k.receiving_account == *account)
+            .unwrap_or(false)
     }
 }
 
@@ -255,8 +252,8 @@ mod tests {
     #[test]
     fn iter_empty() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
-        assert!(fixture.store.begin(&txn).is_end());
+        let tx = fixture.env.tx_begin_read();
+        assert!(fixture.store.iter(&tx).next().is_none());
     }
 
     #[test]
@@ -264,16 +261,13 @@ mod tests {
         let key = PendingKey::new_test_instance();
         let info = PendingInfo::new_test_instance();
         let fixture = Fixture::with_stored_data(vec![(key.clone(), info.clone())]);
-        let txn = fixture.env.tx_begin_read();
+        let tx = fixture.env.tx_begin_read();
 
-        let mut it = fixture.store.begin(&txn);
-        assert_eq!(it.is_end(), false);
-        let (k, v) = it.current().unwrap();
-        assert_eq!(k, &key);
-        assert_eq!(v, &info);
-
-        it.next();
-        assert!(it.is_end());
+        let mut it = fixture.store.iter(&tx);
+        let (k, v) = it.next().unwrap();
+        assert_eq!(k, key);
+        assert_eq!(v, info);
+        assert!(it.next().is_none());
     }
 
     #[test]
