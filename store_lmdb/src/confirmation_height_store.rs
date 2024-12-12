@@ -1,7 +1,6 @@
 use crate::{
-    parallel_traversal, BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbIteratorImpl,
-    LmdbRangeIterator, LmdbReadTransaction, LmdbWriteTransaction, Transaction,
-    CONFIRMATION_HEIGHT_TEST_DATABASE,
+    parallel_traversal, LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator,
+    LmdbWriteTransaction, Transaction, CONFIRMATION_HEIGHT_TEST_DATABASE,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
@@ -10,8 +9,6 @@ use rsnano_core::{
 };
 use rsnano_nullable_lmdb::ConfiguredDatabase;
 use std::{ops::RangeBounds, sync::Arc};
-
-pub type ConfirmationHeightIterator<'txn> = BinaryDbIterator<'txn, Account, ConfirmationHeightInfo>;
 
 pub struct LmdbConfirmationHeightStore {
     env: Arc<LmdbEnv>,
@@ -95,14 +92,6 @@ impl LmdbConfirmationHeightStore {
     ) -> impl Iterator<Item = (Account, ConfirmationHeightInfo)> + 'txn {
         let cursor = tx.open_ro_cursor(self.database).unwrap();
         LmdbRangeIterator::new(cursor, range)
-    }
-
-    pub fn begin_at_account<'txn>(
-        &self,
-        txn: &'txn dyn Transaction,
-        account: &Account,
-    ) -> ConfirmationHeightIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, Some(account.as_bytes()), true)
     }
 
     pub fn for_each_par(

@@ -118,9 +118,9 @@ impl LedgerPruning {
             .ledger
             .store
             .confirmation_height
-            .begin_at_account(&tx, &last_account_a);
+            .iter_range(&tx, *last_account_a..);
 
-        while let Some((&account, info)) = it.current() {
+        while let Some((account, info)) = it.next() {
             read_operations += 1;
             let mut hash = info.frontier;
             let mut depth = 0;
@@ -143,7 +143,7 @@ impl LedgerPruning {
                         .ledger
                         .store
                         .confirmation_height
-                        .begin_at_account(&tx, &account);
+                        .iter_range(&tx, account..);
                 }
             }
             if !hash.is_zero() {
@@ -154,8 +154,6 @@ impl LedgerPruning {
                 *last_account_a = account.inc().unwrap_or_default();
                 finish_transaction = true;
                 break;
-            } else {
-                it.next();
             }
         }
 
