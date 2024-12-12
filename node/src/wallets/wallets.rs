@@ -14,7 +14,7 @@ use rand::{thread_rng, Rng};
 use rsnano_core::{
     utils::{get_env_or_default_string, ContainerInfo},
     work::{WorkPoolImpl, WorkThresholds},
-    Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link, NoValue,
+    Account, Amount, Block, BlockDetails, BlockHash, Epoch, KeyDerivationFunction, Link,
     PendingKey, PrivateKey, PublicKey, RawKey, Root, SavedBlock, StateBlockArgs, WalletId,
 };
 use rsnano_ledger::{Ledger, RepWeightCache};
@@ -22,8 +22,8 @@ use rsnano_messages::{Message, Publish};
 use rsnano_network::DropPolicy;
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
-    create_backup_file, BinaryDbIterator, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore,
-    LmdbWriteTransaction, Transaction,
+    create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, LmdbWriteTransaction,
+    Transaction,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -70,8 +70,6 @@ impl fmt::Display for WalletsError {
 }
 
 impl std::error::Error for WalletsError {}
-
-pub type WalletsIterator<'txn> = BinaryDbIterator<'txn, [u8; 64], NoValue>;
 
 pub enum PreparedSend {
     Cached(SavedBlock),
