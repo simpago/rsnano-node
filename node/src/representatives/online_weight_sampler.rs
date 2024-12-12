@@ -24,10 +24,8 @@ impl OnlineWeightSampler {
     fn load_samples(&self) -> Vec<Amount> {
         let txn = self.ledger.read_txn();
         let mut items = Vec::with_capacity(self.max_samples as usize + 1);
-        let mut it = self.ledger.store.online_weight.begin(&txn);
-        while !it.is_end() {
-            items.push(*it.current().unwrap().1);
-            it.next();
+        for (_, amount) in self.ledger.store.online_weight.iter(&txn) {
+            items.push(amount);
         }
         items
     }
@@ -49,12 +47,12 @@ impl OnlineWeightSampler {
         self.insert_new_sample(&mut txn, current_online_weight);
     }
 
-    fn delete_old_samples(&self, txn: &mut LmdbWriteTransaction) {
+    fn delete_old_samples(&self, tx: &mut LmdbWriteTransaction) {
         let weight_store = &self.ledger.store.online_weight;
 
-        while weight_store.count(txn) >= self.max_samples as u64 {
-            let (&oldest, _) = weight_store.begin(txn).current().unwrap();
-            weight_store.del(txn, oldest);
+        while weight_store.count(tx) >= self.max_samples as u64 {
+            let (oldest, _) = weight_store.iter(tx).next().unwrap();
+            weight_store.del(tx, oldest);
         }
     }
 

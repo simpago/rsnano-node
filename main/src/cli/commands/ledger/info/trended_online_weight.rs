@@ -41,18 +41,9 @@ impl TrendedOnlineWeightArgs {
 
         println!("Trended Weight {}", current);
 
-        let mut txn = ledger.store.tx_begin_read();
-
-        let mut iter = ledger.store.online_weight.begin(&mut txn);
-
-        loop {
-            match iter.current() {
-                Some((timestamp, amount)) => {
-                    println!("Timestamp {} Weight {}", timestamp, amount.number());
-                }
-                None => break,
-            }
-            iter.next();
+        let tx = ledger.store.tx_begin_read();
+        for (timestamp, amount) in ledger.store.online_weight.iter(&tx) {
+            println!("Timestamp {} Weight {}", timestamp, amount.number());
         }
 
         Ok(())

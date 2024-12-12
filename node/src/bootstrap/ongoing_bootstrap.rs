@@ -102,10 +102,10 @@ impl OngoingBootstrapExt for Arc<OngoingBootstrap> {
 
                 {
                     let tx = self.ledger.read_txn();
-                    let last_record = self.ledger.store.online_weight.rbegin(&tx);
-                    if let Some(last_record) = last_record.current() {
+                    let last_record = self.ledger.store.online_weight.iter_rev(&tx).next();
+                    if let Some(last_record) = last_record {
                         last_sample_time = UNIX_EPOCH
-                            .checked_add(Duration::from_nanos(*last_record.0))
+                            .checked_add(Duration::from_nanos(last_record.0))
                             .unwrap();
                     }
                 }

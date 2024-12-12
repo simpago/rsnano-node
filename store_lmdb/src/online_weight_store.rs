@@ -1,11 +1,7 @@
-use crate::{
-    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
-};
+use crate::{LmdbDatabase, LmdbEnv, LmdbIterator, LmdbWriteTransaction, Transaction};
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::Amount;
 use std::sync::Arc;
-
-pub type OnlineWeightIterator<'txn> = BinaryDbIterator<'txn, u64, Amount>;
 
 pub struct LmdbOnlineWeightStore {
     _env: Arc<LmdbEnv>,
@@ -44,12 +40,31 @@ impl LmdbOnlineWeightStore {
         txn.delete(self.database, &time_bytes, None).unwrap();
     }
 
-    pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> OnlineWeightIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, None, true)
+    pub fn iter<'txn>(
+        &self,
+        tx: &'txn dyn Transaction,
+    ) -> impl Iterator<Item = (u64, Amount)> + 'txn {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+
+        LmdbIterator::new(cursor, |key, value| {
+            let time = u64::from_be_bytes(key.try_into().unwrap());
+            let amount = Amount::from_be_bytes(value.try_into().unwrap());
+            (time, amount)
+        })
     }
 
-    pub fn rbegin<'txn>(&self, txn: &'txn dyn Transaction) -> OnlineWeightIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, None, false)
+    /// Iterate in descending order
+    pub fn iter_rev<'txn>(
+        &self,
+        tx: &'txn dyn Transaction,
+    ) -> impl Iterator<Item = (u64, Amount)> + 'txn {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+
+        LmdbIterator::new_descending(cursor, |key, value| {
+            let time = u64::from_be_bytes(key.try_into().unwrap());
+            let amount = Amount::from_be_bytes(value.try_into().unwrap());
+            (time, amount)
+        })
     }
 
     pub fn count(&self, txn: &dyn Transaction) -> u64 {
@@ -99,11 +114,11 @@ mod tests {
     #[test]
     fn empty_store() {
         let fixture = Fixture::new();
-        let txn = fixture.env.tx_begin_read();
+        let tx = fixture.env.tx_begin_read();
         let store = &fixture.store;
-        assert_eq!(store.count(&txn), 0);
-        assert!(store.begin(&txn).is_end());
-        assert!(store.rbegin(&txn).is_end());
+        assert_eq!(store.count(&tx), 0);
+        assert!(store.iter(&tx).next().is_none());
+        assert!(store.iter_rev(&tx).next().is_none());
     }
 
     #[test]
@@ -142,12 +157,10 @@ mod tests {
         let fixture = Fixture::with_stored_data(vec![(1, Amount::raw(100)), (2, Amount::raw(200))]);
         let txn = fixture.env.tx_begin_read();
 
-        let mut it = fixture.store.begin(&txn);
-        assert_eq!(it.current(), Some((&1, &Amount::raw(100))));
-        it.next();
-        assert_eq!(it.current(), Some((&2, &Amount::raw(200))));
-        it.next();
-        assert_eq!(it.current(), None);
+        let mut it = fixture.store.iter(&txn);
+        assert_eq!(it.next(), Some((1, Amount::raw(100))));
+        assert_eq!(it.next(), Some((2, Amount::raw(200))));
+        assert_eq!(it.next(), None);
     }
 
     #[test]
@@ -155,12 +168,10 @@ mod tests {
         let fixture = Fixture::with_stored_data(vec![(1, Amount::raw(100)), (2, Amount::raw(200))]);
         let txn = fixture.env.tx_begin_read();
 
-        let mut it = fixture.store.rbegin(&txn);
-        assert_eq!(it.current(), Some((&2, &Amount::raw(200))));
-        it.next();
-        assert_eq!(it.current(), Some((&1, &Amount::raw(100))));
-        it.next();
-        assert_eq!(it.current(), None);
+        let mut it = fixture.store.iter_rev(&txn);
+        assert_eq!(it.next(), Some((2, Amount::raw(200))));
+        assert_eq!(it.next(), Some((1, Amount::raw(100))));
+        assert_eq!(it.next(), None);
     }
 
     #[test]

@@ -1230,12 +1230,12 @@ impl Node {
         let mut perform_cleanup = false;
         let mut tx = self.ledger.rw_txn();
         if self.ledger.store.online_weight.count(&tx) > 0 {
-            let (&sample_time, _) = self
+            let (sample_time, _) = self
                 .ledger
                 .store
                 .online_weight
-                .rbegin(&tx)
-                .current()
+                .iter_rev(&tx)
+                .next()
                 .unwrap();
             let one_week_ago = SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 7);
             perform_cleanup = sample_time < system_time_as_nanoseconds(one_week_ago);

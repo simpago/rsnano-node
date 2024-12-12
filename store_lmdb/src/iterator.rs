@@ -1,5 +1,5 @@
 use crate::{LmdbDatabase, Transaction};
-use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_SET_RANGE};
+use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
 use rsnano_core::utils::{
     BufferReader, Deserialize, FixedSizeSerialize, MutStreamAdapter, Serialize,
 };
@@ -274,6 +274,7 @@ where
 {
     cursor: RoCursor<'txn>,
     operation: MDB_cursor_op,
+    next_op: MDB_cursor_op,
     convert: fn(&[u8], &[u8]) -> (K, V),
 }
 
@@ -285,16 +286,17 @@ where
         Self {
             cursor,
             operation: MDB_FIRST,
+            next_op: MDB_NEXT,
             convert,
         }
     }
 
-    fn read(&self, operation: MDB_cursor_op, key: Option<&[u8]>) -> Option<(K, V)> {
-        match self.cursor.get(key, None, operation) {
-            Err(lmdb::Error::NotFound) => None,
-            Ok((Some(k), v)) => Some((self.convert)(k, v)),
-            Ok(_) => panic!("No key returned"),
-            Err(e) => panic!("Read error {:?}", e),
+    pub fn new_descending(cursor: RoCursor<'txn>, convert: fn(&[u8], &[u8]) -> (K, V)) -> Self {
+        Self {
+            cursor,
+            operation: MDB_LAST,
+            next_op: MDB_PREV,
+            convert,
         }
     }
 }
@@ -306,8 +308,13 @@ where
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let result = self.read(self.operation, None);
-        self.operation = MDB_NEXT;
+        let result = match self.cursor.get(None, None, self.operation) {
+            Err(lmdb::Error::NotFound) => None,
+            Ok((Some(k), v)) => Some((self.convert)(k, v)),
+            Ok(_) => panic!("No key returned"),
+            Err(e) => panic!("Read error {:?}", e),
+        };
+        self.operation = self.next_op;
         result
     }
 }
