@@ -220,6 +220,14 @@ impl BootstrapAscending {
         self.mutex.lock().unwrap().scoring.len()
     }
 
+    pub fn prioritized(&self, account: &Account) -> bool {
+        self.mutex.lock().unwrap().accounts.prioritized(account)
+    }
+
+    pub fn blocked(&self, account: &Account) -> bool {
+        self.mutex.lock().unwrap().accounts.blocked(account)
+    }
+
     /* Waits for a condition to be satisfied with incremental backoff */
     fn wait(&self, mut predicate: impl FnMut(&mut BootstrapAscendingLogic) -> bool) {
         let mut guard = self.mutex.lock().unwrap();

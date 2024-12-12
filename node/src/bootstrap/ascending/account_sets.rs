@@ -280,11 +280,11 @@ impl AccountSets {
         (inserted, insert_failed)
     }
 
-    fn blocked(&self, account: &Account) -> bool {
+    pub fn blocked(&self, account: &Account) -> bool {
         self.blocking.contains(account)
     }
 
-    fn prioritized(&self, account: &Account) -> bool {
+    pub fn prioritized(&self, account: &Account) -> bool {
         self.priorities.contains(account)
     }
 
