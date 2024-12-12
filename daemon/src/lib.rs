@@ -47,7 +47,6 @@ impl DaemonBuilder {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        // build node
         let data_path = self.node_builder.get_data_path()?;
         let parallelism = get_cpu_count();
         let daemon_config =
@@ -58,19 +57,7 @@ impl DaemonBuilder {
         let node = Arc::new(node);
 
         let websocket_server = if daemon_config.node.websocket_config.enabled {
-            Some(
-                create_websocket_server(
-                    daemon_config.node.websocket_config,
-                    node.wallets.clone(),
-                    node.runtime.clone(),
-                    &node.active,
-                    &node.telemetry,
-                    &node.vote_processor,
-                    &node.process_live_dispatcher,
-                    &node.bootstrap_initiator,
-                )
-                .unwrap(),
-            )
+            Some(create_websocket_server(daemon_config.node.websocket_config, &node).unwrap())
         } else {
             None
         };
@@ -79,7 +66,6 @@ impl DaemonBuilder {
             websocket.start();
         }
 
-        // start node
         node.start();
 
         if let Some(mut started_callback) = self.node_started {

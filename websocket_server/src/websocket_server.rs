@@ -4,13 +4,10 @@ use rsnano_core::{
 };
 use rsnano_messages::TelemetryData;
 use rsnano_node::{
-    bootstrap::{BootstrapCallbackData, BootstrapInitiator, BootstrapStarted, BootstrapStopped},
+    bootstrap::{BootstrapCallbackData, BootstrapStarted, BootstrapStopped},
     config::WebsocketConfig,
-    consensus::{
-        ActiveElections, ElectionStatus, ElectionStatusType, ProcessLiveDispatcher, VoteProcessor,
-    },
-    wallets::Wallets,
-    Telemetry,
+    consensus::{ElectionStatus, ElectionStatusType},
+    Node,
 };
 use rsnano_websocket_messages::{new_block_arrived_message, OutgoingMessageEnvelope, Topic};
 use serde::{Deserialize, Serialize};
@@ -23,13 +20,7 @@ use tracing::error;
 
 pub fn create_websocket_server(
     config: WebsocketConfig,
-    wallets: Arc<Wallets>,
-    tokio: tokio::runtime::Handle,
-    active_elections: &ActiveElections,
-    telemetry: &Telemetry,
-    vote_processor: &VoteProcessor,
-    process_live_dispatcher: &ProcessLiveDispatcher,
-    bootstrap_initiator: &BootstrapInitiator,
+    node: &Node,
 ) -> Option<Arc<WebsocketListener>> {
     if !config.enabled {
         return None;
@@ -41,10 +32,14 @@ pub fn create_websocket_server(
     };
 
     let endpoint = SocketAddr::new(address, config.port);
-    let server = Arc::new(WebsocketListener::new(endpoint, wallets, tokio.clone()));
+    let server = Arc::new(WebsocketListener::new(
+        endpoint,
+        node.wallets.clone(),
+        node.runtime.clone(),
+    ));
 
     let server_w = Arc::downgrade(&server);
-    active_elections.on_election_ended(Box::new(
+    node.active.on_election_ended(Box::new(
         move |_,
               status: &ElectionStatus,
               votes: &Vec<VoteWithWeightInfo>,
@@ -78,7 +73,7 @@ pub fn create_websocket_server(
     ));
 
     let server_w = Arc::downgrade(&server);
-    active_elections.on_active_started(Box::new(move |hash| {
+    node.active.on_active_started(Box::new(move |hash| {
         if let Some(server) = server_w.upgrade() {
             if server.any_subscriber(Topic::StartedElection) {
                 server.broadcast(&started_election(&hash));
@@ -87,7 +82,7 @@ pub fn create_websocket_server(
     }));
 
     let server_w = Arc::downgrade(&server);
-    active_elections.on_active_stopped(Box::new(move |hash| {
+    node.active.on_active_stopped(Box::new(move |hash| {
         if let Some(server) = server_w.upgrade() {
             if server.any_subscriber(Topic::StoppedElection) {
                 server.broadcast(&stopped_election(&hash));
@@ -96,16 +91,17 @@ pub fn create_websocket_server(
     }));
 
     let server_w = Arc::downgrade(&server);
-    telemetry.on_telemetry_processed(Box::new(move |data, peer_addr| {
-        if let Some(server) = server_w.upgrade() {
-            if server.any_subscriber(Topic::Telemetry) {
-                server.broadcast(&telemetry_received(data, *peer_addr));
+    node.telemetry
+        .on_telemetry_processed(Box::new(move |data, peer_addr| {
+            if let Some(server) = server_w.upgrade() {
+                if server.any_subscriber(Topic::Telemetry) {
+                    server.broadcast(&telemetry_received(data, *peer_addr));
+                }
             }
-        }
-    }));
+        }));
 
     let server_w = Arc::downgrade(&server);
-    vote_processor.add_vote_processed_callback(Box::new(
+    node.vote_processor.add_vote_processed_callback(Box::new(
         move |vote, _channel, _source, vote_code| {
             if let Some(server) = server_w.upgrade() {
                 if server.any_subscriber(Topic::Vote) {
@@ -116,33 +112,34 @@ pub fn create_websocket_server(
     ));
 
     let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    process_live_dispatcher.add_new_unconfirmed_block_callback(Arc::new(
-        move |block: &SavedBlock| {
+    node.process_live_dispatcher
+        .add_new_unconfirmed_block_callback(Arc::new(move |block: &SavedBlock| {
             if let Some(server) = server_w.upgrade() {
                 if server.any_subscriber(Topic::NewUnconfirmedBlock) {
                     server.broadcast(&new_block_arrived_message(block));
                 }
             }
-        },
-    ));
+        }));
 
     let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    bootstrap_initiator.on_bootstrap_started(Arc::new(move |bootstrap_callback_data| {
-        if let Some(server) = server_w.upgrade() {
-            if server.any_subscriber(Topic::Bootstrap) {
-                server.broadcast(&bootstrap_started(bootstrap_callback_data));
+    node.bootstrap_initiator
+        .on_bootstrap_started(Arc::new(move |bootstrap_callback_data| {
+            if let Some(server) = server_w.upgrade() {
+                if server.any_subscriber(Topic::Bootstrap) {
+                    server.broadcast(&bootstrap_started(bootstrap_callback_data));
+                }
             }
-        }
-    }));
+        }));
 
     let server_w: std::sync::Weak<WebsocketListener> = Arc::downgrade(&server);
-    bootstrap_initiator.on_bootstrap_stopped(Arc::new(move |bootstrap_callback_data| {
-        if let Some(server) = server_w.upgrade() {
-            if server.any_subscriber(Topic::Bootstrap) {
-                server.broadcast(&bootstrap_stopped(bootstrap_callback_data));
+    node.bootstrap_initiator
+        .on_bootstrap_stopped(Arc::new(move |bootstrap_callback_data| {
+            if let Some(server) = server_w.upgrade() {
+                if server.any_subscriber(Topic::Bootstrap) {
+                    server.broadcast(&bootstrap_stopped(bootstrap_callback_data));
+                }
             }
-        }
-    }));
+        }));
 
     Some(server)
 }

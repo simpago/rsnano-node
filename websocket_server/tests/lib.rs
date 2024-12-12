@@ -725,13 +725,7 @@ fn create_node_with_websocket(system: &mut System) -> (Arc<Node>, Arc<WebsocketL
             port: node.config.websocket_config.port,
             address: node.config.websocket_config.address.clone(),
         },
-        node.wallets.clone(),
-        node.runtime.clone(),
-        &node.active,
-        &node.telemetry,
-        &node.vote_processor,
-        &node.process_live_dispatcher,
-        &node.bootstrap_initiator,
+        &node,
     )
     .unwrap();
 
