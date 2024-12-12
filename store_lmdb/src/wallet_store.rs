@@ -1,5 +1,5 @@
 use crate::{
-    BinaryDbIterator, Fan, LmdbDatabase, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
+    Fan, LmdbDatabase, LmdbIteratorImpl, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
 };
 use anyhow::bail;
 use lmdb::{DatabaseFlags, WriteFlags};
@@ -11,13 +11,13 @@ use rsnano_core::{
     },
     Account, KeyDerivationFunction, PublicKey, RawKey,
 };
-use std::io::Write;
 use std::{
     fs::{set_permissions, File, Permissions},
     os::unix::prelude::PermissionsExt,
     path::Path,
     sync::{Mutex, MutexGuard},
 };
+use std::{io::Write, ops::RangeBounds};
 
 pub struct Fans {
     pub password: Fan,
@@ -81,8 +81,6 @@ pub enum KeyType {
     Adhoc,
     Deterministic,
 }
-
-pub type WalletIterator<'txn> = BinaryDbIterator<'txn, PublicKey, WalletValue>;
 
 pub struct LmdbWalletStore {
     db_handle: Mutex<Option<LmdbDatabase>>,
@@ -386,40 +384,35 @@ impl LmdbWalletStore {
         }
     }
 
-    pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> WalletIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(
-            txn,
-            self.db_handle(),
-            Some(Self::special_count().as_bytes()),
-            true,
-        )
-    }
-
-    pub fn begin_at_key<'txn>(
+    pub fn iter<'tx>(
         &self,
-        txn: &'txn dyn Transaction,
-        pub_key: &PublicKey,
-    ) -> WalletIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.db_handle(), Some(pub_key.as_bytes()), true)
+        tx: &'tx dyn Transaction,
+    ) -> impl Iterator<Item = (PublicKey, WalletValue)> + 'tx {
+        self.iter_range(tx, Self::special_count()..)
     }
 
-    pub fn end(&self) -> WalletIterator<'static> {
-        LmdbIteratorImpl::null_iterator()
+    pub fn iter_range<'txn>(
+        &self,
+        tx: &'txn dyn Transaction,
+        range: impl RangeBounds<PublicKey> + 'static,
+    ) -> impl Iterator<Item = (PublicKey, WalletValue)> + 'txn {
+        let cursor = tx.open_ro_cursor(self.db_handle()).unwrap();
+        LmdbRangeIterator::new(cursor, range)
     }
 
     pub fn find<'txn>(
         &self,
         txn: &'txn dyn Transaction,
         pub_key: &PublicKey,
-    ) -> WalletIterator<'txn> {
-        let result = self.begin_at_key(txn, pub_key);
-        if let Some((key, _)) = result.current() {
-            if key == pub_key {
-                return result;
+    ) -> Option<WalletValue> {
+        let mut result = self.iter_range(txn, *pub_key..);
+        if let Some((key, value)) = result.next() {
+            if key == *pub_key {
+                return Some(value);
             }
         }
 
-        self.end()
+        None
     }
 
     pub fn erase(&self, txn: &mut LmdbWriteTransaction, pub_key: &PublicKey) {
@@ -445,15 +438,15 @@ impl LmdbWalletStore {
 
     pub fn deterministic_clear(&self, txn: &mut LmdbWriteTransaction) {
         {
-            let mut it = self.begin(txn);
-            while let Some((&account, value)) = it.current() {
-                match Self::key_type(value) {
+            let mut it = self.iter_range(txn, PublicKey::zero()..);
+            while let Some((account, value)) = it.next() {
+                match Self::key_type(&value) {
                     KeyType::Deterministic => {
                         drop(it);
                         self.erase(txn, &account);
-                        it = self.begin_at_key(txn, &account);
+                        it = self.iter_range(txn, account..);
                     }
-                    _ => it.next(),
+                    _ => {}
                 }
             }
         }
@@ -466,7 +459,7 @@ impl LmdbWalletStore {
     }
 
     pub fn exists(&self, txn: &dyn Transaction, key: &PublicKey) -> bool {
-        self.valid_public_key(key) && !self.find(txn, key).is_end()
+        self.valid_public_key(key) && self.find(txn, key).is_some()
     }
 
     pub fn deterministic_insert(&self, txn: &mut LmdbWriteTransaction) -> PublicKey {
@@ -523,14 +516,7 @@ impl LmdbWalletStore {
     }
 
     pub fn accounts(&self, txn: &dyn Transaction) -> Vec<Account> {
-        let mut result = Vec::new();
-        let mut it = self.begin(txn);
-        while let Some((k, _)) = it.current() {
-            result.push(k.into());
-            it.next();
-        }
-
-        result
+        self.iter(txn).map(|(key, _)| key.into()).collect()
     }
 
     pub fn representative(&self, txn: &dyn Transaction) -> PublicKey {
@@ -660,16 +646,13 @@ impl LmdbWalletStore {
 
         let mut keys = Vec::new();
         {
-            let mut it = other.begin(txn);
-            while let Some((k, _)) = it.current() {
-                let prv = other.fetch(txn, k)?;
+            for (k, _) in other.iter(txn) {
+                let prv = other.fetch(txn, &k)?;
                 if !prv.is_zero() {
-                    keys.push(KeyType::Private((*k, prv)));
+                    keys.push(KeyType::Private((k, prv)));
                 } else {
-                    keys.push(KeyType::WatchOnly(*k));
+                    keys.push(KeyType::WatchOnly(k));
                 }
-
-                it.next();
             }
         }
 

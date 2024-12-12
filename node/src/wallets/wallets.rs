@@ -454,13 +454,13 @@ impl Wallets {
         let tx = self.env.tx_begin_read();
         for (_, wallet) in wallets_guard.iter() {
             let mut representatives = HashSet::new();
-            let mut it = wallet.store.begin(&tx);
-            while let Some((&pub_key, _)) = it.current() {
+
+            for (pub_key, _) in wallet.store.iter(&tx) {
                 if reps_guard.check_rep(pub_key, half_principal_weight) {
                     representatives.insert(pub_key.into());
                 }
-                it.next();
             }
+
             *wallet.representatives.lock().unwrap() = representatives;
         }
     }
@@ -534,7 +534,7 @@ impl Wallets {
         if !wallet.store.valid_password(&tx) {
             return Err(WalletsError::WalletLocked);
         }
-        if wallet.store.find(&tx, pub_key).is_end() {
+        if wallet.store.find(&tx, pub_key).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
         wallet.store.erase(&mut tx, pub_key);
@@ -550,7 +550,7 @@ impl Wallets {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
         let mut tx = self.env.tx_begin_write();
-        if wallet.store.find(&tx, pub_key).is_end() {
+        if wallet.store.find(&tx, pub_key).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
         wallet.store.work_put(&mut tx, pub_key, work);
@@ -722,7 +722,7 @@ impl Wallets {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
-        if wallet.store.find(&tx, pub_key).is_end() {
+        if wallet.store.find(&tx, pub_key).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
         Ok(wallet.store.work_get(&tx, pub_key).unwrap_or(1))
@@ -733,13 +733,12 @@ impl Wallets {
         let guard = self.mutex.lock().unwrap();
         let tx = self.env.tx_begin_read();
         for wallet in guard.values() {
-            let mut it = wallet.store.begin(&tx);
-            while let Some((&account, _)) = it.current() {
+            for (pub_key, _) in wallet.store.iter(&tx) {
                 if accounts.len() >= max_results {
                     break;
                 }
-                accounts.push(account.into());
-                it.next();
+
+                accounts.push(pub_key.into());
             }
         }
         accounts
@@ -752,11 +751,9 @@ impl Wallets {
         let guard = self.mutex.lock().unwrap();
         let wallet = Self::get_wallet(&guard, wallet_id)?;
         let tx = self.env.tx_begin_read();
-        let mut it = wallet.store.begin(&tx);
         let mut accounts = Vec::new();
-        while let Some((&account, _)) = it.current() {
+        for (account, _) in wallet.store.iter(&tx) {
             accounts.push(account.into());
-            it.next();
         }
         Ok(accounts)
     }
@@ -768,7 +765,7 @@ impl Wallets {
         if !wallet.store.valid_password(&tx) {
             return Err(WalletsError::WalletLocked);
         }
-        if wallet.store.find(&tx, pub_key).is_end() {
+        if wallet.store.find(&tx, pub_key).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
         wallet
@@ -857,15 +854,13 @@ impl Wallets {
             return Err(WalletsError::WalletLocked);
         }
 
-        let mut it = wallet.store.begin(&tx);
         let mut result = Vec::new();
-        while let Some((account, _)) = it.current() {
+        for (account, _) in wallet.store.iter(&tx) {
             let key = wallet
                 .store
-                .fetch(&tx, account)
+                .fetch(&tx, &account)
                 .map_err(|_| WalletsError::Generic)?;
-            result.push((*account, key));
-            it.next();
+            result.push((account, key));
         }
 
         Ok(result)
@@ -1173,7 +1168,7 @@ impl WalletsExt for Arc<Wallets> {
             return Err(WalletsError::WalletLocked);
         }
 
-        if wallet.store.find(&tx, &account.into()).is_end() {
+        if wallet.store.find(&tx, &account.into()).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
 
@@ -1468,7 +1463,7 @@ impl WalletsExt for Arc<Wallets> {
             }
 
             let existing = wallet.store.find(&wallet_tx, &source.into());
-            if !existing.is_end() && self.ledger.any().account_head(&block_tx, &source).is_some() {
+            if existing.is_some() && self.ledger.any().account_head(&block_tx, &source).is_some() {
                 let info = self.ledger.account_info(&block_tx, &source).unwrap();
                 let prv = wallet.store.fetch(&wallet_tx, &source.into()).unwrap();
                 if work == 0 {
@@ -1644,7 +1639,7 @@ impl WalletsExt for Arc<Wallets> {
             return Err(WalletsError::WalletLocked);
         }
 
-        if wallet.store.find(&tx, &account.into()).is_end() {
+        if wallet.store.find(&tx, &account.into()).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
 
@@ -1745,7 +1740,7 @@ impl WalletsExt for Arc<Wallets> {
         if !wallet.store.valid_password(&tx) {
             return Err(WalletsError::WalletLocked);
         }
-        if wallet.store.find(&tx, &source.into()).is_end() {
+        if wallet.store.find(&tx, &source.into()).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
         self.send_async_wallet(
@@ -1812,8 +1807,7 @@ impl WalletsExt for Arc<Wallets> {
 
         info!("Beginning receivable block search");
 
-        let mut it = wallet.store.begin(wallet_tx);
-        while let Some((account, wallet_value)) = it.current() {
+        for (account, wallet_value) in wallet.store.iter(wallet_tx) {
             let block_tx = self.ledger.read_txn();
             // Don't search pending for watch-only accounts
             if !wallet_value.key.is_zero() {
@@ -1860,8 +1854,6 @@ impl WalletsExt for Arc<Wallets> {
                     }
                 }
             }
-
-            it.next();
         }
 
         info!("Receivable block search phase completed");
@@ -2066,7 +2058,7 @@ impl WalletsExt for Arc<Wallets> {
             return Err(WalletsError::WalletLocked);
         }
 
-        if wallet.store.find(&tx, &source.into()).is_end() {
+        if wallet.store.find(&tx, &source.into()).is_none() {
             return Err(WalletsError::AccountNotFound);
         }
 
@@ -2105,14 +2097,12 @@ impl WalletsExt for Arc<Wallets> {
             if update_existing_accounts {
                 let tx = self.env.tx_begin_read();
                 let block_tx = self.ledger.read_txn();
-                let mut i = wallet.store.begin(&tx);
-                while let Some((account, _)) = i.current() {
+                for (account, _) in wallet.store.iter(&tx) {
                     if let Some(info) = self.ledger.account_info(&block_tx, &account.into()) {
                         if info.representative != rep {
-                            accounts.push(*account);
+                            accounts.push(account);
                         }
                     }
-                    i.next();
                 }
             }
         }

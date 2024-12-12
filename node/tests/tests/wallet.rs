@@ -101,7 +101,7 @@ fn empty_iteration() {
     let kdf = KeyDerivationFunction::new(DEV_NETWORK_PARAMS.kdf_work);
     let wallet =
         LmdbWalletStore::new(0, kdf, &mut tx, &DEV_GENESIS_PUB_KEY, &PathBuf::from("0")).unwrap();
-    assert!(wallet.begin(&tx).is_end());
+    assert!(wallet.iter(&tx).next().is_none());
 }
 
 #[test]
@@ -115,14 +115,11 @@ fn one_item_iteration() {
         LmdbWalletStore::new(0, kdf, &mut tx, &DEV_GENESIS_PUB_KEY, &PathBuf::from("0")).unwrap();
     let key1 = PrivateKey::from(42);
     wallet.insert_adhoc(&mut tx, &key1.raw_key());
-    let mut it = wallet.begin(&tx);
-    while !it.is_end() {
-        let (k, v) = it.current().unwrap();
-        assert_eq!(*k, key1.public_key());
+    for (k, v) in wallet.iter(&tx) {
+        assert_eq!(k, key1.public_key());
         let password = wallet.wallet_key(&tx);
         let key = v.key.decrypt(&password, &k.initialization_vector());
         assert_eq!(key, key1.raw_key());
-        it.next();
     }
 }
 
@@ -144,13 +141,11 @@ fn two_item_iteration() {
                 .unwrap();
         wallet.insert_adhoc(&mut tx, &key1.raw_key());
         wallet.insert_adhoc(&mut tx, &key2.raw_key());
-        let mut it = wallet.begin(&tx);
-        while let Some((k, v)) = it.current() {
-            pubs.insert(*k);
+        for (k, v) in wallet.iter(&tx) {
+            pubs.insert(k);
             let password = wallet.wallet_key(&tx);
             let key = v.key.decrypt(&password, &k.initialization_vector());
             prvs.insert(key);
-            it.next();
         }
     }
     assert_eq!(pubs.len(), 2);
@@ -357,7 +352,7 @@ fn find_none() {
     let kdf = KeyDerivationFunction::new(DEV_NETWORK_PARAMS.kdf_work);
     let wallet =
         LmdbWalletStore::new(0, kdf, &mut tx, &DEV_GENESIS_PUB_KEY, &PathBuf::from("0")).unwrap();
-    assert!(wallet.find(&tx, &PublicKey::from(1000)).is_end());
+    assert!(wallet.find(&tx, &PublicKey::from(1000)).is_none());
 }
 
 #[test]
@@ -373,7 +368,7 @@ fn find_existing() {
     assert_eq!(wallet.exists(&tx, &key1.public_key()), false);
     wallet.insert_adhoc(&mut tx, &key1.raw_key());
     assert_eq!(wallet.exists(&tx, &key1.public_key()), true);
-    wallet.find(&tx, &key1.public_key()).current().unwrap();
+    wallet.find(&tx, &key1.public_key()).unwrap();
 }
 
 #[test]
@@ -520,8 +515,8 @@ fn serialize_json_empty() {
     assert_eq!(wallet1.salt(&tx), wallet2.salt(&tx));
     assert_eq!(wallet1.check(&tx), wallet2.check(&tx));
     assert_eq!(wallet1.representative(&tx), wallet2.representative(&tx));
-    assert!(wallet1.begin(&tx).is_end());
-    assert!(wallet2.begin(&tx).is_end());
+    assert!(wallet1.iter(&tx).next().is_none());
+    assert!(wallet2.iter(&tx).next().is_none());
 }
 
 #[test]
