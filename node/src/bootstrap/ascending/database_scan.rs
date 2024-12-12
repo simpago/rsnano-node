@@ -1,4 +1,5 @@
-use rsnano_core::{utils::ContainerInfo, Account, BlockHash, PendingKey};
+use super::iterators::{AccountDatabaseCrawler, PendingDatabaseCrawler};
+use rsnano_core::{utils::ContainerInfo, Account};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbReadTransaction;
 use std::{collections::VecDeque, sync::Arc};
@@ -74,20 +75,22 @@ impl AccountDatabaseScanner {
 
     fn next_batch(&mut self, tx: &LmdbReadTransaction, batch_size: usize) -> Vec<Account> {
         let mut result = Vec::new();
-        let accounts = self.ledger.store.account.iter_range(tx, self.next..);
-        let mut count = 0;
-        let mut end_reached = true;
-        for (account, _) in accounts {
-            if count >= batch_size {
-                end_reached = false;
+        let mut crawler = AccountDatabaseCrawler::new(&self.ledger, tx);
+        crawler.initialize(self.next);
+
+        for _ in 0..batch_size {
+            let Some((account, _)) = &crawler.current else {
                 break;
-            }
-            result.push(account);
-            count += 1;
-            self.next = account.inc().unwrap_or_default();
+            };
+
+            result.push(*account);
+            self.next = account.inc().unwrap_or_default(); // TODO: Handle account number overflow
+
+            crawler.advance();
         }
 
-        if end_reached {
+        // Empty current value indicates the end of the table
+        if crawler.current.is_none() {
             // Reset for the next ledger iteration
             self.next = Account::zero();
             self.completed += 1;
@@ -99,7 +102,7 @@ impl AccountDatabaseScanner {
 
 struct PendingDatabaseScanner {
     ledger: Arc<Ledger>,
-    next: PendingKey,
+    next: Account,
     completed: usize,
 }
 
@@ -107,77 +110,34 @@ impl PendingDatabaseScanner {
     fn new(ledger: Arc<Ledger>) -> Self {
         Self {
             ledger,
-            next: PendingKey::default(),
+            next: Account::zero(),
             completed: 0,
         }
     }
 
     fn next_batch(&mut self, tx: &LmdbReadTransaction, batch_size: usize) -> Vec<Account> {
         let mut result = Vec::new();
-        let mut it = self
-            .ledger
-            .store
-            .pending
-            .iter_range(tx, self.next.clone()..);
-        // TODO: This pending iteration heuristic should be encapsulated in a pending_iterator class and reused across other components
-        // The heuristic is to advance the iterator sequentially until we reach a new account or perform a fresh lookup if the account has too many pending blocks
-        // This is to avoid the overhead of performing a fresh lookup for every pending account as majority of accounts have only a few pending blocks
+        let mut crawler = PendingDatabaseCrawler::new(&self.ledger, tx);
+        crawler.initialize(self.next);
 
-        let mut count = 0;
-        let mut end_reached = true;
-        let mut current = it.next();
-        while let Some((key, _)) = current {
-            if count >= batch_size {
-                end_reached = false;
+        for _ in 0..batch_size {
+            let Some((key, _)) = crawler.current else {
                 break;
-            }
+            };
             result.push(key.receiving_account);
-            self.next = PendingKey::new(
-                key.receiving_account.inc().unwrap_or_default(),
-                BlockHash::zero(),
-            );
-            count += 1;
 
-            // advance iterator:
-            let starting_account = key.receiving_account;
-
-            // For RocksDB, sequential access is ~10x faster than performing a fresh lookup (tested on my machine)
-            const SEQUENTIAL_ATTEMPTS: usize = 10;
-
-            let mut found = false;
-            for _ in 0..SEQUENTIAL_ATTEMPTS {
-                current = it.next();
-                match &current {
-                    Some((k, _)) => {
-                        if k.receiving_account != starting_account {
-                            found = true;
-                            break;
-                        }
-                    }
-                    None => {
-                        break;
-                    }
-                }
-            }
-
-            // If we didn't advance to the next account, perform a fresh lookup
-            if !found {
-                it = self.ledger.store.pending.iter_range(
-                    tx,
-                    PendingKey::new(
-                        starting_account.inc().unwrap_or_default(),
-                        BlockHash::zero(),
-                    )..,
-                );
-                current = it.next();
-            }
+            // TODO: Handle account number overflow
+            self.next = key.receiving_account.inc().unwrap_or_default();
+            crawler.advance();
         }
 
-        if end_reached {
+        // Empty current value indicates the end of the table
+        if crawler.current.is_none() {
             // Reset for the next ledger iteration
-            self.next = Default::default();
+            self.next = Account::zero();
             self.completed += 1;
         }
+
         result
     }
 }

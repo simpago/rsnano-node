@@ -32,7 +32,7 @@ impl<'a> AccountDatabaseCrawler<'a> {
         self.advance();
     }
 
-    fn advance(&mut self) {
+    pub fn advance(&mut self) {
         if let Some(it) = &mut self.it {
             self.current = it.next();
             if self.current.is_none() {
@@ -50,11 +50,11 @@ impl<'a> AccountDatabaseCrawler<'a> {
 
         // First try advancing sequentially
         for _ in 0..Self::SEQUENTIAL_ATTEMPTS {
-            match it.next() {
-                Some((acc, info)) => {
+            self.current = it.next();
+            match &self.current {
+                Some((acc, _)) => {
                     // Break if we've reached or overshoot the target account
                     if acc.number() >= account.number() {
-                        self.current = Some((acc, info));
                         return;
                     }
                 }
@@ -111,7 +111,7 @@ impl<'a> PendingDatabaseCrawler<'a> {
     }
 
     // Advance to the next account
-    fn advance(&mut self) {
+    pub fn advance(&mut self) {
         let Some(it) = &mut self.it else {
             return;
         };
@@ -120,11 +120,11 @@ impl<'a> PendingDatabaseCrawler<'a> {
 
         // First try advancing sequentially
         for _ in 0..Self::SEQUENTIAL_ATTEMPTS {
-            match it.next() {
-                Some((key, info)) => {
+            self.current = it.next();
+            match &self.current {
+                Some((key, _)) => {
                     // Break if we've reached the next account
                     if key.receiving_account != starting_account {
-                        self.current = Some((key, info));
                         return;
                     }
                 }
@@ -149,11 +149,11 @@ impl<'a> PendingDatabaseCrawler<'a> {
 
         // First try advancing sequentially
         for _ in 0..Self::SEQUENTIAL_ATTEMPTS {
-            match it.next() {
-                Some((key, info)) => {
+            self.current = it.next();
+            match &self.current {
+                Some((key, _)) => {
                     // Break if we've reached or overshoot the target account
                     if key.receiving_account.number() >= account.number() {
-                        self.current = Some((key, info));
                         return;
                     }
                 }
