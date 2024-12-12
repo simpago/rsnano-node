@@ -59,7 +59,6 @@ impl<'a> AccountDatabaseCrawler<'a> {
                     }
                 }
                 None => {
-                    drop(it);
                     self.it = None;
                     self.current = None;
                     break;

@@ -7,16 +7,16 @@ const BATCH_SIZE: usize = 512;
 
 pub(crate) struct DatabaseScan {
     queue: VecDeque<Account>,
-    accounts_iterator: AccountDatabaseIterator,
-    pending_iterator: PendingDatabaseIterator,
+    account_scanner: AccountDatabaseScanner,
+    pending_scanner: PendingDatabaseScanner,
     ledger: Arc<Ledger>,
 }
 
 impl DatabaseScan {
     pub fn new(ledger: Arc<Ledger>) -> Self {
         Self {
-            accounts_iterator: AccountDatabaseIterator::new(ledger.clone()),
-            pending_iterator: PendingDatabaseIterator::new(ledger.clone()),
+            account_scanner: AccountDatabaseScanner::new(ledger.clone()),
+            pending_scanner: PendingDatabaseScanner::new(ledger.clone()),
             ledger,
             queue: Default::default(),
         }
@@ -38,32 +38,32 @@ impl DatabaseScan {
 
     fn fill(&mut self) {
         let tx = self.ledger.read_txn();
-        let set1 = self.accounts_iterator.next_batch(&tx, BATCH_SIZE);
-        let set2 = self.pending_iterator.next_batch(&tx, BATCH_SIZE);
+        let set1 = self.account_scanner.next_batch(&tx, BATCH_SIZE);
+        let set2 = self.pending_scanner.next_batch(&tx, BATCH_SIZE);
         self.queue.extend(set1);
         self.queue.extend(set2);
     }
 
     pub fn warmed_up(&self) -> bool {
-        self.accounts_iterator.warmed_up() && self.pending_iterator.warmed_up()
+        self.account_scanner.completed > 0 && self.pending_scanner.completed > 0
     }
 
     pub fn container_info(&self) -> ContainerInfo {
         [
-            ("accounts_iterator", self.accounts_iterator.completed, 0),
-            ("pending_iterator", self.pending_iterator.completed, 0),
+            ("accounts_iterator", self.account_scanner.completed, 0),
+            ("pending_iterator", self.pending_scanner.completed, 0),
         ]
         .into()
     }
 }
 
-struct AccountDatabaseIterator {
+struct AccountDatabaseScanner {
     ledger: Arc<Ledger>,
     next: Account,
     completed: usize,
 }
 
-impl AccountDatabaseIterator {
+impl AccountDatabaseScanner {
     fn new(ledger: Arc<Ledger>) -> Self {
         Self {
             ledger,
@@ -95,19 +95,15 @@ impl AccountDatabaseIterator {
 
         result
     }
-
-    fn warmed_up(&self) -> bool {
-        self.completed > 0
-    }
 }
 
-struct PendingDatabaseIterator {
+struct PendingDatabaseScanner {
     ledger: Arc<Ledger>,
     next: PendingKey,
     completed: usize,
 }
 
-impl PendingDatabaseIterator {
+impl PendingDatabaseScanner {
     fn new(ledger: Arc<Ledger>) -> Self {
         Self {
             ledger,
@@ -184,10 +180,6 @@ impl PendingDatabaseIterator {
         }
         result
     }
-
-    fn warmed_up(&self) -> bool {
-        self.completed > 0
-    }
 }
 
 #[cfg(test)]
@@ -227,7 +219,7 @@ mod tests {
             }
             // Single batch
             {
-                let mut scanner = PendingDatabaseIterator::new(ledger_ctx.ledger.clone());
+                let mut scanner = PendingDatabaseScanner::new(ledger_ctx.ledger.clone());
                 let tx = ledger_ctx.ledger.read_txn();
                 let accounts = scanner.next_batch(&tx, 256);
 
@@ -243,7 +235,7 @@ mod tests {
 
             // Multi batch
             {
-                let mut scanner = PendingDatabaseIterator::new(ledger_ctx.ledger.clone());
+                let mut scanner = PendingDatabaseScanner::new(ledger_ctx.ledger.clone());
                 let tx = ledger_ctx.ledger.read_txn();
 
                 // Request accounts in multiple batches
@@ -296,7 +288,7 @@ mod tests {
 
         // Single batch
         {
-            let mut scanner = AccountDatabaseIterator::new(ledger_ctx.ledger.clone());
+            let mut scanner = AccountDatabaseScanner::new(ledger_ctx.ledger.clone());
             let tx = ledger_ctx.ledger.read_txn();
             let accounts = scanner.next_batch(&tx, 256);
 
@@ -310,7 +302,7 @@ mod tests {
 
         // Multi batch
         {
-            let mut scanner = AccountDatabaseIterator::new(ledger_ctx.ledger.clone());
+            let mut scanner = AccountDatabaseScanner::new(ledger_ctx.ledger.clone());
             let tx = ledger_ctx.ledger.read_txn();
 
             // Request accounts in multiple batches
