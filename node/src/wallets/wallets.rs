@@ -22,7 +22,7 @@ use rsnano_messages::{Message, Publish};
 use rsnano_network::DropPolicy;
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
-    create_backup_file, BinaryDbIterator, KeyType, LmdbEnv, LmdbIteratorImpl, LmdbWalletStore,
+    create_backup_file, BinaryDbIterator, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore,
     LmdbWriteTransaction, Transaction,
 };
 use serde::{Deserialize, Serialize};
@@ -233,18 +233,21 @@ impl Wallets {
         self.representative_wallets.lock().unwrap().voting_reps()
     }
 
-    pub fn get_store_it<'txn>(
-        &self,
-        txn: &'txn dyn Transaction,
-        hash: &str,
-    ) -> WalletsIterator<'txn> {
-        let hash_bytes: [u8; 64] = hash.as_bytes().try_into().unwrap();
-        WalletsIterator::new(LmdbIteratorImpl::new(
-            txn,
-            self.db.unwrap(),
-            Some(&hash_bytes),
-            true,
-        ))
+    fn iter_wallets<'tx>(&self, tx: &'tx dyn Transaction) -> impl Iterator<Item = WalletId> + 'tx {
+        let cursor = tx
+            .open_ro_cursor(self.db.unwrap())
+            .expect("Could not read from wallets db");
+
+        LmdbIterator::new(cursor, |k, _| {
+            // wallet tables are identified by their wallet id hex string which is 64 bytes
+            let key = if k.len() == 64 {
+                WalletId::decode_hex(std::str::from_utf8(k).unwrap()).unwrap()
+            } else {
+                WalletId::zero()
+            };
+            (key, ())
+        })
+        .filter_map(|(k, _)| if k.is_zero() { None } else { Some(k) })
     }
 
     pub fn wallet_ids(&self) -> Vec<WalletId> {
@@ -252,16 +255,8 @@ impl Wallets {
         self.get_wallet_ids(&tx)
     }
 
-    pub fn get_wallet_ids(&self, txn: &dyn Transaction) -> Vec<WalletId> {
-        let mut wallet_ids = Vec::new();
-        let beginning = RawKey::from(0).encode_hex();
-        let mut i = self.get_store_it(txn, &beginning);
-        while let Some((k, _)) = i.current() {
-            let text = std::str::from_utf8(k).unwrap();
-            wallet_ids.push(WalletId::decode_hex(text).unwrap());
-            i.next();
-        }
-        wallet_ids
+    pub fn get_wallet_ids(&self, tx: &dyn Transaction) -> Vec<WalletId> {
+        self.iter_wallets(tx).collect()
     }
 
     pub fn get_block_hash(
