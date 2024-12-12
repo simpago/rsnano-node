@@ -5,7 +5,18 @@ use crate::{
 use primitive_types::U512;
 use std::hash::Hash;
 
-#[derive(Default, Clone, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Default,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct QualifiedRoot {
     pub root: Root,
     pub previous: BlockHash,

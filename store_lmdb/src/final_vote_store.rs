@@ -1,11 +1,12 @@
 use crate::{
-    BinaryDbIterator, LmdbDatabase, LmdbEnv, LmdbIteratorImpl, LmdbWriteTransaction, Transaction,
+    LmdbDatabase, LmdbEnv, LmdbIterator, LmdbRangeIterator, LmdbWriteTransaction, Transaction,
 };
 use lmdb::{DatabaseFlags, WriteFlags};
-use rsnano_core::{BlockHash, QualifiedRoot, Root};
-use std::sync::Arc;
-
-pub type FinalVoteIterator<'txn> = BinaryDbIterator<'txn, QualifiedRoot, BlockHash>;
+use rsnano_core::{
+    utils::{BufferReader, Deserialize},
+    BlockHash, QualifiedRoot, Root,
+};
+use std::{ops::RangeBounds, sync::Arc};
 
 /// Maps root to block hash for generated final votes.
 /// nano::qualified_root -> nano::block_hash
@@ -55,62 +56,61 @@ impl LmdbFinalVoteStore {
         }
     }
 
-    pub fn begin<'txn>(&self, txn: &'txn dyn Transaction) -> FinalVoteIterator<'txn> {
-        LmdbIteratorImpl::new_iterator(txn, self.database, None, true)
-    }
-
-    pub fn begin_at_root<'txn>(
+    pub fn iter<'tx>(
         &self,
-        txn: &'txn dyn Transaction,
-        root: &QualifiedRoot,
-    ) -> FinalVoteIterator<'txn> {
-        let key_bytes = root.to_bytes();
-        LmdbIteratorImpl::new_iterator(txn, self.database, Some(&key_bytes), true)
+        tx: &'tx dyn Transaction,
+    ) -> impl Iterator<Item = (QualifiedRoot, BlockHash)> + 'tx {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+
+        LmdbIterator::new(cursor, |key, value| {
+            let mut stream = BufferReader::new(key);
+            let root = QualifiedRoot::deserialize(&mut stream).unwrap();
+            let hash = BlockHash::from_slice(value).unwrap();
+            (root, hash)
+        })
     }
 
-    pub fn get(&self, txn: &dyn Transaction, root: Root) -> Vec<BlockHash> {
-        let mut result = Vec::new();
+    pub fn iter_range<'tx>(
+        &self,
+        tx: &'tx dyn Transaction,
+        range: impl RangeBounds<QualifiedRoot> + 'static,
+    ) -> impl Iterator<Item = (QualifiedRoot, BlockHash)> + 'tx {
+        let cursor = tx.open_ro_cursor(self.database).unwrap();
+        LmdbRangeIterator::new(cursor, range)
+    }
+
+    pub fn get(&self, tx: &dyn Transaction, root: Root) -> Vec<BlockHash> {
         let key_start = QualifiedRoot {
             root,
             previous: BlockHash::zero(),
         };
 
-        let mut i = self.begin_at_root(txn, &key_start);
-        while let Some((k, v)) = i.current() {
-            if k.root != root {
-                break;
-            }
+        let key_end = QualifiedRoot {
+            root,
+            previous: BlockHash::MAX,
+        };
 
-            result.push(*v);
-            i.next();
-        }
-
-        result
+        self.iter_range(tx, key_start..=key_end)
+            .map(|(_, hash)| hash)
+            .collect()
     }
 
-    pub fn del(&self, txn: &mut LmdbWriteTransaction, root: &Root) {
-        let mut final_vote_qualified_roots = Vec::new();
+    pub fn del(&self, tx: &mut LmdbWriteTransaction, root: &Root) {
+        let start = QualifiedRoot {
+            root: *root,
+            previous: BlockHash::zero(),
+        };
 
-        {
-            let mut it = self.begin_at_root(
-                txn,
-                &QualifiedRoot {
-                    root: *root,
-                    previous: BlockHash::zero(),
-                },
-            );
-            while let Some((k, _)) = it.current() {
-                if k.root != *root {
-                    break;
-                }
-                final_vote_qualified_roots.push(k.clone());
-                it.next();
-            }
-        }
+        let end = QualifiedRoot {
+            root: *root,
+            previous: BlockHash::MAX,
+        };
 
-        for qualified_root in final_vote_qualified_roots {
+        let keys_to_delete: Vec<_> = self.iter_range(tx, start..=end).map(|(k, _)| k).collect();
+
+        for qualified_root in keys_to_delete {
             let root_bytes = qualified_root.to_bytes();
-            txn.delete(self.database, &root_bytes, None).unwrap();
+            tx.delete(self.database, &root_bytes, None).unwrap();
         }
     }
 
@@ -120,10 +120,6 @@ impl LmdbFinalVoteStore {
 
     pub fn clear(&self, txn: &mut LmdbWriteTransaction) {
         txn.clear_db(self.database).unwrap();
-    }
-
-    pub fn end(&self) -> FinalVoteIterator {
-        LmdbIteratorImpl::null_iterator()
     }
 }
 

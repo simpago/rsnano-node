@@ -44,8 +44,6 @@ impl Account {
     pub fn as_key(&self) -> PublicKey {
         PublicKey::from_bytes(self.0)
     }
-
-    pub const MAX: Self = Self::from_bytes([0xFF; 32]);
 }
 
 impl serde::Serialize for Account {

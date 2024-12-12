@@ -8,6 +8,8 @@ macro_rules! u256_struct {
 
         #[allow(dead_code)]
         impl $name {
+            pub const MAX: Self = Self([0xFF; 32]);
+
             pub const fn zero() -> Self {
                 Self([0; 32])
             }
