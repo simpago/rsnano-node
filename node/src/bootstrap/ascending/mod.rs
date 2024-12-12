@@ -76,7 +76,7 @@ pub struct BootstrapAscending {
 
 struct Threads {
     timeout: JoinHandle<()>,
-    priorities: JoinHandle<()>,
+    priorities: Option<JoinHandle<()>>,
     database: Option<JoinHandle<()>>,
     dependencies: Option<JoinHandle<()>>,
     frontiers: Option<JoinHandle<()>>,
@@ -131,7 +131,9 @@ impl BootstrapAscending {
         self.condition.notify_all();
         let threads = self.threads.lock().unwrap().take();
         if let Some(threads) = threads {
-            threads.priorities.join().unwrap();
+            if let Some(handle) = threads.priorities {
+                handle.join().unwrap();
+            }
             threads.timeout.join().unwrap();
             if let Some(database) = threads.database {
                 database.join().unwrap();
@@ -894,11 +896,17 @@ impl BootstrapAscendingExt for Arc<BootstrapAscending> {
             return;
         }
 
-        let self_l = Arc::clone(self);
-        let priorities = std::thread::Builder::new()
-            .name("Ascboot".to_string())
-            .spawn(Box::new(move || self_l.run_priorities()))
-            .unwrap();
+        let priorities = if self.config.enable_scan {
+            let self_l = Arc::clone(self);
+            Some(
+                std::thread::Builder::new()
+                    .name("Ascboot".to_string())
+                    .spawn(Box::new(move || self_l.run_priorities()))
+                    .unwrap(),
+            )
+        } else {
+            None
+        };
 
         let database = if self.config.enable_database_scan {
             let self_l = Arc::clone(self);
@@ -1265,6 +1273,7 @@ fn verify_response(response: &BlocksAckPayload, tag: &AsyncTag) -> VerifyResult 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BootstrapAscendingConfig {
     pub enable: bool,
+    pub enable_scan: bool,
     pub enable_database_scan: bool,
     pub enable_dependency_walker: bool,
     pub enable_frontier_scan: bool,
@@ -1289,6 +1298,7 @@ impl Default for BootstrapAscendingConfig {
     fn default() -> Self {
         Self {
             enable: true,
+            enable_scan: true,
             enable_database_scan: false,
             enable_dependency_walker: true,
             enable_frontier_scan: true,
