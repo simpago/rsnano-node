@@ -201,7 +201,7 @@ impl RwTransactionStub {
     }
 
     fn open_ro_cursor(&self, database: LmdbDatabase) -> lmdb::Result<RoCursor> {
-        Ok(RoCursor::new_null(
+        Ok(RoCursor::new_null_with(
             self.databases.iter().find(|db| db.dbi == database).unwrap(),
         ))
     }

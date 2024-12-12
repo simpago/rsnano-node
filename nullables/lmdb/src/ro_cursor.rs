@@ -1,3 +1,5 @@
+use crate::EMPTY_DATABASE;
+
 use super::ConfiguredDatabase;
 use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_SET_RANGE};
 use std::{cell::Cell, collections::btree_map};
@@ -5,7 +7,11 @@ use std::{cell::Cell, collections::btree_map};
 pub struct RoCursor<'txn>(RoCursorStrategy<'txn>);
 
 impl<'txn> RoCursor<'txn> {
-    pub fn new_null(database: &'txn ConfiguredDatabase) -> Self {
+    pub fn new_null() -> Self {
+        Self::new_null_with(&EMPTY_DATABASE)
+    }
+
+    pub fn new_null_with(database: &'txn ConfiguredDatabase) -> Self {
         Self(RoCursorStrategy::Nulled(RoCursorStub {
             database,
             current: Cell::new(0),

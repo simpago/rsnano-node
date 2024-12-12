@@ -3,7 +3,7 @@ use lmdb_sys::{MDB_cursor_op, MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_SET_RANGE};
 use rsnano_core::utils::{
     BufferReader, Deserialize, FixedSizeSerialize, MutStreamAdapter, Serialize,
 };
-use rsnano_nullable_lmdb::RoCursor;
+use rsnano_nullable_lmdb::{RoCursor, EMPTY_DATABASE};
 use std::{
     cmp::Ordering,
     ffi::c_uint,
@@ -171,6 +171,7 @@ pub struct LmdbRangeIterator<'txn, K, V, R> {
     cursor: RoCursor<'txn>,
     range: R,
     initialized: bool,
+    empty: bool,
     phantom: PhantomData<(K, V)>,
 }
 
@@ -185,12 +186,25 @@ where
             cursor,
             range,
             initialized: false,
+            empty: false,
+            phantom: Default::default(),
+        }
+    }
+
+    pub fn empty(range: R) -> Self {
+        Self {
+            cursor: RoCursor::new_null_with(&EMPTY_DATABASE),
+            range,
+            initialized: false,
+            empty: true,
             phantom: Default::default(),
         }
     }
 
     fn get_next_result(&mut self) -> lmdb::Result<(Option<&'txn [u8]>, &'txn [u8])> {
-        if !self.initialized {
+        if self.empty {
+            Err(lmdb::Error::NotFound)
+        } else if !self.initialized {
             self.initialized = true;
             self.get_first_result()
         } else {
@@ -273,14 +287,6 @@ where
             operation: MDB_FIRST,
             convert,
         }
-    }
-
-    pub fn start_at(&mut self, k: &K) -> Option<(K, V)> {
-        self.operation = MDB_NEXT;
-        let mut buffer = [0; 64];
-        let mut key_buffer = MutStreamAdapter::new(&mut buffer);
-        k.serialize(&mut key_buffer);
-        self.read(MDB_SET_RANGE, Some(key_buffer.written()))
     }
 
     fn read(&self, operation: MDB_cursor_op, key: Option<&[u8]>) -> Option<(K, V)> {

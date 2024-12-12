@@ -125,8 +125,8 @@ impl RoTransactionStub {
 
     fn open_ro_cursor(&self, database: LmdbDatabase) -> lmdb::Result<RoCursor> {
         match self.get_database(database) {
-            Some(db) => Ok(RoCursor::new_null(db)),
-            None => Ok(RoCursor::new_null(&EMPTY_DATABASE)),
+            Some(db) => Ok(RoCursor::new_null_with(db)),
+            None => Ok(RoCursor::new_null_with(&EMPTY_DATABASE)),
         }
     }
 
