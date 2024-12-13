@@ -48,6 +48,12 @@ impl<'a> AccountDatabaseCrawler<'a> {
             return;
         };
 
+        if let Some((acc, _)) = &self.current {
+            if acc == account {
+                return; // already at correct account
+            }
+        }
+
         // First try advancing sequentially
         for _ in 0..Self::SEQUENTIAL_ATTEMPTS {
             self.current = it.next();
@@ -146,6 +152,12 @@ impl<'a> PendingDatabaseCrawler<'a> {
         let Some(it) = &mut self.it else {
             return;
         };
+
+        if let Some((key, _)) = &self.current {
+            if key.receiving_account == *account {
+                return; // already at correct account
+            }
+        }
 
         // First try advancing sequentially
         for _ in 0..Self::SEQUENTIAL_ATTEMPTS {

@@ -61,7 +61,6 @@ fn trace_base() {
 
 /// Tests that bootstrap will prioritize existing accounts with outdated frontiers
 #[test]
-#[ignore = "WIP"]
 fn frontier_scan() {
     let mut system = System::new();
     let flags = NodeFlags {
@@ -128,18 +127,12 @@ fn frontier_scan() {
         blocks.len() + 1,
     );
 
-    sleep(Duration::from_secs(5));
-
-    error!("--------------------------------------------------------------------------------");
-    error!("prioritized count: {}", node1.ascendboot.priority_len());
-    error!("--------------------------------------------------------------------------------");
-
-    //// Frontier scan should detect all the accounts with missing blocks
-    //assert_timely(Duration::from_secs(10), || {
-    //    updates.iter().all(|block| {
-    //        node1
-    //            .ascendboot
-    //            .prioritized(&block.account_field().unwrap())
-    //    })
-    //});
+    // Frontier scan should detect all the accounts with missing blocks
+    assert_timely(Duration::from_secs(10), || {
+        updates.iter().all(|block| {
+            node1
+                .ascendboot
+                .prioritized(&block.account_field().unwrap())
+        })
+    });
 }

@@ -3,6 +3,7 @@ use crate::{
     bootstrap::ascending::ordered_heads::FrontierHead,
     stats::{DetailType, StatType, Stats},
 };
+use primitive_types::U256;
 use rsnano_core::{utils::ContainerInfo, Account, Frontier};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{cmp::max, sync::Arc, time::Duration};
@@ -47,7 +48,11 @@ impl FrontierScan {
 
         for i in 0..config.head_parallelism {
             // Start at 1 to avoid the burn account
-            let start = range_size * max(i, 1);
+            let start = if i == 0 {
+                U256::from(1)
+            } else {
+                range_size * i
+            };
             let end = if i == config.head_parallelism - 1 {
                 max_account
             } else {
