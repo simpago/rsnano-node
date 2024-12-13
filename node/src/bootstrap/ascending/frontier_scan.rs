@@ -70,6 +70,7 @@ impl FrontierScan {
     pub fn next(&mut self) -> Account {
         let cutoff = self.clock.now() - self.config.cooldown;
         let mut next_account = Account::zero();
+        let mut it = Account::zero();
         for head in self.heads.ordered_by_timestamp() {
             if head.requests < self.config.consideration_count || head.timestamp < cutoff {
                 debug_assert!(head.next.number() >= head.start.number());
@@ -85,6 +86,7 @@ impl FrontierScan {
                 );
 
                 next_account = head.next;
+                it = head.start;
                 break;
             }
         }
@@ -93,7 +95,7 @@ impl FrontierScan {
             self.stats
                 .inc(StatType::BootstrapAscendingFrontiers, DetailType::NextNone);
         } else {
-            self.heads.modify(&next_account, |head| {
+            self.heads.modify(&it, |head| {
                 head.requests += 1;
                 head.timestamp = self.clock.now()
             });
@@ -248,7 +250,7 @@ impl OrderedHeads {
             f(head);
             if head.timestamp != old_timestamp {
                 let accounts = self.by_timestamp.get_mut(&old_timestamp).unwrap();
-                if accounts.is_empty() {
+                if accounts.len() == 1 {
                     self.by_timestamp.remove(&old_timestamp);
                 } else {
                     accounts.retain(|a| a != start);
@@ -258,6 +260,8 @@ impl OrderedHeads {
                     .or_default()
                     .push(*start);
             }
+        } else {
+            panic!("head not found: {}", start.encode_account());
         }
     }
 

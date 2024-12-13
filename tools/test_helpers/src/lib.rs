@@ -298,9 +298,13 @@ fn init_tracing() {
         let dirs = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or(String::from("off"));
         let filter = EnvFilter::builder().parse_lossy(dirs);
 
+        let value = std::env::var("NANO_LOG");
+        let log_style = value.as_ref().map(|i| i.as_str()).unwrap_or_default();
+        let ansi = log_style != "noansi";
+
         tracing_subscriber::fmt::fmt()
             .with_env_filter(filter)
-            .with_ansi(true)
+            .with_ansi(ansi)
             .init();
     });
 }

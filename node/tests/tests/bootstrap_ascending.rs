@@ -2,10 +2,10 @@ use rsnano_core::{Account, PrivateKey, UnsavedBlockLatticeBuilder};
 use rsnano_node::{
     bootstrap::BootstrapAscendingConfig,
     config::{NodeConfig, NodeFlags},
-    consensus::OptimisticSchedulerConfig,
 };
-use std::time::Duration;
+use std::{thread::sleep, time::Duration};
 use test_helpers::{assert_always_eq, assert_timely, System};
+use tracing::error;
 
 /**
  * Tests the base case for returning
@@ -61,7 +61,7 @@ fn trace_base() {
 
 /// Tests that bootstrap will prioritize existing accounts with outdated frontiers
 #[test]
-#[ignore = "todo"]
+#[ignore = "WIP"]
 fn frontier_scan() {
     let mut system = System::new();
     let flags = NodeFlags {
@@ -128,12 +128,18 @@ fn frontier_scan() {
         blocks.len() + 1,
     );
 
-    // Frontier scan should detect all the accounts with missing blocks
-    assert_timely(Duration::from_secs(10), || {
-        updates.iter().all(|block| {
-            node1
-                .ascendboot
-                .prioritized(&block.account_field().unwrap())
-        })
-    });
+    sleep(Duration::from_secs(5));
+
+    error!("--------------------------------------------------------------------------------");
+    error!("prioritized count: {}", node1.ascendboot.priority_len());
+    error!("--------------------------------------------------------------------------------");
+
+    //// Frontier scan should detect all the accounts with missing blocks
+    //assert_timely(Duration::from_secs(10), || {
+    //    updates.iter().all(|block| {
+    //        node1
+    //            .ascendboot
+    //            .prioritized(&block.account_field().unwrap())
+    //    })
+    //});
 }

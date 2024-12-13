@@ -467,8 +467,8 @@ impl BootstrapAscending {
 
     fn run_one_frontier(&self) {
         self.wait(|i| !i.accounts.priority_half_full());
-        self.wait(|_| !self.frontiers_limiter.should_pass(1));
-        self.wait(|_| !self.workers.num_queued_tasks() < self.config.frontier_scan.max_pending);
+        self.wait(|_| self.frontiers_limiter.should_pass(1));
+        self.wait(|_| self.workers.num_queued_tasks() < self.config.frontier_scan.max_pending);
         self.wait_tags();
         let Some(channel) = self.wait_channel() else {
             return;
@@ -636,7 +636,7 @@ impl BootstrapAscending {
                     }));
                 } else {
                     self.stats
-                        .inc(StatType::BootstrapAscending, DetailType::DropppedFrontiers);
+                        .inc(StatType::BootstrapAscending, DetailType::DroppedFrontiers);
                 }
             }
             VerifyResult::NothingNew => self.stats.inc(
@@ -1336,7 +1336,7 @@ impl From<&Message> for QueryType {
                     HashType::Block => QueryType::BlocksByHash,
                 },
                 AscPullReqType::AccountInfo(_) => QueryType::AccountInfoByHash,
-                AscPullReqType::Frontiers(_) => QueryType::Invalid,
+                AscPullReqType::Frontiers(_) => QueryType::Frontiers,
             }
         } else {
             QueryType::Invalid

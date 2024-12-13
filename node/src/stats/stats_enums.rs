@@ -439,7 +439,7 @@ pub enum DetailType {
     InvalidResponseType,
     TimestampReset,
     ProcessFrontiers,
-    DropppedFrontiers,
+    DroppedFrontiers,
 
     // bootstrap_ascending_accounts
     Prioritize,
