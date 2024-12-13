@@ -3,6 +3,7 @@ mod database_scan;
 mod frontier_scan;
 mod iterators;
 mod ordered_blocking;
+mod ordered_heads;
 mod ordered_priorities;
 mod ordered_tags;
 mod peer_scoring;

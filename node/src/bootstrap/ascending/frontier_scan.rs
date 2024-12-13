@@ -1,12 +1,12 @@
-use crate::stats::{DetailType, StatType, Stats};
+use crate::{
+    bootstrap::ascending::ordered_heads::FrontierHead,
+    stats::{DetailType, StatType, Stats},
+};
 use rsnano_core::{utils::ContainerInfo, Account, Frontier};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use std::{
-    cmp::max,
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{cmp::max, sync::Arc, time::Duration};
+
+use super::ordered_heads::OrderedHeads;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FrontierScanConfig {
@@ -173,110 +173,5 @@ impl FrontierScan {
         // TODO port the detailed container info from nano_node
         let total_processed = self.heads.iter().map(|i| i.processed).sum();
         [("total_processed", total_processed, 0)].into()
-    }
-}
-
-/// Represents a range of accounts to scan, once the full range is scanned (goes past `end`)
-/// the head wraps around (to the `start`)
-struct FrontierHead {
-    /// The range of accounts to scan is [start, end)
-    start: Account,
-    end: Account,
-
-    /// We scan the range by querying frontiers starting at 'next' and gathering candidates
-    next: Account,
-    candidates: BTreeSet<Account>,
-
-    requests: usize,
-    completed: usize,
-    timestamp: Timestamp,
-
-    /// Total number of accounts processed
-    processed: usize,
-}
-
-impl FrontierHead {
-    pub fn new(start: Account, end: Account) -> Self {
-        Self {
-            start,
-            end,
-            next: start,
-            candidates: Default::default(),
-            requests: 0,
-            completed: 0,
-            timestamp: Timestamp::default(),
-            processed: 0,
-        }
-    }
-}
-
-#[derive(Default)]
-struct OrderedHeads {
-    sequenced: Vec<Account>,
-    by_start: BTreeMap<Account, FrontierHead>,
-    by_timestamp: BTreeMap<Timestamp, Vec<Account>>,
-}
-
-impl OrderedHeads {
-    pub fn push_back(&mut self, head: FrontierHead) {
-        let start = head.start;
-        let timestamp = head.timestamp;
-        let mut inserted = true;
-        self.by_start
-            .entry(start)
-            .and_modify(|_| inserted = false)
-            .or_insert(head);
-
-        if !inserted {
-            return;
-        }
-        self.sequenced.push(start);
-        self.by_timestamp.entry(timestamp).or_default().push(start);
-    }
-
-    pub fn ordered_by_timestamp(&self) -> impl Iterator<Item = &FrontierHead> {
-        self.by_timestamp
-            .values()
-            .flatten()
-            .map(|start| self.by_start.get(start).unwrap())
-    }
-
-    pub fn modify<F>(&mut self, start: &Account, mut f: F)
-    where
-        F: FnMut(&mut FrontierHead),
-    {
-        if let Some(head) = self.by_start.get_mut(start) {
-            let old_timestamp = head.timestamp;
-            f(head);
-            if head.timestamp != old_timestamp {
-                let accounts = self.by_timestamp.get_mut(&old_timestamp).unwrap();
-                if accounts.len() == 1 {
-                    self.by_timestamp.remove(&old_timestamp);
-                } else {
-                    accounts.retain(|a| a != start);
-                }
-                self.by_timestamp
-                    .entry(head.timestamp)
-                    .or_default()
-                    .push(*start);
-            }
-        } else {
-            panic!("head not found: {}", start.encode_account());
-        }
-    }
-
-    fn find_first_less_than_or_equal_to(&self, account: Account) -> Option<Account> {
-        self.by_start
-            .range(..=account)
-            .last()
-            .map(|(start, _)| *start)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &FrontierHead> {
-        self.by_start.values()
-    }
-
-    pub fn len(&self) -> usize {
-        self.sequenced.len()
     }
 }
