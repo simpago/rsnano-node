@@ -1,10 +1,9 @@
 use super::{
-    InboundMessageQueue, LatestKeepalives, MessagePublisher, NetworkFilter, ResponseServer,
-    ResponseServerExt, SynCookies,
+    InboundMessageQueue, LatestKeepalives, NetworkFilter, ResponseServer, ResponseServerExt,
+    SynCookies,
 };
 use crate::{
     block_processing::BlockProcessor,
-    bootstrap::{BootstrapInitiator, BootstrapInitiatorConfig},
     config::NodeFlags,
     stats::Stats,
     utils::{ThreadPool, ThreadPoolImpl},
@@ -12,10 +11,7 @@ use crate::{
 };
 use rsnano_core::{Networks, PrivateKey};
 use rsnano_ledger::Ledger;
-use rsnano_network::{
-    Channel, ChannelDirection, Network, NetworkInfo, NullNetworkObserver, ResponseServerSpawner,
-};
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_network::{Channel, ChannelDirection, NetworkInfo, ResponseServerSpawner};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct NanoResponseServerSpawner {
@@ -25,7 +21,6 @@ pub struct NanoResponseServerSpawner {
     pub(crate) ledger: Arc<Ledger>,
     pub(crate) workers: Arc<dyn ThreadPool>,
     pub(crate) block_processor: Arc<BlockProcessor>,
-    pub(crate) bootstrap_initiator: Arc<BootstrapInitiator>,
     pub(crate) network: Arc<RwLock<NetworkInfo>>,
     pub(crate) network_filter: Arc<NetworkFilter>,
     pub(crate) inbound_queue: Arc<InboundMessageQueue>,
@@ -40,14 +35,11 @@ impl NanoResponseServerSpawner {
     pub(crate) fn new_null(tokio: tokio::runtime::Handle) -> Self {
         let ledger = Arc::new(Ledger::new_null());
         let flags = NodeFlags::default();
-        let network = Arc::new(Network::new_null(tokio.clone()));
         let network_filter = Arc::new(NetworkFilter::default());
         let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
-        let workers = Arc::new(ThreadPoolImpl::new_test_instance());
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
         let stats = Arc::new(Stats::default());
         let block_processor = Arc::new(BlockProcessor::new_test_instance(ledger.clone()));
-        let clock = Arc::new(SteadyClock::new_null());
         Self {
             tokio: tokio.clone(),
             stats: stats.clone(),
@@ -55,21 +47,6 @@ impl NanoResponseServerSpawner {
             ledger: ledger.clone(),
             workers: Arc::new(ThreadPoolImpl::new_test_instance()),
             block_processor: block_processor.clone(),
-            bootstrap_initiator: Arc::new(BootstrapInitiator::new(
-                BootstrapInitiatorConfig::default_for(Networks::NanoDevNetwork),
-                flags.clone(),
-                network.clone(),
-                network_info.clone(),
-                Arc::new(NullNetworkObserver::new()),
-                tokio.clone(),
-                workers,
-                network_params.clone(),
-                stats,
-                block_processor,
-                ledger,
-                MessagePublisher::new_null(tokio.clone()),
-                clock,
-            )),
             network: network_info,
             inbound_queue: Arc::new(InboundMessageQueue::default()),
             node_flags: flags,
@@ -102,7 +79,6 @@ impl NanoResponseServerSpawner {
             self.ledger.clone(),
             self.workers.clone(),
             self.block_processor.clone(),
-            self.bootstrap_initiator.clone(),
             self.node_flags.clone(),
             self.latest_keepalives.clone(),
         ));

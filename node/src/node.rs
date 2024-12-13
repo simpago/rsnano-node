@@ -4,8 +4,7 @@ use crate::{
         LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{
-        BootstrapAscending, BootstrapAscendingExt, BootstrapInitiator, BootstrapInitiatorExt,
-        BootstrapServer, BootstrapServerCleanup, OngoingBootstrap, OngoingBootstrapExt,
+        BootstrapAscending, BootstrapAscendingExt, BootstrapServer, BootstrapServerCleanup,
     },
     cementation::ConfirmingSet,
     config::{GlobalConfig, NodeConfig, NodeFlags},
@@ -109,7 +108,6 @@ pub struct Node {
     pub vote_router: Arc<VoteRouter>,
     pub vote_processor: Arc<VoteProcessor>,
     vote_cache_processor: Arc<VoteCacheProcessor>,
-    pub bootstrap_initiator: Arc<BootstrapInitiator>,
     pub rep_crawler: Arc<RepCrawler>,
     pub tcp_listener: Arc<TcpListener>,
     pub election_schedulers: Arc<ElectionSchedulers>,
@@ -122,7 +120,6 @@ pub struct Node {
     network_threads: Arc<Mutex<NetworkThreads>>,
     ledger_pruning: Arc<LedgerPruning>,
     pub peer_connector: Arc<PeerConnector>,
-    ongoing_bootstrap: Arc<OngoingBootstrap>,
     peer_cache_updater: TimerThread<PeerCacheUpdater>,
     peer_cache_connector: TimerThread<PeerCacheConnector>,
     pub inbound_message_queue: Arc<InboundMessageQueue>,
@@ -615,24 +612,6 @@ impl Node {
             bootstrap_publisher.set_published_callback(callback.clone());
         }
 
-        let bootstrap_initiator = Arc::new(BootstrapInitiator::new(
-            global_config.into(),
-            flags.clone(),
-            network.clone(),
-            network_info.clone(),
-            network_observer.clone(),
-            runtime.clone(),
-            bootstrap_workers.clone(),
-            network_params.clone(),
-            stats.clone(),
-            block_processor.clone(),
-            ledger.clone(),
-            bootstrap_publisher,
-            steady_clock.clone(),
-        ));
-        bootstrap_initiator.initialize();
-        bootstrap_initiator.start();
-
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
 
@@ -643,7 +622,6 @@ impl Node {
             ledger: ledger.clone(),
             workers: workers.clone(),
             block_processor: block_processor.clone(),
-            bootstrap_initiator: bootstrap_initiator.clone(),
             network: network_info.clone(),
             inbound_queue: inbound_message_queue.clone(),
             node_flags: flags.clone(),
@@ -777,16 +755,6 @@ impl Node {
             config.clone(),
             inbound_message_queue.clone(),
             realtime_message_handler.clone(),
-        ));
-
-        let ongoing_bootstrap = Arc::new(OngoingBootstrap::new(
-            network_params.clone(),
-            bootstrap_initiator.clone(),
-            network_info.clone(),
-            flags.clone(),
-            ledger.clone(),
-            stats.clone(),
-            workers.clone(),
         ));
 
         debug!("Constructing node...");
@@ -1110,7 +1078,6 @@ impl Node {
                 "Net reachout",
                 peer_cache_connector,
             ),
-            ongoing_bootstrap,
             peer_connector,
             node_id,
             workers,
@@ -1147,7 +1114,6 @@ impl Node {
             active: active_elections,
             vote_processor,
             vote_cache_processor,
-            bootstrap_initiator,
             rep_crawler,
             tcp_listener,
             election_schedulers,
@@ -1418,10 +1384,6 @@ impl NodeExt for Arc<Node> {
         self.network_threads.lock().unwrap().start();
         self.message_processor.lock().unwrap().start();
 
-        if !self.flags.disable_legacy_bootstrap && !self.flags.disable_ongoing_bootstrap {
-            self.ongoing_bootstrap.ongoing_bootstrap();
-        }
-
         if self.flags.enable_pruning {
             self.ledger_pruning.start();
         }
@@ -1527,7 +1489,6 @@ impl NodeExt for Arc<Node> {
         self.confirming_set.stop();
         self.telemetry.stop();
         self.bootstrap_server.stop();
-        self.bootstrap_initiator.stop();
         self.wallets.stop();
         self.stats.stop();
         self.local_block_broadcaster.stop();
