@@ -145,7 +145,7 @@ impl VoteProcessor {
         result
     }
 
-    pub fn add_vote_processed_callback(
+    pub fn on_vote_processed(
         &self,
         callback: Box<dyn Fn(&Arc<Vote>, ChannelId, VoteSource, VoteCode) + Send + Sync>,
     ) {

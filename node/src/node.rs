@@ -820,7 +820,7 @@ impl Node {
 
         let wallets_w = Arc::downgrade(&wallets);
         let flooder_l = Mutex::new(message_flooder.clone());
-        vote_router.add_vote_processed_observer(Box::new(move |vote, _source, results| {
+        vote_router.on_vote_processed(Box::new(move |vote, _source, results| {
             let Some(wallets) = wallets_w.upgrade() else {
                 return;
             };
@@ -866,29 +866,27 @@ impl Node {
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         let reps_w = Arc::downgrade(&online_reps);
         let clock = steady_clock.clone();
-        vote_processor.add_vote_processed_callback(Box::new(
-            move |vote, channel_id, source, code| {
-                debug_assert!(code != VoteCode::Invalid);
-                let Some(rep_crawler) = rep_crawler_w.upgrade() else {
-                    return;
-                };
-                let Some(reps) = reps_w.upgrade() else {
-                    return;
-                };
-                // Ignore republished votes
-                if source != VoteSource::Live {
-                    return;
-                }
+        vote_processor.on_vote_processed(Box::new(move |vote, channel_id, source, code| {
+            debug_assert!(code != VoteCode::Invalid);
+            let Some(rep_crawler) = rep_crawler_w.upgrade() else {
+                return;
+            };
+            let Some(reps) = reps_w.upgrade() else {
+                return;
+            };
+            // Ignore republished votes
+            if source != VoteSource::Live {
+                return;
+            }
 
-                let active_in_rep_crawler = rep_crawler.process(vote.clone(), channel_id);
-                if active_in_rep_crawler {
-                    // Representative is defined as online if replying to live votes or rep_crawler queries
-                    reps.lock()
-                        .unwrap()
-                        .vote_observed(vote.voting_account, clock.now());
-                }
-            },
-        ));
+            let active_in_rep_crawler = rep_crawler.process(vote.clone(), channel_id);
+            if active_in_rep_crawler {
+                // Representative is defined as online if replying to live votes or rep_crawler queries
+                reps.lock()
+                    .unwrap()
+                    .vote_observed(vote.voting_account, clock.now());
+            }
+        }));
 
         if !distributed_work.work_generation_enabled() {
             info!("Work generation is disabled");

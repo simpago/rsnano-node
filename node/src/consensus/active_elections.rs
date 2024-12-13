@@ -817,8 +817,7 @@ impl ActiveElections {
          * Flushed elections are later re-activated via frontier confirmation
          */
         for election in elections {
-            let confirmed = self.confirmed(&election);
-            if confirmed || self.transition_time(&mut solicitor, &election) {
+            if self.transition_time(&mut solicitor, &election) {
                 self.erase(&election.qualified_root);
             }
         }

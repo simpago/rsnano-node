@@ -76,7 +76,7 @@ impl VoteRouter {
         }
     }
 
-    pub fn add_vote_processed_observer(&self, observer: VoteProcessedCallback) {
+    pub fn on_vote_processed(&self, observer: VoteProcessedCallback) {
         self.vote_processed_observers.lock().unwrap().push(observer);
     }
 
@@ -174,7 +174,7 @@ impl VoteRouter {
                 .insert(vote, rep_weight, &results);
         }
 
-        self.on_vote_processed(vote, source, &results);
+        self.notify_vote_processed(vote, source, &results);
 
         results
     }
@@ -194,7 +194,7 @@ impl VoteRouter {
         }
     }
 
-    fn on_vote_processed(
+    fn notify_vote_processed(
         &self,
         vote: &Arc<Vote>,
         source: VoteSource,
@@ -234,7 +234,7 @@ struct State {
 impl State {
     fn clean_up(&mut self) {
         self.elections
-            .retain(|_, election| election.strong_count() > 0)
+            .retain(|_, election| election.strong_count() > 0);
     }
 }
 

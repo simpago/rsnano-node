@@ -415,7 +415,7 @@ fn vote_by_hash_bundle() {
     let max_hashes = Arc::new(AtomicUsize::new(0));
     let max_hashes_clone = Arc::clone(&max_hashes);
 
-    node.vote_router.add_vote_processed_observer(Box::new(
+    node.vote_router.on_vote_processed(Box::new(
         move |vote: &Arc<Vote>, _vote_source, _vote_code| {
             let hashes_size = vote.hashes.len();
             let current_max = max_hashes_clone.load(Ordering::Relaxed);
