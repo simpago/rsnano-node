@@ -1,6 +1,5 @@
 mod active_elections;
 mod backlog;
-mod bootstrap;
 mod bootstrap_ascending;
 mod bootstrap_server;
 mod confirmation_solicitor;

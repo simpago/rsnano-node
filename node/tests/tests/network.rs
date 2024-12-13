@@ -240,8 +240,6 @@ fn send_valid_publish() {
     let mut system = System::new();
     let node1 = system.make_node();
     let node2 = system.make_node();
-    node1.bootstrap_initiator.stop();
-    node2.bootstrap_initiator.stop();
     node1.insert_into_wallet(&DEV_GENESIS_KEY);
     let key2 = PrivateKey::new();
     node2.insert_into_wallet(&key2);

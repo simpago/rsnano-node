@@ -501,85 +501,6 @@ fn confirm_quorum() {
 }
 
 #[test]
-fn bootstrap_connection_scaling() {
-    let mut system = System::new();
-    let node = system.make_node();
-
-    assert_eq!(
-        34,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(5000, 1)
-    );
-    assert_eq!(
-        4,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(0, 1)
-    );
-    assert_eq!(
-        64,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(50000, 1)
-    );
-    assert_eq!(
-        64,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(10000000000, 1)
-    );
-    assert_eq!(
-        32,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(5000, 0)
-    );
-    assert_eq!(
-        1,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(0, 0)
-    );
-    assert_eq!(
-        64,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(50000, 0)
-    );
-    assert_eq!(
-        64,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(10000000000, 0)
-    );
-    assert_eq!(
-        36,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(5000, 2)
-    );
-    assert_eq!(
-        8,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(0, 2)
-    );
-    assert_eq!(
-        64,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(50000, 2)
-    );
-    assert_eq!(
-        64,
-        node.bootstrap_initiator
-            .connections
-            .target_connections(10000000000, 2)
-    );
-}
-
-#[test]
 fn send_callback() {
     let mut system = System::new();
     let node = system.make_node();
@@ -663,57 +584,20 @@ fn no_voting() {
 
 #[test]
 fn bootstrap_confirm_frontiers() {
-    // create 2 separate systems, the 2 systems do not interact with each other automatically
-    let mut system0 = System::new();
-    let mut system1 = System::new();
-    let node0 = system0.make_node();
-    let node1 = system1.make_node();
-    let wallet_id0 = node0.wallets.wallet_ids()[0];
-
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id0, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
+    let mut system = System::new();
+    let node0 = system.make_node();
+    let node1 = system.make_node();
+    node0.insert_into_wallet(&DEV_GENESIS_KEY);
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
-    let key0 = PrivateKey::new();
 
     // create block to send 500 raw from genesis to key0 and save into node0 ledger without immediately triggering an election
-    let send0 = lattice.genesis().legacy_send(&key0, 500);
+    let send0 = lattice.genesis().legacy_send(Account::from(123), 500);
+    node0.process(send0.clone()).unwrap();
 
-    assert_eq!(
-        BlockStatus::Progress,
-        node0.process_local(send0.clone()).unwrap()
-    );
-
-    // each system only has one node, so there should be no bootstrapping going on
-    assert!(!node0.bootstrap_initiator.in_progress());
-    assert!(!node1.bootstrap_initiator.in_progress());
-    assert!(node1.active.len() == 0);
-
-    // create a bootstrap connection from node1 to node0
-    // this also has the side effect of adding node0 to node1's list of peers, which will trigger realtime connections too
-    establish_tcp(&node1, &node0);
-    node1
-        .bootstrap_initiator
-        .bootstrap2(node0.tcp_listener.local_address(), "".into());
-
-    // Wait until the block is confirmed on node1
-    let start_time = std::time::Instant::now();
-    let timeout = Duration::from_secs(10);
-    loop {
-        {
-            let tx = node1.store.tx_begin_read();
-            if node1.ledger.confirmed().block_exists(&tx, &send0.hash()) {
-                break;
-            }
-        }
-        assert!(
-            start_time.elapsed() < timeout,
-            "Timeout waiting for block confirmation"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert_timely(Duration::from_secs(10), || {
+        node1.block_confirmed(&send0.hash())
+    });
 }
 
 #[test]
@@ -1444,48 +1328,6 @@ fn search_receivable_multiple() {
         Duration::from_secs(10),
         || node.balance(&key2.account()) == node.config.receive_minimum * 2,
         "key2 balance is not equal to twice the receive minimum",
-    );
-}
-
-#[test]
-fn auto_bootstrap_age() {
-    let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
-    let mut node_flags = NodeFlags::default();
-    node_flags.disable_bootstrap_bulk_push_client = true;
-    node_flags.disable_lazy_bootstrap = true;
-    node_flags.bootstrap_interval = 1;
-
-    let node0 = system
-        .build_node()
-        .config(config.clone())
-        .flags(node_flags.clone())
-        .finish();
-    let _node1 = system.make_node();
-
-    // Wait for at least 3 bootstrap attempts with frontiers age
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || {
-            node0.stats.count(
-                StatType::Bootstrap,
-                DetailType::InitiateLegacyAge,
-                Direction::Out,
-            ) >= 3
-        },
-        "not enough bootstrap attempts with frontiers age",
-    );
-
-    // Check that there are more attempts with frontiers age than without
-    assert!(
-        node0.stats.count(
-            StatType::Bootstrap,
-            DetailType::InitiateLegacyAge,
-            Direction::Out
-        ) >= node0
-            .stats
-            .count(StatType::Bootstrap, DetailType::Initiate, Direction::Out),
-        "unexpected ratio of bootstrap attempts"
     );
 }
 

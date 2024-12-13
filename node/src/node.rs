@@ -1267,9 +1267,9 @@ impl Node {
         }
     }
 
-    pub fn process(&self, mut block: Block) -> Result<SavedBlock, BlockStatus> {
+    pub fn process(&self, block: Block) -> Result<SavedBlock, BlockStatus> {
         let mut tx = self.ledger.rw_txn();
-        self.ledger.process(&mut tx, &mut block)
+        self.ledger.process(&mut tx, &block)
     }
 
     pub fn process_multi(&self, blocks: &[Block]) {
