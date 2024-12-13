@@ -36,6 +36,7 @@ folder "nullables"{
 [node] --> [messages]
 [node] --> [network]
 [websocket_server] --> [websocket_messages]
+[websocket_server] --> [node]
 [websocket_messages] --> [core]
 [messages] --> [core]
 [network] --> [core]
