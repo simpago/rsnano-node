@@ -241,6 +241,13 @@ pub fn assert_never(duration: Duration, mut check: impl FnMut() -> bool) {
     }
 }
 
+pub fn assert_timely2<F>(check: F)
+where
+    F: FnMut() -> bool,
+{
+    assert_timely(Duration::from_secs(10), check);
+}
+
 pub fn assert_timely<F>(timeout: Duration, check: F)
 where
     F: FnMut() -> bool,
@@ -260,6 +267,14 @@ where
         sleep(Duration::from_millis(50));
     }
     panic!("{}", error_message);
+}
+
+pub fn assert_timely_eq2<T, F>(check: F, expected: T)
+where
+    T: PartialEq + std::fmt::Debug + Clone,
+    F: FnMut() -> T,
+{
+    assert_timely_eq(Duration::from_secs(10), check, expected)
 }
 
 pub fn assert_timely_eq<T, F>(timeout: Duration, mut check: F, expected: T)

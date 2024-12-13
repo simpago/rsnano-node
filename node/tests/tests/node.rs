@@ -11,7 +11,6 @@ use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{ChannelId, DropPolicy, TrafficType};
 use rsnano_node::{
     block_processing::BlockSource,
-    bootstrap::BootstrapInitiatorExt,
     config::NodeFlags,
     consensus::{ActiveElectionsExt, VoteApplierExt},
     stats::{DetailType, Direction, StatType},
@@ -27,9 +26,9 @@ use std::{
     time::Duration,
 };
 use test_helpers::{
-    activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely_eq,
-    assert_timely_msg, establish_tcp, get_available_port, make_fake_channel, start_election,
-    start_elections, System,
+    activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
+    assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, get_available_port,
+    make_fake_channel, start_election, start_elections, System,
 };
 
 #[test]
@@ -149,7 +148,7 @@ fn pruning_automatic() {
 
     assert_eq!(node1.ledger.block_count(), 3);
 
-    assert_timely_eq(Duration::from_secs(5), || node1.ledger.pruned_count(), 1);
+    assert_timely_eq2(|| node1.ledger.pruned_count(), 1);
 
     assert_eq!(node1.ledger.pruned_count(), 1);
     assert_eq!(node1.ledger.block_count(), 3);
@@ -342,14 +341,9 @@ fn rollback_gap_source() {
     assert!(!node.block_exists(&send2.hash()));
     node.block_processor.force(fork1b.clone());
 
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.block(&fork1a.hash()).is_none(),
-        true,
-    );
+    assert_timely2(|| node.block(&fork1a.hash()).is_none());
 
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
             node.stats
                 .count(StatType::Rollback, DetailType::Open, Direction::In)
@@ -360,11 +354,7 @@ fn rollback_gap_source() {
     assert!(!node.block_exists(&fork1b.hash()));
 
     node.process_active(fork1a.clone());
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.block_exists(&fork1a.hash()),
-        true,
-    );
+    assert_timely2(|| node.block_exists(&fork1a.hash()));
 
     assert_eq!(
         BlockStatus::Progress,
@@ -372,8 +362,7 @@ fn rollback_gap_source() {
     );
     node.block_processor.force(fork1b.clone());
 
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
             node.stats
                 .count(StatType::Rollback, DetailType::Open, Direction::In)
@@ -381,12 +370,7 @@ fn rollback_gap_source() {
         2,
     );
 
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.block_exists(&fork1b.hash()),
-        true,
-    );
-
+    assert_timely2(|| node.block_exists(&fork1b.hash()));
     assert!(!node.block_exists(&fork1a.hash()));
 }
 
@@ -1989,9 +1973,9 @@ fn vote_republish() {
 
     // process send1 first, this will make sure send1 goes into the ledger and an election is started
     node1.process_active(send1.clone());
-    assert_timely(Duration::from_secs(5), || node2.block_exists(&send1.hash()));
-    assert_timely(Duration::from_secs(5), || node1.active.active(&send1));
-    assert_timely(Duration::from_secs(5), || node2.active.active(&send1));
+    assert_timely2(|| node2.block_exists(&send1.hash()));
+    assert_timely2(|| node1.active.active(&send1));
+    assert_timely2(|| node2.active.active(&send1));
 
     // now process send2, send2 will not go in the ledger because only the first block of a fork goes in the ledger
     node1.process_active(send2.clone());
@@ -2012,26 +1996,14 @@ fn vote_republish() {
     // the real node will do a confirm request if it needs to find a lost vote
 
     // check that send2 won on both nodes
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_confirmed(&send2.hash())
-    });
-    assert_timely(Duration::from_secs(5), || {
-        node2.block_confirmed(&send2.hash())
-    });
+    assert_timely2(|| node1.block_confirmed(&send2.hash()));
+    assert_timely2(|| node2.block_confirmed(&send2.hash()));
 
     // check that send1 is deleted from the ledger on nodes
     assert_eq!(node1.block_exists(&send1.hash()), false);
     assert_eq!(node2.block_exists(&send1.hash()), false);
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node1.balance(&key2.account()),
-        Amount::nano(2000),
-    );
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node2.balance(&key2.account()),
-        Amount::nano(2000),
-    );
+    assert_timely_eq2(|| node1.balance(&key2.account()), Amount::nano(2000));
+    assert_timely_eq2(|| node2.balance(&key2.account()), Amount::nano(2000));
 }
 
 // This test places block send1 onto every node. Then it creates block send2 (which is a fork of send1) and sends it to node1.
