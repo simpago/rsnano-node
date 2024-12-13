@@ -1,3 +1,4 @@
+use super::ordered_heads::OrderedHeads;
 use crate::{
     bootstrap::ascending::ordered_heads::FrontierHead,
     stats::{DetailType, StatType, Stats},
@@ -5,8 +6,6 @@ use crate::{
 use rsnano_core::{utils::ContainerInfo, Account, Frontier};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{cmp::max, sync::Arc, time::Duration};
-
-use super::ordered_heads::OrderedHeads;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FrontierScanConfig {
@@ -54,7 +53,7 @@ impl FrontierScan {
             } else {
                 start + range_size
             };
-            heads.push_back(FrontierHead::new(start.into(), end.into()));
+            heads.push_back(FrontierHead::new(start, end));
         }
 
         assert!(!heads.len() > 0);

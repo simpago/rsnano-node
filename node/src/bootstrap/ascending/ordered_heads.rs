@@ -22,10 +22,11 @@ pub(super) struct FrontierHead {
 }
 
 impl FrontierHead {
-    pub fn new(start: Account, end: Account) -> Self {
+    pub fn new(start: impl Into<Account>, end: impl Into<Account>) -> Self {
+        let start = start.into();
         Self {
             start,
-            end,
+            end: end.into(),
             next: start,
             candidates: Default::default(),
             requests: 0,
@@ -91,9 +92,9 @@ impl OrderedHeads {
         }
     }
 
-    pub fn find_first_less_than_or_equal_to(&self, account: Account) -> Option<Account> {
+    pub fn find_first_less_than_or_equal_to(&self, account: impl Into<Account>) -> Option<Account> {
         self.by_start
-            .range(..=account)
+            .range(..=account.into())
             .last()
             .map(|(start, _)| *start)
     }
@@ -104,5 +105,171 @@ impl OrderedHeads {
 
     pub fn len(&self) -> usize {
         self.sequenced.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn empty() {
+        let heads = OrderedHeads::default();
+
+        assert_eq!(heads.len(), 0);
+        assert!(heads.iter().next().is_none());
+        assert!(heads.ordered_by_timestamp().next().is_none());
+    }
+
+    #[test]
+    fn push_back_one_head() {
+        let mut heads = OrderedHeads::default();
+
+        heads.push_back(FrontierHead::new(1, 10));
+
+        assert_eq!(heads.len(), 1);
+        assert_eq!(heads.iter().count(), 1);
+        assert_eq!(heads.ordered_by_timestamp().count(), 1);
+    }
+
+    #[test]
+    fn push_back_multiple() {
+        let mut heads = OrderedHeads::default();
+
+        heads.push_back(FrontierHead::new(1, 10));
+        heads.push_back(FrontierHead::new(10, 20));
+        heads.push_back(FrontierHead::new(20, 30));
+
+        assert_eq!(heads.len(), 3);
+        assert_eq!(heads.iter().count(), 3);
+        assert_eq!(heads.ordered_by_timestamp().count(), 3);
+    }
+
+    #[test]
+    fn order_by_timestamp() {
+        let mut heads = OrderedHeads::default();
+
+        let now = Timestamp::new_test_instance();
+
+        heads.push_back(FrontierHead {
+            timestamp: now + Duration::from_secs(100),
+            ..FrontierHead::new(1, 10)
+        });
+        heads.push_back(FrontierHead {
+            timestamp: now + Duration::from_secs(99),
+            ..FrontierHead::new(10, 20)
+        });
+        heads.push_back(FrontierHead {
+            timestamp: now + Duration::from_secs(101),
+            ..FrontierHead::new(20, 30)
+        });
+
+        let ordered: Vec<_> = heads.ordered_by_timestamp().collect();
+        assert_eq!(ordered[0].start, 10.into());
+        assert_eq!(ordered[1].start, 1.into());
+        assert_eq!(ordered[2].start, 20.into());
+    }
+
+    #[test]
+    #[should_panic = "head not found"]
+    fn modify_unknown_start_panics() {
+        let mut heads = OrderedHeads::default();
+        heads.modify(&Account::from(123), |_| {});
+    }
+
+    #[test]
+    fn modify_nothing() {
+        let mut heads = OrderedHeads::default();
+        heads.push_back(FrontierHead::new(1, 10));
+
+        heads.modify(&Account::from(1), |_| {});
+
+        assert_eq!(heads.iter().next().unwrap().timestamp, Default::default());
+        assert_eq!(heads.sequenced.len(), 1);
+        assert_eq!(heads.by_timestamp.len(), 1);
+        assert_eq!(heads.by_start.len(), 1);
+    }
+
+    #[test]
+    fn modify_timestamp() {
+        let mut heads = OrderedHeads::default();
+        heads.push_back(FrontierHead::new(1, 10));
+
+        let now = Timestamp::new_test_instance();
+        heads.modify(&Account::from(1), |head| head.timestamp = now);
+
+        assert_eq!(heads.iter().next().unwrap().timestamp, now);
+        assert_eq!(heads.sequenced.len(), 1);
+        assert_eq!(heads.by_start.len(), 1);
+        assert_eq!(heads.by_timestamp.len(), 1);
+        assert_eq!(*heads.by_timestamp.first_key_value().unwrap().0, now);
+    }
+
+    #[test]
+    fn modify_duplicate_timestamp() {
+        let mut heads = OrderedHeads::default();
+        heads.push_back(FrontierHead::new(1, 10));
+        heads.push_back(FrontierHead::new(10, 20));
+
+        let now = Timestamp::new_test_instance();
+        heads.modify(&Account::from(1), |head| head.timestamp = now);
+
+        assert_eq!(heads.by_timestamp.len(), 2);
+        assert_eq!(
+            heads.by_timestamp.get(&Default::default()).unwrap(),
+            &vec![Account::from(10)]
+        );
+        assert_eq!(
+            heads.by_timestamp.get(&now).unwrap(),
+            &vec![Account::from(1)]
+        );
+    }
+
+    #[test]
+    fn find_first_less_than_or_equal_to() {
+        let mut heads = OrderedHeads::default();
+        heads.push_back(FrontierHead::new(1, 10));
+        heads.push_back(FrontierHead::new(10, 20));
+
+        assert_eq!(heads.find_first_less_than_or_equal_to(0), None);
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(1),
+            Some(Account::from(1))
+        );
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(2),
+            Some(Account::from(1))
+        );
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(9),
+            Some(Account::from(1))
+        );
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(10),
+            Some(Account::from(10))
+        );
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(10),
+            Some(Account::from(10))
+        );
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(20),
+            Some(Account::from(10))
+        );
+        assert_eq!(
+            heads.find_first_less_than_or_equal_to(30),
+            Some(Account::from(10))
+        );
+    }
+
+    #[test]
+    fn ignore_duplicate_insert() {
+        let mut heads = OrderedHeads::default();
+        heads.push_back(FrontierHead::new(1, 10));
+        heads.push_back(FrontierHead::new(1, 10));
+        assert_eq!(heads.len(), 1);
+        assert_eq!(heads.sequenced.len(), 1);
+        assert_eq!(heads.by_start.len(), 1);
     }
 }
