@@ -1406,23 +1406,23 @@ fn process_frontiers(
     }
 
     stats.add(
-        StatType::BootstrapAscending,
-        DetailType::FrontiersProcessed,
+        StatType::BootstrapAscendingFrontiers,
+        DetailType::Processed,
         frontiers.len() as u64,
     );
     stats.add(
-        StatType::BootstrapAscending,
-        DetailType::FrontiersPrioritized,
+        StatType::BootstrapAscendingFrontiers,
+        DetailType::Prioritized,
         result.len() as u64,
     );
     stats.add(
-        StatType::BootstrapAscending,
-        DetailType::FrontiersOutdated,
+        StatType::BootstrapAscendingFrontiers,
+        DetailType::Outdated,
         outdated,
     );
     stats.add(
-        StatType::BootstrapAscending,
-        DetailType::FrontiersPending,
+        StatType::BootstrapAscendingFrontiers,
+        DetailType::Pending,
         pending,
     );
 

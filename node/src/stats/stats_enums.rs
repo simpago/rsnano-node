@@ -135,6 +135,8 @@ pub enum DetailType {
     Empty,
     Done,
     Retry,
+    Prioritized,
+    Pending,
 
     // processing queue
     Queue,
@@ -317,6 +319,7 @@ pub enum DetailType {
     ChannelAccepted,
     ChannelRejected,
     ChannelDuplicate,
+    Outdated,
 
     // tcp_server
     Handshake,
@@ -476,10 +479,6 @@ pub enum DetailType {
     Deprioritize,
     DeprioritizeFailed,
     SyncDependencies,
-    FrontiersProcessed,
-    FrontiersPrioritized,
-    FrontiersOutdated,
-    FrontiersPending,
 
     RequestBlocks,
     RequestAccountInfo,
