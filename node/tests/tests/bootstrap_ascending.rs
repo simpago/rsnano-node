@@ -136,3 +136,164 @@ fn frontier_scan() {
         })
     });
 }
+
+/// Tests that bootstrap will prioritize not yet existing accounts with pending blocks
+#[test]
+fn frontier_scan_pending() {
+    let mut system = System::new();
+    let flags = NodeFlags {
+        disable_legacy_bootstrap: true,
+        ..Default::default()
+    };
+
+    let config = NodeConfig {
+        bootstrap_ascending: BootstrapAscendingConfig {
+            // Disable other bootstrap strategies
+            enable_scan: false,
+            enable_dependency_walker: false,
+            ..Default::default()
+        },
+        // Disable election activation
+        enable_priority_scheduler: false,
+        enable_optimistic_scheduler: false,
+        enable_hinted_scheduler: false,
+        ..System::default_config_without_backlog_population()
+    };
+
+    // Prepare blocks for frontier scan (genesis 10 sends -> 10 opens)
+    let mut sends = Vec::new();
+    let mut opens = Vec::new();
+
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    for _ in 0..10 {
+        let key = PrivateKey::new();
+        let send = lattice.genesis().send(&key, 1);
+        let open = lattice.account(&key).receive(&send);
+        sends.push(send);
+        opens.push(open);
+    }
+
+    // Initialize nodes with blocks without the `updates` frontiers
+    let mut blocks = Vec::new();
+    blocks.extend(sends);
+    system.initialization_blocks = blocks.clone();
+
+    let node0 = system
+        .build_node()
+        .flags(flags.clone())
+        .config(config.clone())
+        .finish();
+    node0.process_multi(&opens);
+
+    // No blocks should be broadcast to the other node
+    let node1 = system
+        .build_node()
+        .flags(flags)
+        .config(NodeConfig {
+            peering_port: System::default_config().peering_port,
+            ..config
+        })
+        .finish();
+
+    assert_always_eq(
+        Duration::from_millis(100),
+        || node1.ledger.block_count() as usize,
+        blocks.len() + 1,
+    );
+
+    // Frontier scan should detect all the accounts with missing blocks
+    assert_timely(Duration::from_secs(10), || {
+        opens.iter().all(|block| {
+            node1
+                .ascendboot
+                .prioritized(&block.account_field().unwrap())
+        })
+    });
+}
+
+/// Bootstrap should not attempt to prioritize accounts that can't be immediately connected
+/// to the ledger (no pending blocks, no existing frontier)
+#[test]
+fn frontier_scan_cannot_prioritize() {
+    let mut system = System::new();
+    let flags = NodeFlags {
+        disable_legacy_bootstrap: true,
+        ..Default::default()
+    };
+
+    let config = NodeConfig {
+        bootstrap_ascending: BootstrapAscendingConfig {
+            // Disable other bootstrap strategies
+            enable_scan: false,
+            enable_dependency_walker: false,
+            ..Default::default()
+        },
+        // Disable election activation
+        enable_priority_scheduler: false,
+        enable_optimistic_scheduler: false,
+        enable_hinted_scheduler: false,
+        ..System::default_config_without_backlog_population()
+    };
+
+    // Prepare blocks for frontier scan (genesis 10 sends -> 10 opens -> 10 sends -> 10 opens)
+    let mut sends = Vec::new();
+    let mut opens = Vec::new();
+    let mut sends2 = Vec::new();
+    let mut opens2 = Vec::new();
+
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    for _ in 0..10 {
+        let key = PrivateKey::new();
+        let key2 = PrivateKey::new();
+        let send = lattice.genesis().send(&key, 1);
+        let open = lattice.account(&key).receive(&send);
+        let send2 = lattice.account(&key).send(&key2, 1);
+        let open2 = lattice.account(&key2).receive(&send2);
+        sends.push(send);
+        opens.push(open);
+        sends2.push(send2);
+        opens2.push(open2);
+    }
+
+    // Initialize nodes with blocks without the `updates` frontiers
+    let mut blocks = Vec::new();
+    blocks.extend(sends);
+    blocks.extend(opens);
+    system.initialization_blocks = blocks.clone();
+
+    let node0 = system
+        .build_node()
+        .flags(flags.clone())
+        .config(config.clone())
+        .finish();
+    node0.process_multi(&sends2);
+    node0.process_multi(&opens2);
+
+    // No blocks should be broadcast to the other node
+    let node1 = system
+        .build_node()
+        .flags(flags)
+        .config(NodeConfig {
+            peering_port: System::default_config().peering_port,
+            ..config
+        })
+        .finish();
+
+    assert_always_eq(
+        Duration::from_millis(100),
+        || node1.ledger.block_count() as usize,
+        blocks.len() + 1,
+    );
+    // Frontier scan should not detect the accounts
+    assert_always_eq(
+        Duration::from_secs(1),
+        || {
+            opens2.iter().all(|block| {
+                !node1
+                    .ascendboot
+                    .prioritized(&block.account_field().unwrap())
+            })
+        },
+        true,
+    );
+}
