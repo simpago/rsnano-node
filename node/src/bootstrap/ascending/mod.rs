@@ -1313,7 +1313,7 @@ impl Default for BootstrapAscendingConfig {
             enable_frontier_scan: true,
             channel_limit: 16,
             database_rate_limit: 256,
-            frontier_rate_limit: 100,
+            frontier_rate_limit: 8,
             database_warmup_ratio: 10,
             max_pull_count: BlocksAckPayload::MAX_BLOCKS,
             request_timeout: Duration::from_secs(3),

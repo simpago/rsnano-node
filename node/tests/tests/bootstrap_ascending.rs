@@ -3,9 +3,8 @@ use rsnano_node::{
     bootstrap::BootstrapAscendingConfig,
     config::{NodeConfig, NodeFlags},
 };
-use std::{thread::sleep, time::Duration};
+use std::time::Duration;
 use test_helpers::{assert_always_eq, assert_timely, System};
-use tracing::error;
 
 /**
  * Tests the base case for returning
