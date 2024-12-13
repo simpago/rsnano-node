@@ -70,9 +70,9 @@ impl RpcCommandHandler {
             RpcCommand::Receive(args) => to_value(self.receive(args)?),
             RpcCommand::BlockCreate(args) => to_value(self.block_create(args)?),
             RpcCommand::BlockHash(args) => to_value(block_hash(args)),
-            RpcCommand::Bootstrap(args) => to_value(self.bootstrap(args)?),
-            RpcCommand::BootstrapAny(args) => to_value(self.bootstrap_any(args)?),
-            RpcCommand::BootstrapLazy(args) => to_value(self.bootstrap_lazy(args)?),
+            RpcCommand::Bootstrap(_)
+            | RpcCommand::BootstrapAny(_)
+            | RpcCommand::BootstrapLazy(_) => to_value(legacy_bootstrap_disabled()?),
             RpcCommand::ConfirmationActive(args) => to_value(self.confirmation_active(args)),
             RpcCommand::ConfirmationInfo(args) => to_value(self.confirmation_info(args)?),
             RpcCommand::ConfirmationQuorum(args) => to_value(self.confirmation_quorum(args)),
@@ -250,6 +250,10 @@ fn requires_control(command: &RpcCommand) -> bool {
         RpcCommand::Process(args) => args.force == Some(true.into()),
         _ => false,
     }
+}
+
+fn legacy_bootstrap_disabled() -> anyhow::Result<serde_json::Value> {
+    Err(anyhow!("Legacy bootstrap is disabled"))
 }
 
 #[cfg(test)]

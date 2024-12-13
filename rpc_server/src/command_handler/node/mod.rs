@@ -1,8 +1,5 @@
 mod active_difficulty;
 mod block_create;
-mod bootstrap;
-mod bootstrap_any;
-mod bootstrap_lazy;
 mod confirmation_active;
 mod confirmation_history;
 mod confirmation_info;

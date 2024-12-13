@@ -1184,10 +1184,6 @@ impl Node {
             .node("work", self.work.container_info())
             .node("ledger", self.ledger.container_info())
             .node("active", self.active.container_info())
-            .node(
-                "bootstrap_initiator",
-                self.bootstrap_initiator.container_info(),
-            )
             .node("network", network)
             .node("telemetry", self.telemetry.container_info())
             .node("wallets", self.wallets.container_info())
@@ -1390,7 +1386,6 @@ pub trait NodeExt {
     fn ongoing_online_weight_calculation(&self);
     fn backup_wallet(&self);
     fn search_receivable_all(&self);
-    fn bootstrap_wallet(&self);
     fn flood_block_many(
         &self,
         blocks: VecDeque<Block>,
@@ -1450,19 +1445,6 @@ impl NodeExt for Arc<Node> {
 
         if !self.flags.disable_search_pending {
             self.search_receivable_all();
-        }
-
-        if !self.flags.disable_wallet_bootstrap {
-            // Delay to start wallet lazy bootstrap
-            let node_w = Arc::downgrade(self);
-            self.workers.post_delayed(
-                Duration::from_secs(60),
-                Box::new(move || {
-                    if let Some(node) = node_w.upgrade() {
-                        node.bootstrap_wallet();
-                    }
-                }),
-            );
         }
 
         self.unchecked.start();
@@ -1612,13 +1594,6 @@ impl NodeExt for Arc<Node> {
                 }
             }),
         )
-    }
-
-    fn bootstrap_wallet(&self) {
-        let accounts: VecDeque<_> = self.wallets.get_accounts(128).drain(..).collect();
-        if !accounts.is_empty() {
-            self.bootstrap_initiator.bootstrap_wallet(accounts)
-        }
     }
 
     fn flood_block_many(

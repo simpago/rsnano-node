@@ -1,7 +1,4 @@
 mod block_create;
-mod bootstrap;
-mod bootstrap_any;
-mod bootstrap_lazy;
 mod confirmation_active;
 mod confirmation_info;
 mod confirmation_quorum;

@@ -1,13 +1,12 @@
 use core::panic;
 use futures_util::{SinkExt, StreamExt};
 use rsnano_core::{
-    Account, Amount, Block, JsonBlock, Networks, PrivateKey, SendBlockArgs,
-    UnsavedBlockLatticeBuilder, Vote, VoteCode, DEV_GENESIS_KEY,
+    Amount, Block, JsonBlock, Networks, PrivateKey, SendBlockArgs, UnsavedBlockLatticeBuilder,
+    Vote, VoteCode, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::{Message, Publish};
 use rsnano_node::{
-    bootstrap::{BootstrapInitiatorExt, BootstrapStarted},
     config::{NetworkConstants, NodeConfig, WebsocketConfig},
     Node,
 };
@@ -556,60 +555,6 @@ fn vote_options_representatives() {
 #[test]
 #[ignore = "Disabled, because distributed work generation was temporarily removed"]
 fn work() {}
-
-#[test]
-// Test client subscribing to notifications for bootstrap
-fn bootstrap() {
-    let mut system = System::new();
-    let (node1, _websocket) = create_node_with_websocket(&mut system);
-    node1.runtime.block_on(async {
-        let mut ws_stream = connect_websocket(&node1).await;
-        ws_stream
-            .send(tungstenite::Message::Text(
-                r#"{"action": "subscribe", "topic": "bootstrap", "ack": true}"#.to_string(),
-            ))
-            .await
-            .unwrap();
-        //await ack
-        ws_stream.next().await.unwrap().unwrap();
-
-        // Start bootstrap attempt
-        let node_l = node1.clone();
-        spawn_blocking(move || {
-            node_l.bootstrap_initiator.bootstrap(
-                true,
-                "123abc".to_owned(),
-                u32::MAX,
-                Account::zero(),
-            );
-        })
-        .await
-        .unwrap();
-
-        assert_timely(Duration::from_secs(5), || {
-            node1.bootstrap_initiator.current_legacy_attempt().is_none()
-        });
-
-        let tungstenite::Message::Text(response) = ws_stream.next().await.unwrap().unwrap() else {
-            panic!("not a text message");
-        };
-
-        // Wait for the bootstrap notification
-        let response_json: OutgoingMessageEnvelope = serde_json::from_str(&response).unwrap();
-
-        // Check the bootstrap notification message
-        let message: BootstrapStarted =
-            serde_json::from_value(response_json.message.unwrap()).unwrap();
-        assert_eq!(message.id, "123abc");
-        assert_eq!(message.reason, "started");
-        assert_eq!(message.mode, "legacy");
-
-        // Wait for bootstrap finish
-        assert_timely(Duration::from_secs(5), || {
-            !node1.bootstrap_initiator.in_progress()
-        });
-    });
-}
 
 #[test]
 // Tests sending keepalive

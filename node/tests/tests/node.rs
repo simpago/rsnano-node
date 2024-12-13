@@ -674,11 +674,6 @@ fn bootstrap_fork_open() {
         .ledger
         .any()
         .block_exists_or_pruned(&node1.ledger.read_txn(), &open0.hash()));
-    assert!(!node1.bootstrap_initiator.in_progress());
-
-    node1
-        .bootstrap_initiator
-        .bootstrap2(node0.tcp_listener.local_address(), "".into());
 
     assert_timely_msg(
         Duration::from_secs(1),
