@@ -1,7 +1,7 @@
 mod account_sets;
+mod crawlers;
 mod database_scan;
 mod frontier_scan;
-mod iterators;
 mod ordered_blocking;
 mod ordered_heads;
 mod ordered_priorities;
@@ -24,9 +24,9 @@ use crate::{
     utils::{ThreadPool, ThreadPoolImpl},
 };
 pub use account_sets::AccountSetsConfig;
+use crawlers::{AccountDatabaseCrawler, PendingDatabaseCrawler};
 use database_scan::DatabaseScan;
 use frontier_scan::{FrontierScan, FrontierScanConfig};
-use iterators::{AccountDatabaseCrawler, PendingDatabaseCrawler};
 use num::clamp;
 use ordered_tags::QuerySource;
 use priority::Priority;
