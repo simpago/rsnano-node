@@ -825,80 +825,50 @@ mod tests {
 
         // Bootstrap Ascending section
         assert_ne!(
-            deserialized
-                .node
-                .bootstrap_ascending
-                .block_processor_theshold,
-            default_cfg
-                .node
-                .bootstrap_ascending
-                .block_processor_theshold
+            deserialized.node.bootstrap.block_processor_theshold,
+            default_cfg.node.bootstrap.block_processor_theshold
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.database_rate_limit,
-            default_cfg.node.bootstrap_ascending.database_rate_limit
+            deserialized.node.bootstrap.database_rate_limit,
+            default_cfg.node.bootstrap.database_rate_limit
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.max_pull_count,
-            default_cfg.node.bootstrap_ascending.max_pull_count
+            deserialized.node.bootstrap.max_pull_count,
+            default_cfg.node.bootstrap.max_pull_count
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.channel_limit,
-            default_cfg.node.bootstrap_ascending.channel_limit
+            deserialized.node.bootstrap.channel_limit,
+            default_cfg.node.bootstrap.channel_limit
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.throttle_coefficient,
-            default_cfg.node.bootstrap_ascending.throttle_coefficient
+            deserialized.node.bootstrap.throttle_coefficient,
+            default_cfg.node.bootstrap.throttle_coefficient
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.throttle_wait,
-            default_cfg.node.bootstrap_ascending.throttle_wait
+            deserialized.node.bootstrap.throttle_wait,
+            default_cfg.node.bootstrap.throttle_wait
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.request_timeout,
-            default_cfg.node.bootstrap_ascending.request_timeout
+            deserialized.node.bootstrap.request_timeout,
+            default_cfg.node.bootstrap.request_timeout
         );
 
         // Bootstrap Ascending Account Sets section
         assert_ne!(
-            deserialized
-                .node
-                .bootstrap_ascending
-                .account_sets
-                .blocking_max,
-            default_cfg
-                .node
-                .bootstrap_ascending
-                .account_sets
-                .blocking_max
+            deserialized.node.bootstrap.account_sets.blocking_max,
+            default_cfg.node.bootstrap.account_sets.blocking_max
         );
         assert_ne!(
-            deserialized
-                .node
-                .bootstrap_ascending
-                .account_sets
-                .consideration_count,
-            default_cfg
-                .node
-                .bootstrap_ascending
-                .account_sets
-                .consideration_count
+            deserialized.node.bootstrap.account_sets.consideration_count,
+            default_cfg.node.bootstrap.account_sets.consideration_count
         );
         assert_ne!(
-            deserialized.node.bootstrap_ascending.account_sets.cooldown,
-            default_cfg.node.bootstrap_ascending.account_sets.cooldown
+            deserialized.node.bootstrap.account_sets.cooldown,
+            default_cfg.node.bootstrap.account_sets.cooldown
         );
         assert_ne!(
-            deserialized
-                .node
-                .bootstrap_ascending
-                .account_sets
-                .priorities_max,
-            default_cfg
-                .node
-                .bootstrap_ascending
-                .account_sets
-                .priorities_max
+            deserialized.node.bootstrap.account_sets.priorities_max,
+            default_cfg.node.bootstrap.account_sets.priorities_max
         );
 
         // Bootstrap Server section

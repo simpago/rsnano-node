@@ -68,7 +68,7 @@ pub struct BootstrapService {
     threads: Mutex<Option<Threads>>,
     mutex: Arc<Mutex<BootstrapAscendingLogic>>,
     condition: Arc<Condvar>,
-    config: BootstrapAscendingConfig,
+    config: BootstrapConfig,
     /// Requests for accounts from database have much lower hitrate and could introduce strain on the network
     /// A separate (lower) limiter ensures that we always reserve resources for querying accounts from priority queue
     database_limiter: RateLimiter,
@@ -92,7 +92,7 @@ impl BootstrapService {
         stats: Arc<Stats>,
         network_info: Arc<RwLock<NetworkInfo>>,
         message_publisher: MessagePublisher,
-        config: BootstrapAscendingConfig,
+        config: BootstrapConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
@@ -1013,7 +1013,7 @@ struct BootstrapAscendingLogic {
     throttle: Throttle,
     frontiers: FrontierScan,
     sync_dependencies_interval: Instant,
-    config: BootstrapAscendingConfig,
+    config: BootstrapConfig,
     network_info: Arc<RwLock<NetworkInfo>>,
 }
 
@@ -1316,7 +1316,7 @@ fn verify_response(response: &BlocksAckPayload, tag: &AsyncTag) -> VerifyResult 
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct BootstrapAscendingConfig {
+pub struct BootstrapConfig {
     pub enable: bool,
     pub enable_scan: bool,
     pub enable_database_scan: bool,
@@ -1340,7 +1340,7 @@ pub struct BootstrapAscendingConfig {
     pub frontier_scan: FrontierScanConfig,
 }
 
-impl Default for BootstrapAscendingConfig {
+impl Default for BootstrapConfig {
     fn default() -> Self {
         Self {
             enable: true,

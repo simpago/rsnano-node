@@ -1,6 +1,6 @@
 use rsnano_core::{Account, PrivateKey, UnsavedBlockLatticeBuilder};
 use rsnano_node::{
-    bootstrap::BootstrapAscendingConfig,
+    bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
 };
 use std::time::Duration;
@@ -68,7 +68,7 @@ fn frontier_scan() {
     };
 
     let config = NodeConfig {
-        bootstrap_ascending: BootstrapAscendingConfig {
+        bootstrap: BootstrapConfig {
             // Disable other bootstrap strategies
             enable_scan: false,
             enable_dependency_walker: false,
@@ -144,7 +144,7 @@ fn frontier_scan_pending() {
     };
 
     let config = NodeConfig {
-        bootstrap_ascending: BootstrapAscendingConfig {
+        bootstrap: BootstrapConfig {
             // Disable other bootstrap strategies
             enable_scan: false,
             enable_dependency_walker: false,
@@ -217,7 +217,7 @@ fn frontier_scan_cannot_prioritize() {
     };
 
     let config = NodeConfig {
-        bootstrap_ascending: BootstrapAscendingConfig {
+        bootstrap: BootstrapConfig {
             // Disable other bootstrap strategies
             enable_scan: false,
             enable_dependency_walker: false,

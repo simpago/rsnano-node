@@ -49,7 +49,7 @@ pub struct NodeToml {
     pub work_threads: Option<u32>,
     pub active_elections: Option<ActiveElectionsToml>,
     pub block_processor: Option<BlockProcessorToml>,
-    pub bootstrap_ascending: Option<BootstrapAscendingToml>,
+    pub bootstrap: Option<BootstrapToml>,
     pub bootstrap_server: Option<BootstrapServerToml>,
     pub diagnostics: Option<DiagnosticsToml>,
     pub experimental: Option<ExperimentalToml>,
@@ -232,8 +232,8 @@ impl NodeConfig {
         if let Some(priority_bucket_toml) = &toml.priority_bucket {
             self.priority_bucket = priority_bucket_toml.into();
         }
-        if let Some(ascending_toml) = &toml.bootstrap_ascending {
-            let config = &mut self.bootstrap_ascending;
+        if let Some(ascending_toml) = &toml.bootstrap {
+            let config = &mut self.bootstrap;
             if let Some(enable) = &ascending_toml.enable {
                 config.enable = *enable;
             }
@@ -422,7 +422,7 @@ impl From<&NodeConfig> for NodeToml {
                 vacancy_threshold: Some(config.hinted_scheduler.vacancy_threshold_percent),
             }),
             priority_bucket: Some((&config.priority_bucket).into()),
-            bootstrap_ascending: Some((&config.bootstrap_ascending).into()),
+            bootstrap: Some((&config.bootstrap).into()),
             bootstrap_server: Some((&config.bootstrap_server).into()),
             websocket: Some((&config.websocket_config).into()),
             ipc: Some((&config.ipc_config).into()),
@@ -461,7 +461,7 @@ mod tests {
             priorities_max: Some(204),
         };
 
-        let ascending_toml = BootstrapAscendingToml {
+        let ascending_toml = BootstrapToml {
             enable: Some(false),
             enable_databaser_scan: Some(false),
             enable_dependency_walker: Some(false),
@@ -480,14 +480,14 @@ mod tests {
         };
 
         let toml = NodeToml {
-            bootstrap_ascending: Some(ascending_toml),
+            bootstrap: Some(ascending_toml),
             ..Default::default()
         };
 
         let mut cfg = NodeConfig::new_test_instance();
         cfg.merge_toml(&toml);
 
-        let ascending = &cfg.bootstrap_ascending;
+        let ascending = &cfg.bootstrap;
         assert_eq!(ascending.enable, false);
         assert_eq!(ascending.enable_database_scan, false);
         assert_eq!(ascending.enable_dependency_walker, false);
@@ -503,7 +503,7 @@ mod tests {
         assert_eq!(ascending.optimistic_request_percentage, 42);
         assert_eq!(ascending.database_warmup_ratio, 108);
 
-        let sets = &cfg.bootstrap_ascending.account_sets;
+        let sets = &cfg.bootstrap.account_sets;
         assert_eq!(sets.blocking_max, 200);
         assert_eq!(sets.consideration_count, 201);
         assert_eq!(sets.cooldown, Duration::from_millis(203));
@@ -514,7 +514,7 @@ mod tests {
     fn create_bootstrap_ascending_toml() {
         let cfg = NodeConfig::new_test_instance();
         let toml = NodeToml::from(&cfg);
-        let ascending_toml = toml.bootstrap_ascending.as_ref().unwrap();
+        let ascending_toml = toml.bootstrap.as_ref().unwrap();
         assert_eq!(ascending_toml.enable, Some(true));
         assert_eq!(ascending_toml.enable_databaser_scan, Some(false));
         assert_eq!(ascending_toml.enable_frontier_scan, Some(true));

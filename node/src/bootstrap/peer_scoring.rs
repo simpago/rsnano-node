@@ -1,4 +1,4 @@
-use super::BootstrapAscendingConfig;
+use super::BootstrapConfig;
 use rsnano_network::{ChannelId, ChannelInfo, TrafficType};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -8,11 +8,11 @@ use std::{
 /// Container for tracking and scoring peers with respect to bootstrapping
 pub(crate) struct PeerScoring {
     scoring: Scoring,
-    config: BootstrapAscendingConfig,
+    config: BootstrapConfig,
 }
 
 impl PeerScoring {
-    pub fn new(config: BootstrapAscendingConfig) -> Self {
+    pub fn new(config: BootstrapConfig) -> Self {
         Self {
             scoring: Scoring::default(),
             config,

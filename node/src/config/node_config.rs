@@ -3,7 +3,7 @@ use crate::{
     block_processing::{
         BacklogPopulationConfig, BlockProcessorConfig, LocalBlockBroadcasterConfig,
     },
-    bootstrap::{BootstrapAscendingConfig, BootstrapServerConfig},
+    bootstrap::{BootstrapConfig, BootstrapServerConfig},
     cementation::ConfirmingSetConfig,
     consensus::{
         ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
@@ -64,7 +64,7 @@ pub struct NodeConfig {
     pub bandwidth_limit_burst_ratio: f64,
     pub max_peers_per_ip: u16,
     pub max_peers_per_subnetwork: u16,
-    pub bootstrap_ascending: BootstrapAscendingConfig,
+    pub bootstrap: BootstrapConfig,
     pub bootstrap_server: BootstrapServerConfig,
     pub bootstrap_bandwidth_limit: usize,
     pub bootstrap_bandwidth_burst_ratio: f64,
@@ -270,7 +270,7 @@ impl NodeConfig {
             bootstrap_bandwidth_limit: 5 * 1024 * 1024,
             // Bootstrap traffic does not need bursts
             bootstrap_bandwidth_burst_ratio: 1.,
-            bootstrap_ascending: Default::default(),
+            bootstrap: Default::default(),
             bootstrap_server: Default::default(),
             confirming_set_batch_time: Duration::from_millis(250),
             backup_before_upgrade: false,

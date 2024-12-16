@@ -1,9 +1,9 @@
-use crate::bootstrap::{AccountSetsConfig, BootstrapAscendingConfig};
+use crate::bootstrap::{AccountSetsConfig, BootstrapConfig};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Deserialize, Serialize)]
-pub struct BootstrapAscendingToml {
+pub struct BootstrapToml {
     pub enable: Option<bool>,
     pub enable_databaser_scan: Option<bool>,
     pub enable_dependency_walker: Option<bool>,
@@ -21,8 +21,8 @@ pub struct BootstrapAscendingToml {
     pub account_sets: Option<AccountSetsToml>,
 }
 
-impl From<&BootstrapAscendingConfig> for BootstrapAscendingToml {
-    fn from(config: &BootstrapAscendingConfig) -> Self {
+impl From<&BootstrapConfig> for BootstrapToml {
+    fn from(config: &BootstrapConfig) -> Self {
         Self {
             enable: Some(config.enable),
             enable_databaser_scan: Some(config.enable_database_scan),

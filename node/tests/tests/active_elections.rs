@@ -727,11 +727,11 @@ fn broadcast_block_on_activation() {
     let mut config1 = System::default_config();
     // Deactivates elections on both nodes.
     config1.active_elections.size = 0;
-    config1.bootstrap_ascending.enable = false;
+    config1.bootstrap.enable = false;
 
     let mut config2 = System::default_config();
     config2.active_elections.size = 0;
-    config2.bootstrap_ascending.enable = false;
+    config2.bootstrap.enable = false;
 
     // Disables bootstrap listener to make sure the block won't be shared by this channel.
     let flags = NodeFlags {

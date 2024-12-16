@@ -701,7 +701,7 @@ impl Node {
             stats.clone(),
             network_info.clone(),
             message_publisher.clone(),
-            global_config.node_config.bootstrap_ascending.clone(),
+            global_config.node_config.bootstrap.clone(),
             steady_clock.clone(),
         ));
 

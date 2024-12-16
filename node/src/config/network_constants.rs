@@ -1,4 +1,4 @@
-use crate::bootstrap::BootstrapAscendingConfig;
+use crate::bootstrap::BootstrapConfig;
 use anyhow::Result;
 use rsnano_core::{utils::get_env_or_default, work::WorkThresholds, Networks, ACTIVE_NETWORK};
 use rsnano_messages::ProtocolInfo;
@@ -89,8 +89,7 @@ impl NetworkConstants {
             current_network: Networks::NanoLiveNetwork,
             protocol_version: protocol_info.version_using,
             protocol_version_min: protocol_info.version_min,
-            bootstrap_protocol_version_min: BootstrapAscendingConfig::default()
-                .min_protocol_version,
+            bootstrap_protocol_version_min: BootstrapConfig::default().min_protocol_version,
             default_node_port: 7075,
             default_rpc_port: 7076,
             default_ipc_port: 7077,
