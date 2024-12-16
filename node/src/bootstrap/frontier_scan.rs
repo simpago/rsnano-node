@@ -81,7 +81,7 @@ impl FrontierScan {
                 debug_assert!(head.next.number() < head.end.number());
 
                 self.stats.inc(
-                    StatType::BootstrapAscendingFrontiers,
+                    StatType::BootstrapFrontierScan,
                     if head.requests < self.config.consideration_count {
                         DetailType::NextByRequests
                     } else {
@@ -97,7 +97,7 @@ impl FrontierScan {
 
         if next_account.is_zero() {
             self.stats
-                .inc(StatType::BootstrapAscendingFrontiers, DetailType::NextNone);
+                .inc(StatType::BootstrapFrontierScan, DetailType::NextNone);
         } else {
             self.heads.modify(&it, |head| {
                 head.requests += 1;
@@ -114,7 +114,7 @@ impl FrontierScan {
             .all(|f| f.account.number() >= start.number()));
 
         self.stats
-            .inc(StatType::BootstrapAscendingFrontiers, DetailType::Process);
+            .inc(StatType::BootstrapFrontierScan, DetailType::Process);
 
         // Find the first head with head.start <= start
         let it = self.heads.find_first_less_than_or_equal_to(start).unwrap();
@@ -139,14 +139,14 @@ impl FrontierScan {
             if entry.completed >= self.config.consideration_count * 2 && entry.candidates.is_empty()
             {
                 self.stats
-                    .inc(StatType::BootstrapAscendingFrontiers, DetailType::DoneEmpty);
+                    .inc(StatType::BootstrapFrontierScan, DetailType::DoneEmpty);
                 entry.candidates.insert(entry.end);
             }
 
             // Check if done
             if entry.completed >= self.config.consideration_count && !entry.candidates.is_empty() {
                 self.stats
-                    .inc(StatType::BootstrapAscendingFrontiers, DetailType::Done);
+                    .inc(StatType::BootstrapFrontierScan, DetailType::Done);
 
                 // Take the last candidate as the next frontier
                 assert!(!entry.candidates.is_empty());
@@ -162,7 +162,7 @@ impl FrontierScan {
                 // Bound the search range
                 if entry.next.number() >= entry.end.number() {
                     self.stats
-                        .inc(StatType::BootstrapAscendingFrontiers, DetailType::DoneRange);
+                        .inc(StatType::BootstrapFrontierScan, DetailType::DoneRange);
                     entry.next = entry.start;
                 }
 

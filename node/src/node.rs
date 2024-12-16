@@ -3,7 +3,7 @@ use crate::{
         BacklogPopulation, BlockProcessor, BlockProcessorCleanup, BlockSource,
         LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
     },
-    bootstrap::{BootstrapAscendingExt, BootstrapServer, BootstrapServerCleanup, BootstrapService},
+    bootstrap::{BootstrapExt, BootstrapServer, BootstrapServerCleanup, BootstrapService},
     cementation::ConfirmingSet,
     config::{GlobalConfig, NodeConfig, NodeFlags},
     consensus::{

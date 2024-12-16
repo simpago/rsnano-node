@@ -266,7 +266,7 @@ impl NodeConfig {
             bandwidth_limit_burst_ratio: 3_f64,
             max_peers_per_ip: network_params.network.max_peers_per_ip as u16,
             max_peers_per_subnetwork: network_params.network.max_peers_per_subnetwork as u16,
-            // Default boostrap outbound traffic limit is 5MB/s
+            // Default bootstrap outbound traffic limit is 5MB/s
             bootstrap_bandwidth_limit: 5 * 1024 * 1024,
             // Bootstrap traffic does not need bursts
             bootstrap_bandwidth_burst_ratio: 1.,
