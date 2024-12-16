@@ -111,7 +111,7 @@ pub struct Node {
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
     pub backlog_population: Arc<BacklogPopulation>,
-    pub ascendboot: Arc<BootstrapService>,
+    pub bootstrap: Arc<BootstrapService>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
     message_processor: Mutex<MessageProcessor>,
@@ -695,7 +695,7 @@ impl Node {
             election_schedulers.clone(),
         ));
 
-        let ascendboot = Arc::new(BootstrapService::new(
+        let bootstrap = Arc::new(BootstrapService::new(
             block_processor.clone(),
             ledger.clone(),
             stats.clone(),
@@ -727,7 +727,7 @@ impl Node {
             vote_processor_queue.clone(),
             telemetry.clone(),
             bootstrap_server.clone(),
-            ascendboot.clone(),
+            bootstrap.clone(),
         ));
 
         let network_threads = Arc::new(Mutex::new(NetworkThreads::new(
@@ -1112,7 +1112,7 @@ impl Node {
             election_schedulers,
             request_aggregator,
             backlog_population,
-            ascendboot,
+            bootstrap,
             local_block_broadcaster,
             process_live_dispatcher, // needs to stay alive
             ledger_pruning,
@@ -1167,7 +1167,7 @@ impl Node {
             .node("vote_cache", vote_cache)
             .node("vote_router", self.vote_router.container_info())
             .node("vote_generators", self.vote_generators.container_info())
-            .node("bootstrap_ascending", self.ascendboot.container_info())
+            .node("bootstrap_ascending", self.bootstrap.container_info())
             .node("unchecked", self.unchecked.container_info())
             .node(
                 "local_block_broadcaster",
@@ -1418,9 +1418,9 @@ impl NodeExt for Arc<Node> {
         self.backlog_population.start();
         self.bootstrap_server.start();
         if !self.flags.disable_ascending_bootstrap {
-            self.ascendboot
+            self.bootstrap
                 .initialize(&self.network_params.ledger.genesis_account);
-            self.ascendboot.start();
+            self.bootstrap.start();
         }
         self.telemetry.start();
         self.stats.start();
@@ -1467,7 +1467,7 @@ impl NodeExt for Arc<Node> {
         self.distributed_work.stop();
         self.backlog_population.stop();
         if !self.flags.disable_ascending_bootstrap {
-            self.ascendboot.stop();
+            self.bootstrap.stop();
         }
         self.rep_crawler.stop();
         self.unchecked.stop();
