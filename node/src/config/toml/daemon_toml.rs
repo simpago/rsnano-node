@@ -220,7 +220,7 @@ mod tests {
         threads = 999
         batch_size = 999
 
-        [node.bootstrap_ascending]
+        [node.bootstrap]
         enable = false
         enable_database_scan = false
         enable_dependency_walker = false
@@ -228,12 +228,13 @@ mod tests {
         database_rate_limit = 999
         max_pull_count = 999
         channel_limit = 999
+        rate_limit = 999
         throttle_coefficient = 999
         throttle_wait = 999
         request_timeout = 999
         max_requests = 999
 
-        [node.bootstrap_ascending.account_sets]
+        [node.bootstrap.account_sets]
         blocking_max = 999
         consideration_count = 999
         cooldown = 999
@@ -839,6 +840,10 @@ mod tests {
         assert_ne!(
             deserialized.node.bootstrap.channel_limit,
             default_cfg.node.bootstrap.channel_limit
+        );
+        assert_ne!(
+            deserialized.node.bootstrap.rate_limit,
+            default_cfg.node.bootstrap.rate_limit
         );
         assert_ne!(
             deserialized.node.bootstrap.throttle_coefficient,

@@ -261,8 +261,11 @@ impl NodeConfig {
             if let Some(pull_count) = ascending_toml.max_pull_count {
                 config.max_pull_count = pull_count;
             }
-            if let Some(requests_limit) = ascending_toml.channel_limit {
-                config.channel_limit = requests_limit;
+            if let Some(limit) = ascending_toml.channel_limit {
+                config.channel_limit = limit;
+            }
+            if let Some(limit) = ascending_toml.rate_limit {
+                config.rate_limit = limit;
             }
             if let Some(timeout) = &ascending_toml.request_timeout {
                 config.request_timeout = Duration::from_millis(*timeout);
@@ -470,6 +473,7 @@ mod tests {
             database_rate_limit: Some(101),
             max_pull_count: Some(102),
             channel_limit: Some(103),
+            rate_limit: Some(200),
             throttle_coefficient: Some(104),
             throttle_wait: Some(105),
             request_timeout: Some(106),
@@ -496,6 +500,7 @@ mod tests {
         assert_eq!(ascending.database_rate_limit, 101);
         assert_eq!(ascending.max_pull_count, 102);
         assert_eq!(ascending.channel_limit, 103);
+        assert_eq!(ascending.rate_limit, 200);
         assert_eq!(ascending.throttle_coefficient, 104);
         assert_eq!(ascending.throttle_wait, Duration::from_millis(105));
         assert_eq!(ascending.request_timeout, Duration::from_millis(106));

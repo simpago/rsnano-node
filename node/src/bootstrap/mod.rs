@@ -116,6 +116,7 @@ impl BootstrapService {
                 sync_dependencies_interval: Instant::now(),
                 config: config.clone(),
                 network_info,
+                limiter: RateLimiter::new(config.rate_limit),
             })),
             condition: Arc::new(Condvar::new()),
             database_limiter: RateLimiter::new(config.database_rate_limit),
@@ -242,11 +243,6 @@ impl BootstrapService {
         }
     }
 
-    /* Avoid too many in-flight requests */
-    fn wait_tags(&self) {
-        self.wait(|i| i.tags.len() < self.config.max_requests);
-    }
-
     /* Ensure there is enough space in blockprocessor for queuing new blocks */
     fn wait_blockprocessor(&self) {
         self.wait(|_| {
@@ -257,6 +253,14 @@ impl BootstrapService {
 
     /* Waits for a channel that is not full */
     fn wait_channel(&self) -> Option<ChannelId> {
+        // Limit the number of in-flight requests
+        self.wait(|l| l.tags.len() < l.config.max_requests);
+
+        // Wait until more requests can be sent
+        self.wait(|l| l.limiter.should_pass(1));
+
+        // Wait until a channel is available
+
         let mut channel_id: Option<ChannelId> = None;
         self.wait(|i| {
             channel_id = i.scoring.channel().map(|c| c.channel_id());
@@ -407,7 +411,6 @@ impl BootstrapService {
     }
 
     fn run_one_priority(&self) {
-        self.wait_tags();
         self.wait_blockprocessor();
         let Some(channel_id) = self.wait_channel() else {
             return;
@@ -439,7 +442,6 @@ impl BootstrapService {
     }
 
     fn run_one_database(&self, should_throttle: bool) {
-        self.wait_tags();
         self.wait_blockprocessor();
         let Some(channel_id) = self.wait_channel() else {
             return;
@@ -465,8 +467,7 @@ impl BootstrapService {
     }
 
     fn run_one_blocking(&self) {
-        self.wait_tags();
-        self.wait_blockprocessor();
+        // No need to wait for blockprocessor, as we are not processing blocks
         let Some(channel_id) = self.wait_channel() else {
             return;
         };
@@ -496,10 +497,10 @@ impl BootstrapService {
     }
 
     fn run_one_frontier(&self) {
+        // No need to wait for blockprocessor, as we are not processing blocks
         self.wait(|i| !i.accounts.priority_half_full());
         self.wait(|_| self.frontiers_limiter.should_pass(1));
         self.wait(|_| self.workers.num_queued_tasks() < self.config.frontier_scan.max_pending);
-        self.wait_tags();
         let Some(channel) = self.wait_channel() else {
             return;
         };
@@ -989,6 +990,8 @@ struct BootstrapLogic {
     sync_dependencies_interval: Instant,
     config: BootstrapConfig,
     network_info: Arc<RwLock<NetworkInfo>>,
+    /// Rate limiter for all types of requests
+    limiter: RateLimiter,
 }
 
 impl BootstrapLogic {
@@ -1271,6 +1274,7 @@ pub struct BootstrapConfig {
     pub enable_frontier_scan: bool,
     /// Maximum number of un-responded requests per channel, should be lower or equal to bootstrap server max queue size
     pub channel_limit: usize,
+    pub rate_limit: usize,
     pub database_rate_limit: usize,
     pub frontier_rate_limit: usize,
     pub database_warmup_ratio: usize,
@@ -1296,6 +1300,7 @@ impl Default for BootstrapConfig {
             enable_dependency_walker: true,
             enable_frontier_scan: true,
             channel_limit: 16,
+            rate_limit: 500,
             database_rate_limit: 256,
             frontier_rate_limit: 8,
             database_warmup_ratio: 10,
