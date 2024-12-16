@@ -48,12 +48,9 @@ fn observer_callbacks() {
 #[test]
 fn confirmed_history() {
     let mut system = System::new();
-    let flags = NodeFlags {
-        disable_ascending_bootstrap: true,
-        ..Default::default()
-    };
-    let config = System::default_config_without_backlog_population();
-    let node = system.build_node().flags(flags).config(config).finish();
+    let mut config = System::default_config_without_backlog_population();
+    config.bootstrap.enable = false;
+    let node = system.build_node().config(config).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key1 = PrivateKey::new();

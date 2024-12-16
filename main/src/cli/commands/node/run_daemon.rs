@@ -42,9 +42,6 @@ pub(crate) struct RunDaemonArgs {
     /// Turn off the ability for ongoing bootstraps to occur
     #[arg(long)]
     disable_ongoing_bootstrap: bool,
-    /// Disable ascending bootstrap
-    #[arg(long)]
-    disable_ascending_bootstrap: bool,
     /// Turn off the request loop
     #[arg(long)]
     disable_request_loop: bool,
@@ -123,7 +120,6 @@ impl RunDaemonArgs {
         flags.disable_bootstrap_bulk_pull_server = self.disable_bootstrap_bulk_pull_server;
         flags.disable_bootstrap_bulk_push_client = self.disable_bootstrap_bulk_push_client;
         flags.disable_ongoing_bootstrap = self.disable_ongoing_bootstrap;
-        flags.disable_ascending_bootstrap = self.disable_ascending_bootstrap;
         flags.disable_rep_crawler = self.disable_rep_crawler;
         flags.disable_request_loop = self.disable_request_loop;
         flags.disable_tcp_realtime = self.disable_tcp_realtime;

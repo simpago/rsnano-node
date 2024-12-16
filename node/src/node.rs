@@ -1415,11 +1415,9 @@ impl NodeExt for Arc<Node> {
         self.election_schedulers.start();
         self.backlog_population.start();
         self.bootstrap_server.start();
-        if !self.flags.disable_ascending_bootstrap {
-            self.bootstrap
-                .initialize(&self.network_params.ledger.genesis_account);
-            self.bootstrap.start();
-        }
+        self.bootstrap
+            .initialize(&self.network_params.ledger.genesis_account);
+        self.bootstrap.start();
         self.telemetry.start();
         self.stats.start();
         self.local_block_broadcaster.start();
@@ -1464,9 +1462,7 @@ impl NodeExt for Arc<Node> {
         // No tasks may wait for work generation in I/O threads, or termination signal capturing will be unable to call node::stop()
         self.distributed_work.stop();
         self.backlog_population.stop();
-        if !self.flags.disable_ascending_bootstrap {
-            self.bootstrap.stop();
-        }
+        self.bootstrap.stop();
         self.rep_crawler.stop();
         self.unchecked.stop();
         self.block_processor.stop();

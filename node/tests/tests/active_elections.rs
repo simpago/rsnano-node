@@ -5,6 +5,7 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY};
 use rsnano_network::ChannelId;
 use rsnano_node::{
+    bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, ElectionBehavior},
     stats::{DetailType, Direction, StatType},
@@ -599,10 +600,19 @@ fn confirm_frontier() {
     let flags = NodeFlags {
         disable_request_loop: true,
         disable_ongoing_bootstrap: true,
-        disable_ascending_bootstrap: true,
         ..Default::default()
     };
-    let node1 = system.build_node().flags(flags).finish();
+    let node1 = system
+        .build_node()
+        .flags(flags)
+        .config(NodeConfig {
+            bootstrap: BootstrapConfig {
+                enable: false,
+                ..Default::default()
+            },
+            ..System::default_config()
+        })
+        .finish();
     let wallet_id = node1.wallets.wallet_ids()[0];
     node1
         .wallets
@@ -615,12 +625,21 @@ fn confirm_frontier() {
     // The rep crawler would otherwise request confirmations in order to find representatives
     let flags2 = NodeFlags {
         disable_ongoing_bootstrap: true,
-        disable_ascending_bootstrap: true,
         disable_rep_crawler: true,
         ..Default::default()
     };
     // start node2 later so that we do not get the gossip traffic
-    let node2 = system.build_node().flags(flags2).finish();
+    let node2 = system
+        .build_node()
+        .flags(flags2)
+        .config(NodeConfig {
+            bootstrap: BootstrapConfig {
+                enable: false,
+                ..Default::default()
+            },
+            ..System::default_config()
+        })
+        .finish();
 
     // Add representative to disabled rep crawler
     let peers = node2
