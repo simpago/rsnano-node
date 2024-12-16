@@ -741,14 +741,14 @@ fn rep_self_vote() {
 #[test]
 fn fork_bootstrap_flip() {
     let mut system = System::new();
-    let config0 = System::default_config_without_backlog_population();
+    let config1 = System::default_config_without_backlog_population();
     let mut node_flags = NodeFlags::default();
     node_flags.disable_bootstrap_bulk_push_client = true;
     node_flags.disable_lazy_bootstrap = true;
 
     let node1 = system
         .build_node()
-        .config(config0)
+        .config(config1)
         .flags(node_flags.clone())
         .finish();
     let wallet_id1 = node1.wallets.wallet_ids()[0];
@@ -757,10 +757,10 @@ fn fork_bootstrap_flip() {
         .insert_adhoc2(&wallet_id1, &DEV_GENESIS_KEY.raw_key(), true)
         .unwrap();
 
-    let mut config1 = System::default_config();
-    config1.peering_port = Some(get_available_port());
-    let node2 = system.make_disconnected_node();
-    //let node2 = system.build_disconnected_node(config1, node_flags);
+    let mut config2 = System::default_config();
+    // Reduce cooldown to speed up fork resolution
+    config2.bootstrap.account_sets.cooldown = Duration::from_millis(100);
+    let node2 = system.build_node().config(config2).disconnected().finish();
     node1
         .wallets
         .insert_adhoc2(&wallet_id1, &DEV_GENESIS_KEY.raw_key(), true)
@@ -787,16 +787,8 @@ fn fork_bootstrap_flip() {
     );
 
     node1.confirm(send1.hash());
-    assert_timely_msg(
-        Duration::from_secs(1),
-        || node1.block_exists(&send1.hash()),
-        "send1 not found on node1",
-    );
-    assert_timely_msg(
-        Duration::from_secs(1),
-        || node2.block_exists(&send2.hash()),
-        "send2 not found on node2",
-    );
+    assert_timely2(|| node1.block_exists(&send1.hash()));
+    assert_timely2(|| node2.block_exists(&send2.hash()));
 
     // Additionally add new peer to confirm & replace bootstrap block
     //node2.network.merge_peer(node1.network.endpoint());
@@ -821,6 +813,8 @@ fn fork_multi_flip() {
         .finish();
     let wallet_id1 = node1.wallets.wallet_ids()[0];
     config.peering_port = Some(get_available_port());
+    // Reduce cooldown to speed up fork resolution
+    config.bootstrap.account_sets.cooldown = Duration::from_millis(100);
     let node2 = system.build_node().config(config).flags(flags).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -853,30 +847,22 @@ fn fork_multi_flip() {
 
     let election = start_election(&node2, &send2.hash());
 
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || {
-            election
-                .mutex
-                .lock()
-                .unwrap()
-                .last_blocks
-                .contains_key(&send1.hash())
-        },
-        "election doesn't contain send1",
-    );
+    assert_timely2(|| {
+        election
+            .mutex
+            .lock()
+            .unwrap()
+            .last_blocks
+            .contains_key(&send1.hash())
+    });
 
     node1.confirm(send1.hash());
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || {
-            node2
-                .ledger
-                .any()
-                .block_exists_or_pruned(&node2.ledger.read_txn(), &send1.hash())
-        },
-        "send1 not found on node2",
-    );
+    assert_timely2(|| {
+        node2
+            .ledger
+            .any()
+            .block_exists_or_pruned(&node2.ledger.read_txn(), &send1.hash())
+    });
     assert!(!node2
         .ledger
         .any()
