@@ -1,12 +1,12 @@
 use super::ordered_heads::OrderedHeads;
 use crate::{
-    bootstrap::ascending::ordered_heads::FrontierHead,
+    bootstrap::ordered_heads::FrontierHead,
     stats::{DetailType, StatType, Stats},
 };
 use primitive_types::U256;
 use rsnano_core::{utils::ContainerInfo, Account, Frontier};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
-use std::{cmp::max, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FrontierScanConfig {

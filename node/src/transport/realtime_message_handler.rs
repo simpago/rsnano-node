@@ -1,7 +1,7 @@
 use super::NetworkFilter;
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
-    bootstrap::{BootstrapAscending, BootstrapServer},
+    bootstrap::{BootstrapServer, BootstrapService},
     config::NodeConfig,
     consensus::{RequestAggregator, VoteProcessorQueue},
     stats::{DetailType, Direction, StatType, Stats},
@@ -29,7 +29,7 @@ pub struct RealtimeMessageHandler {
     vote_processor_queue: Arc<VoteProcessorQueue>,
     telemetry: Arc<Telemetry>,
     bootstrap_server: Arc<BootstrapServer>,
-    ascend_boot: Arc<BootstrapAscending>,
+    ascend_boot: Arc<BootstrapService>,
 }
 
 impl RealtimeMessageHandler {
@@ -44,7 +44,7 @@ impl RealtimeMessageHandler {
         vote_processor_queue: Arc<VoteProcessorQueue>,
         telemetry: Arc<Telemetry>,
         bootstrap_server: Arc<BootstrapServer>,
-        ascend_boot: Arc<BootstrapAscending>,
+        ascend_boot: Arc<BootstrapService>,
     ) -> Self {
         Self {
             stats,

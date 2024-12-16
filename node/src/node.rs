@@ -3,9 +3,7 @@ use crate::{
         BacklogPopulation, BlockProcessor, BlockProcessorCleanup, BlockSource,
         LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
     },
-    bootstrap::{
-        BootstrapAscending, BootstrapAscendingExt, BootstrapServer, BootstrapServerCleanup,
-    },
+    bootstrap::{BootstrapAscendingExt, BootstrapServer, BootstrapServerCleanup, BootstrapService},
     cementation::ConfirmingSet,
     config::{GlobalConfig, NodeConfig, NodeFlags},
     consensus::{
@@ -113,7 +111,7 @@ pub struct Node {
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
     pub backlog_population: Arc<BacklogPopulation>,
-    pub ascendboot: Arc<BootstrapAscending>,
+    pub ascendboot: Arc<BootstrapService>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
     message_processor: Mutex<MessageProcessor>,
@@ -697,7 +695,7 @@ impl Node {
             election_schedulers.clone(),
         ));
 
-        let ascendboot = Arc::new(BootstrapAscending::new(
+        let ascendboot = Arc::new(BootstrapService::new(
             block_processor.clone(),
             ledger.clone(),
             stats.clone(),
