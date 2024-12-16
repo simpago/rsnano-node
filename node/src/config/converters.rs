@@ -1,8 +1,5 @@
 use super::GlobalConfig;
-use crate::{
-    block_processing::{BacklogPopulationConfig, BlockProcessorConfig},
-    bootstrap::BootstrapInitiatorConfig,
-};
+use crate::block_processing::{BacklogPopulationConfig, BlockProcessorConfig};
 use rsnano_network::{bandwidth_limiter::BandwidthLimiterConfig, NetworkConfig};
 use std::time::Duration;
 
@@ -22,34 +19,6 @@ impl From<&GlobalConfig> for BlockProcessorConfig {
             batch_size: 256,
             max_queued_notifications: 8,
             work_thresholds: value.network_params.work.clone(),
-        }
-    }
-}
-
-impl From<&GlobalConfig> for BootstrapInitiatorConfig {
-    fn from(value: &GlobalConfig) -> Self {
-        Self {
-            bootstrap_connections: value.node_config.bootstrap_connections,
-            bootstrap_connections_max: value.node_config.bootstrap_connections_max,
-            tcp_io_timeout: Duration::from_secs(value.node_config.tcp_io_timeout_s as u64),
-            silent_connection_tolerance_time: Duration::from_secs(
-                value
-                    .network_params
-                    .network
-                    .silent_connection_tolerance_time_s as u64,
-            ),
-            allow_bootstrap_peers_duplicates: value.flags.allow_bootstrap_peers_duplicates,
-            disable_legacy_bootstrap: value.flags.disable_legacy_bootstrap,
-            idle_timeout: value.network_params.network.idle_timeout,
-            lazy_max_pull_blocks: value.network_params.bootstrap.lazy_max_pull_blocks,
-            work_thresholds: value.network_params.work.clone(),
-            lazy_retry_limit: value.network_params.bootstrap.lazy_retry_limit,
-            protocol: value.network_params.network.protocol_info(),
-            frontier_request_count: value.node_config.bootstrap_frontier_request_count,
-            frontier_retry_limit: value.network_params.bootstrap.frontier_retry_limit,
-            disable_bulk_push_client: value.flags.disable_bootstrap_bulk_push_client,
-            bootstrap_initiator_threads: value.node_config.bootstrap_initiator_threads,
-            receive_minimum: value.node_config.receive_minimum,
         }
     }
 }

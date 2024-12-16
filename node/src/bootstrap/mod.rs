@@ -1,43 +1,16 @@
 mod ascending;
-mod bootstrap_attempt;
-mod bootstrap_attempts;
-mod bootstrap_client;
-mod bootstrap_connections;
-mod bootstrap_initiator;
-mod bootstrap_lazy;
-mod bootstrap_legacy;
 mod bootstrap_server;
-mod bootstrap_wallet;
-mod bulk_pull_account_client;
 mod bulk_pull_account_server;
-mod bulk_pull_client;
 mod bulk_pull_server;
-mod bulk_push_client;
-mod bulk_push_server;
-mod frontier_req_client;
 mod frontier_req_server;
 mod pulls_cache;
 
 pub use ascending::*;
-pub use bootstrap_attempt::*;
-pub use bootstrap_attempts::BootstrapAttempts;
-pub use bootstrap_client::BootstrapClient;
-pub use bootstrap_connections::*;
-pub use bootstrap_initiator::*;
-pub use bootstrap_lazy::*;
-pub use bootstrap_legacy::*;
 pub use bootstrap_server::*;
-pub use bootstrap_wallet::*;
-pub use bulk_pull_account_client::*;
 pub use bulk_pull_account_server::BulkPullAccountServer;
-pub use bulk_pull_client::*;
 pub use bulk_pull_server::BulkPullServer;
-pub use bulk_push_client::*;
-pub use bulk_push_server::BulkPushServer;
-pub use frontier_req_client::*;
 pub use frontier_req_server::FrontierReqServer;
 pub use pulls_cache::{PullInfo, PullsCache};
-use std::{ops::Deref, sync::Arc};
 
 pub mod bootstrap_limits {
     pub const PULL_COUNT_PER_CHECK: u64 = 8 * 1024;
@@ -70,34 +43,6 @@ impl BootstrapMode {
             BootstrapMode::Lazy => "lazy",
             BootstrapMode::WalletLazy => "wallet_lazy",
             BootstrapMode::Ascending => "ascending",
-        }
-    }
-}
-
-pub enum BootstrapStrategy {
-    Lazy(BootstrapAttemptLazy),
-    Legacy(Arc<BootstrapAttemptLegacy>),
-    Wallet(Arc<BootstrapAttemptWallet>),
-}
-
-impl Deref for BootstrapStrategy {
-    type Target = dyn BootstrapAttemptTrait;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            BootstrapStrategy::Lazy(i) => i,
-            BootstrapStrategy::Legacy(i) => i,
-            BootstrapStrategy::Wallet(i) => i,
-        }
-    }
-}
-
-impl BootstrapStrategy {
-    pub fn mode(&self) -> BootstrapMode {
-        match self {
-            BootstrapStrategy::Lazy(_) => BootstrapMode::Lazy,
-            BootstrapStrategy::Legacy(_) => BootstrapMode::Legacy,
-            BootstrapStrategy::Wallet(_) => BootstrapMode::WalletLazy,
         }
     }
 }

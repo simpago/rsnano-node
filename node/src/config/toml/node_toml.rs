@@ -16,10 +16,7 @@ pub struct NodeToml {
     pub block_processor_batch_max_time: Option<i64>,
     pub bootstrap_bandwidth_burst_ratio: Option<f64>,
     pub bootstrap_bandwidth_limit: Option<usize>,
-    pub bootstrap_connections: Option<u32>,
-    pub bootstrap_connections_max: Option<u32>,
     pub bootstrap_fraction_numerator: Option<u32>,
-    pub bootstrap_frontier_request_count: Option<u32>,
     pub bootstrap_initiator_threads: Option<u32>,
     pub bootstrap_serving_threads: Option<u32>,
     pub confirming_set_batch_time: Option<u64>,
@@ -105,17 +102,8 @@ impl NodeConfig {
         if let Some(bootstrap_bandwidth_limit) = toml.bootstrap_bandwidth_limit {
             self.bootstrap_bandwidth_limit = bootstrap_bandwidth_limit;
         }
-        if let Some(bootstrap_connections) = toml.bootstrap_connections {
-            self.bootstrap_connections = bootstrap_connections;
-        }
-        if let Some(bootstrap_connections_max) = toml.bootstrap_connections_max {
-            self.bootstrap_connections_max = bootstrap_connections_max;
-        }
         if let Some(bootstrap_fraction_numerator) = toml.bootstrap_fraction_numerator {
             self.bootstrap_fraction_numerator = bootstrap_fraction_numerator;
-        }
-        if let Some(bootstrap_frontier_request_count) = toml.bootstrap_frontier_request_count {
-            self.bootstrap_frontier_request_count = bootstrap_frontier_request_count;
         }
         if let Some(bootstrap_initiator_threads) = toml.bootstrap_initiator_threads {
             self.bootstrap_initiator_threads = bootstrap_initiator_threads;
@@ -367,10 +355,7 @@ impl From<&NodeConfig> for NodeToml {
             block_processor_batch_max_time: Some(config.block_processor_batch_max_time_ms),
             bootstrap_bandwidth_burst_ratio: Some(config.bootstrap_bandwidth_burst_ratio),
             bootstrap_bandwidth_limit: Some(config.bootstrap_bandwidth_limit),
-            bootstrap_connections: Some(config.bootstrap_connections),
-            bootstrap_connections_max: Some(config.bootstrap_connections_max),
             bootstrap_fraction_numerator: Some(config.bootstrap_fraction_numerator),
-            bootstrap_frontier_request_count: Some(config.bootstrap_frontier_request_count),
             bootstrap_initiator_threads: Some(config.bootstrap_initiator_threads),
             bootstrap_serving_threads: Some(config.bootstrap_serving_threads),
             confirming_set_batch_time: Some(config.confirming_set_batch_time.as_millis() as u64),

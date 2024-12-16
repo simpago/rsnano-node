@@ -307,24 +307,12 @@ mod tests {
             default_cfg.node.block_processor_batch_max_time_ms
         );
         assert_ne!(
-            deserialized.node.bootstrap_connections,
-            default_cfg.node.bootstrap_connections
-        );
-        assert_ne!(
-            deserialized.node.bootstrap_connections_max,
-            default_cfg.node.bootstrap_connections_max
-        );
-        assert_ne!(
             deserialized.node.bootstrap_initiator_threads,
             default_cfg.node.bootstrap_initiator_threads
         );
         assert_ne!(
             deserialized.node.bootstrap_serving_threads,
             default_cfg.node.bootstrap_serving_threads
-        );
-        assert_ne!(
-            deserialized.node.bootstrap_frontier_request_count,
-            default_cfg.node.bootstrap_frontier_request_count
         );
         assert_ne!(
             deserialized.node.bootstrap_fraction_numerator,

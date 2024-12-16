@@ -8,7 +8,6 @@ use rsnano_messages::{
 };
 use rsnano_network::{ChannelMode, DropPolicy, TrafficType};
 use rsnano_node::{
-    bootstrap::BootstrapInitiatorExt,
     config::NodeConfig,
     consensus::VoteProcessorConfig,
     stats::{DetailType, Direction, StatType},

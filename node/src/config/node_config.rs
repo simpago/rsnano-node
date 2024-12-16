@@ -3,7 +3,7 @@ use crate::{
     block_processing::{
         BacklogPopulationConfig, BlockProcessorConfig, LocalBlockBroadcasterConfig,
     },
-    bootstrap::{BootstrapAscendingConfig, BootstrapInitiatorConfig, BootstrapServerConfig},
+    bootstrap::{BootstrapAscendingConfig, BootstrapServerConfig},
     cementation::ConfirmingSetConfig,
     consensus::{
         ActiveElectionsConfig, HintedSchedulerConfig, OptimisticSchedulerConfig,
@@ -47,11 +47,8 @@ pub struct NodeConfig {
     pub enable_optimistic_scheduler: bool,
     pub enable_hinted_scheduler: bool,
     pub enable_monitor: bool,
-    pub bootstrap_connections: u32,
-    pub bootstrap_connections_max: u32,
     pub bootstrap_initiator_threads: u32,
     pub bootstrap_serving_threads: u32,
-    pub bootstrap_frontier_request_count: u32,
     pub block_processor_batch_max_time_ms: i64,
     pub allow_local_peers: bool,
     pub vote_minimum: Amount,
@@ -221,9 +218,6 @@ impl NodeConfig {
             Networks::Invalid => panic!("invalid network"),
         }
 
-        let bootstrap_initiator_cfg =
-            BootstrapInitiatorConfig::default_for(network_params.network.current_network);
-
         let block_processor_cfg = BlockProcessorConfig::new(network_params.work.clone());
 
         Self {
@@ -246,11 +240,8 @@ impl NodeConfig {
             enable_optimistic_scheduler: true,
             enable_hinted_scheduler: true,
             enable_monitor: true,
-            bootstrap_connections: bootstrap_initiator_cfg.bootstrap_connections,
-            bootstrap_connections_max: bootstrap_initiator_cfg.bootstrap_connections_max,
             bootstrap_initiator_threads: 1,
             bootstrap_serving_threads: 1,
-            bootstrap_frontier_request_count: bootstrap_initiator_cfg.frontier_request_count,
             block_processor_batch_max_time_ms: block_processor_cfg.batch_max_time.as_millis()
                 as i64,
             allow_local_peers: !(network_params.network.is_live_network()
