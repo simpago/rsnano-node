@@ -3,16 +3,11 @@ use super::{
     NetworkFilter, SynCookies,
 };
 use crate::{
-    block_processing::BlockProcessor,
-    bootstrap::FrontierReqServer,
-    config::NodeFlags,
     stats::{DetailType, Direction, StatType, Stats},
-    utils::ThreadPool,
     NetworkParams,
 };
 use async_trait::async_trait;
 use rsnano_core::{NodeId, PrivateKey};
-use rsnano_ledger::Ledger;
 use rsnano_messages::*;
 use rsnano_network::{Channel, ChannelMode, ChannelReader, NetworkInfo};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
@@ -78,12 +73,7 @@ pub struct ResponseServer {
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
     network_filter: Arc<NetworkFilter>,
-    tokio: tokio::runtime::Handle,
-    ledger: Arc<Ledger>,
-    workers: Arc<dyn ThreadPool>,
-    block_processor: Arc<BlockProcessor>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
-    flags: NodeFlags,
 }
 
 static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
@@ -99,11 +89,6 @@ impl ResponseServer {
         allow_bootstrap: bool,
         syn_cookies: Arc<SynCookies>,
         node_id: PrivateKey,
-        tokio: tokio::runtime::Handle,
-        ledger: Arc<Ledger>,
-        workers: Arc<dyn ThreadPool>,
-        block_processor: Arc<BlockProcessor>,
-        flags: NodeFlags,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
@@ -131,11 +116,6 @@ impl ResponseServer {
             allow_bootstrap,
             initiate_handshake_listener: OutputListenerMt::new(),
             network_filter,
-            tokio,
-            ledger,
-            workers,
-            block_processor,
-            flags,
             latest_keepalives,
         }
     }
@@ -248,23 +228,12 @@ impl Drop for ResponseServer {
     }
 }
 
-pub trait RealtimeMessageVisitor: MessageVisitor {
-    fn process(&self) -> bool;
-    fn as_message_visitor(&mut self) -> &mut dyn MessageVisitor;
-}
-
-pub trait BootstrapMessageVisitor: MessageVisitor {
-    fn processed(&self) -> bool;
-    fn as_message_visitor(&mut self) -> &mut dyn MessageVisitor;
-}
-
 #[async_trait]
 pub trait ResponseServerExt {
     fn to_realtime_connection(&self, node_id: &NodeId) -> bool;
     async fn run(&self);
     async fn process_message(&self, message: Message) -> ProcessResult;
     fn process_realtime(&self, message: Message) -> ProcessResult;
-    fn process_bootstrap(&self, message: Message) -> ProcessResult;
 }
 
 pub enum ProcessResult {
@@ -492,7 +461,9 @@ impl ResponseServerExt for Arc<ResponseServer> {
 
         // The server will switch to bootstrap mode immediately after processing the first bootstrap message, thus no `else if`
         if self.is_bootstrap_connection() {
-            return self.process_bootstrap(message);
+            // Ignored sicne V28
+            // TODO: Abort connection?
+            return ProcessResult::Progress;
         }
         debug_assert!(false);
         ProcessResult::Abort
@@ -533,26 +504,5 @@ impl ResponseServerExt for Arc<ResponseServer> {
         }
 
         ProcessResult::Progress
-    }
-
-    fn process_bootstrap(&self, message: Message) -> ProcessResult {
-        match &message {
-            Message::FrontierReq(payload) => {
-                // original code TODO: There should be no need to re-copy message as unique pointer, refactor those bulk/frontier pull/push servers
-                let response = FrontierReqServer::new(
-                    Arc::clone(self),
-                    payload.clone(),
-                    self.workers.clone(),
-                    self.ledger.clone(),
-                    self.tokio.clone(),
-                );
-                self.workers.post(Box::new(move || {
-                    response.send_next();
-                }));
-
-                ProcessResult::Pause
-            }
-            _ => ProcessResult::Progress,
-        }
     }
 }
