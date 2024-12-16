@@ -174,8 +174,6 @@ impl BootstrapAscending {
             guard.tags.insert(tag.clone());
         }
 
-        // TODO: on_request.notify(tag, channel);
-
         let req_type = match tag.query_type {
             QueryType::BlocksByHash | QueryType::BlocksByAccount => {
                 let start_type = if tag.query_type == QueryType::BlocksByHash {
