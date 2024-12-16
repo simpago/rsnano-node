@@ -56,6 +56,7 @@ pub enum StatType {
     BootstrapAscendingVerifyFrontiers,
     BootstrapAscendingProcess,
     BootstrapAscendingRequest,
+    BootstrapAscendingRequestBlocks,
     BootstrapAscendingReply,
     BootstrapAscendingNext,
     BootstrapAscendingFrontiers,
@@ -444,7 +445,6 @@ pub enum DetailType {
     ProcessFrontiers,
     DroppedFrontiers,
 
-    // bootstrap_ascending_accounts
     Prioritize,
     PrioritizeFailed,
     Block,
@@ -482,6 +482,9 @@ pub enum DetailType {
 
     RequestBlocks,
     RequestAccountInfo,
+
+    Safe,
+    Base,
 
     // active
     StartedHinted,

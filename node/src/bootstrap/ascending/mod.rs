@@ -30,7 +30,7 @@ use frontier_scan::{FrontierScan, FrontierScanConfig};
 use num::clamp;
 use ordered_tags::QuerySource;
 use priority::Priority;
-use rand::{thread_rng, RngCore};
+use rand::{thread_rng, Rng, RngCore};
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Block, BlockHash, BlockType, Frontier,
     HashOrAccount, SavedBlock,
@@ -327,18 +327,53 @@ impl BootstrapAscending {
         debug_assert!(count <= BootstrapServer::MAX_BLOCKS);
         let count = min(count, self.config.max_pull_count);
 
+        let tx = self.ledger.read_txn();
         // Check if the account picked has blocks, if it does, start the pull from the highest block
         let (query_type, start, hash) = match account_info {
-            Some(info) => (
-                QueryType::BlocksByHash,
-                HashOrAccount::from(info.head),
-                info.head,
-            ),
-            None => (
-                QueryType::BlocksByAccount,
-                HashOrAccount::from(account),
-                BlockHash::zero(),
-            ),
+            Some(info) => {
+                // Probabilistically choose between requesting blocks from account frontier or confirmed frontier
+                // Optimistic requests start from the (possibly unconfirmed) account frontier and are vulnerable to bootstrap poisoning
+                // Safe requests start from the confirmed frontier and given enough time will eventually resolve forks
+                let optimistic_request =
+                    thread_rng().gen_range(0..100) < self.config.optimistic_request_percentage;
+                if !optimistic_request {
+                    let conf_info = self.ledger.store.confirmation_height.get(&tx, &account);
+                    if let Some(conf_info) = conf_info {
+                        self.stats
+                            .inc(StatType::BootstrapAscendingRequestBlocks, DetailType::Safe);
+                        (
+                            QueryType::BlocksByHash,
+                            HashOrAccount::from(conf_info.frontier),
+                            BlockHash::from(conf_info.height),
+                        )
+                    } else {
+                        self.stats.inc(
+                            StatType::BootstrapAscendingRequestBlocks,
+                            DetailType::Optimistic,
+                        );
+                        (QueryType::BlocksByHash, info.head.into(), info.head)
+                    }
+                } else {
+                    self.stats.inc(
+                        StatType::BootstrapAscendingRequestBlocks,
+                        DetailType::Optimistic,
+                    );
+                    (
+                        QueryType::BlocksByHash,
+                        HashOrAccount::from(info.head),
+                        info.head,
+                    )
+                }
+            }
+            None => {
+                self.stats
+                    .inc(StatType::BootstrapAscendingRequestBlocks, DetailType::Base);
+                (
+                    QueryType::BlocksByAccount,
+                    HashOrAccount::from(account),
+                    BlockHash::zero(),
+                )
+            }
         };
 
         let tag = AsyncTag {
@@ -1056,6 +1091,7 @@ impl BootstrapAscendingLogic {
                 }
             }
             BlockStatus::GapSource => {
+                // Prevent malicious live traffic from filling up the blocked set
                 if source == BlockSource::Bootstrap {
                     let source = block.source_or_link();
 
@@ -1299,6 +1335,7 @@ pub struct BootstrapAscendingConfig {
     /** Minimum accepted protocol version used when bootstrapping */
     pub min_protocol_version: u8,
     pub max_requests: usize,
+    pub optimistic_request_percentage: u8,
     pub account_sets: AccountSetsConfig,
     pub frontier_scan: FrontierScanConfig,
 }
@@ -1322,6 +1359,7 @@ impl Default for BootstrapAscendingConfig {
             block_processor_theshold: 1000,
             min_protocol_version: 0x14, // TODO don't hard code
             max_requests: 1024,
+            optimistic_request_percentage: 75,
             account_sets: Default::default(),
             frontier_scan: Default::default(),
         }

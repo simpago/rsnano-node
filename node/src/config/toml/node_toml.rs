@@ -276,6 +276,9 @@ impl NodeConfig {
             if let Some(max) = ascending_toml.max_requests {
                 config.max_requests = max;
             }
+            if let Some(percent) = ascending_toml.optimistic_request_percentage {
+                config.optimistic_request_percentage = percent;
+            }
         }
         if let Some(bootstrap_server_toml) = &toml.bootstrap_server {
             self.bootstrap_server = bootstrap_server_toml.into();
@@ -471,6 +474,7 @@ mod tests {
             throttle_wait: Some(105),
             request_timeout: Some(106),
             max_requests: Some(107),
+            optimistic_request_percentage: Some(42),
             database_warmup_ratio: Some(108),
             account_sets: Some(sets_toml),
         };
@@ -496,6 +500,7 @@ mod tests {
         assert_eq!(ascending.throttle_wait, Duration::from_millis(105));
         assert_eq!(ascending.request_timeout, Duration::from_millis(106));
         assert_eq!(ascending.max_requests, 107);
+        assert_eq!(ascending.optimistic_request_percentage, 42);
         assert_eq!(ascending.database_warmup_ratio, 108);
 
         let sets = &cfg.bootstrap_ascending.account_sets;
@@ -523,6 +528,7 @@ mod tests {
         assert_eq!(ascending_toml.throttle_wait, Some(100));
         assert_eq!(ascending_toml.request_timeout, Some(3000));
         assert_eq!(ascending_toml.max_requests, Some(1024));
+        assert_eq!(ascending_toml.optimistic_request_percentage, Some(75));
 
         let sets_toml = ascending_toml.account_sets.as_ref().unwrap();
         assert_eq!(sets_toml.consideration_count, Some(4));

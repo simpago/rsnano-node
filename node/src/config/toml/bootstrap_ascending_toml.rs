@@ -17,6 +17,7 @@ pub struct BootstrapAscendingToml {
     pub throttle_wait: Option<u64>,
     pub request_timeout: Option<u64>,
     pub max_requests: Option<usize>,
+    pub optimistic_request_percentage: Option<u8>,
     pub account_sets: Option<AccountSetsToml>,
 }
 
@@ -37,6 +38,7 @@ impl From<&BootstrapAscendingConfig> for BootstrapAscendingToml {
             account_sets: Some((&config.account_sets).into()),
             block_processor_threshold: Some(config.block_processor_theshold),
             max_requests: Some(config.max_requests),
+            optimistic_request_percentage: Some(config.optimistic_request_percentage),
         }
     }
 }
