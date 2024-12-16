@@ -125,7 +125,7 @@ impl BootstrapService {
             ledger,
             message_publisher: Mutex::new(message_publisher),
             clock,
-            workers: ThreadPoolImpl::create(1, "Ascboot work"),
+            workers: ThreadPoolImpl::create(1, "Bootstrap work"),
         }
     }
 
@@ -918,7 +918,7 @@ impl BootstrapExt for Arc<BootstrapService> {
             let self_l = Arc::clone(self);
             Some(
                 std::thread::Builder::new()
-                    .name("Ascboot".to_string())
+                    .name("Bootstrap".to_string())
                     .spawn(Box::new(move || self_l.run_priorities()))
                     .unwrap(),
             )
@@ -930,7 +930,7 @@ impl BootstrapExt for Arc<BootstrapService> {
             let self_l = Arc::clone(self);
             Some(
                 std::thread::Builder::new()
-                    .name("Ascboot".to_string())
+                    .name("Bootstrap db".to_string())
                     .spawn(Box::new(move || self_l.run_database()))
                     .unwrap(),
             )
@@ -942,7 +942,7 @@ impl BootstrapExt for Arc<BootstrapService> {
             let self_l = Arc::clone(self);
             Some(
                 std::thread::Builder::new()
-                    .name("Ascboot".to_string())
+                    .name("Bootstrap walkr".to_string())
                     .spawn(Box::new(move || self_l.run_dependencies()))
                     .unwrap(),
             )
@@ -954,7 +954,7 @@ impl BootstrapExt for Arc<BootstrapService> {
             let self_l = Arc::clone(self);
             Some(
                 std::thread::Builder::new()
-                    .name("Ascboot".to_string())
+                    .name("Bootstrap front".to_string())
                     .spawn(Box::new(move || self_l.run_frontiers()))
                     .unwrap(),
             )
@@ -964,7 +964,7 @@ impl BootstrapExt for Arc<BootstrapService> {
 
         let self_l = Arc::clone(self);
         let timeout = std::thread::Builder::new()
-            .name("Ascboot".to_string())
+            .name("Bootstrap clean".to_string())
             .spawn(Box::new(move || self_l.run_timeouts()))
             .unwrap();
 

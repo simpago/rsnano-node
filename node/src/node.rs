@@ -78,7 +78,6 @@ pub struct Node {
     pub network_params: NetworkParams,
     pub stats: Arc<Stats>,
     pub workers: Arc<dyn ThreadPool>,
-    pub bootstrap_workers: Arc<dyn ThreadPool>,
     wallet_workers: Arc<dyn ThreadPool>,
     election_workers: Arc<dyn ThreadPool>,
     pub flags: NodeFlags,
@@ -1074,7 +1073,6 @@ impl Node {
             peer_connector,
             node_id,
             workers,
-            bootstrap_workers,
             wallet_workers,
             election_workers,
             distributed_work,
@@ -1489,7 +1487,6 @@ impl NodeExt for Arc<Node> {
         self.network_threads.lock().unwrap().stop(); // Stop network last to avoid killing in-use sockets
         self.monitor.stop();
 
-        self.bootstrap_workers.stop();
         self.wallet_workers.stop();
         self.election_workers.stop();
         self.workers.stop();
