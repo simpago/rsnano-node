@@ -609,27 +609,38 @@ impl BootstrapService {
             (0, self.config.request_timeout.as_millis() as i64),
         );
 
-        guard.scoring.received_message(channel_id);
         drop(guard);
 
         // Process the response payload
-        match message.pull_type {
+        let ok = match message.pull_type {
             AscPullAckType::Blocks(blocks) => self.process_blocks(&blocks, &tag),
             AscPullAckType::AccountInfo(info) => self.process_accounts(&info, &tag),
             AscPullAckType::Frontiers(frontiers) => self.process_frontiers(frontiers, &tag),
+        };
+
+        if ok {
+            self.mutex
+                .lock()
+                .unwrap()
+                .scoring
+                .received_message(channel_id);
+        } else {
+            self.stats
+                .inc(StatType::Bootstrap, DetailType::InvalidResponse);
         }
 
         self.condition.notify_all();
     }
 
-    fn process_frontiers(&self, frontiers: Vec<Frontier>, tag: &AsyncTag) {
+    fn process_frontiers(&self, frontiers: Vec<Frontier>, tag: &AsyncTag) -> bool {
         debug_assert_eq!(tag.query_type, QueryType::Frontiers);
         debug_assert!(!tag.start.is_zero());
 
         if frontiers.is_empty() {
             self.stats
                 .inc(StatType::BootstrapProcess, DetailType::FrontiersEmpty);
-            return;
+            // OK, but nothing to do
+            return true;
         }
 
         self.stats
@@ -667,13 +678,18 @@ impl BootstrapService {
                         frontiers.len() as u64,
                     );
                 }
+                true
             }
-            VerifyResult::NothingNew => self
-                .stats
-                .inc(StatType::BootstrapVerifyFrontiers, DetailType::NothingNew),
-            VerifyResult::Invalid => self
-                .stats
-                .inc(StatType::BootstrapVerifyFrontiers, DetailType::Invalid),
+            VerifyResult::NothingNew => {
+                self.stats
+                    .inc(StatType::BootstrapVerifyFrontiers, DetailType::NothingNew);
+                true
+            }
+            VerifyResult::Invalid => {
+                self.stats
+                    .inc(StatType::BootstrapVerifyFrontiers, DetailType::Invalid);
+                false
+            }
         }
     }
 
@@ -699,7 +715,7 @@ impl BootstrapService {
         VerifyResult::Ok
     }
 
-    fn process_blocks(&self, response: &BlocksAckPayload, tag: &AsyncTag) {
+    fn process_blocks(&self, response: &BlocksAckPayload, tag: &AsyncTag) -> bool {
         self.stats
             .inc(StatType::BootstrapProcess, DetailType::Blocks);
 
@@ -755,6 +771,7 @@ impl BootstrapService {
                 if tag.source == QuerySource::Database {
                     self.mutex.lock().unwrap().throttle.add(true);
                 }
+                true
             }
             VerifyResult::NothingNew => {
                 self.stats
@@ -785,19 +802,22 @@ impl BootstrapService {
                 if tag.source == QuerySource::Database {
                     guard.throttle.add(false);
                 }
+                true
             }
             VerifyResult::Invalid => {
                 self.stats
                     .inc(StatType::BootstrapVerifyBlocks, DetailType::Invalid);
+                false
             }
         }
     }
 
-    fn process_accounts(&self, response: &AccountInfoAckPayload, tag: &AsyncTag) {
+    fn process_accounts(&self, response: &AccountInfoAckPayload, tag: &AsyncTag) -> bool {
         if response.account.is_zero() {
             self.stats
                 .inc(StatType::BootstrapProcess, DetailType::AccountInfoEmpty);
-            return;
+            // OK, but nothing to do
+            return true;
         }
 
         self.stats
@@ -831,6 +851,8 @@ impl BootstrapService {
                 self.priority_insertion_failed()
             };
         }
+        // OK, no way to verify the response
+        true
     }
 
     fn priority_inserted(&self) {

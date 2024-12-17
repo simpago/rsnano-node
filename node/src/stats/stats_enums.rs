@@ -447,6 +447,7 @@ pub enum DetailType {
     LoopFrontiersProcessing,
     DuplicateRequest,
     InvalidResponseType,
+    InvalidResponse,
     TimestampReset,
     ProcessingFrontiers,
     FrontiersDropped,
