@@ -820,7 +820,7 @@ impl BootstrapService {
                 );
             }
 
-            if guard.accounts.priority_set(&response.account) {
+            if guard.accounts.priority_set_initial(&response.account) {
                 self.priority_inserted();
             } else {
                 self.priority_insertion_failed()
@@ -898,7 +898,7 @@ impl BootstrapExt for Arc<BootstrapService> {
             .lock()
             .unwrap()
             .accounts
-            .priority_set(genesis_account);
+            .priority_set_initial(genesis_account);
 
         if inserted {
             self.priority_inserted()
@@ -1042,7 +1042,7 @@ impl BootstrapLogic {
                     } else {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::UnblockFailed);
                     }
-                    if self.accounts.priority_set(&destination) {
+                    if self.accounts.priority_set_initial(&destination) {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);
                     } else {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
@@ -1074,7 +1074,7 @@ impl BootstrapLogic {
                 {
                     if block.block_type() == BlockType::State {
                         let account = block.account_field().unwrap();
-                        if self.accounts.priority_set(&account) {
+                        if self.accounts.priority_set_initial(&account) {
                             stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);
                         } else {
                             stats.inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
@@ -1410,6 +1410,9 @@ fn process_frontiers(
 
     let mut guard = mutex.lock().unwrap();
     for account in result {
-        guard.accounts.priority_set(&account);
+        // Use the lowest possible priority here
+        guard
+            .accounts
+            .priority_set(&account, AccountSets::PRIORITY_CUTOFF);
     }
 }

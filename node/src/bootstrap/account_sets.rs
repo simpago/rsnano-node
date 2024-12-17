@@ -122,14 +122,20 @@ impl AccountSets {
         }
     }
 
-    pub fn priority_set(&mut self, account: &Account) -> bool {
-        let inserted = Self::priority_set_impl(account, &self.blocking, &mut self.priorities);
+    pub fn priority_set_initial(&mut self, account: &Account) -> bool {
+        self.priority_set(account, Self::PRIORITY_INITIAL)
+    }
+
+    pub fn priority_set(&mut self, account: &Account, priority: Priority) -> bool {
+        let inserted =
+            Self::priority_set_impl(account, priority, &self.blocking, &mut self.priorities);
         self.trim_overflow();
         inserted
     }
 
     fn priority_set_impl(
         account: &Account,
+        priority: Priority,
         blocking: &OrderedBlocking,
         priorities: &mut OrderedPriorities,
     ) -> bool {
@@ -138,7 +144,7 @@ impl AccountSets {
         }
 
         if !blocking.contains(account) && !priorities.contains(account) {
-            priorities.insert(PriorityEntry::new(*account, Self::PRIORITY_INITIAL));
+            priorities.insert(PriorityEntry::new(*account, priority));
             true
         } else {
             false
@@ -266,6 +272,7 @@ impl AccountSets {
             {
                 if Self::priority_set_impl(
                     &entry.dependency_account,
+                    Self::PRIORITY_INITIAL,
                     &self.blocking,
                     &mut self.priorities,
                 ) {
