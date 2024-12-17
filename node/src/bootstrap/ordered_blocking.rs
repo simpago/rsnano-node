@@ -108,9 +108,12 @@ impl OrderedBlocking {
         self.by_account.get(account)
     }
 
-    pub fn pop_front(&mut self) -> Option<BlockingEntry> {
-        let account = self.sequenced.pop_front()?;
-        self.remove(&account)
+    pub fn pop_lowest_prio(&mut self) -> Option<BlockingEntry> {
+        let lowest_prio_account = {
+            let (_, accs) = self.by_priority.last_key_value()?;
+            accs.front().unwrap().clone()
+        };
+        self.remove(&lowest_prio_account)
     }
 
     pub fn remove(&mut self, account: &Account) -> Option<BlockingEntry> {
@@ -196,7 +199,7 @@ mod tests {
         assert!(blocking.next(|_| true).is_none());
         assert!(blocking.get(&Account::from(1)).is_none());
         assert!(blocking.remove(&Account::from(1)).is_none());
-        assert!(blocking.pop_front().is_none());
+        assert!(blocking.pop_lowest_prio().is_none());
     }
 
     #[test]
@@ -311,14 +314,14 @@ mod tests {
         });
 
         assert_eq!(
-            blocking.pop_front().unwrap().account(),
+            blocking.pop_lowest_prio().unwrap().account(),
             &Account::from(1000)
         );
         assert_eq!(
-            blocking.pop_front().unwrap().account(),
+            blocking.pop_lowest_prio().unwrap().account(),
             &Account::from(2000)
         );
-        assert!(blocking.pop_front().is_none(),);
+        assert!(blocking.pop_lowest_prio().is_none(),);
     }
 
     #[test]

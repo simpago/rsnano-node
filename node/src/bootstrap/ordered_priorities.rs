@@ -2,7 +2,6 @@ use super::priority::{Priority, PriorityKeyDesc};
 use rsnano_core::Account;
 use rsnano_nullable_clock::Timestamp;
 use std::collections::BTreeMap;
-use std::collections::VecDeque;
 use std::mem::size_of;
 
 #[derive(Clone, Default)]
@@ -36,7 +35,6 @@ impl PriorityEntry {
 #[derive(Default)]
 pub(crate) struct OrderedPriorities {
     by_account: BTreeMap<Account, PriorityEntry>,
-    sequenced: VecDeque<Account>,
     by_priority: BTreeMap<PriorityKeyDesc, Vec<Account>>, // descending
 }
 
@@ -51,11 +49,11 @@ impl OrderedPriorities {
         size_of::<PriorityEntry>() + size_of::<Account>() + size_of::<f32>() + size_of::<u64>() * 4;
 
     pub fn len(&self) -> usize {
-        self.sequenced.len()
+        self.by_account.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.sequenced.is_empty()
+        self.by_account.is_empty()
     }
 
     pub fn get(&self, account: &Account) -> Option<&PriorityEntry> {
@@ -75,7 +73,6 @@ impl OrderedPriorities {
         }
 
         self.by_account.insert(account, entry);
-        self.sequenced.push_back(account);
         self.by_priority
             .entry(priority.into())
             .or_default()
@@ -83,9 +80,12 @@ impl OrderedPriorities {
         true
     }
 
-    pub fn pop_front(&mut self) -> Option<PriorityEntry> {
-        let account = self.sequenced.pop_front()?;
-        Some(self.remove_account(&account))
+    pub fn pop_lowest_prio(&mut self) -> Option<PriorityEntry> {
+        let lowest_prio_account = {
+            let (_, v) = self.by_priority.last_key_value()?;
+            v.first().unwrap().clone()
+        };
+        Some(self.remove_account(&lowest_prio_account))
     }
 
     pub fn change_timestamp(&mut self, account: &Account, timestamp: Option<Timestamp>) {
@@ -138,7 +138,6 @@ impl OrderedPriorities {
 
     pub fn remove(&mut self, account: &Account) -> Option<PriorityEntry> {
         if let Some(entry) = self.by_account.remove(account) {
-            self.sequenced.retain(|i| i != account);
             self.remove_priority(account, entry.priority);
             Some(entry)
         } else {
@@ -161,7 +160,6 @@ impl OrderedPriorities {
 
     fn remove_account(&mut self, account: &Account) -> PriorityEntry {
         let entry = self.by_account.remove(account).unwrap();
-        self.sequenced.retain(|i| i != account);
         self.remove_priority(account, entry.priority);
         entry
     }
@@ -187,7 +185,7 @@ mod tests {
         assert!(priorities.is_empty());
         assert!(priorities.get(&Account::from(1)).is_none());
         assert_eq!(priorities.contains(&Account::from(1)), false);
-        assert!(priorities.pop_front().is_none());
+        assert!(priorities.pop_lowest_prio().is_none());
         assert!(priorities.remove(&Account::from(1)).is_none());
     }
 
@@ -229,10 +227,19 @@ mod tests {
         priorities.insert(PriorityEntry::new(Account::from(2), Priority::new(2.5)));
         priorities.insert(PriorityEntry::new(Account::from(3), Priority::new(2.5)));
 
-        assert_eq!(priorities.pop_front().unwrap().account, Account::from(1));
-        assert_eq!(priorities.pop_front().unwrap().account, Account::from(2));
-        assert_eq!(priorities.pop_front().unwrap().account, Account::from(3));
-        assert!(priorities.pop_front().is_none());
+        assert_eq!(
+            priorities.pop_lowest_prio().unwrap().account,
+            Account::from(1)
+        );
+        assert_eq!(
+            priorities.pop_lowest_prio().unwrap().account,
+            Account::from(2)
+        );
+        assert_eq!(
+            priorities.pop_lowest_prio().unwrap().account,
+            Account::from(3)
+        );
+        assert!(priorities.pop_lowest_prio().is_none());
     }
 
     #[test]

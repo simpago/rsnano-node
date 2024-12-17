@@ -66,6 +66,7 @@ impl std::fmt::Display for Priority {
     }
 }
 
+/// Priority in descending order
 #[derive(PartialEq, Eq, Default, Clone, Copy)]
 pub(crate) struct PriorityKeyDesc(pub Priority);
 

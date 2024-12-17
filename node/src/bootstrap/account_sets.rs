@@ -220,11 +220,11 @@ impl AccountSets {
 
     /// Erase the oldest entries
     fn trim_overflow(&mut self) {
-        while self.priorities.len() > self.config.priorities_max {
-            self.priorities.pop_front();
+        while !self.priorities.is_empty() && self.priorities.len() > self.config.priorities_max {
+            self.priorities.pop_lowest_prio();
         }
         while self.blocking.len() > self.config.blocking_max {
-            self.blocking.pop_front();
+            self.blocking.pop_lowest_prio();
         }
     }
 
