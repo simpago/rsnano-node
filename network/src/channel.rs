@@ -118,7 +118,7 @@ impl Channel {
                   res = receiver.pop() => res
                 };
 
-                if let Some((entry, _)) = res {
+                if let Some((entry, traffic_type)) = res {
                     let mut written = 0;
                     let buffer = &entry.buffer;
                     loop {
@@ -132,7 +132,7 @@ impl Channel {
                                 Ok(n) => {
                                     written += n;
                                     if written >= buffer.len() {
-                                        observer.send_succeeded(written);
+                                        observer.send_succeeded(written, traffic_type);
                                         info.set_last_activity(clock.now());
                                         break;
                                     }
@@ -213,7 +213,7 @@ impl Channel {
             .await;
 
         if result.is_ok() {
-            self.observer.send_succeeded(buf_size);
+            self.observer.send_succeeded(buf_size, traffic_type);
             self.info.set_last_activity(self.clock.now());
         } else {
             self.observer.send_failed();

@@ -1,6 +1,6 @@
 use crate::stats::{DetailType, Direction, StatType, Stats};
 use anyhow::Error;
-use rsnano_network::{ChannelDirection, ChannelInfo, NetworkError, NetworkObserver};
+use rsnano_network::{ChannelDirection, ChannelInfo, NetworkError, NetworkObserver, TrafficType};
 use std::{net::SocketAddrV6, sync::Arc};
 use tracing::debug;
 
@@ -14,10 +14,16 @@ impl NetworkStats {
 }
 
 impl NetworkObserver for NetworkStats {
-    fn send_succeeded(&self, buf_size: usize) {
+    fn send_succeeded(&self, buf_size: usize, traffic_type: TrafficType) {
         self.0.add_dir_aggregate(
             StatType::TrafficTcp,
             DetailType::All,
+            Direction::Out,
+            buf_size as u64,
+        );
+        self.0.add_dir(
+            StatType::TrafficTcpType,
+            traffic_type.into(),
             Direction::Out,
             buf_size as u64,
         );
@@ -221,6 +227,15 @@ impl From<ChannelDirection> for Direction {
         match value {
             ChannelDirection::Inbound => Direction::In,
             ChannelDirection::Outbound => Direction::Out,
+        }
+    }
+}
+
+impl From<TrafficType> for DetailType {
+    fn from(value: TrafficType) -> Self {
+        match value {
+            TrafficType::Generic => DetailType::Generic,
+            TrafficType::Bootstrap => DetailType::Bootstrap,
         }
     }
 }

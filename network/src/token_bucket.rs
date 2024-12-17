@@ -89,6 +89,10 @@ impl TokenBucket {
         self.max_token_count - self.smallest_size
     }
 
+    pub fn size(&self) -> usize {
+        self.current_size
+    }
+
     fn refill(&mut self) {
         let tokens_to_add =
             (self.elapsed().as_nanos() as f64 / 1e9_f64 * self.refill_rate as f64) as usize;

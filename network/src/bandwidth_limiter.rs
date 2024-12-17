@@ -1,3 +1,5 @@
+use rsnano_core::utils::ContainerInfo;
+
 use crate::{token_bucket::TokenBucket, TrafficType};
 use std::sync::Mutex;
 
@@ -28,6 +30,10 @@ impl RateLimiter {
             .lock()
             .unwrap()
             .reset((limit as f64 * limit_burst_ratio) as usize, limit)
+    }
+
+    pub fn size(&self) -> usize {
+        self.bucket.lock().unwrap().size()
     }
 }
 
@@ -86,6 +92,14 @@ impl BandwidthLimiter {
             TrafficType::Generic => &self.limiter_generic,
             TrafficType::Bootstrap => &self.limiter_bootstrap,
         }
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        [
+            ("generic", self.limiter_generic.size(), 0),
+            ("bootstrap", self.limiter_bootstrap.size(), 0),
+        ]
+        .into()
     }
 }
 

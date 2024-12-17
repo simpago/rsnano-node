@@ -6,14 +6,12 @@ use serde_variant::to_variant_name;
 #[derive(FromPrimitive, Serialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum StatType {
-    TrafficTcp,
     Error,
     Message,
     Block,
     Ledger,
     Rollback,
     Network,
-    TcpServer,
     Vote,
     VoteProcessor,
     VoteProcessorTier,
@@ -24,10 +22,13 @@ pub enum StatType {
     HttpCallback,
     Ipc,
     Tcp,
+    TcpServer,
     TcpChannels,
     TcpChannelsRejected,
     TcpListener,
     TcpListenerRejected,
+    TrafficTcp,
+    TrafficTcpType,
     Channel,
     Socket,
     ConfirmationHeight,
@@ -288,6 +289,9 @@ pub enum DetailType {
     MergePeer,
     ReachoutLive,
     ReachoutCached,
+
+    // traffic
+    Generic,
 
     // tcp
     TcpWriteDrop,

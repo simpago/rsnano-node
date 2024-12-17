@@ -1176,6 +1176,7 @@ impl Node {
                 "message_processor",
                 self.inbound_message_queue.container_info(),
             )
+            .node("bandwidth", self.network.limiter.container_info())
             .finish()
     }
 

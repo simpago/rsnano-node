@@ -1,10 +1,10 @@
 use anyhow::Error;
 
-use crate::{ChannelDirection, ChannelInfo, NetworkError};
+use crate::{ChannelDirection, ChannelInfo, NetworkError, TrafficType};
 use std::net::SocketAddrV6;
 
 pub trait NetworkObserver: Send + Sync {
-    fn send_succeeded(&self, _buf_size: usize) {}
+    fn send_succeeded(&self, _buf_size: usize, _traffic_type: TrafficType) {}
     fn send_failed(&self) {}
     fn read_succeeded(&self, _count: usize) {}
     fn read_failed(&self) {}

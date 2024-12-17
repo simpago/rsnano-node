@@ -17,7 +17,7 @@ use tracing::{debug, warn};
 pub struct Network {
     channels: Mutex<HashMap<ChannelId, Arc<Channel>>>,
     pub info: Arc<RwLock<NetworkInfo>>,
-    limiter: Arc<BandwidthLimiter>,
+    pub limiter: Arc<BandwidthLimiter>,
     clock: Arc<SteadyClock>,
     observer: Arc<dyn NetworkObserver>,
     handle: tokio::runtime::Handle,
