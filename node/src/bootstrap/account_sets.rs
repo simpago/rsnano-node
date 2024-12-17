@@ -53,7 +53,6 @@ pub(crate) enum PriorityDownResult {
 impl AccountSets {
     pub const PRIORITY_INITIAL: Priority = Priority::new(2.0);
     pub const PRIORITY_INCREASE: Priority = Priority::new(2.0);
-    pub const PRIORITY_DIVIDE: f64 = 2.0;
     pub const PRIORITY_MAX: Priority = Priority::new(128.0);
     pub const PRIORITY_CUTOFF: Priority = Priority::new(0.15);
     pub const MAX_FAILS: usize = 2;

@@ -35,7 +35,7 @@ pub(crate) enum QuerySource {
     Invalid,
     Priority,
     Database,
-    Blocking,
+    Dependencies,
     Frontiers,
 }
 

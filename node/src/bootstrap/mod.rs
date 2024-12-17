@@ -72,13 +72,14 @@ pub struct BootstrapService {
     /// Requests for accounts from database have much lower hitrate and could introduce strain on the network
     /// A separate (lower) limiter ensures that we always reserve resources for querying accounts from priority queue
     database_limiter: RateLimiter,
+    /// Rate limiter for frontier requests
     frontiers_limiter: RateLimiter,
     clock: Arc<SteadyClock>,
     workers: ThreadPoolImpl,
 }
 
 struct Threads {
-    timeout: JoinHandle<()>,
+    cleanup: JoinHandle<()>,
     priorities: Option<JoinHandle<()>>,
     database: Option<JoinHandle<()>>,
     dependencies: Option<JoinHandle<()>>,
@@ -138,7 +139,7 @@ impl BootstrapService {
             if let Some(handle) = threads.priorities {
                 handle.join().unwrap();
             }
-            threads.timeout.join().unwrap();
+            threads.cleanup.join().unwrap();
             if let Some(database) = threads.database {
                 database.join().unwrap();
             }
@@ -466,7 +467,7 @@ impl BootstrapService {
         }
     }
 
-    fn run_one_blocking(&self) {
+    fn run_one_dependency(&self) {
         // No need to wait for blockprocessor, as we are not processing blocks
         let Some(channel_id) = self.wait_channel() else {
             return;
@@ -478,7 +479,8 @@ impl BootstrapService {
 
         let now = self.clock.now();
         let id = thread_rng().next_u64();
-        let request = self.create_account_info_request(id, blocking, QuerySource::Blocking, now);
+        let request =
+            self.create_account_info_request(id, blocking, QuerySource::Dependencies, now);
 
         self.send(channel_id, &request);
     }
@@ -550,7 +552,7 @@ impl BootstrapService {
             drop(guard);
             self.stats
                 .inc(StatType::Bootstrap, DetailType::LoopDependencies);
-            self.run_one_blocking();
+            self.run_one_dependency();
             guard = self.mutex.lock().unwrap();
         }
     }
@@ -973,7 +975,7 @@ impl BootstrapExt for Arc<BootstrapService> {
             .unwrap();
 
         *self.threads.lock().unwrap() = Some(Threads {
-            timeout,
+            cleanup: timeout,
             priorities,
             database,
             frontiers,
@@ -1146,7 +1148,7 @@ impl BootstrapLogic {
     fn next_blocking(&self, stats: &Stats) -> BlockHash {
         let blocking = self
             .accounts
-            .next_blocking(|hash| self.count_tags_by_hash(hash, QuerySource::Blocking) == 0);
+            .next_blocking(|hash| self.count_tags_by_hash(hash, QuerySource::Dependencies) == 0);
 
         if blocking.is_zero() {
             return blocking;

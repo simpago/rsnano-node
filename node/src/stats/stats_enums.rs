@@ -140,6 +140,7 @@ pub enum DetailType {
     Retry,
     Prioritized,
     Pending,
+    Sync,
 
     // processing queue
     Queue,
@@ -449,6 +450,7 @@ pub enum DetailType {
     TimestampReset,
     ProcessingFrontiers,
     FrontiersDropped,
+    SyncAccounts,
 
     Prioritize,
     PrioritizeFailed,
@@ -484,6 +486,7 @@ pub enum DetailType {
     Deprioritize,
     DeprioritizeFailed,
     SyncDependencies,
+    DependencySynced,
 
     RequestBlocks,
     RequestAccountInfo,
