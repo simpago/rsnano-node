@@ -820,7 +820,10 @@ impl BootstrapService {
                 );
             }
 
-            if guard.accounts.priority_set_initial(&response.account) {
+            if guard
+                .accounts
+                .priority_set(&response.account, AccountSets::PRIORITY_CUTOFF)
+            {
                 self.priority_inserted();
             } else {
                 self.priority_insertion_failed()
