@@ -100,7 +100,10 @@ impl VoteGenerator {
 
     pub(crate) fn stop(&self) {
         self.vote_generation_queue.stop();
-        self.shared_state.stopped.store(true, Ordering::SeqCst);
+        {
+            let _guard = self.shared_state.queues.lock().unwrap();
+            self.shared_state.stopped.store(true, Ordering::SeqCst);
+        }
         self.shared_state.condition.notify_all();
         let thread = self.thread.lock().unwrap().take();
         if let Some(thread) = thread {
@@ -197,10 +200,16 @@ impl SharedState {
             queues = self
                 .condition
                 .wait_timeout_while(queues, self.vote_generator_delay, |i| {
-                    i.requests.is_empty() && !i.should_broadcast()
+                    !self.stopped.load(Ordering::SeqCst)
+                        && i.requests.is_empty()
+                        && !i.should_broadcast()
                 })
                 .unwrap()
                 .0;
+
+            if self.stopped.load(Ordering::SeqCst) {
+                return;
+            }
 
             if queues.should_broadcast() {
                 queues = self.broadcast(queues);
@@ -427,6 +436,6 @@ impl Queues {
             return true;
         }
 
-        self.candidates.len() > 0 && Instant::now() >= self.next_broadcast
+        !self.candidates.is_empty() && Instant::now() >= self.next_broadcast
     }
 }
