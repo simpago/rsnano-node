@@ -1,7 +1,7 @@
 use crate::cli::get_path;
 use anyhow::Result;
 use clap::{ArgGroup, Parser};
-use rsnano_core::Root;
+use rsnano_core::QualifiedRoot;
 use rsnano_store_lmdb::{LmdbEnv, LmdbFinalVoteStore};
 use std::sync::Arc;
 
@@ -37,7 +37,7 @@ impl FinalVoteArgs {
         let mut txn = env.tx_begin_write();
 
         if let Some(root) = &self.root {
-            let root_decoded = Root::decode_hex(root)?;
+            let root_decoded = QualifiedRoot::decode_hex(root)?;
             final_vote_store.del(&mut txn, &root_decoded);
             println!("Successfully cleared final vote");
         } else {

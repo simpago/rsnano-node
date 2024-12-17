@@ -37,6 +37,14 @@ impl QualifiedRoot {
     pub fn new_test_instance() -> Self {
         Self::new(Root::from(111), BlockHash::from(222))
     }
+
+    pub fn decode_hex(s: impl AsRef<str>) -> anyhow::Result<Self> {
+        let mut bytes = [0u8; 64];
+        hex::decode_to_slice(s.as_ref(), &mut bytes)?;
+        let root = Root::from_bytes(bytes[0..32].try_into().unwrap());
+        let previous = BlockHash::from_bytes(bytes[32..].try_into().unwrap());
+        Ok(Self { root, previous })
+    }
 }
 
 impl Serialize for QualifiedRoot {
@@ -67,5 +75,18 @@ impl From<U512> for QualifiedRoot {
         let root = Root::from_slice(&bytes[..32]).unwrap();
         let previous = BlockHash::from_slice(&bytes[32..]).unwrap();
         QualifiedRoot { root, previous }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_hex() {
+        let hex = "000000000000000000000000000000000000000000000000000000000000007B000000000000000000000000000000000000000000000000000000000000007C";
+        let decoded = QualifiedRoot::decode_hex(hex).unwrap();
+        assert_eq!(decoded.root, Root::from(123));
+        assert_eq!(decoded.previous, BlockHash::from(124));
     }
 }

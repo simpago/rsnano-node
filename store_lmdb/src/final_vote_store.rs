@@ -79,39 +79,21 @@ impl LmdbFinalVoteStore {
         LmdbRangeIterator::new(cursor, range)
     }
 
-    pub fn get(&self, tx: &dyn Transaction, root: Root) -> Vec<BlockHash> {
-        let key_start = QualifiedRoot {
-            root,
-            previous: BlockHash::zero(),
-        };
-
-        let key_end = QualifiedRoot {
-            root,
-            previous: BlockHash::MAX,
-        };
-
-        self.iter_range(tx, key_start..=key_end)
-            .map(|(_, hash)| hash)
-            .collect()
+    pub fn get(&self, tx: &dyn Transaction, root: &QualifiedRoot) -> Option<BlockHash> {
+        let result = tx.get(self.database, &root.to_bytes());
+        match result {
+            Err(lmdb::Error::NotFound) => None,
+            Ok(bytes) => {
+                let mut stream = BufferReader::new(bytes);
+                BlockHash::deserialize(&mut stream).ok()
+            }
+            Err(e) => panic!("Could not load final vote info {:?}", e),
+        }
     }
 
-    pub fn del(&self, tx: &mut LmdbWriteTransaction, root: &Root) {
-        let start = QualifiedRoot {
-            root: *root,
-            previous: BlockHash::zero(),
-        };
-
-        let end = QualifiedRoot {
-            root: *root,
-            previous: BlockHash::MAX,
-        };
-
-        let keys_to_delete: Vec<_> = self.iter_range(tx, start..=end).map(|(k, _)| k).collect();
-
-        for qualified_root in keys_to_delete {
-            let root_bytes = qualified_root.to_bytes();
-            tx.delete(self.database, &root_bytes, None).unwrap();
-        }
+    pub fn del(&self, tx: &mut LmdbWriteTransaction, root: &QualifiedRoot) {
+        let root_bytes = root.to_bytes();
+        tx.delete(self.database, &root_bytes, None).unwrap();
     }
 
     pub fn count(&self, txn: &dyn Transaction) -> u64 {
@@ -164,9 +146,9 @@ mod tests {
         let fixture = Fixture::with_stored_entries(vec![(root.clone(), hash)]);
         let txn = fixture.env.tx_begin_read();
 
-        let result = fixture.store.get(&txn, root.root);
+        let result = fixture.store.get(&txn, &root);
 
-        assert_eq!(result, vec![hash])
+        assert_eq!(result, Some(hash));
     }
 
     #[test]
@@ -176,7 +158,7 @@ mod tests {
         let mut txn = fixture.env.tx_begin_write();
         let delete_tracker = txn.track_deletions();
 
-        fixture.store.del(&mut txn, &root.root);
+        fixture.store.del(&mut txn, &root);
 
         assert_eq!(
             delete_tracker.output(),
@@ -185,20 +167,6 @@ mod tests {
                 database: TEST_DATABASE.into(),
             }]
         )
-    }
-
-    #[test]
-    fn del_unknown_root_should_not_remove() {
-        let fixture = Fixture::with_stored_entries(vec![(
-            QualifiedRoot::new_test_instance(),
-            BlockHash::from(333),
-        )]);
-        let mut txn = fixture.env.tx_begin_write();
-        let delete_tracker = txn.track_deletions();
-
-        fixture.store.del(&mut txn, &Root::from(98765));
-
-        assert_eq!(delete_tracker.output(), vec![]);
     }
 
     #[test]

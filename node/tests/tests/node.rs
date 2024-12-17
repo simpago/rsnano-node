@@ -2414,6 +2414,12 @@ fn epoch_conflict_confirm() {
     let config1 = System::default_config_without_backlog_population();
     let node1 = system.build_node().config(config1).finish();
 
+    // Node 1 is the voting node
+    // Send sends to an account we control: send -> open -> change
+    // Send2 sends to an account with public key of the open block
+    // Epoch open qualified root: (open, 0) on account with the same public key as the hash of the open block
+    // Epoch open and change have the same root!
+
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key = PrivateKey::new();
 
@@ -2425,58 +2431,34 @@ fn epoch_conflict_confirm() {
     let send2 = lattice.genesis().send(conflict_account, 1);
     let epoch_open = lattice.epoch_open(conflict_account);
 
-    // Process initial blocks on node1
-    node1.process(send.clone()).unwrap();
-    node1.process(send2.clone()).unwrap();
-    node1.process(open.clone()).unwrap();
+    // Process initial blocks
+    node0.process_multi(&[send.clone(), send2.clone(), open.clone()]);
+    node1.process_multi(&[send.clone(), send2.clone(), open.clone()]);
 
-    // Confirm open block in node1 to allow generating votes
-    node1.confirm(open.hash());
-
-    // Process initial blocks on node0
-    node0.process(send.clone()).unwrap();
-    node0.process(send2.clone()).unwrap();
-    node0.process(open.clone()).unwrap();
-
-    // Process conflicting blocks on node 0 as blocks coming from live network
+    // Process conflicting blocks on nodes as blocks coming from live network
     node0.process_active(change.clone());
     node0.process_active(epoch_open.clone());
+    node1.process_active(change.clone());
+    node1.process_active(epoch_open.clone());
 
     // Ensure blocks were propagated to both nodes
-    assert_timely(Duration::from_secs(5), || {
-        node0.blocks_exist(&[change.clone(), epoch_open.clone()])
-    });
-    assert_timely(Duration::from_secs(5), || {
-        node1.blocks_exist(&[change.clone(), epoch_open.clone()])
-    });
+    assert_timely2(|| node0.blocks_exist(&[change.clone(), epoch_open.clone()]));
+    assert_timely2(|| node1.blocks_exist(&[change.clone(), epoch_open.clone()]));
 
     // Confirm initial blocks in node1 to allow generating votes later
-    start_elections(
-        &node1,
-        &[change.hash(), epoch_open.hash(), send2.hash()],
-        true,
-    );
-    assert_timely(Duration::from_secs(5), || {
-        node1.blocks_confirmed(&[change.clone(), epoch_open.clone(), send2.clone()])
-    });
+    node1.confirm_multi(&[change.clone(), epoch_open.clone(), send2.clone()]);
 
-    // Start elections for node0 for conflicting change and epoch_open blocks (those two blocks have the same root)
+    // Start elections on node0 for conflicting change and epoch_open blocks (those two blocks have the same root)
     activate_hashes(&node0, &[change.hash(), epoch_open.hash()]);
-    assert_timely(Duration::from_secs(5), || {
+    assert_timely2(|| {
         node0.vote_router.active(&change.hash()) && node0.vote_router.active(&epoch_open.hash())
     });
 
-    // Make node1 a representative
-    let wallet_id = node1.wallets.wallet_ids()[0];
-    node1
-        .wallets
-        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
+    // Make node1 a representative so it can vote for both blocks
+    node1.insert_into_wallet(&DEV_GENESIS_KEY);
 
     // Ensure both conflicting blocks were successfully processed and confirmed
-    assert_timely(Duration::from_secs(15), || {
-        node0.blocks_confirmed(&[change.clone(), epoch_open.clone()])
-    });
+    assert_timely2(|| node0.blocks_confirmed(&[change.clone(), epoch_open.clone()]));
 }
 
 #[test]

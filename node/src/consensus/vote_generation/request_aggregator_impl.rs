@@ -1,5 +1,5 @@
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{BlockHash, Root, SavedBlock};
+use rsnano_core::{Block, BlockHash, Root, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbReadTransaction;
 
@@ -25,63 +25,35 @@ impl<'a> RequestAggregatorImpl<'a> {
 
     pub fn add_votes(&mut self, requests: &[(BlockHash, Root)]) {
         for (hash, root) in requests {
-            let mut generate_final_vote = false;
-            let mut block = None;
+            // Ledger by hash
+            let mut block = self.ledger.any().get_block(self.tx, hash);
 
-            // 2. Final votes
-            let final_vote_hashes = self.ledger.store.final_vote.get(self.tx, *root);
-            if !final_vote_hashes.is_empty() {
-                generate_final_vote = true;
-                block = self.ledger.any().get_block(self.tx, &final_vote_hashes[0]);
-                // Allow same root vote
-                if let Some(b) = &block {
-                    if final_vote_hashes.len() > 1 {
-                        // WTF? This shouldn't be done like this
-                        self.to_generate_final.push(b.clone());
-                        block = self.ledger.any().get_block(self.tx, &final_vote_hashes[1]);
-                        debug_assert!(final_vote_hashes.len() == 2);
-                    }
-                }
-            }
-
-            // 4. Ledger by hash
-            if block.is_none() {
-                block = self.ledger.any().get_block(self.tx, hash);
-                // Confirmation status. Generate final votes for confirmed
-                if let Some(b) = &block {
-                    let conf_height = self
-                        .ledger
-                        .store
-                        .confirmation_height
-                        .get(self.tx, &b.account())
-                        .unwrap_or_default();
-                    generate_final_vote = conf_height.height >= b.height();
-                }
-            }
-
-            // 5. Ledger by root
+            // Ledger by root
             if block.is_none() && !root.is_zero() {
                 // Search for block root
-                let successor = self.ledger.any().block_successor(self.tx, &(*root).into());
-                if let Some(successor) = successor {
-                    let successor_block = self.ledger.any().get_block(self.tx, &successor).unwrap();
-                    block = Some(successor_block);
-
-                    // Confirmation status. Generate final votes for confirmed successor
-                    if let Some(b) = &block {
-                        let conf_height = self
-                            .ledger
-                            .store
-                            .confirmation_height
-                            .get(self.tx, &b.account())
-                            .unwrap_or_default();
-                        generate_final_vote = conf_height.height >= b.height();
-                    }
+                if let Some(successor) = self.ledger.any().block_successor(self.tx, &(*root).into())
+                {
+                    block = self.ledger.any().get_block(self.tx, &successor);
                 }
             }
 
+            let should_generate_final_vote = |block: &Block| {
+                // Check if final vote is set for this block
+                if let Some(final_hash) = self
+                    .ledger
+                    .store
+                    .final_vote
+                    .get(self.tx, &block.qualified_root())
+                {
+                    final_hash == block.hash()
+                } else {
+                    // If the final vote is not set, generate vote if the block is confirmed
+                    self.ledger.confirmed().block_exists(self.tx, &block.hash())
+                }
+            };
+
             if let Some(block) = block {
-                if generate_final_vote {
+                if should_generate_final_vote(&block) {
                     self.to_generate_final.push(block);
                     self.stats
                         .inc(StatType::Requests, DetailType::RequestsFinal);
