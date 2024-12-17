@@ -56,6 +56,7 @@ impl AccountSets {
     pub const PRIORITY_DIVIDE: f64 = 2.0;
     pub const PRIORITY_MAX: Priority = Priority::new(128.0);
     pub const PRIORITY_CUTOFF: Priority = Priority::new(0.15);
+    pub const MAX_FAILS: usize = 2;
 
     pub fn new(config: AccountSetsConfig) -> Self {
         Self {
@@ -75,9 +76,11 @@ impl AccountSets {
         }
 
         if !self.blocked(account) {
-            let updated = self
-                .priorities
-                .change_priority(account, Self::higher_priority);
+            let updated = self.priorities.modify(account, |entry| {
+                entry.priority = Self::higher_priority(entry.priority);
+                entry.fails = 0;
+                true // keep this entry
+            });
 
             match updated {
                 ChangePriorityResult::Updated | ChangePriorityResult::Deleted => {
@@ -96,8 +99,8 @@ impl AccountSets {
         }
     }
 
-    fn higher_priority(priority: Priority) -> Option<Priority> {
-        Some(min(priority + Self::PRIORITY_INCREASE, Self::PRIORITY_MAX))
+    fn higher_priority(priority: Priority) -> Priority {
+        min(priority + Self::PRIORITY_INCREASE, Self::PRIORITY_MAX)
     }
 
     /// Decreases account priority
@@ -106,12 +109,14 @@ impl AccountSets {
             return PriorityDownResult::InvalidAccount;
         }
 
-        let change_result = self.priorities.change_priority(account, |prio| {
-            let priority_new = prio / Self::PRIORITY_DIVIDE;
-            if priority_new <= Self::PRIORITY_CUTOFF {
-                None
+        let change_result = self.priorities.modify(account, |entry| {
+            if entry.fails >= AccountSets::MAX_FAILS
+                || entry.fails as f64 >= entry.priority.as_f64()
+            {
+                false // delete entry
             } else {
-                Some(priority_new)
+                entry.fails += 1;
+                true // keep
             }
         });
 
@@ -414,12 +419,11 @@ mod tests {
         assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
 
         sets.priority_down(&account);
-        assert_eq!(sets.priority(&account), Priority::new(1.0));
+        assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
     }
 
-    // Check that priority downward saturates to 1.0f
     #[test]
-    fn priority_down_saturates() {
+    fn priority_down_empty() {
         let mut sets = AccountSets::default();
         let account = Account::from(1);
 
@@ -438,5 +442,26 @@ mod tests {
             sets.priority_up(&account);
         }
         assert_eq!(sets.priority(&account), AccountSets::PRIORITY_MAX);
+    }
+
+    #[test]
+    fn priority_down_saturate() {
+        let mut sets = AccountSets::default();
+        let account = Account::from(1);
+        sets.priority_up(&account);
+        assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
+        for _ in 0..10 {
+            sets.priority_down(&account);
+        }
+        assert_eq!(sets.prioritized(&account), false);
+    }
+
+    #[test]
+    fn priority_set() {
+        let mut sets = AccountSets::default();
+        let account = Account::from(1);
+        let prio = Priority::new(10.0);
+        sets.priority_set(&account, prio);
+        assert_eq!(sets.priority(&account), prio);
     }
 }

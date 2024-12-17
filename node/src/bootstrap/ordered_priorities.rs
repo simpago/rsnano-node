@@ -8,6 +8,7 @@ use std::mem::size_of;
 pub(crate) struct PriorityEntry {
     pub account: Account,
     pub priority: Priority,
+    pub fails: usize,
     pub timestamp: Option<Timestamp>,
 }
 
@@ -16,6 +17,7 @@ impl PriorityEntry {
         Self {
             account,
             priority,
+            fails: 0,
             timestamp: None,
         }
     }
@@ -25,6 +27,7 @@ impl PriorityEntry {
         Self {
             account: Account::from(7),
             priority: Priority::new(3.0),
+            fails: 0,
             timestamp: None,
         }
     }
@@ -94,6 +97,28 @@ impl OrderedPriorities {
         }
     }
 
+    pub fn modify(
+        &mut self,
+        account: &Account,
+        mut f: impl FnMut(&mut PriorityEntry) -> bool,
+    ) -> ChangePriorityResult {
+        if let Some(entry) = self.by_account.get_mut(account) {
+            let old_prio = entry.priority;
+            if f(entry) {
+                if entry.priority != old_prio {
+                    let new_prio = entry.priority;
+                    self.change_priority_internal(account, old_prio, new_prio)
+                }
+                ChangePriorityResult::Updated
+            } else {
+                self.remove_account(account);
+                ChangePriorityResult::Deleted
+            }
+        } else {
+            ChangePriorityResult::NotFound
+        }
+    }
+
     pub fn change_priority(
         &mut self,
         account: &Account,
@@ -103,6 +128,7 @@ impl OrderedPriorities {
             let old_prio = entry.priority;
             if let Some(new_prio) = f(entry.priority) {
                 entry.priority = new_prio;
+                entry.fails = 0;
                 if new_prio != old_prio {
                     self.change_priority_internal(account, old_prio, new_prio)
                 }
