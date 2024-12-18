@@ -370,19 +370,12 @@ impl RepCrawler {
             }
         }
 
-        if hash_root.is_none() {
-            return None;
-        }
-
-        // Don't send same block multiple times in tests
-        if self.network_params.network.is_dev_network() {
-            let guard = self.rep_crawler_impl.lock().unwrap();
-            for _ in 0..MAX_ATTEMPTS {
-                if guard.queries.count_by_block(&hash_root.as_ref().unwrap().0) == 0 {
-                    break;
-                }
-                hash_root = self.ledger.hash_root_random(&tx);
-            }
+        // Special case for dev network where number of blocks might be very low: if we can't find a block to query, just pick genesis
+        if self.network_params.network.is_dev_network() && hash_root.is_none() {
+            hash_root = Some((
+                self.network_params.ledger.genesis_block.hash(),
+                self.network_params.ledger.genesis_block.root(),
+            ));
         }
 
         hash_root
@@ -616,10 +609,6 @@ impl OrderedQueries {
                 }
             }
         }
-    }
-
-    fn count_by_block(&self, hash: &BlockHash) -> usize {
-        self.by_hash.get(hash).map(|i| i.len()).unwrap_or_default()
     }
 
     fn count_by_channel(&self, channel_id: ChannelId) -> usize {
