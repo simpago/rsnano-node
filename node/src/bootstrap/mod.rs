@@ -1228,6 +1228,7 @@ impl BootstrapLogic {
             .node("accounts", self.accounts.container_info())
             .node("database_scan", self.database_scan.container_info())
             .node("frontiers", self.frontiers.container_info())
+            .node("peers", self.scoring.container_info())
             .finish()
     }
 }

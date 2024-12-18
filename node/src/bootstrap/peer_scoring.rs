@@ -1,4 +1,5 @@
 use super::BootstrapConfig;
+use rsnano_core::utils::ContainerInfo;
 use rsnano_network::{ChannelId, ChannelInfo, TrafficType};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -7,14 +8,14 @@ use std::{
 
 /// Container for tracking and scoring peers with respect to bootstrapping
 pub(crate) struct PeerScoring {
-    scoring: Scoring,
+    scoring: OrderedScoring,
     config: BootstrapConfig,
 }
 
 impl PeerScoring {
     pub fn new(config: BootstrapConfig) -> Self {
         Self {
-            scoring: Scoring::default(),
+            scoring: OrderedScoring::default(),
             config,
         }
     }
@@ -57,6 +58,17 @@ impl PeerScoring {
         self.scoring.len()
     }
 
+    pub fn available(&self) -> usize {
+        self.scoring
+            .iter()
+            .filter(|s| !self.limit_exceeded(s))
+            .count()
+    }
+
+    fn limit_exceeded(&self, score: &PeerScore) -> bool {
+        score.outstanding >= self.config.channel_limit
+    }
+
     pub fn timeout(&mut self) {
         self.scoring.retain(|i| i.is_alive());
         self.scoring.modify_all(|i| i.decay());
@@ -72,6 +84,10 @@ impl PeerScoring {
                 }
             }
         }
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        [("total", self.len(), 0), ("available", self.available(), 0)].into()
     }
 }
 
@@ -110,12 +126,12 @@ impl PeerScore {
 }
 
 #[derive(Default)]
-struct Scoring {
+struct OrderedScoring {
     by_channel: HashMap<ChannelId, PeerScore>,
     by_outstanding: BTreeMap<usize, Vec<ChannelId>>,
 }
 
-impl Scoring {
+impl OrderedScoring {
     fn len(&self) -> usize {
         self.by_channel.len()
     }
@@ -202,5 +218,9 @@ impl Scoring {
             .values()
             .flatten()
             .map(|id| self.by_channel.get(id).unwrap())
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &PeerScore> {
+        self.by_channel.values()
     }
 }
