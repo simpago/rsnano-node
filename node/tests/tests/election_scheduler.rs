@@ -215,11 +215,11 @@ mod election_scheduler {
         // Activating accounts depends on confirmed dependencies. First, prepare 2 accounts
         let send = lattice.genesis().send(&key, Amount::nano(1000));
         let send = node.process(send.clone()).unwrap();
-        node.active.process_confirmed(send.hash(), None, 0);
+        node.confirming_set.add(send.hash());
 
         let receive = lattice.account(&key).receive(&send);
         let receive = node.process(receive.clone()).unwrap();
-        node.active.process_confirmed(receive.hash(), None, 0);
+        node.confirming_set.add(receive.hash());
 
         assert_timely(Duration::from_secs(5), || {
             node.block_confirmed(&send.hash()) && node.block_confirmed(&receive.hash())

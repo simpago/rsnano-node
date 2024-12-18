@@ -323,7 +323,7 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
 
         let self_w = Arc::downgrade(self);
         self.block_processor
-            .add_rolled_back_observer(Box::new(move |block| {
+            .on_block_rolled_back(move |block, _rollback_root| {
                 let Some(self_l) = self_w.upgrade() else {
                     return;
                 };
@@ -336,7 +336,7 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
                         Direction::In,
                     );
                 }
-            }));
+            });
 
         let self_w = Arc::downgrade(self);
         self.confirming_set.on_cemented(Box::new(move |block| {

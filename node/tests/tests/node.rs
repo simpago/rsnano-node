@@ -130,19 +130,10 @@ fn pruning_automatic() {
 
     // Force-confirm both blocks
 
-    node1
-        .active
-        .process_confirmed(send1.hash().clone(), None, 0);
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_confirmed(&send1.hash())
-    });
-
-    node1
-        .active
-        .process_confirmed(send2.hash().clone(), None, 0);
-    assert_timely(Duration::from_secs(5), || {
-        node1.block_confirmed(&send2.hash())
-    });
+    node1.confirming_set.add(send1.hash().clone());
+    assert_timely2(|| node1.block_confirmed(&send1.hash()));
+    node1.confirming_set.add(send2.hash().clone());
+    assert_timely2(|| node1.block_confirmed(&send2.hash()));
 
     // Check pruning result
 

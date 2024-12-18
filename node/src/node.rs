@@ -772,35 +772,28 @@ impl Node {
                 }));
         }
 
-        let block_processor_w = Arc::downgrade(&block_processor);
         let history_w = Arc::downgrade(&history);
         let active_w = Arc::downgrade(&active_elections);
-        block_processor.set_blocks_rolled_back_callback(Box::new(
-            move |rolled_back, initial_block| {
-                // Deleting from votes cache, stop active transaction
-                let Some(block_processor) = block_processor_w.upgrade() else {
-                    return;
-                };
-                let Some(history) = history_w.upgrade() else {
-                    return;
-                };
-                let Some(active) = active_w.upgrade() else {
-                    return;
-                };
-                for i in rolled_back {
-                    block_processor.notify_block_rolled_back(&i);
+        block_processor.on_block_rolled_back(move |block, rollback_root| {
+            let Some(history) = history_w.upgrade() else {
+                return;
+            };
+            let Some(active) = active_w.upgrade() else {
+                return;
+            };
 
-                    history.erase(&i.root());
-                    // Stop all rolled back active transactions except initial
-                    if i.hash() != initial_block.hash() {
-                        active.erase(&i.qualified_root());
-                    }
-                }
-            },
-        ));
+            // Do some cleanup of rolled back blocks
+            history.erase(&block.root());
+
+            // Stop all rolled back active transactions except initial
+            if block.qualified_root() != rollback_root {
+                active.erase(&block.qualified_root());
+            }
+        });
 
         process_live_dispatcher.connect(&block_processor);
 
+        // Requeue blocks that could not be immediately processed
         let block_processor_w = Arc::downgrade(&block_processor);
         unchecked.set_satisfied_observer(Box::new(move |info| {
             if let Some(processor) = block_processor_w.upgrade() {

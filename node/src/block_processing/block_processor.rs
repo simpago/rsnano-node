@@ -6,7 +6,7 @@ use crate::{
 };
 use rsnano_core::{
     utils::ContainerInfo, work::WorkThresholds, Block, BlockType, Epoch, HashOrAccount, Networks,
-    SavedBlock, UncheckedInfo,
+    QualifiedRoot, SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
@@ -208,9 +208,8 @@ impl BlockProcessor {
                 config,
                 stats,
                 workers: ThreadPoolImpl::create(1, "Blck proc notif"),
-                blocks_rolled_back: Mutex::new(None),
-                block_rolled_back: Mutex::new(Vec::new()),
-                block_processed: Mutex::new(Vec::new()),
+                roll_back_observers: RwLock::new(None),
+                block_processed: RwLock::new(Vec::new()),
                 batch_processed: RwLock::new(Vec::new()),
             }),
             thread: Mutex::new(None),
@@ -275,10 +274,6 @@ impl BlockProcessor {
         self.processor_loop.on_batch_processed(observer);
     }
 
-    pub fn add_rolled_back_observer(&self, observer: Box<dyn Fn(&Block) + Send + Sync>) {
-        self.processor_loop.on_rolled_back(observer);
-    }
-
     pub fn add(&self, block: Block, source: BlockSource, channel_id: ChannelId) -> bool {
         self.processor_loop.add(block, source, channel_id, None)
     }
@@ -306,15 +301,11 @@ impl BlockProcessor {
         self.processor_loop.process_active(block);
     }
 
-    pub fn notify_block_rolled_back(&self, block: &Block) {
-        self.processor_loop.notify_block_rolled_back(block)
-    }
-
-    pub fn set_blocks_rolled_back_callback(
+    pub fn on_block_rolled_back(
         &self,
-        callback: Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>,
+        callback: impl Fn(&SavedBlock, QualifiedRoot) + Send + Sync + 'static,
     ) {
-        self.processor_loop.on_blocks_rolled_back(callback);
+        self.processor_loop.on_block_rolled_back(callback);
     }
     pub fn force(&self, block: Block) {
         self.processor_loop.force(block);
@@ -344,9 +335,8 @@ pub(crate) struct BlockProcessorLoopImpl {
     config: BlockProcessorConfig,
     stats: Arc<Stats>,
     workers: ThreadPoolImpl,
-    blocks_rolled_back: Mutex<Option<Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>>>,
-    block_rolled_back: Mutex<Vec<Box<dyn Fn(&Block) + Send + Sync>>>,
-    block_processed: Mutex<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
+    roll_back_observers: RwLock<Option<Box<dyn Fn(&SavedBlock, QualifiedRoot) + Send + Sync>>>,
+    block_processed: RwLock<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
     batch_processed:
         RwLock<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>>>,
 }
@@ -412,7 +402,7 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
 impl BlockProcessorLoopImpl {
     fn notify_batch_processed(&self, blocks: &Vec<(BlockStatus, Arc<BlockProcessorContext>)>) {
         {
-            let guard = self.block_processed.lock().unwrap();
+            let guard = self.block_processed.read().unwrap();
             for observer in guard.iter() {
                 for (status, context) in blocks {
                     observer(*status, context);
@@ -431,7 +421,7 @@ impl BlockProcessorLoopImpl {
         &self,
         observer: Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>,
     ) {
-        self.block_processed.lock().unwrap().push(observer);
+        self.block_processed.write().unwrap().push(observer);
     }
 
     pub fn on_batch_processed(
@@ -441,21 +431,11 @@ impl BlockProcessorLoopImpl {
         self.batch_processed.write().unwrap().push(observer);
     }
 
-    pub fn on_rolled_back(&self, observer: Box<dyn Fn(&Block) + Send + Sync>) {
-        self.block_rolled_back.lock().unwrap().push(observer);
-    }
-
-    pub fn notify_block_rolled_back(&self, block: &Block) {
-        for observer in self.block_rolled_back.lock().unwrap().iter() {
-            observer(block)
-        }
-    }
-
-    pub fn on_blocks_rolled_back(
+    pub fn on_block_rolled_back(
         &self,
-        callback: Box<dyn Fn(Vec<SavedBlock>, SavedBlock) + Send + Sync>,
+        callback: impl Fn(&SavedBlock, QualifiedRoot) + Send + Sync + 'static,
     ) {
-        *self.blocks_rolled_back.lock().unwrap() = Some(callback);
+        *self.roll_back_observers.write().unwrap() = Some(Box::new(callback));
     }
 
     pub fn process_active(&self, block: Block) {
@@ -709,18 +689,13 @@ impl BlockProcessorLoopImpl {
         result
     }
 
-    fn rollback_competitor(&self, transaction: &mut LmdbWriteTransaction, block: &Block) {
-        let hash = block.hash();
+    fn rollback_competitor(&self, transaction: &mut LmdbWriteTransaction, fork_block: &Block) {
+        let hash = fork_block.hash();
         if let Some(successor) = self
             .ledger
             .any()
-            .block_successor_by_qualified_root(transaction, &block.qualified_root())
+            .block_successor_by_qualified_root(transaction, &fork_block.qualified_root())
         {
-            let successor_block = self
-                .ledger
-                .any()
-                .get_block(transaction, &successor)
-                .unwrap();
             if successor != hash {
                 // Replace our block with the winner and roll back any dependent blocks
                 debug!("Rolling back: {} and replacing with: {}", successor, hash);
@@ -740,9 +715,12 @@ impl BlockProcessorLoopImpl {
                     }
                 };
 
-                let callback_guard = self.blocks_rolled_back.lock().unwrap();
+                // Notify observers of the rolled back blocks
+                let callback_guard = self.roll_back_observers.read().unwrap();
                 if let Some(callback) = callback_guard.as_ref() {
-                    callback(rollback_list, successor_block);
+                    for i in rollback_list {
+                        callback(&i, fork_block.qualified_root());
+                    }
                 }
             }
         }
