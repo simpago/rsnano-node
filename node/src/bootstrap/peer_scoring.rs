@@ -10,6 +10,7 @@ use std::{
 pub(crate) struct PeerScoring {
     scoring: OrderedScoring,
     config: BootstrapConfig,
+    channels: Vec<Arc<ChannelInfo>>,
 }
 
 impl PeerScoring {
@@ -17,6 +18,7 @@ impl PeerScoring {
         Self {
             scoring: OrderedScoring::default(),
             config,
+            channels: Vec::new(),
         }
     }
 
@@ -26,32 +28,44 @@ impl PeerScoring {
                 i.outstanding -= 1;
                 i.response_count_total += 1;
             }
-        })
+        });
     }
 
     pub fn channel(&mut self) -> Option<Arc<ChannelInfo>> {
-        if let Some(channel) = self.get_next_channel() {
-            self.scoring.modify(channel.channel_id(), |i| {
-                i.outstanding += 1;
-                i.request_count_total += 1;
-            });
-            Some(channel)
-        } else {
-            None
-        }
+        self.channels
+            .iter()
+            .find(|c| {
+                if !c.is_queue_full(TrafficType::Bootstrap) {
+                    if !Self::try_send_message(&mut self.scoring, c, &self.config) {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            })
+            .cloned()
     }
 
-    fn get_next_channel(&self) -> Option<Arc<ChannelInfo>> {
-        self.scoring.iter_by_outstanding().find_map(|score| {
-            if let Some(channel) = score.channel.upgrade() {
-                if !channel.is_queue_full(TrafficType::Bootstrap)
-                    && score.outstanding < self.config.channel_limit
-                {
-                    return Some(channel);
-                }
+    fn try_send_message(
+        scoring: &mut OrderedScoring,
+        channel: &Arc<ChannelInfo>,
+        config: &BootstrapConfig,
+    ) -> bool {
+        let mut result = false;
+        let modified = scoring.modify(channel.channel_id(), |i| {
+            if i.outstanding < config.channel_limit {
+                i.outstanding += 1;
+                i.request_count_total += 1;
+            } else {
+                result = true;
             }
-            None
-        })
+        });
+        if !modified {
+            scoring.insert(PeerScore::new(channel));
+        }
+        result
     }
 
     pub fn len(&self) -> usize {
@@ -59,14 +73,18 @@ impl PeerScoring {
     }
 
     pub fn available(&self) -> usize {
-        self.scoring
+        self.channels
             .iter()
-            .filter(|s| !self.limit_exceeded(s))
+            .filter(|c| !self.limit_exceeded(c))
             .count()
     }
 
-    fn limit_exceeded(&self, score: &PeerScore) -> bool {
-        score.outstanding >= self.config.channel_limit
+    fn limit_exceeded(&self, channel: &ChannelInfo) -> bool {
+        if let Some(existing) = self.scoring.get(channel.channel_id()) {
+            existing.outstanding >= self.config.channel_limit
+        } else {
+            false
+        }
     }
 
     pub fn timeout(&mut self) {
@@ -74,20 +92,18 @@ impl PeerScoring {
         self.scoring.modify_all(|i| i.decay());
     }
 
-    pub fn sync(&mut self, channels: &[Arc<ChannelInfo>]) {
-        for channel in channels {
-            if channel.protocol_version() >= self.config.min_protocol_version {
-                if !self.scoring.contains(channel.channel_id()) {
-                    if !channel.is_queue_full(TrafficType::Bootstrap) {
-                        self.scoring.insert(PeerScore::new(channel));
-                    }
-                }
-            }
-        }
+    // Synchronize channels with the network, passed channels should be shuffled
+    pub fn sync(&mut self, channels: Vec<Arc<ChannelInfo>>) {
+        self.channels = channels;
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        [("total", self.len(), 0), ("available", self.available(), 0)].into()
+        [
+            ("scores", self.len(), 0),
+            ("available", self.available(), 0),
+            ("channels", self.channels.len(), 0),
+        ]
+        .into()
     }
 }
 
@@ -159,7 +175,7 @@ impl OrderedScoring {
         old
     }
 
-    fn modify(&mut self, channel_id: ChannelId, mut f: impl FnMut(&mut PeerScore)) {
+    fn modify(&mut self, channel_id: ChannelId, mut f: impl FnMut(&mut PeerScore)) -> bool {
         if let Some(scoring) = self.by_channel.get_mut(&channel_id) {
             let old_outstanding = scoring.outstanding;
             f(scoring);
@@ -168,6 +184,9 @@ impl OrderedScoring {
                 self.remove_outstanding(channel_id, old_outstanding);
                 self.insert_outstanding(channel_id, new_outstanding);
             }
+            true
+        } else {
+            false
         }
     }
 
@@ -211,13 +230,6 @@ impl OrderedScoring {
         } else {
             self.by_outstanding.remove(&outstanding);
         }
-    }
-
-    fn iter_by_outstanding(&self) -> impl Iterator<Item = &PeerScore> {
-        self.by_outstanding
-            .values()
-            .flatten()
-            .map(|id| self.by_channel.get(id).unwrap())
     }
 
     fn iter(&self) -> impl Iterator<Item = &PeerScore> {

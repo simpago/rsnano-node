@@ -1183,7 +1183,7 @@ impl BootstrapLogic {
 
     fn cleanup_and_sync(&mut self, account_count: u64, stats: &Stats, now: Timestamp) {
         let channels = self.network_info.read().unwrap().list_realtime_channels(0);
-        self.scoring.sync(&channels);
+        self.scoring.sync(channels);
         self.scoring.timeout();
 
         self.throttle.resize(compute_throttle_size(
