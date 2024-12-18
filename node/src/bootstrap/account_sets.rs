@@ -55,7 +55,7 @@ impl AccountSets {
     pub const PRIORITY_INCREASE: Priority = Priority::new(2.0);
     pub const PRIORITY_MAX: Priority = Priority::new(128.0);
     pub const PRIORITY_CUTOFF: Priority = Priority::new(0.15);
-    pub const MAX_FAILS: usize = 2;
+    pub const MAX_FAILS: usize = 3;
 
     pub fn new(config: AccountSetsConfig) -> Self {
         Self {
