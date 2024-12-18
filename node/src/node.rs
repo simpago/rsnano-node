@@ -109,7 +109,7 @@ pub struct Node {
     pub tcp_listener: Arc<TcpListener>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
-    pub backlog_population: Arc<BacklogPopulation>,
+    pub backlog_scan: Arc<BacklogPopulation>,
     pub bootstrap: Arc<BootstrapService>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
@@ -1114,7 +1114,7 @@ impl Node {
             tcp_listener,
             election_schedulers,
             request_aggregator,
-            backlog_population,
+            backlog_scan: backlog_population,
             bootstrap,
             local_block_broadcaster,
             process_live_dispatcher, // needs to stay alive
@@ -1419,7 +1419,7 @@ impl NodeExt for Arc<Node> {
         self.request_aggregator.start();
         self.confirming_set.start();
         self.election_schedulers.start();
-        self.backlog_population.start();
+        self.backlog_scan.start();
         self.bootstrap_server.start();
         self.bootstrap
             .initialize(&self.network_params.ledger.genesis_account);
@@ -1467,7 +1467,7 @@ impl NodeExt for Arc<Node> {
         // Cancels ongoing work generation tasks, which may be blocking other threads
         // No tasks may wait for work generation in I/O threads, or termination signal capturing will be unable to call node::stop()
         self.distributed_work.stop();
-        self.backlog_population.stop();
+        self.backlog_scan.stop();
         self.bootstrap.stop();
         self.rep_crawler.stop();
         self.unchecked.stop();

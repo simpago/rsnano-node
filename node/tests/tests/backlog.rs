@@ -17,7 +17,7 @@ fn backlog_population() {
     let mut system = System::new();
     let node = system.make_node();
 
-    node.backlog_population
+    node.backlog_scan
         .set_activate_callback(Box::new(move |_tx, account| {
             activated2.lock().unwrap().insert(*account);
         }));
