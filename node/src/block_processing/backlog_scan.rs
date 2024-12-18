@@ -149,7 +149,7 @@ impl BacklogScanThread {
         let mut lock = self.mutex.lock().unwrap();
         while !lock.stopped {
             if self.predicate(&lock) {
-                self.stats.inc(StatType::Backlog, DetailType::Loop);
+                self.stats.inc(StatType::BacklogScan, DetailType::Loop);
 
                 lock.triggered = false;
                 drop(lock);
@@ -192,7 +192,7 @@ impl BacklogScanThread {
                         it = self.ledger.any().accounts_range(&transaction, account..);
                     }
 
-                    self.stats.inc(StatType::Backlog, DetailType::Total);
+                    self.stats.inc(StatType::BacklogScan, DetailType::Total);
 
                     self.activate(&transaction, &account, &info);
                     next = (account.number().overflowing_add(U256::from(1)).0).into();
@@ -230,7 +230,7 @@ impl BacklogScanThread {
 
         // If conf info is empty then it means nothing is confirmed yet
         if conf_info.height < account_info.block_count {
-            self.stats.inc(StatType::Backlog, DetailType::Activated);
+            self.stats.inc(StatType::BacklogScan, DetailType::Activated);
 
             let info = ActivatedInfo {
                 account: *account,

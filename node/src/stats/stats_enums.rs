@@ -78,6 +78,7 @@ pub enum StatType {
     ActiveElectionsCemented,
     ActiveTimeout,
     Backlog,
+    BacklogScan,
     Unchecked,
     ElectionScheduler,
     ElectionBucket,
