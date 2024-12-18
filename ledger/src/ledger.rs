@@ -407,29 +407,23 @@ impl Ledger {
         }
     }
 
-    pub fn hash_root_random(&self, txn: &dyn Transaction) -> Option<(BlockHash, Root)> {
-        if !self.pruning_enabled() {
-            self.store
-                .block
-                .random(txn)
-                .map(|block| (block.hash(), block.root().into()))
-        } else {
-            let mut hash = BlockHash::zero();
-            let count = self.store.cache.block_count.load(Ordering::SeqCst);
-            let region = thread_rng().gen_range(0..count);
-            // Pruned cache cannot guarantee that pruned blocks are already commited
-            if region < self.pruned_count() {
-                hash = self.store.pruned.random(txn).unwrap_or_default();
-            }
-            if hash.is_zero() {
-                self.store
-                    .block
-                    .random(txn)
-                    .map(|block| (block.hash(), block.root()))
-            } else {
-                Some((hash, Root::zero()))
+    pub fn random_blocks(&self, tx: &dyn Transaction, count: usize) -> Vec<SavedBlock> {
+        let mut result = Vec::with_capacity(count);
+        let starting_hash = BlockHash::random();
+
+        // It is more efficient to choose a random starting point and pick a few sequential blocks from there
+        let mut it = self.store.block.iter_range(tx, starting_hash..);
+        while result.len() < count {
+            match it.next() {
+                Some(block) => result.push(block),
+                None => {
+                    // Wrap around when reaching the end
+                    it = self.store.block.iter_range(tx, BlockHash::zero()..);
+                }
             }
         }
+
+        result
     }
 
     /// Returns the cached vote weight for the given representative.

@@ -348,37 +348,18 @@ impl RepCrawler {
     }
 
     fn prepare_query_target(&self) -> Option<(BlockHash, Root)> {
-        const MAX_ATTEMPTS: usize = 4;
+        const MAX_ATTEMPTS: usize = 10;
+
         let tx = self.ledger.read_txn();
-        let mut hash_root = None;
+        let random_blocks = self.ledger.random_blocks(&tx, MAX_ATTEMPTS);
 
-        // Randomly select a block from ledger to request votes for
-        for _ in 0..MAX_ATTEMPTS {
-            if hash_root.is_some() {
-                break;
-            }
-
-            hash_root = self.ledger.hash_root_random(&tx);
-
-            // Rebroadcasted votes for recently confirmed blocks might confuse the rep crawler
-            if self
-                .active
-                .recently_confirmed
-                .hash_exists(&hash_root.as_ref().unwrap().0)
-            {
-                hash_root = None;
+        for block in &random_blocks {
+            if !self.active.recently_confirmed.hash_exists(&block.hash()) {
+                return Some((block.hash(), block.root()));
             }
         }
 
-        // Special case for dev network where number of blocks might be very low: if we can't find a block to query, just pick genesis
-        if self.network_params.network.is_dev_network() && hash_root.is_none() {
-            hash_root = Some((
-                self.network_params.ledger.genesis_block.hash(),
-                self.network_params.ledger.genesis_block.root(),
-            ));
-        }
-
-        hash_root
+        None
     }
 
     fn query_interval(&self, sufficient_weight: bool) -> Duration {

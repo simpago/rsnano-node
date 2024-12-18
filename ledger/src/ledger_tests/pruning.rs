@@ -413,13 +413,43 @@ fn hash_root_random() {
     // Pruning action
     assert_eq!(ctx.ledger.pruning_action(&mut txn, &send1.hash(), 1), 1);
 
-    // Test random block including pruned
-    let mut done = false;
-    let mut iteration = 0;
-    while !done {
-        iteration += 1;
-        let root_hash = ctx.ledger.hash_root_random(&txn).unwrap();
-        done = (root_hash.0 == send1.hash()) && root_hash.1.is_zero();
-        assert!(iteration < 1000);
+    // Prunned block will not be included in the random selection because it's not in the blocks set
+    {
+        let mut done = false;
+        let mut iteration = 0;
+        while !done && iteration < 42 {
+            iteration += 1;
+            let blocks = ctx.ledger.random_blocks(&txn, 10);
+            // Random blocks should repeat if the ledger is smaller than the requested count
+            assert_eq!(blocks.len(), 10);
+            let first = &blocks[0];
+            done = first.hash() == send1.hash();
+        }
+        assert_eq!(done, false);
+    }
+
+    // Genesis and send2 should be included in the random selection
+    {
+        let mut done = false;
+        let mut iteration = 0;
+        while !done {
+            iteration += 1;
+            let blocks = ctx.ledger.random_blocks(&txn, 1);
+            assert_eq!(blocks.len(), 1);
+            let first = &blocks[0];
+            done = first.hash() == send2.hash();
+            assert!(iteration < 1000);
+        }
+    }
+    {
+        let mut done = false;
+        let mut iteration = 0;
+        while !done {
+            iteration += 1;
+            let blocks = ctx.ledger.random_blocks(&txn, 1);
+            let first = &blocks[0];
+            done = first.hash() == *DEV_GENESIS_HASH;
+            assert!(iteration < 1000);
+        }
     }
 }
