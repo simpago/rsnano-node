@@ -264,11 +264,6 @@ impl Node {
         let election_workers: Arc<dyn ThreadPool> =
             Arc::new(ThreadPoolImpl::create(1, "Election work"));
 
-        let bootstrap_workers: Arc<dyn ThreadPool> = Arc::new(ThreadPoolImpl::create(
-            config.bootstrap_serving_threads as usize,
-            "Bootstrap work",
-        ));
-
         let network_info = Arc::new(RwLock::new(NetworkInfo::new(global_config.into())));
 
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
@@ -417,6 +412,13 @@ impl Node {
             block_processor.processor_loop.clone(),
         ));
 
+        let confirming_set_w = Arc::downgrade(&confirming_set);
+        block_processor.on_batch_processed(Box::new(move |batch| {
+            if let Some(confirming) = confirming_set_w.upgrade() {
+                confirming.requeue_blocks(batch)
+            }
+        }));
+
         let distributed_work = Arc::new(DistributedWorkFactory::new(work.clone(), runtime.clone()));
 
         let mut wallets_path = application_path.clone();
@@ -528,7 +530,7 @@ impl Node {
             stats.clone(),
             online_reps.clone(),
             flags.clone(),
-            recently_confirmed,
+            recently_confirmed.clone(),
             vote_applier.clone(),
             vote_router.clone(),
             vote_cache_processor.clone(),
@@ -788,6 +790,14 @@ impl Node {
             // Stop all rolled back active transactions except initial
             if block.qualified_root() != rollback_root {
                 active.erase(&block.qualified_root());
+            }
+        });
+
+        // Do some cleanup due to this block never being processed by confirmation height processor
+        let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
+        confirming_set.on_cementing_failed(move |hash| {
+            if let Some(recent) = recently_confirmed_w.upgrade() {
+                recent.erase(hash);
             }
         });
 

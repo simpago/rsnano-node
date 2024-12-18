@@ -3,6 +3,7 @@ use rsnano_core::BlockHash;
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
+    time::Instant,
 };
 
 #[derive(Default)]
@@ -12,7 +13,7 @@ pub(super) struct OrderedEntries {
 }
 
 impl OrderedEntries {
-    pub fn insert(&mut self, entry: Entry) -> bool {
+    pub fn push_back(&mut self, entry: Entry) -> bool {
         let hash = entry.hash;
         let mut inserted = true;
 
@@ -30,6 +31,13 @@ impl OrderedEntries {
         inserted
     }
 
+    /// Iterate in insertion order
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Entry> {
+        self.sequenced
+            .iter()
+            .map(|hash| self.by_hash.get(hash).unwrap())
+    }
+
     pub(crate) fn contains(&self, hash: &BlockHash) -> bool {
         self.by_hash.contains_key(hash)
     }
@@ -38,9 +46,26 @@ impl OrderedEntries {
         self.sequenced.len()
     }
 
+    pub(crate) fn front(&mut self) -> Option<&Entry> {
+        if let Some(hash) = self.sequenced.front() {
+            self.by_hash.get(hash)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn pop_front(&mut self) -> Option<Entry> {
         if let Some(hash) = self.sequenced.pop_front() {
             self.by_hash.remove(&hash)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn remove(&mut self, hash: &BlockHash) -> Option<Entry> {
+        if let Some(entry) = self.by_hash.remove(hash) {
+            self.sequenced.retain(|h| *h != entry.hash);
+            Some(entry)
         } else {
             None
         }
@@ -54,4 +79,5 @@ impl OrderedEntries {
 pub(super) struct Entry {
     pub hash: BlockHash,
     pub election: Option<Arc<Election>>,
+    pub timestamp: Instant,
 }

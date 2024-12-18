@@ -932,16 +932,6 @@ impl ActiveElections {
         }
     }
 
-    pub fn process_confirmed(
-        &self,
-        hash: BlockHash,
-        election: Option<Arc<Election>>,
-        iteration: u64,
-    ) {
-        self.vote_applier
-            .process_confirmed(hash, election, iteration)
-    }
-
     pub fn container_info(&self) -> ContainerInfo {
         let guard = self.mutex.lock().unwrap();
 

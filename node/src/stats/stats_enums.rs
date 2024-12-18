@@ -142,6 +142,8 @@ pub enum DetailType {
     Prioritized,
     Pending,
     Sync,
+    Requeued,
+    Evicted,
 
     // processing queue
     Queue,

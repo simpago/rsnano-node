@@ -165,7 +165,6 @@ pub trait VoteApplierExt {
     ) -> VoteCode;
     fn confirm_if_quorum(&self, election_lock: MutexGuard<ElectionData>, election: &Arc<Election>);
     fn confirm_once(&self, election_lock: MutexGuard<ElectionData>, election: &Arc<Election>);
-    fn process_confirmed(&self, hash: BlockHash, election: Option<Arc<Election>>, iteration: u64);
 }
 
 impl VoteApplierExt for Arc<VoteApplier> {
@@ -297,67 +296,13 @@ impl VoteApplierExt for Arc<VoteApplier> {
             drop(election_lock);
 
             let election = Arc::clone(election);
-            let self_l = Arc::clone(self);
             self.workers.post(Box::new(move || {
-                // This is necessary if the winner of the election is one of the forks.
-                // In that case the winning block is not yet in the ledger and cementing needs to wait for rollbacks to complete.
-                self_l.process_confirmed(
-                    status.winner.as_ref().unwrap().hash(),
-                    Some(election.clone()),
-                    0,
-                );
-
                 let block = status.winner.as_ref().unwrap().clone();
                 (election.confirmation_action)(block.into());
             }));
         } else {
             self.stats
                 .inc(StatType::Election, DetailType::ConfirmOnceFailed);
-        }
-    }
-
-    // TODO: Replace this with a queue of some sort. Blocks submitted here could be in a limbo for a while: neither part of an active election nor cemented
-    fn process_confirmed(&self, hash: BlockHash, election: Option<Arc<Election>>, iteration: u64) {
-        self.stats
-            .inc(StatType::ProcessConfirmed, DetailType::Initiate);
-
-        // Limit the maximum number of iterations to avoid getting stuck
-        let max_iterations = (self.node_config.block_processor_batch_max_time_ms
-            / self.network_params.node.process_confirmed_interval_ms)
-            as u64
-            * 4;
-
-        let block = {
-            let tx = self.ledger.read_txn();
-            self.ledger.any().get_block(&tx, &hash)
-        };
-
-        if let Some(block) = block {
-            self.stats.inc(StatType::ProcessConfirmed, DetailType::Done);
-            trace!(block = ?block,"process confirmed");
-            self.confirming_set
-                .add_with_election(block.hash(), election);
-        } else if iteration < max_iterations {
-            self.stats
-                .inc(StatType::ProcessConfirmed, DetailType::Retry);
-
-            // Try again later
-            let self_w = Arc::downgrade(self);
-            self.workers.post_delayed(
-                Duration::from_millis(
-                    self.network_params.node.process_confirmed_interval_ms as u64,
-                ),
-                Box::new(move || {
-                    if let Some(self_l) = self_w.upgrade() {
-                        self_l.process_confirmed(hash, election, iteration + 1);
-                    }
-                }),
-            );
-        } else {
-            self.stats
-                .inc(StatType::ProcessConfirmed, DetailType::Timeout);
-            // Do some cleanup due to this block never being processed by confirmation height processor
-            self.recently_confirmed.erase(&hash);
         }
     }
 }
