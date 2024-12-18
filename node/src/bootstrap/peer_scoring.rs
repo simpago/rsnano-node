@@ -43,7 +43,7 @@ impl PeerScoring {
     fn get_next_channel(&self) -> Option<Arc<ChannelInfo>> {
         self.scoring.iter_by_outstanding().find_map(|score| {
             if let Some(channel) = score.channel.upgrade() {
-                if !channel.is_queue_full(TrafficType::Generic)
+                if !channel.is_queue_full(TrafficType::Bootstrap)
                     && score.outstanding < self.config.channel_limit
                 {
                     return Some(channel);
