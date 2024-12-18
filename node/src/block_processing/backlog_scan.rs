@@ -1,13 +1,10 @@
-use crate::{
-    consensus::election_schedulers::ElectionSchedulers,
-    stats::{DetailType, StatType, Stats},
-};
+use crate::stats::{DetailType, StatType, Stats};
 use primitive_types::U256;
-use rsnano_core::{Account, AccountInfo};
+use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::Transaction;
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -47,43 +44,40 @@ pub struct BacklogScan {
     /**
      * Callback called for each backlogged account
      */
-    activate_callback: Arc<Mutex<Option<ActivateCallback>>>,
+    activated_observers:
+        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
     /** Thread that runs the backlog implementation logic. The thread always runs, even if
      *  backlog population is disabled, so that it can service a manual trigger (e.g. via RPC). */
     thread: Mutex<Option<JoinHandle<()>>>,
-    election_schedulers: Arc<ElectionSchedulers>,
 }
 
-pub type ActivateCallback = Box<dyn Fn(&dyn Transaction, &Account) + Send + Sync>;
-
 impl BacklogScan {
-    pub(crate) fn new(
-        config: BacklogScanConfig,
-        ledger: Arc<Ledger>,
-        stats: Arc<Stats>,
-        election_schedulers: Arc<ElectionSchedulers>,
-    ) -> Self {
+    pub(crate) fn new(config: BacklogScanConfig, ledger: Arc<Ledger>, stats: Arc<Stats>) -> Self {
         Self {
             config,
             ledger,
             stats,
-            activate_callback: Arc::new(Mutex::new(None)),
+            activated_observers: Arc::new(RwLock::new(Vec::new())),
             mutex: Arc::new(Mutex::new(BacklogScanFlags {
                 stopped: false,
                 triggered: false,
             })),
             condition: Arc::new(Condvar::new()),
             thread: Mutex::new(None),
-            election_schedulers,
         }
     }
 
-    pub fn set_activate_callback(&self, callback: ActivateCallback) {
-        let mut lock = self.activate_callback.lock().unwrap();
-        *lock = Some(callback);
+    pub fn on_activated(
+        &self,
+        callback: impl Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync + 'static,
+    ) {
+        self.activated_observers
+            .write()
+            .unwrap()
+            .push(Box::new(callback));
     }
 
     pub fn start(&self) {
@@ -92,11 +86,10 @@ impl BacklogScan {
         let thread = BacklogScanThread {
             ledger: self.ledger.clone(),
             stats: self.stats.clone(),
-            activate_callback: self.activate_callback.clone(),
+            activated_observers: self.activated_observers.clone(),
             config: self.config.clone(),
             mutex: self.mutex.clone(),
             condition: self.condition.clone(),
-            election_schedulers: self.election_schedulers.clone(),
         };
 
         *self.thread.lock().unwrap() = Some(
@@ -144,11 +137,11 @@ impl Drop for BacklogScan {
 struct BacklogScanThread {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
-    activate_callback: Arc<Mutex<Option<ActivateCallback>>>,
+    activated_observers:
+        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
-    election_schedulers: Arc<ElectionSchedulers>,
 }
 
 impl BacklogScanThread {
@@ -227,25 +220,33 @@ impl BacklogScanThread {
         }
     }
 
-    fn activate(&self, txn: &dyn Transaction, account: &Account, account_info: &AccountInfo) {
+    fn activate(&self, tx: &dyn Transaction, account: &Account, account_info: &AccountInfo) {
         let conf_info = self
             .ledger
             .store
             .confirmation_height
-            .get(txn, account)
+            .get(tx, account)
             .unwrap_or_default();
 
         // If conf info is empty then it means nothing is confirmed yet
         if conf_info.height < account_info.block_count {
             self.stats.inc(StatType::Backlog, DetailType::Activated);
 
-            let callback_lock = self.activate_callback.lock().unwrap();
-            if let Some(callback) = &*callback_lock {
-                callback(txn, account);
+            let info = ActivatedInfo {
+                account: *account,
+                account_info: account_info.clone(),
+                conf_info: conf_info.clone(),
+            };
+            let observers = self.activated_observers.read().unwrap();
+            for observer in &*observers {
+                observer(tx, &info);
             }
-
-            self.election_schedulers
-                .activate_backlog(txn, account, account_info, &conf_info);
         }
     }
+}
+
+pub struct ActivatedInfo {
+    pub account: Account,
+    pub account_info: AccountInfo,
+    pub conf_info: ConfirmationHeightInfo,
 }

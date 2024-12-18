@@ -693,8 +693,14 @@ impl Node {
             global_config.into(),
             ledger.clone(),
             stats.clone(),
-            election_schedulers.clone(),
         ));
+
+        let schedulers_w = Arc::downgrade(&election_schedulers);
+        backlog_scan.on_activated(move |tx, info| {
+            if let Some(schedulers) = schedulers_w.upgrade() {
+                schedulers.activate_backlog(tx, &info.account, &info.account_info, &info.conf_info);
+            }
+        });
 
         let bootstrap = Arc::new(BootstrapService::new(
             block_processor.clone(),
