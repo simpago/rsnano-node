@@ -163,12 +163,6 @@ impl LmdbBlockStore {
         LmdbRangeIterator::new(cursor, range).map(|(_, v)| v)
     }
 
-    pub fn random(&self, tx: &dyn Transaction) -> Option<SavedBlock> {
-        let hash = BlockHash::random();
-        let existing = self.iter_range(tx, hash..).next();
-        existing.or_else(|| self.iter(tx).next())
-    }
-
     pub fn raw_put(&self, txn: &mut LmdbWriteTransaction, data: &[u8], hash: &BlockHash) {
         txn.put(self.database, hash.as_bytes(), data, WriteFlags::empty())
             .unwrap();
@@ -317,25 +311,6 @@ mod tests {
                 flags: WriteFlags::empty(),
             }]
         );
-    }
-
-    #[test]
-    fn random() -> anyhow::Result<()> {
-        let block = SavedBlock::new_test_instance();
-
-        let env = LmdbEnv::new_null_with()
-            .database("blocks", LmdbDatabase::new_null(100))
-            .entry(block.hash().as_bytes(), &block.serialize_with_sideband())
-            .build()
-            .build();
-
-        let fixture = Fixture::with_env(env);
-        let txn = fixture.env.tx_begin_read();
-
-        let random = fixture.store.random(&txn).expect("block not found");
-
-        assert_eq!(random, block);
-        Ok(())
     }
 
     #[test]
