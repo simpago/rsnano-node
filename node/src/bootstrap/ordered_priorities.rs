@@ -119,29 +119,6 @@ impl OrderedPriorities {
         }
     }
 
-    pub fn change_priority(
-        &mut self,
-        account: &Account,
-        mut f: impl FnMut(Priority) -> Option<Priority>,
-    ) -> ChangePriorityResult {
-        if let Some(entry) = self.by_account.get_mut(account) {
-            let old_prio = entry.priority;
-            if let Some(new_prio) = f(entry.priority) {
-                entry.priority = new_prio;
-                entry.fails = 0;
-                if new_prio != old_prio {
-                    self.change_priority_internal(account, old_prio, new_prio)
-                }
-                ChangePriorityResult::Updated
-            } else {
-                self.remove_account(account);
-                ChangePriorityResult::Deleted
-            }
-        } else {
-            ChangePriorityResult::NotFound
-        }
-    }
-
     pub fn next_priority(
         &self,
         cutoff: Timestamp,
@@ -368,9 +345,10 @@ mod tests {
         let mut old_priority = Priority::ZERO;
         let new_priority = Priority::new(10.0);
 
-        priorities.change_priority(&Account::from(2), |old_prio| {
-            old_priority = old_prio;
-            Some(new_priority)
+        priorities.modify(&Account::from(2), |entry| {
+            old_priority = entry.priority;
+            entry.priority = new_priority;
+            true
         });
 
         assert_eq!(old_priority, Priority::new(3.0));
@@ -391,7 +369,7 @@ mod tests {
         let account = Account::from(1);
         priorities.insert(PriorityEntry::new(account, Priority::new(2.5)));
 
-        priorities.change_priority(&account, |_| None);
+        priorities.modify(&account, |_| false);
 
         assert_eq!(priorities.len(), 0);
     }

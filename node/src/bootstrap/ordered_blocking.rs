@@ -1,4 +1,3 @@
-use super::ordered_priorities::PriorityEntry;
 use rsnano_core::{Account, BlockHash};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -7,15 +6,9 @@ use std::{
 
 #[derive(Clone)]
 pub(crate) struct BlockingEntry {
+    pub account: Account,
     pub dependency: BlockHash,
-    pub original_entry: PriorityEntry,
     pub dependency_account: Account,
-}
-
-impl BlockingEntry {
-    fn account(&self) -> &Account {
-        &self.original_entry.account
-    }
 }
 
 /// A blocked account is an account that has failed to insert a new block because the source block is not currently present in the ledger
@@ -42,7 +35,7 @@ impl OrderedBlocking {
     }
 
     pub fn insert(&mut self, entry: BlockingEntry) -> bool {
-        let account = entry.account().clone();
+        let account = entry.account;
         let dependency = entry.dependency;
         let dependency_account = entry.dependency_account;
         if self.by_account.contains_key(&account) {
@@ -128,12 +121,12 @@ impl OrderedBlocking {
                 if old.len() == 1 {
                     self.by_dependency_account.remove(&old_dependency_account);
                 } else {
-                    old.retain(|a| a != entry.account());
+                    old.retain(|a| *a != entry.account);
                 }
                 self.by_dependency_account
                     .entry(new_dependency_account)
                     .or_default()
-                    .push(*entry.account());
+                    .push(entry.account);
 
                 updated += 1;
             }
@@ -143,10 +136,10 @@ impl OrderedBlocking {
     }
 
     fn remove_indexes(&mut self, entry: &BlockingEntry) {
-        self.sequenced.retain(|i| i != entry.account());
+        self.sequenced.retain(|i| *i != entry.account);
         let accounts = self.by_dependency.get_mut(&entry.dependency).unwrap();
         if accounts.len() > 1 {
-            accounts.retain(|i| i != entry.account());
+            accounts.retain(|i| *i != entry.account);
         } else {
             self.by_dependency.remove(&entry.dependency);
         }
@@ -155,7 +148,7 @@ impl OrderedBlocking {
             .get_mut(&entry.dependency_account)
             .unwrap();
         if accounts.len() > 1 {
-            accounts.retain(|i| i != entry.account());
+            accounts.retain(|i| *i != entry.account);
         } else {
             self.by_dependency_account.remove(&entry.dependency_account);
         }
@@ -164,8 +157,6 @@ impl OrderedBlocking {
 
 #[cfg(test)]
 mod tests {
-    use crate::bootstrap::priority::Priority;
-
     use super::*;
 
     #[test]
@@ -186,8 +177,8 @@ mod tests {
         let mut blocking = OrderedBlocking::default();
 
         let entry = BlockingEntry {
+            account: Account::from(5),
             dependency: BlockHash::from(100),
-            original_entry: PriorityEntry::new_test_instance(),
             dependency_account: Account::from(13),
         };
         let inserted = blocking.insert(entry.clone());
@@ -195,8 +186,8 @@ mod tests {
         assert_eq!(inserted, true);
         assert_eq!(blocking.len(), 1);
         assert_eq!(blocking.is_empty(), false);
-        assert_eq!(blocking.contains(&entry.account()), true);
-        assert!(blocking.get(&entry.account()).is_some());
+        assert_eq!(blocking.contains(&entry.account), true);
+        assert!(blocking.get(&entry.account).is_some());
         assert_eq!(
             blocking.count_by_dependency_account(&entry.dependency_account),
             1
@@ -208,8 +199,8 @@ mod tests {
         let mut blocking = OrderedBlocking::default();
 
         let entry = BlockingEntry {
+            account: Account::from(5),
             dependency: BlockHash::from(100),
-            original_entry: PriorityEntry::new_test_instance(),
             dependency_account: Account::from(13),
         };
         blocking.insert(entry.clone());
@@ -225,8 +216,8 @@ mod tests {
         let mut blocking = OrderedBlocking::default();
 
         let entry = BlockingEntry {
+            account: Account::from(5),
             dependency: BlockHash::from(100),
-            original_entry: PriorityEntry::new_test_instance(),
             dependency_account: Account::zero(),
         };
         blocking.insert(entry.clone());
@@ -239,8 +230,8 @@ mod tests {
         let mut blocking = OrderedBlocking::default();
 
         let entry = BlockingEntry {
+            account: Account::from(5),
             dependency: BlockHash::from(100),
-            original_entry: PriorityEntry::new_test_instance(),
             dependency_account: Account::from(13),
         };
         blocking.insert(entry.clone());
@@ -253,20 +244,20 @@ mod tests {
         let mut blocking = OrderedBlocking::default();
 
         blocking.insert(BlockingEntry {
+            account: Account::from(1000),
             dependency: BlockHash::from(100),
-            original_entry: PriorityEntry::new(Account::from(1000), Priority::new(1.0)),
             dependency_account: Account::zero(),
         });
 
         blocking.insert(BlockingEntry {
+            account: Account::from(2000),
             dependency: BlockHash::from(200),
-            original_entry: PriorityEntry::new(Account::from(2000), Priority::new(1.0)),
             dependency_account: Account::zero(),
         });
 
         blocking.insert(BlockingEntry {
+            account: Account::from(3000),
             dependency: BlockHash::from(300),
-            original_entry: PriorityEntry::new(Account::from(3000), Priority::new(1.0)),
             dependency_account: Account::zero(),
         });
 
@@ -281,26 +272,20 @@ mod tests {
         let mut blocking = OrderedBlocking::default();
 
         blocking.insert(BlockingEntry {
+            account: Account::from(1000),
             dependency: BlockHash::from(100),
-            original_entry: PriorityEntry::new(Account::from(1000), Priority::new(1.0)),
             dependency_account: Account::zero(),
         });
 
         blocking.insert(BlockingEntry {
+            account: Account::from(2000),
             dependency: BlockHash::from(200),
-            original_entry: PriorityEntry::new(Account::from(2000), Priority::new(1.0)),
             dependency_account: Account::zero(),
         });
 
-        assert_eq!(
-            blocking.pop_oldest().unwrap().account(),
-            &Account::from(1000)
-        );
-        assert_eq!(
-            blocking.pop_oldest().unwrap().account(),
-            &Account::from(2000)
-        );
-        assert!(blocking.pop_oldest().is_none(),);
+        assert_eq!(blocking.pop_oldest().unwrap().account, Account::from(1000));
+        assert_eq!(blocking.pop_oldest().unwrap().account, Account::from(2000));
+        assert!(blocking.pop_oldest().is_none());
     }
 
     #[test]
@@ -309,8 +294,8 @@ mod tests {
 
         let dependency = BlockHash::from(100);
         blocking.insert(BlockingEntry {
+            account: Account::from(1000),
             dependency,
-            original_entry: PriorityEntry::new(Account::from(1000), Priority::new(1.0)),
             dependency_account: Account::zero(),
         });
 

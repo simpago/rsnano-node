@@ -1046,6 +1046,10 @@ impl BootstrapLogic {
                 // If we've inserted any block in to an account, unmark it as blocked
                 if self.accounts.unblock(account, None) {
                     stats.inc(StatType::BootstrapAccountSets, DetailType::Unblock);
+                    stats.inc(
+                        StatType::BootstrapAccountSets,
+                        DetailType::PriorityUnblocked,
+                    );
                 } else {
                     stats.inc(StatType::BootstrapAccountSets, DetailType::UnblockFailed);
                 }
@@ -1069,6 +1073,10 @@ impl BootstrapLogic {
                     // Unblocking automatically inserts account into priority set
                     if self.accounts.unblock(destination, Some(hash)) {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::Unblock);
+                        stats.inc(
+                            StatType::BootstrapAccountSets,
+                            DetailType::PriorityUnblocked,
+                        );
                     } else {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::UnblockFailed);
                     }
@@ -1086,13 +1094,16 @@ impl BootstrapLogic {
 
                     if !account.is_zero() && !source.is_zero() {
                         // Mark account as blocked because it is missing the source block
-                        self.accounts.block(*account, source);
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::Block);
-                        stats.inc(
-                            StatType::BootstrapAccountSets,
-                            DetailType::PriorityEraseBlock,
-                        );
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::BlockingInsert);
+                        let blocked = self.accounts.block(*account, source);
+                        if blocked {
+                            stats.inc(
+                                StatType::BootstrapAccountSets,
+                                DetailType::PriorityEraseBlock,
+                            );
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::Block);
+                        } else {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::BlockFailed);
+                        }
                     }
                 }
             }

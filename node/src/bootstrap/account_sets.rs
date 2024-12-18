@@ -155,21 +155,23 @@ impl AccountSets {
         }
     }
 
-    pub fn block(&mut self, account: Account, dependency: BlockHash) {
+    pub fn block(&mut self, account: Account, dependency: BlockHash) -> bool {
         debug_assert!(!account.is_zero());
 
-        let entry = self
-            .priorities
-            .remove(&account)
-            .unwrap_or_else(|| PriorityEntry::new(account, Priority::ZERO));
+        let removed = self.priorities.remove(&account);
 
-        self.blocking.insert(BlockingEntry {
-            dependency,
-            dependency_account: Account::zero(),
-            original_entry: entry,
-        });
+        if removed.is_some() {
+            self.blocking.insert(BlockingEntry {
+                account,
+                dependency,
+                dependency_account: Account::zero(),
+            });
 
-        self.trim_overflow();
+            self.trim_overflow();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn unblock(&mut self, account: Account, hash: Option<BlockHash>) -> bool {
@@ -187,15 +189,9 @@ impl AccountSets {
 
             if hash_matches {
                 debug_assert!(!self.priorities.contains(&account));
-                if !existing.original_entry.account.is_zero() {
-                    debug_assert!(existing.original_entry.account == account);
-                    self.priorities.insert(existing.original_entry.clone());
-                } else {
-                    self.priorities
-                        .insert(PriorityEntry::new(account, Self::PRIORITY_INITIAL));
-                }
+                self.priorities
+                    .insert(PriorityEntry::new(account, Self::PRIORITY_INITIAL));
                 self.blocking.remove(&account);
-
                 self.trim_overflow();
                 return true;
             }
@@ -368,6 +364,7 @@ mod tests {
         let mut sets = AccountSets::default();
         let account = Account::from(1);
         let hash = BlockHash::from(2);
+        sets.priority_up(&account);
 
         sets.block(account, hash);
 
@@ -380,10 +377,11 @@ mod tests {
         let mut sets = AccountSets::default();
         let account = Account::from(1);
         let hash = BlockHash::from(2);
+        sets.priority_up(&account);
 
         sets.block(account, hash);
-        assert!(sets.unblock(account, None));
 
+        assert!(sets.unblock(account, None));
         assert_eq!(sets.blocked(&account), false);
     }
 
@@ -393,20 +391,19 @@ mod tests {
         assert_eq!(sets.priority(&Account::from(1)), Priority::ZERO);
     }
 
-    // When account is unblocked, check that it retains it former priority
     #[test]
-    fn priority_unblock_keep() {
+    fn priority_unblock() {
         let mut sets = AccountSets::default();
         let account = Account::from(1);
         let hash = BlockHash::from(2);
 
         assert_eq!(sets.priority_up(&account), PriorityUpResult::Inserted);
-        assert_eq!(sets.priority_up(&account), PriorityUpResult::Updated);
+        assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
 
         sets.block(account, hash);
         sets.unblock(account, None);
 
-        assert_eq!(sets.priority(&account), Priority::new(4.0));
+        assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
     }
 
     #[test]
