@@ -894,7 +894,10 @@ impl BootstrapService {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        self.mutex.lock().unwrap().container_info()
+        self.mutex
+            .lock()
+            .unwrap()
+            .container_info(&self.database_limiter, &self.frontiers_limiter)
     }
 }
 
@@ -1221,7 +1224,18 @@ impl BootstrapLogic {
         }
     }
 
-    pub fn container_info(&self) -> ContainerInfo {
+    pub fn container_info(
+        &self,
+        database_limiter: &RateLimiter,
+        frontiers_limiter: &RateLimiter,
+    ) -> ContainerInfo {
+        let limiters: ContainerInfo = [
+            ("total", self.limiter.size(), 0),
+            ("database", database_limiter.size(), 0),
+            ("frontiers", frontiers_limiter.size(), 0),
+        ]
+        .into();
+
         ContainerInfo::builder()
             .leaf("tags", self.tags.len(), OrderedTags::ELEMENT_SIZE)
             .leaf("throttle", self.throttle.len(), 0)
@@ -1230,6 +1244,7 @@ impl BootstrapLogic {
             .node("database_scan", self.database_scan.container_info())
             .node("frontiers", self.frontiers.container_info())
             .node("peers", self.scoring.container_info())
+            .node("limiters", limiters)
             .finish()
     }
 }
