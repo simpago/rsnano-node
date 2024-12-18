@@ -1,7 +1,4 @@
-use super::{
-    ordered_priorities::PriorityEntry,
-    priority::{Priority, PriorityKeyDesc},
-};
+use super::ordered_priorities::PriorityEntry;
 use rsnano_core::{Account, BlockHash};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -16,10 +13,6 @@ pub(crate) struct BlockingEntry {
 }
 
 impl BlockingEntry {
-    fn priority(&self) -> Priority {
-        self.original_entry.priority
-    }
-
     fn account(&self) -> &Account {
         &self.original_entry.account
     }
@@ -31,8 +24,6 @@ impl BlockingEntry {
 pub(crate) struct OrderedBlocking {
     by_account: BTreeMap<Account, BlockingEntry>,
     sequenced: VecDeque<Account>,
-    // descending
-    by_priority: BTreeMap<PriorityKeyDesc, VecDeque<Account>>,
     by_dependency: BTreeMap<BlockHash, Vec<Account>>,
     by_dependency_account: BTreeMap<Account, Vec<Account>>,
 }
@@ -52,7 +43,6 @@ impl OrderedBlocking {
 
     pub fn insert(&mut self, entry: BlockingEntry) -> bool {
         let account = entry.account().clone();
-        let prio = entry.priority();
         let dependency = entry.dependency;
         let dependency_account = entry.dependency_account;
         if self.by_account.contains_key(&account) {
@@ -61,10 +51,6 @@ impl OrderedBlocking {
 
         self.by_account.insert(account, entry);
         self.sequenced.push_back(account);
-        self.by_priority
-            .entry(prio.into())
-            .or_default()
-            .push_back(account);
         self.by_dependency
             .entry(dependency)
             .or_default()
@@ -158,12 +144,6 @@ impl OrderedBlocking {
 
     fn remove_indexes(&mut self, entry: &BlockingEntry) {
         self.sequenced.retain(|i| i != entry.account());
-        let accounts = self.by_priority.get_mut(&entry.priority().into()).unwrap();
-        if accounts.len() > 1 {
-            accounts.retain(|i| i != entry.account());
-        } else {
-            self.by_priority.remove(&entry.priority().into());
-        }
         let accounts = self.by_dependency.get_mut(&entry.dependency).unwrap();
         if accounts.len() > 1 {
             accounts.retain(|i| i != entry.account());
@@ -184,6 +164,8 @@ impl OrderedBlocking {
 
 #[cfg(test)]
 mod tests {
+    use crate::bootstrap::priority::Priority;
+
     use super::*;
 
     #[test]
