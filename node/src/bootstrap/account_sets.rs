@@ -234,7 +234,7 @@ impl AccountSets {
             self.priorities.pop_lowest_prio();
         }
         while self.blocking.len() > self.config.blocking_max {
-            self.blocking.pop_lowest_prio();
+            self.blocking.pop_oldest();
         }
     }
 
