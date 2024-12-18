@@ -5,8 +5,8 @@ use crate::{
     utils::{ThreadPool, ThreadPoolImpl},
 };
 use rsnano_core::{
-    utils::ContainerInfo, work::WorkThresholds, Block, BlockType, Epoch, HashOrAccount, Networks,
-    QualifiedRoot, SavedBlock, UncheckedInfo,
+    utils::ContainerInfo, work::WorkThresholds, Block, BlockType, Epoch, Networks, QualifiedRoot,
+    SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
@@ -204,7 +204,7 @@ impl BlockProcessor {
                 }),
                 condition: Condvar::new(),
                 ledger,
-                unchecked_map,
+                unchecked: unchecked_map,
                 config,
                 stats,
                 workers: ThreadPoolImpl::create(1, "Blck proc notif"),
@@ -331,10 +331,12 @@ pub(crate) struct BlockProcessorLoopImpl {
     mutex: Mutex<BlockProcessorImpl>,
     condition: Condvar,
     ledger: Arc<Ledger>,
-    unchecked_map: Arc<UncheckedMap>,
+    unchecked: Arc<UncheckedMap>,
     config: BlockProcessorConfig,
     stats: Arc<Stats>,
     workers: ThreadPoolImpl,
+
+    /// Rolled back blocks <rolled back block, root of rollback>
     roll_back_observers: RwLock<Option<Box<dyn Fn(&SavedBlock, QualifiedRoot) + Send + Sync>>>,
     block_processed: RwLock<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
     batch_processed:
@@ -542,10 +544,6 @@ impl BlockProcessorLoopImpl {
         added
     }
 
-    pub fn queue_unchecked(&self, hash_or_account: &HashOrAccount) {
-        self.unchecked_map.trigger(hash_or_account);
-    }
-
     fn next_batch(
         &self,
         data: &mut BlockProcessorImpl,
@@ -632,28 +630,29 @@ impl BlockProcessorLoopImpl {
 
         match result {
             BlockStatus::Progress => {
-                self.queue_unchecked(&hash.into());
-                /* For send blocks check epoch open unchecked (gap pending).
-                For state blocks check only send subtype and only if block epoch is not last epoch.
-                If epoch is last, then pending entry shouldn't trigger same epoch open block for destination account. */
+                self.unchecked.trigger(&hash.into());
+
+                /*
+                 * For send blocks check epoch open unchecked (gap pending).
+                 * For state blocks check only send subtype and only if block epoch is not last epoch.
+                 * If epoch is last, then pending entry shouldn't trigger same epoch open block for destination account.
+                 * */
                 let block = saved_block.unwrap();
                 if block.block_type() == BlockType::LegacySend
                     || block.block_type() == BlockType::State
                         && block.is_send()
                         && block.epoch() < Epoch::MAX
                 {
-                    /* block->destination () for legacy send blocks
-                    block->link () for state blocks (send subtype) */
-                    self.queue_unchecked(&block.destination_or_link().into());
+                    self.unchecked.trigger(&block.destination_or_link().into());
                 }
             }
             BlockStatus::GapPrevious => {
-                self.unchecked_map
+                self.unchecked
                     .put(block.previous().into(), UncheckedInfo::new(block));
                 self.stats.inc(StatType::Ledger, DetailType::GapPrevious);
             }
             BlockStatus::GapSource => {
-                self.unchecked_map.put(
+                self.unchecked.put(
                     block
                         .source_field()
                         .unwrap_or(block.link_field().unwrap_or_default().into())
@@ -664,7 +663,7 @@ impl BlockProcessorLoopImpl {
             }
             BlockStatus::GapEpochOpenPending => {
                 // Specific unchecked key starting with epoch open block account public key
-                self.unchecked_map.put(
+                self.unchecked.put(
                     block.account_field().unwrap().into(),
                     UncheckedInfo::new(block),
                 );
