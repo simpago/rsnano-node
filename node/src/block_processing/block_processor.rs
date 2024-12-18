@@ -208,7 +208,7 @@ impl BlockProcessor {
                 config,
                 stats,
                 workers: ThreadPoolImpl::create(1, "Blck proc notif"),
-                roll_back_observers: RwLock::new(None),
+                roll_back_observers: Arc::new(RwLock::new(None)),
                 block_processed: RwLock::new(Vec::new()),
                 batch_processed: RwLock::new(Vec::new()),
             }),
@@ -303,7 +303,7 @@ impl BlockProcessor {
 
     pub fn on_block_rolled_back(
         &self,
-        callback: impl Fn(&SavedBlock, QualifiedRoot) + Send + Sync + 'static,
+        callback: impl Fn(&[SavedBlock], QualifiedRoot) + Send + Sync + 'static,
     ) {
         self.processor_loop.on_block_rolled_back(callback);
     }
@@ -337,8 +337,10 @@ pub(crate) struct BlockProcessorLoopImpl {
     workers: ThreadPoolImpl,
 
     /// Rolled back blocks <rolled back block, root of rollback>
-    roll_back_observers: RwLock<Option<Box<dyn Fn(&SavedBlock, QualifiedRoot) + Send + Sync>>>,
+    roll_back_observers:
+        Arc<RwLock<Option<Box<dyn Fn(&[SavedBlock], QualifiedRoot) + Send + Sync>>>>,
     block_processed: RwLock<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
+    /// All processed blocks including forks, rejected etc
     batch_processed:
         RwLock<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>>>,
 }
@@ -435,7 +437,7 @@ impl BlockProcessorLoopImpl {
 
     pub fn on_block_rolled_back(
         &self,
-        callback: impl Fn(&SavedBlock, QualifiedRoot) + Send + Sync + 'static,
+        callback: impl Fn(&[SavedBlock], QualifiedRoot) + Send + Sync + 'static,
     ) {
         *self.roll_back_observers.write().unwrap() = Some(Box::new(callback));
     }
@@ -714,13 +716,15 @@ impl BlockProcessorLoopImpl {
                     }
                 };
 
-                // Notify observers of the rolled back blocks
-                let callback_guard = self.roll_back_observers.read().unwrap();
-                if let Some(callback) = callback_guard.as_ref() {
-                    for i in rollback_list {
-                        callback(&i, fork_block.qualified_root());
+                // Notify observers of the rolled back blocks on a background thread while not holding the ledger write lock
+                let observers = self.roll_back_observers.clone();
+                let fork_block = fork_block.clone();
+                self.workers.post(Box::new(move || {
+                    let callback_guard = observers.read().unwrap();
+                    if let Some(callback) = callback_guard.as_ref() {
+                        callback(&rollback_list, fork_block.qualified_root());
                     }
-                }
+                }));
             }
         }
     }

@@ -323,18 +323,20 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
 
         let self_w = Arc::downgrade(self);
         self.block_processor
-            .on_block_rolled_back(move |block, _rollback_root| {
+            .on_block_rolled_back(move |blocks, _rollback_root| {
                 let Some(self_l) = self_w.upgrade() else {
                     return;
                 };
 
                 let mut guard = self_l.mutex.lock().unwrap();
-                if guard.local_blocks.remove(&block.hash()) {
-                    self_l.stats.inc_dir(
-                        StatType::LocalBlockBroadcaster,
-                        DetailType::Rollback,
-                        Direction::In,
-                    );
+                for block in blocks {
+                    if guard.local_blocks.remove(&block.hash()) {
+                        self_l.stats.inc_dir(
+                            StatType::LocalBlockBroadcaster,
+                            DetailType::Rollback,
+                            Direction::In,
+                        );
+                    }
                 }
             });
 
