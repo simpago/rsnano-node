@@ -63,9 +63,9 @@ impl System {
         config
     }
 
-    pub fn default_config_without_backlog_population() -> NodeConfig {
+    pub fn default_config_without_backlog_scan() -> NodeConfig {
         NodeConfig {
-            backlog: BacklogScanConfig {
+            backlog_scan: BacklogScanConfig {
                 enabled: false,
                 ..Default::default()
             },

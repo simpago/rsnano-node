@@ -98,7 +98,7 @@ pub struct NodeConfig {
     pub local_block_broadcaster: LocalBlockBroadcasterConfig,
     pub confirming_set: ConfirmingSetConfig,
     pub monitor: MonitorConfig,
-    pub backlog: BacklogScanConfig,
+    pub backlog_scan: BacklogScanConfig,
     pub network_duplicate_filter_cutoff: u64,
 }
 
@@ -324,7 +324,7 @@ impl NodeConfig {
             ),
             confirming_set: Default::default(),
             monitor: Default::default(),
-            backlog: Default::default(),
+            backlog_scan: Default::default(),
             network_duplicate_filter_cutoff: 60,
         }
     }

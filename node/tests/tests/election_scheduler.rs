@@ -205,7 +205,7 @@ mod election_scheduler {
                     size: 1,
                     ..Default::default()
                 },
-                ..System::default_config_without_backlog_population()
+                ..System::default_config_without_backlog_scan()
             })
             .finish();
 

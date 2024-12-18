@@ -25,7 +25,7 @@ impl From<&GlobalConfig> for BlockProcessorConfig {
 
 impl From<&GlobalConfig> for BacklogScanConfig {
     fn from(value: &GlobalConfig) -> Self {
-        value.node_config.backlog.clone()
+        value.node_config.backlog_scan.clone()
     }
 }
 

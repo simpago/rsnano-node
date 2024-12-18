@@ -19,7 +19,7 @@ use test_helpers::{assert_timely, assert_timely_eq, setup_chain, start_election,
 #[test]
 fn codes() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     config.enable_hinted_scheduler = false;
     config.enable_optimistic_scheduler = false;
     let node = system.build_node().config(config).finish();
@@ -289,7 +289,7 @@ fn no_broadcast_local() {
         .build_node()
         .config(NodeConfig {
             representative_vote_weight_minimum: Amount::zero(),
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         })
         .flags(flags.clone())
         .finish();
@@ -298,7 +298,7 @@ fn no_broadcast_local() {
         .build_node()
         .config(NodeConfig {
             representative_vote_weight_minimum: Amount::zero(),
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         })
         .flags(flags)
         .finish();
@@ -361,7 +361,7 @@ fn local_broadcast_without_a_representative() {
         .build_node()
         .config(NodeConfig {
             representative_vote_weight_minimum: Amount::zero(),
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         })
         .flags(flags.clone())
         .finish();
@@ -369,7 +369,7 @@ fn local_broadcast_without_a_representative() {
         .build_node()
         .config(NodeConfig {
             representative_vote_weight_minimum: Amount::zero(),
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         })
         .flags(flags)
         .finish();
@@ -434,12 +434,12 @@ fn no_broadcast_local_with_a_principal_representative() {
     };
     let node = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .flags(flags.clone())
         .finish();
     let _node2 = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .flags(flags)
         .finish();
     // Reduce the weight of genesis to 2x default min voting weight

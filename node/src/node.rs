@@ -689,7 +689,7 @@ impl Node {
             request_aggregator.state.clone(),
         ));
 
-        let backlog_population = Arc::new(BacklogScan::new(
+        let backlog_scan = Arc::new(BacklogScan::new(
             global_config.into(),
             ledger.clone(),
             stats.clone(),
@@ -1114,7 +1114,7 @@ impl Node {
             tcp_listener,
             election_schedulers,
             request_aggregator,
-            backlog_scan: backlog_population,
+            backlog_scan,
             bootstrap,
             local_block_broadcaster,
             process_live_dispatcher, // needs to stay alive

@@ -220,7 +220,7 @@ fn inactive_votes_cache_fork() {
 #[test]
 fn inactive_votes_cache_existing_vote() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key = PrivateKey::new();
@@ -293,7 +293,7 @@ fn inactive_votes_cache_existing_vote() {
 #[test]
 fn inactive_votes_cache_multiple_votes() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key = PrivateKey::new();
@@ -334,7 +334,7 @@ fn inactive_votes_cache_multiple_votes() {
 #[test]
 fn inactive_votes_cache_election_start() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     config.enable_optimistic_scheduler = false;
     config.enable_priority_scheduler = false;
     let node = system.build_node().config(config).finish();
@@ -429,7 +429,7 @@ fn inactive_votes_cache_election_start() {
 #[test]
 fn republish_winner() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     let node1 = system.build_node().config(config.clone()).finish();
     config.peering_port = Some(get_available_port());
     let node2 = system.build_node().config(config).finish();
@@ -857,7 +857,7 @@ fn dropped_cleanup() {
 #[test]
 fn confirmation_consistency() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     let wallet_id = node.wallets.wallet_ids()[0];
     node.wallets
@@ -897,7 +897,7 @@ fn confirmation_consistency() {
 #[test]
 fn fork_filter_cleanup() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     let node1 = system.build_node().config(config.clone()).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -958,7 +958,7 @@ fn fork_filter_cleanup() {
 #[test]
 fn conflicting_block_vote_existing_election() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let flags = NodeFlags {
         disable_request_loop: true,
         ..Default::default()
@@ -998,7 +998,7 @@ fn conflicting_block_vote_existing_election() {
 #[test]
 fn activate_account_chain() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
 
@@ -1130,7 +1130,7 @@ fn vote_replays() {
         .build_node()
         .config(NodeConfig {
             enable_voting: false,
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         })
         .finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -1321,7 +1321,7 @@ fn active_inactive() {
     let mut system = System::new();
     let node = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -1385,7 +1385,7 @@ fn activate_inactive() {
     let mut system = System::new();
     let node = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();

@@ -10,7 +10,7 @@ use test_helpers::{assert_always_eq, assert_timely, assert_timely_eq, start_elec
 #[test]
 fn observer_callbacks() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     node.insert_into_wallet(&DEV_GENESIS_KEY);
 
@@ -47,7 +47,7 @@ fn observer_callbacks() {
 #[test]
 fn confirmed_history() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     config.bootstrap.enable = false;
     let node = system.build_node().config(config).finish();
 
@@ -161,7 +161,7 @@ fn confirmed_history() {
 #[test]
 fn dependent_election() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();

@@ -1382,7 +1382,7 @@ fn search_receivable() {
         .build_node()
         .config(NodeConfig {
             enable_voting: false,
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         })
         .flags(NodeFlags {
             disable_search_pending: true,

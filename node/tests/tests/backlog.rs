@@ -11,7 +11,7 @@ use test_helpers::{assert_timely, assert_timely_eq, setup_independent_blocks, Sy
  * Ensures all not confirmed accounts get activated by backlog scan periodically
  */
 #[test]
-fn backlog_population() {
+fn backlog_scan() {
     let activated = Arc::new(Mutex::new(HashSet::new()));
     let activated2 = activated.clone();
     let mut system = System::new();

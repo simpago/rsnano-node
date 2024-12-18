@@ -111,7 +111,7 @@ mod tests {
         max_unchecked_blocks = 999
         frontiers_confirmation = "always"
 
-        [node.backlog_population]
+        [node.backlog_scan]
         enable = false
         batch_size = 999
         frequency = 999
@@ -430,12 +430,12 @@ mod tests {
             default_cfg.node.max_unchecked_blocks
         );
         assert_ne!(
-            deserialized.node.backlog.enabled,
-            default_cfg.node.backlog.enabled
+            deserialized.node.backlog_scan.enabled,
+            default_cfg.node.backlog_scan.enabled
         );
         assert_ne!(
-            deserialized.node.backlog.frequency,
-            default_cfg.node.backlog.frequency
+            deserialized.node.backlog_scan.frequency,
+            default_cfg.node.backlog_scan.frequency
         );
 
         // Block Processor section

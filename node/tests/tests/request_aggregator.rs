@@ -11,7 +11,7 @@ use test_helpers::{assert_timely_eq, assert_timely_msg, make_fake_channel, Syste
 #[test]
 fn one() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     node.wallets
         .insert_adhoc2(
@@ -146,7 +146,7 @@ fn one() {
 #[test]
 fn one_update() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     node.wallets
         .insert_adhoc2(
@@ -268,7 +268,7 @@ fn one_update() {
 #[test]
 fn two() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     node.wallets
         .insert_adhoc2(
@@ -394,7 +394,7 @@ fn two() {
 fn split() {
     const MAX_VBH: usize = ConfirmAck::HASHES_MAX;
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     node.wallets
         .insert_adhoc2(
@@ -478,7 +478,7 @@ fn split() {
 #[test]
 fn channel_max_queue() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     config.request_aggregator.max_queue = 0;
     let node = system.build_node().config(config).finish();
     node.wallets

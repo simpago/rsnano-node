@@ -92,7 +92,7 @@ mod votes {
         let mut system = System::new();
         let config = NodeConfig {
             online_weight_minimum: Amount::MAX,
-            ..System::default_config_without_backlog_population()
+            ..System::default_config_without_backlog_scan()
         };
         let node1 = system.build_node().config(config).finish();
         let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -345,7 +345,7 @@ fn unchecked_epoch_invalid() {
     let mut system = System::new();
     let node1 = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();

@@ -326,7 +326,7 @@ fn vote_spacing_prune() {
 #[test]
 fn vote_spacing_vote_generator() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
 
     let wallet_id = WalletId::random();
@@ -410,7 +410,7 @@ fn vote_spacing_vote_generator() {
 #[test]
 fn vote_spacing_rapid() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
 
     let wallet_id = WalletId::random();

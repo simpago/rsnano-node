@@ -67,7 +67,7 @@ pub struct NodeToml {
     pub vote_cache: Option<VoteCacheToml>,
     pub vote_processor: Option<VoteProcessorToml>,
     pub websocket: Option<WebsocketToml>,
-    pub backlog_population: Option<BacklogScanToml>,
+    pub backlog_scan: Option<BacklogScanToml>,
 }
 
 impl NodeConfig {
@@ -342,8 +342,8 @@ impl NodeConfig {
                 self.callback_target = target.clone();
             }
         }
-        if let Some(backlog) = &toml.backlog_population {
-            self.backlog.merge_toml(&backlog);
+        if let Some(backlog) = &toml.backlog_scan {
+            self.backlog_scan.merge_toml(&backlog);
         }
     }
 }
@@ -445,7 +445,7 @@ impl From<&NodeConfig> for NodeToml {
             httpcallback: Some(config.into()),
             rep_crawler: Some(config.into()),
             experimental: Some(config.into()),
-            backlog_population: (Some((&config.backlog).into())),
+            backlog_scan: (Some((&config.backlog_scan).into())),
         }
     }
 }

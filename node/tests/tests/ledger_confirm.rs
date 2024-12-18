@@ -49,7 +49,7 @@ fn single() {
 #[test]
 fn multiple_accounts() {
     let mut system = System::new();
-    let cfg = System::default_config_without_backlog_population();
+    let cfg = System::default_config_without_backlog_scan();
     let node = system.build_node().config(cfg).finish();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let key1 = PrivateKey::new();
@@ -186,7 +186,7 @@ fn multiple_accounts() {
 #[test]
 fn send_receive_between_2_accounts() {
     let mut system = System::new();
-    let cfg = System::default_config_without_backlog_population();
+    let cfg = System::default_config_without_backlog_scan();
     let node = system.build_node().config(cfg).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -247,7 +247,7 @@ fn send_receive_between_2_accounts() {
 #[test]
 fn send_receive_self() {
     let mut system = System::new();
-    let cfg = System::default_config_without_backlog_population();
+    let cfg = System::default_config_without_backlog_scan();
     let node = system.build_node().config(cfg).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -292,7 +292,7 @@ fn send_receive_self() {
 #[test]
 fn all_block_types() {
     let mut system = System::new();
-    let cfg = System::default_config_without_backlog_population();
+    let cfg = System::default_config_without_backlog_scan();
     let node = system.build_node().config(cfg).finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();

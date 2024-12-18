@@ -78,7 +78,7 @@ fn frontier_scan() {
         enable_priority_scheduler: false,
         enable_optimistic_scheduler: false,
         enable_hinted_scheduler: false,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
 
     // Prepare blocks for frontier scan (genesis 10 sends -> 10 opens -> 10 updates)
@@ -154,7 +154,7 @@ fn frontier_scan_pending() {
         enable_priority_scheduler: false,
         enable_optimistic_scheduler: false,
         enable_hinted_scheduler: false,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
 
     // Prepare blocks for frontier scan (genesis 10 sends -> 10 opens)
@@ -227,7 +227,7 @@ fn frontier_scan_cannot_prioritize() {
         enable_priority_scheduler: false,
         enable_optimistic_scheduler: false,
         enable_hinted_scheduler: false,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
 
     // Prepare blocks for frontier scan (genesis 10 sends -> 10 opens -> 10 sends -> 10 opens)

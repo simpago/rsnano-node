@@ -16,7 +16,7 @@ use test_helpers::{
 #[test]
 fn quorum_minimum_update_weight_before_quorum_checks() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node1 = system.build_node().config(config.clone()).finish();
     let wallet_id1 = node1.wallets.wallet_ids()[0];
     node1
@@ -131,7 +131,7 @@ fn quorum_minimum_confirm_fail() {
     let mut system = System::new();
     let config = NodeConfig {
         online_weight_minimum: Amount::MAX,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
     let node1 = system.build_node().config(config).finish();
     let wallet_id = node1.wallets.wallet_ids()[0];
@@ -171,7 +171,7 @@ fn quorum_minimum_confirm_success() {
     let mut system = System::new();
     let config = NodeConfig {
         online_weight_minimum: Amount::MAX,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
     let node1 = system.build_node().config(config).finish();
     let wallet_id = node1.wallets.wallet_ids()[0];
@@ -208,7 +208,7 @@ fn quorum_minimum_flip_fail() {
     let mut system = System::new();
     let config = NodeConfig {
         online_weight_minimum: Amount::MAX,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
     let node1 = system.build_node().config(config).finish();
 
@@ -258,7 +258,7 @@ fn quorum_minimum_flip_success() {
     let mut system = System::new();
     let config = NodeConfig {
         online_weight_minimum: Amount::MAX,
-        ..System::default_config_without_backlog_population()
+        ..System::default_config_without_backlog_scan()
     };
     let node1 = system.build_node().config(config).finish();
 

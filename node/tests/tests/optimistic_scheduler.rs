@@ -122,7 +122,7 @@ pub fn under_gap_threshold() {
     let mut system = System::new();
     let node = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .finish();
 
     // Must be smaller than optimistic scheduler `gap_threshold`

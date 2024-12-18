@@ -164,8 +164,8 @@ fn pruning_automatic() {
 fn deferred_dependent_elections() {
     let mut system = System::new();
 
-    let node_config_1 = System::default_config_without_backlog_population();
-    let node_config_2 = System::default_config_without_backlog_population();
+    let node_config_1 = System::default_config_without_backlog_scan();
+    let node_config_2 = System::default_config_without_backlog_scan();
 
     let mut node_flags = NodeFlags::default();
     node_flags.disable_request_loop = true;
@@ -666,7 +666,7 @@ fn bootstrap_fork_open() {
 #[test]
 fn rep_self_vote() {
     let mut system = System::new();
-    let mut node_config = System::default_config_without_backlog_population();
+    let mut node_config = System::default_config_without_backlog_scan();
     node_config.online_weight_minimum = Amount::MAX;
     let node0 = system.build_node().config(node_config).finish();
     let wallet_id = node0.wallets.wallet_ids()[0];
@@ -732,7 +732,7 @@ fn rep_self_vote() {
 #[test]
 fn fork_bootstrap_flip() {
     let mut system = System::new();
-    let config1 = System::default_config_without_backlog_population();
+    let config1 = System::default_config_without_backlog_scan();
     let mut node_flags = NodeFlags::default();
     node_flags.disable_bootstrap_bulk_push_client = true;
     node_flags.disable_lazy_bootstrap = true;
@@ -795,7 +795,7 @@ fn fork_bootstrap_flip() {
 #[test]
 fn fork_multi_flip() {
     let mut system = System::new();
-    let mut config = System::default_config_without_backlog_population();
+    let mut config = System::default_config_without_backlog_scan();
     let flags = NodeFlags::default();
     let node1 = system
         .build_node()
@@ -991,7 +991,7 @@ fn unlock_search() {
 #[test]
 fn search_receivable_confirmed() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let node = system.build_node().config(config).finish();
     let wallet_id = node.wallets.wallet_ids()[0];
     let key2 = PrivateKey::new();
@@ -1059,7 +1059,7 @@ fn search_receivable_confirmed() {
 #[test]
 fn search_receivable_pruned() {
     let mut system = System::new();
-    let config1 = System::default_config_without_backlog_population();
+    let config1 = System::default_config_without_backlog_scan();
     let node1 = system.build_node().config(config1).finish();
     let wallet_id = node1.wallets.wallet_ids()[0];
 
@@ -1290,7 +1290,7 @@ fn search_receivable_multiple() {
 #[test]
 fn auto_bootstrap_reverse() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let mut node_flags = NodeFlags::default();
     node_flags.disable_bootstrap_bulk_push_client = true;
     node_flags.disable_lazy_bootstrap = true;
@@ -2399,10 +2399,10 @@ fn rep_crawler_rep_remove() {
 #[test]
 fn epoch_conflict_confirm() {
     let mut system = System::new();
-    let config0 = System::default_config_without_backlog_population();
+    let config0 = System::default_config_without_backlog_scan();
     let node0 = system.build_node().config(config0).finish();
 
-    let config1 = System::default_config_without_backlog_population();
+    let config1 = System::default_config_without_backlog_scan();
     let node1 = system.build_node().config(config1).finish();
 
     // Node 1 is the voting node
@@ -2508,7 +2508,7 @@ fn node_receive_quorum() {
 #[test]
 fn auto_bootstrap() {
     let mut system = System::new();
-    let config = System::default_config_without_backlog_population();
+    let config = System::default_config_without_backlog_scan();
     let mut node_flags = NodeFlags::default();
     node_flags.disable_bootstrap_bulk_push_client = true;
     node_flags.disable_lazy_bootstrap = true;
@@ -2940,7 +2940,7 @@ fn dependency_graph_frontier() {
     let mut system = System::new();
     let node1 = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .finish();
     let node2 = system.make_node();
 
@@ -3019,7 +3019,7 @@ fn dependency_graph() {
     let mut system = System::new();
     let node = system
         .build_node()
-        .config(System::default_config_without_backlog_population())
+        .config(System::default_config_without_backlog_scan())
         .finish();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
