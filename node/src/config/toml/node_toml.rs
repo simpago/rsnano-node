@@ -67,7 +67,7 @@ pub struct NodeToml {
     pub vote_cache: Option<VoteCacheToml>,
     pub vote_processor: Option<VoteProcessorToml>,
     pub websocket: Option<WebsocketToml>,
-    pub backlog_population: Option<BacklogPopulationToml>,
+    pub backlog_population: Option<BacklogScanToml>,
 }
 
 impl NodeConfig {

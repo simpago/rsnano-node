@@ -13,7 +13,7 @@ use std::{
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct BacklogPopulationConfig {
+pub struct BacklogScanConfig {
     /** Control if ongoing backlog population is enabled. If not, backlog population can still be triggered by RPC */
     pub enabled: bool,
 
@@ -24,7 +24,7 @@ pub struct BacklogPopulationConfig {
     pub frequency: u32,
 }
 
-impl Default for BacklogPopulationConfig {
+impl Default for BacklogScanConfig {
     fn default() -> Self {
         Self {
             enabled: true,
@@ -34,22 +34,22 @@ impl Default for BacklogPopulationConfig {
     }
 }
 
-struct BacklogPopulationFlags {
+struct BacklogScanFlags {
     stopped: bool,
     /** This is a manual trigger, the ongoing backlog population does not use this.
      *  It can be triggered even when backlog population (frontiers confirmation) is disabled. */
     triggered: bool,
 }
 
-pub struct BacklogPopulation {
+pub struct BacklogScan {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     /**
      * Callback called for each backlogged account
      */
     activate_callback: Arc<Mutex<Option<ActivateCallback>>>,
-    config: BacklogPopulationConfig,
-    mutex: Arc<Mutex<BacklogPopulationFlags>>,
+    config: BacklogScanConfig,
+    mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
     /** Thread that runs the backlog implementation logic. The thread always runs, even if
      *  backlog population is disabled, so that it can service a manual trigger (e.g. via RPC). */
@@ -59,9 +59,9 @@ pub struct BacklogPopulation {
 
 pub type ActivateCallback = Box<dyn Fn(&dyn Transaction, &Account) + Send + Sync>;
 
-impl BacklogPopulation {
+impl BacklogScan {
     pub(crate) fn new(
-        config: BacklogPopulationConfig,
+        config: BacklogScanConfig,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         election_schedulers: Arc<ElectionSchedulers>,
@@ -71,7 +71,7 @@ impl BacklogPopulation {
             ledger,
             stats,
             activate_callback: Arc::new(Mutex::new(None)),
-            mutex: Arc::new(Mutex::new(BacklogPopulationFlags {
+            mutex: Arc::new(Mutex::new(BacklogScanFlags {
                 stopped: false,
                 triggered: false,
             })),
@@ -89,7 +89,7 @@ impl BacklogPopulation {
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
 
-        let thread = BacklogPopulationThread {
+        let thread = BacklogScanThread {
             ledger: self.ledger.clone(),
             stats: self.stats.clone(),
             activate_callback: self.activate_callback.clone(),
@@ -135,23 +135,23 @@ impl BacklogPopulation {
     }
 }
 
-impl Drop for BacklogPopulation {
+impl Drop for BacklogScan {
     fn drop(&mut self) {
         self.stop();
     }
 }
 
-struct BacklogPopulationThread {
+struct BacklogScanThread {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     activate_callback: Arc<Mutex<Option<ActivateCallback>>>,
-    config: BacklogPopulationConfig,
-    mutex: Arc<Mutex<BacklogPopulationFlags>>,
+    config: BacklogScanConfig,
+    mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
     election_schedulers: Arc<ElectionSchedulers>,
 }
 
-impl BacklogPopulationThread {
+impl BacklogScanThread {
     fn run(&self) {
         let mut lock = self.mutex.lock().unwrap();
         while !lock.stopped {
@@ -171,7 +171,7 @@ impl BacklogPopulationThread {
         }
     }
 
-    fn predicate(&self, lock: &BacklogPopulationFlags) -> bool {
+    fn predicate(&self, lock: &BacklogScanFlags) -> bool {
         lock.triggered || self.config.enabled
     }
 

@@ -1,15 +1,15 @@
-use crate::block_processing::BacklogPopulationConfig;
+use crate::block_processing::BacklogScanConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
-pub struct BacklogPopulationToml {
+pub struct BacklogScanToml {
     pub enable: Option<bool>,
     pub batch_size: Option<u32>,
     pub frequency: Option<u32>,
 }
 
-impl From<&BacklogPopulationConfig> for BacklogPopulationToml {
-    fn from(value: &BacklogPopulationConfig) -> Self {
+impl From<&BacklogScanConfig> for BacklogScanToml {
+    fn from(value: &BacklogScanConfig) -> Self {
         Self {
             enable: Some(value.enabled),
             batch_size: Some(value.batch_size),
@@ -18,8 +18,8 @@ impl From<&BacklogPopulationConfig> for BacklogPopulationToml {
     }
 }
 
-impl BacklogPopulationConfig {
-    pub(crate) fn merge_toml(&mut self, toml: &BacklogPopulationToml) {
+impl BacklogScanConfig {
+    pub(crate) fn merge_toml(&mut self, toml: &BacklogScanToml) {
         if let Some(enable) = toml.enable {
             self.enabled = enable;
         }

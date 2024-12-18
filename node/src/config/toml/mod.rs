@@ -1,5 +1,5 @@
 mod active_elections_toml;
-mod backlog_population_toml;
+mod backlog_scan_toml;
 mod block_processor_toml;
 mod bootstrap_server_toml;
 mod bootstrap_toml;
@@ -25,7 +25,7 @@ mod vote_processor_toml;
 mod websocket_toml;
 
 pub use active_elections_toml::*;
-pub use backlog_population_toml::*;
+pub use backlog_scan_toml::*;
 pub use block_processor_toml::*;
 pub use bootstrap_server_toml::*;
 pub use bootstrap_toml::*;

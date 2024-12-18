@@ -5,7 +5,7 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_network::{Channel, ChannelDirection, ChannelInfo, ChannelMode};
 use rsnano_node::{
-    block_processing::BacklogPopulationConfig,
+    block_processing::BacklogScanConfig,
     config::{NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, Election},
     unique_path,
@@ -65,7 +65,7 @@ impl System {
 
     pub fn default_config_without_backlog_population() -> NodeConfig {
         NodeConfig {
-            backlog: BacklogPopulationConfig {
+            backlog: BacklogScanConfig {
                 enabled: false,
                 ..Default::default()
             },

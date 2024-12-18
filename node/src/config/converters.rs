@@ -1,5 +1,5 @@
 use super::GlobalConfig;
-use crate::block_processing::{BacklogPopulationConfig, BlockProcessorConfig};
+use crate::block_processing::{BacklogScanConfig, BlockProcessorConfig};
 use rsnano_network::{bandwidth_limiter::BandwidthLimiterConfig, NetworkConfig};
 use std::time::Duration;
 
@@ -23,7 +23,7 @@ impl From<&GlobalConfig> for BlockProcessorConfig {
     }
 }
 
-impl From<&GlobalConfig> for BacklogPopulationConfig {
+impl From<&GlobalConfig> for BacklogScanConfig {
     fn from(value: &GlobalConfig) -> Self {
         value.node_config.backlog.clone()
     }

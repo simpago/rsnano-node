@@ -1,7 +1,7 @@
 use crate::{
     block_processing::{
-        BacklogPopulation, BlockProcessor, BlockProcessorCleanup, BlockSource,
-        LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockSource, LocalBlockBroadcaster,
+        LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{BootstrapExt, BootstrapServer, BootstrapServerCleanup, BootstrapService},
     cementation::ConfirmingSet,
@@ -109,7 +109,7 @@ pub struct Node {
     pub tcp_listener: Arc<TcpListener>,
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
-    pub backlog_scan: Arc<BacklogPopulation>,
+    pub backlog_scan: Arc<BacklogScan>,
     pub bootstrap: Arc<BootstrapService>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
@@ -689,7 +689,7 @@ impl Node {
             request_aggregator.state.clone(),
         ));
 
-        let backlog_population = Arc::new(BacklogPopulation::new(
+        let backlog_population = Arc::new(BacklogScan::new(
             global_config.into(),
             ledger.clone(),
             stats.clone(),
