@@ -1199,8 +1199,9 @@ impl BootstrapLogic {
                 break;
             }
 
-            self.tags.pop_front();
             stats.inc(StatType::Bootstrap, DetailType::Timeout);
+            stats.inc(StatType::BootstrapTimeout, front.query_type.into());
+            self.tags.pop_front();
         }
 
         if self.sync_dependencies_interval.elapsed() >= Duration::from_secs(60) {

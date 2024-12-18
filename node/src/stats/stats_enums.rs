@@ -62,6 +62,7 @@ pub enum StatType {
     BootstrapFrontiers,
     BootstrapAccountSets,
     BootstrapFrontierScan,
+    BootstrapTimeout,
     BootstrapServer,
     BootstrapServerRequest,
     BootstrapServerOverfill,
