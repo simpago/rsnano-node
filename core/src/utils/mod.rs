@@ -124,14 +124,28 @@ pub fn seconds_since_epoch() -> u64 {
         .as_secs()
 }
 
-pub fn system_time_from_nanoseconds(nanos: u64) -> SystemTime {
-    SystemTime::UNIX_EPOCH + Duration::from_nanos(nanos)
-}
-
 pub fn system_time_as_nanoseconds(time: SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .expect("Time went backwards")
         .as_nanos() as u64
+}
+
+/// Elapsed seconds since UNIX_EPOCH
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Debug)]
+pub struct UnixTimestamp(u64);
+
+impl UnixTimestamp {
+    pub fn new(seconds_since_epoch: u64) -> Self {
+        Self(seconds_since_epoch)
+    }
+
+    pub fn now() -> Self {
+        Self(seconds_since_epoch())
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
 }
 
 pub fn get_env_or_default<T>(variable_name: &str, default: T) -> T

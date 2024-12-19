@@ -17,7 +17,7 @@ fn valid_legacy_open_block() {
         result.set_sideband,
         BlockSideband {
             height: 1,
-            timestamp: test.seconds_since_epoch,
+            timestamp: test.now.as_u64(),
             successor: BlockHash::zero(),
             account: test.chain.account(),
             balance: Amount::raw(100),
@@ -40,7 +40,7 @@ fn valid_legacy_open_block() {
             representative: block.representative_field().unwrap(),
             open_block: block.hash(),
             balance: Amount::raw(100),
-            modified: test.seconds_since_epoch,
+            modified: test.now.as_u64(),
             block_count: 1,
             epoch: Epoch::Epoch0
         }

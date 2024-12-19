@@ -6,9 +6,8 @@ use crate::{
     BlockRollbackPerformer, GenerateCacheFlags, LedgerConstants, LedgerSetAny, RepWeightCache,
     RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
 };
-use rand::{thread_rng, Rng};
 use rsnano_core::{
-    utils::{seconds_since_epoch, ContainerInfo},
+    utils::{seconds_since_epoch, ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo,
     DependentBlocks, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
@@ -649,6 +648,18 @@ impl Ledger {
             target_hash,
             max_blocks,
         )
+    }
+
+    /// Returned priority balance is maximum of block balance and previous block balance
+    /// to handle full account balance send cases.
+    /// Returned timestamp is the previous block timestamp or the current timestamp
+    /// if there's no previous block.
+    pub fn block_priority(
+        &self,
+        tx: &dyn Transaction,
+        block: &SavedBlock,
+    ) -> (Amount, UnixTimestamp) {
+        todo!()
     }
 
     pub fn cemented_count(&self) -> u64 {

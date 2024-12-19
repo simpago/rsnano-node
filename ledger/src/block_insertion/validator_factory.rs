@@ -1,4 +1,4 @@
-use rsnano_core::{utils::seconds_since_epoch, Account, Block, PendingKey, SavedBlock};
+use rsnano_core::{utils::UnixTimestamp, Account, Block, PendingKey, SavedBlock};
 use rsnano_store_lmdb::Transaction;
 
 use crate::Ledger;
@@ -49,7 +49,7 @@ impl<'a> BlockValidatorFactory<'a> {
             any_pending_exists: self.ledger.any().receivable_exists(self.txn, account),
             source_block_exists,
             previous_block,
-            seconds_since_epoch: seconds_since_epoch(),
+            now: UnixTimestamp::now(),
         }
     }
 
@@ -95,7 +95,7 @@ mod tests {
         assert_eq!(validator.any_pending_exists, false);
         assert_eq!(validator.source_block_exists, false);
         assert_eq!(validator.previous_block, None);
-        assert!(validator.seconds_since_epoch >= seconds_since_epoch());
+        assert!(validator.now >= UnixTimestamp::now());
     }
 
     #[test]

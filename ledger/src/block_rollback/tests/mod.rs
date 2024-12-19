@@ -48,6 +48,6 @@ fn new_test_rollback_planner<'a>(chain: &'a SavedAccountChain) -> RollbackPlanne
             height: 0,
             frontier: BlockHash::zero(),
         },
-        seconds_since_epoch: RollbackTest::SECONDS_SINCE_EPOCH,
+        now: RollbackTest::SECONDS_SINCE_EPOCH,
     }
 }

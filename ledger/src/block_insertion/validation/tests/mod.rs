@@ -13,13 +13,14 @@ use crate::{
     block_insertion::BlockInsertInstructions, ledger_constants::LEDGER_CONSTANTS_STUB, BlockStatus,
 };
 use rsnano_core::{
-    work::WORK_THRESHOLDS_STUB, Account, Amount, Block, Epoch, PendingInfo, SavedAccountChain,
+    utils::UnixTimestamp, work::WORK_THRESHOLDS_STUB, Account, Amount, Block, Epoch, PendingInfo,
+    SavedAccountChain,
 };
 
 use super::BlockValidator;
 
 pub(crate) struct BlockValidationTest {
-    pub seconds_since_epoch: u64,
+    pub now: UnixTimestamp,
     pub chain: SavedAccountChain,
     block: Option<Block>,
     pending_receive: Option<PendingInfo>,
@@ -56,7 +57,7 @@ impl BlockValidationTest {
             chain: SavedAccountChain::new(),
             block: None,
             pending_receive: None,
-            seconds_since_epoch: 123456,
+            now: UnixTimestamp::new(123456),
             block_already_exists: false,
             source_block_missing: false,
             previous_block_missing: false,
@@ -121,7 +122,7 @@ impl BlockValidationTest {
                 validator.previous_block = Some(self.chain.latest_block().clone());
             }
         };
-        validator.seconds_since_epoch = self.seconds_since_epoch;
+        validator.now = self.now;
         if self.pending_receive.is_some() {
             validator.any_pending_exists = true;
             validator.source_block_exists = true;
@@ -145,6 +146,6 @@ fn new_test_validator<'a>(block: &'a Block, account: Account) -> BlockValidator 
         pending_receive_info: None,
         any_pending_exists: false,
         source_block_exists: false,
-        seconds_since_epoch: 123456,
+        now: UnixTimestamp::new(123456),
     }
 }

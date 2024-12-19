@@ -14,7 +14,7 @@ fn valid_legacy_send_block() {
         result.set_sideband,
         BlockSideband {
             height: test.chain.height() + 1,
-            timestamp: test.seconds_since_epoch,
+            timestamp: test.now.as_u64(),
             successor: BlockHash::zero(),
             account: test.chain.account(),
             balance: test.chain.account_info().balance - Amount::raw(1),
@@ -41,7 +41,7 @@ fn valid_legacy_send_block() {
             representative: test.chain.account_info().representative,
             open_block: test.chain.open(),
             balance: test.chain.account_info().balance - Amount::raw(1),
-            modified: test.seconds_since_epoch,
+            modified: test.now.as_u64(),
             block_count: test.chain.height() + 1,
             epoch: Epoch::Epoch0
         }

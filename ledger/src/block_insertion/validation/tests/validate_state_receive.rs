@@ -18,7 +18,7 @@ fn valid_receive_block() {
             representative: receive.representative_field().unwrap(),
             open_block: old_account_info.open_block,
             balance: receive.balance_field().unwrap(),
-            modified: test.seconds_since_epoch,
+            modified: test.now.as_u64(),
             block_count: old_account_info.block_count + 1,
             epoch: old_account_info.epoch,
         }
@@ -27,7 +27,7 @@ fn valid_receive_block() {
         result.set_sideband,
         BlockSideband {
             height: old_account_info.block_count + 1,
-            timestamp: test.seconds_since_epoch,
+            timestamp: test.now.as_u64(),
             successor: BlockHash::zero(),
             account: receive.account_field().unwrap(),
             balance: receive.balance_field().unwrap(),

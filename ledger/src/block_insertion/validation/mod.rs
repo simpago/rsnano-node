@@ -10,7 +10,8 @@ mod tests;
 use super::BlockInsertInstructions;
 use crate::BlockStatus;
 use rsnano_core::{
-    work::WorkThresholds, Account, AccountInfo, Block, Epochs, PendingInfo, SavedBlock,
+    utils::UnixTimestamp, work::WorkThresholds, Account, AccountInfo, Block, Epochs, PendingInfo,
+    SavedBlock,
 };
 
 /// Validates a single block before it gets inserted into the ledger
@@ -25,7 +26,7 @@ pub(crate) struct BlockValidator<'a> {
     pub pending_receive_info: Option<PendingInfo>,
     pub any_pending_exists: bool,
     pub source_block_exists: bool,
-    pub seconds_since_epoch: u64,
+    pub now: UnixTimestamp,
 }
 
 impl<'a> BlockValidator<'a> {

@@ -212,7 +212,7 @@ impl<'a> BlockValidator<'a> {
             BlockHash::zero(),
             self.new_balance(),
             self.new_block_count(),
-            self.seconds_since_epoch,
+            self.now.as_u64(),
             self.block_details(),
             self.source_epoch(),
         )
@@ -224,7 +224,7 @@ impl<'a> BlockValidator<'a> {
             representative: self.new_representative(),
             open_block: self.open_block(),
             balance: self.new_balance(),
-            modified: self.seconds_since_epoch,
+            modified: self.now.as_u64(),
             block_count: self.new_block_count(),
             epoch: self.epoch(),
         }

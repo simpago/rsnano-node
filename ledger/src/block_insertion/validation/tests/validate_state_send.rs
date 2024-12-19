@@ -24,7 +24,7 @@ fn valid_send_block() {
             representative: send_block.representative_field().unwrap(),
             open_block: old_account_info.open_block,
             balance: send_block.balance_field().unwrap(),
-            modified: test.seconds_since_epoch,
+            modified: test.now.as_u64(),
             block_count: old_account_info.block_count + 1,
             epoch: old_account_info.epoch,
         }
@@ -47,7 +47,7 @@ fn valid_send_block() {
         result.set_sideband,
         BlockSideband {
             height: old_account_info.block_count + 1,
-            timestamp: test.seconds_since_epoch,
+            timestamp: test.now.as_u64(),
             successor: BlockHash::zero(),
             account: send_block.account_field().unwrap(),
             balance: send_block.balance_field().unwrap(),
