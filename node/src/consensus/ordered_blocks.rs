@@ -50,6 +50,10 @@ impl OrderedBlocks {
         self.hashes.len()
     }
 
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.hashes.contains(hash)
+    }
+
     pub fn insert(&mut self, entry: BlockEntry) -> bool {
         if self.hashes.contains(&entry.hash()) {
             return false;

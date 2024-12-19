@@ -79,6 +79,11 @@ impl VoteRouter {
     pub fn on_vote_processed(&self, observer: VoteProcessedCallback) {
         self.vote_processed_observers.lock().unwrap().push(observer);
     }
+    /// This is meant to be a fast check and may return false positives
+    /// if weak pointers have expired, but we don't care about that here
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.shared.1.lock().unwrap().elections.contains_key(hash)
+    }
 
     /// Add a route for 'hash' to 'election'
     /// Existing routes will be replaced

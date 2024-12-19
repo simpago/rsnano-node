@@ -10,7 +10,9 @@ use super::{
     OptimisticScheduler, OptimisticSchedulerExt, PriorityScheduler, PrioritySchedulerExt,
     VoteCache,
 };
-use rsnano_core::{utils::ContainerInfo, Account, AccountInfo, ConfirmationHeightInfo, SavedBlock};
+use rsnano_core::{
+    utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
+};
 use rsnano_ledger::Ledger;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
@@ -75,6 +77,11 @@ impl ElectionSchedulers {
             notify_listener: OutputListenerMt::new(),
             config,
         }
+    }
+
+    /// Does the block exist in any of the schedulers
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.manual.contains(hash) || self.priority.contains(hash)
     }
 
     pub fn activate_successors(&self, tx: &LmdbReadTransaction, block: &SavedBlock) {

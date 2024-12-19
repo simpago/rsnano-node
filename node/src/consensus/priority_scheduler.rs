@@ -1,7 +1,8 @@
 use super::{ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{
-    utils::ContainerInfo, Account, AccountInfo, Amount, ConfirmationHeightInfo, SavedBlock,
+    utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
+    SavedBlock,
 };
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
@@ -90,6 +91,10 @@ impl PriorityScheduler {
 
     pub fn notify(&self) {
         self.condition.notify_all();
+    }
+
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.buckets.iter().any(|b| b.contains(hash))
     }
 
     pub fn activate(&self, tx: &dyn Transaction, account: &Account) -> bool {

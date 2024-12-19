@@ -55,6 +55,10 @@ impl VoteCache {
         }
     }
 
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.cache.contains(hash)
+    }
+
     /// Adds a new vote to cache
     pub fn insert(
         &mut self,
@@ -330,6 +334,10 @@ pub struct CacheEntryCollection {
 }
 
 impl CacheEntryCollection {
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.by_hash.contains_key(hash)
+    }
+
     pub fn insert(&mut self, entry: CacheEntry) {
         let old = self.sequential.insert(entry.id, entry.hash);
         debug_assert!(old.is_none());
@@ -571,6 +579,20 @@ mod tests {
         assert_eq!(peek.first(), Some(&vote));
     }
 
+    #[test]
+    fn contains() {
+        let mut cache = create_vote_cache();
+        let rep = PrivateKey::new();
+        let hash = BlockHash::from(1);
+        let vote = create_vote(&rep, &hash, 1);
+
+        assert_eq!(cache.contains(&hash), false);
+
+        cache.insert(&vote, Amount::raw(7), &HashMap::new());
+
+        assert_eq!(cache.contains(&hash), true);
+    }
+
     /*
      * Inserts multiple votes for single hash
      * Ensures all of them can be retrieved and that tally is properly accumulated
@@ -736,6 +758,7 @@ mod tests {
         cache.erase(&hash2);
 
         assert_eq!(cache.size(), 2);
+        assert_eq!(cache.contains(&hash2), false);
         assert_eq!(cache.find(&hash1).len(), 1);
         assert_eq!(cache.find(&hash2).len(), 0);
         assert_eq!(cache.find(&hash3).len(), 1);

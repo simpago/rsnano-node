@@ -1,6 +1,6 @@
 use super::{ActiveElections, ActiveElectionsExt, ElectionBehavior};
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{utils::ContainerInfo, Amount, Block, SavedBlock};
+use rsnano_core::{utils::ContainerInfo, Amount, Block, BlockHash, SavedBlock};
 use std::{
     collections::VecDeque,
     mem::size_of,
@@ -37,6 +37,15 @@ impl ManualScheduler {
         if let Some(handle) = handle {
             handle.join().unwrap();
         }
+    }
+
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.mutex
+            .lock()
+            .unwrap()
+            .queue
+            .iter()
+            .any(|(block, _, _)| block.hash() == *hash)
     }
 
     pub fn notify(&self) {

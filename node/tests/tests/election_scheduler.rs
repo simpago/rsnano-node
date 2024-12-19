@@ -36,8 +36,11 @@ mod bucket {
             node.stats.clone(),
         );
 
-        assert!(bucket.push(1000, SavedBlock::new_test_instance()));
+        let block = SavedBlock::new_test_instance();
+        assert_eq!(bucket.contains(&block.hash()), false);
+        assert!(bucket.push(1000, block.clone()));
         assert_eq!(bucket.len(), 1);
+        assert_eq!(bucket.contains(&block.hash()), true);
     }
 
     #[test]
@@ -107,13 +110,15 @@ mod bucket {
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);
         let block2 = SavedBlock::new_test_instance_with_key(3);
-        let block3 = SavedBlock::new_test_instance_with_key(3);
+        let block3 = SavedBlock::new_test_instance_with_key(4);
 
         assert_eq!(bucket.push(2000, block0.clone()), true);
         assert_eq!(bucket.push(900, block1.clone()), true);
         assert_eq!(bucket.push(3000, block2.clone()), false);
         assert_eq!(bucket.push(1001, block3.clone()), true); // Evicts 2000
+        assert_eq!(bucket.contains(&block0.hash()), false);
         assert_eq!(bucket.push(1000, block0.clone()), true); // Evicts 1001
+        assert_eq!(bucket.contains(&block3.hash()), false);
 
         assert_eq!(bucket.len(), 2);
         let blocks = bucket.blocks();

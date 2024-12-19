@@ -6,9 +6,9 @@ use crate::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, StatType, Stats},
 };
-use rsnano_core::{Amount, Block, QualifiedRoot, SavedBlock};
+use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
 
@@ -67,6 +67,10 @@ impl Bucket {
 
     pub fn can_accept(&self, priority: Amount) -> bool {
         priority >= self.minimum_balance
+    }
+
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.data.lock().unwrap().queue.contains(hash)
     }
 
     pub fn available(&self) -> bool {
