@@ -1,11 +1,11 @@
-use rsnano_core::{BlockHash, SavedBlock};
+use rsnano_core::{utils::UnixTimestamp, BlockHash, SavedBlock};
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
 };
 
 pub(super) struct BlockEntry {
-    pub time: u64,
+    pub time: UnixTimestamp,
     pub block: SavedBlock,
 }
 

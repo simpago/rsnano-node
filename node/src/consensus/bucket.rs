@@ -6,7 +6,7 @@ use crate::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, StatType, Stats},
 };
-use rsnano_core::{Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{utils::UnixTimestamp, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
@@ -33,8 +33,6 @@ impl Default for PriorityBucketConfig {
         }
     }
 }
-
-type Priority = u64;
 
 /// A struct which holds an ordered set of blocks to be scheduled, ordered by their block arrival time
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
@@ -74,9 +72,9 @@ impl Bucket {
     }
 
     pub fn available(&self) -> bool {
-        let candidate: u64;
+        let candidate: UnixTimestamp;
         let election_count: usize;
-        let lowest: u64;
+        let lowest: UnixTimestamp;
 
         {
             let guard = self.data.lock().unwrap();
@@ -126,7 +124,7 @@ impl Bucket {
         }
     }
 
-    pub fn push(&self, time: u64, block: SavedBlock) -> bool {
+    pub fn push(&self, time: UnixTimestamp, block: SavedBlock) -> bool {
         let hash = block.hash();
         let mut guard = self.data.lock().unwrap();
         let inserted = guard.queue.insert(BlockEntry { time, block });
@@ -162,7 +160,7 @@ pub(crate) trait BucketExt {
 impl BucketExt for Arc<Bucket> {
     fn activate(&self) -> bool {
         let block: SavedBlock;
-        let priority: u64;
+        let priority: UnixTimestamp;
 
         {
             let mut guard = self.data.lock().unwrap();
@@ -222,14 +220,14 @@ impl BucketData {
 struct ElectionEntry {
     election: Arc<Election>,
     root: QualifiedRoot,
-    priority: Priority,
+    priority: UnixTimestamp,
 }
 
 #[derive(Default)]
 struct OrderedElections {
     by_root: HashMap<QualifiedRoot, ElectionEntry>,
     sequenced: Vec<QualifiedRoot>,
-    by_priority: BTreeMap<Priority, Vec<QualifiedRoot>>,
+    by_priority: BTreeMap<UnixTimestamp, Vec<QualifiedRoot>>,
 }
 
 impl OrderedElections {
@@ -250,7 +248,7 @@ impl OrderedElections {
             .and_then(|(_, roots)| self.by_root.get(&roots[0]))
     }
 
-    fn lowest_priority(&self) -> u64 {
+    fn lowest_priority(&self) -> UnixTimestamp {
         self.by_priority
             .first_key_value()
             .map(|(prio, _)| *prio)

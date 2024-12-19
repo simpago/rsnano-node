@@ -4,7 +4,7 @@ use test_helpers::System;
 
 mod bucket {
     use super::*;
-    use rsnano_core::SavedBlock;
+    use rsnano_core::{utils::UnixTimestamp, SavedBlock};
 
     #[test]
     fn construction() {
@@ -38,7 +38,7 @@ mod bucket {
 
         let block = SavedBlock::new_test_instance();
         assert_eq!(bucket.contains(&block.hash()), false);
-        assert!(bucket.push(1000, block.clone()));
+        assert!(bucket.push(UnixTimestamp::new(1000), block.clone()));
         assert_eq!(bucket.len(), 1);
         assert_eq!(bucket.contains(&block.hash()), true);
     }
@@ -56,8 +56,8 @@ mod bucket {
         );
 
         let block = SavedBlock::new_test_instance();
-        assert_eq!(bucket.push(1000, block.clone()), true);
-        assert_eq!(bucket.push(1000, block), false);
+        assert_eq!(bucket.push(UnixTimestamp::new(1000), block.clone()), true);
+        assert_eq!(bucket.push(UnixTimestamp::new(1000), block), false);
     }
 
     #[test]
@@ -76,10 +76,10 @@ mod bucket {
         let block1 = SavedBlock::new_test_instance_with_key(2);
         let block2 = SavedBlock::new_test_instance_with_key(3);
         let block3 = SavedBlock::new_test_instance_with_key(4);
-        assert!(bucket.push(2000, block0.clone()));
-        assert!(bucket.push(1001, block1.clone()));
-        assert!(bucket.push(1000, block2.clone()));
-        assert!(bucket.push(900, block3.clone()));
+        assert!(bucket.push(UnixTimestamp::new(2000), block0.clone()));
+        assert!(bucket.push(UnixTimestamp::new(1001), block1.clone()));
+        assert!(bucket.push(UnixTimestamp::new(1000), block2.clone()));
+        assert!(bucket.push(UnixTimestamp::new(900), block3.clone()));
 
         assert_eq!(bucket.len(), 4);
         let blocks = bucket.blocks();
@@ -112,12 +112,12 @@ mod bucket {
         let block2 = SavedBlock::new_test_instance_with_key(3);
         let block3 = SavedBlock::new_test_instance_with_key(4);
 
-        assert_eq!(bucket.push(2000, block0.clone()), true);
-        assert_eq!(bucket.push(900, block1.clone()), true);
-        assert_eq!(bucket.push(3000, block2.clone()), false);
-        assert_eq!(bucket.push(1001, block3.clone()), true); // Evicts 2000
+        assert_eq!(bucket.push(UnixTimestamp::new(2000), block0.clone()), true);
+        assert_eq!(bucket.push(UnixTimestamp::new(900), block1.clone()), true);
+        assert_eq!(bucket.push(UnixTimestamp::new(3000), block2.clone()), false);
+        assert_eq!(bucket.push(UnixTimestamp::new(1001), block3.clone()), true); // Evicts 2000
         assert_eq!(bucket.contains(&block0.hash()), false);
-        assert_eq!(bucket.push(1000, block0.clone()), true); // Evicts 1001
+        assert_eq!(bucket.push(UnixTimestamp::new(1000), block0.clone()), true); // Evicts 1001
         assert_eq!(bucket.contains(&block3.hash()), false);
 
         assert_eq!(bucket.len(), 2);
