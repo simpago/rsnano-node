@@ -17,8 +17,10 @@ fn backlog_scan() {
     let mut system = System::new();
     let node = system.make_node();
 
-    node.backlog_scan.on_activated(move |_tx, info| {
-        activated2.lock().unwrap().insert(info.account);
+    node.backlog_scan.on_batch_activated(move |batch| {
+        for info in batch {
+            activated2.lock().unwrap().insert(info.account);
+        }
     });
 
     let blocks = setup_independent_blocks(&node, 256, &DEV_GENESIS_KEY);

@@ -696,9 +696,18 @@ impl Node {
         ));
 
         let schedulers_w = Arc::downgrade(&election_schedulers);
-        backlog_scan.on_activated(move |tx, info| {
+        let ledger_l = ledger.clone();
+        backlog_scan.on_batch_activated(move |batch| {
             if let Some(schedulers) = schedulers_w.upgrade() {
-                schedulers.activate_backlog(tx, &info.account, &info.account_info, &info.conf_info);
+                let tx = ledger_l.read_txn();
+                for info in batch {
+                    schedulers.activate_backlog(
+                        &tx,
+                        &info.account,
+                        &info.account_info,
+                        &info.conf_info,
+                    );
+                }
             }
         });
 

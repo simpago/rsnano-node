@@ -42,10 +42,8 @@ pub struct BacklogScan {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     /// Callback called for each backlogged account
-    activated_observers:
-        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
-    scanned_observers:
-        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
+    activated_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
+    scanned_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
 
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
@@ -72,20 +70,14 @@ impl BacklogScan {
         }
     }
 
-    pub fn on_activated(
-        &self,
-        callback: impl Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync + 'static,
-    ) {
+    pub fn on_batch_activated(&self, callback: impl Fn(&[ActivatedInfo]) + Send + Sync + 'static) {
         self.activated_observers
             .write()
             .unwrap()
             .push(Box::new(callback));
     }
 
-    pub fn on_scanned(
-        &self,
-        callback: impl Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync + 'static,
-    ) {
+    pub fn on_batch_scanned(&self, callback: impl Fn(&[ActivatedInfo]) + Send + Sync + 'static) {
         self.scanned_observers
             .write()
             .unwrap()
@@ -150,10 +142,8 @@ impl Drop for BacklogScan {
 struct BacklogScanThread {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
-    activated_observers:
-        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
-    scanned_observers:
-        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
+    activated_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
+    scanned_observers: Arc<RwLock<Vec<Box<dyn Fn(&[ActivatedInfo]) + Send + Sync>>>>,
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
@@ -188,28 +178,53 @@ impl BacklogScanThread {
         let mut lock = self.mutex.lock().unwrap();
 
         let chunk_size = self.config.batch_size / self.config.frequency;
-        let mut done = false;
         let mut next = Account::zero();
+        let mut done = false;
         while !lock.stopped && !done {
             drop(lock);
-            {
-                let mut transaction = self.ledger.store.tx_begin_read();
 
+            let mut scanned = Vec::new();
+            let mut activated = Vec::new();
+            {
+                let mut tx = self.ledger.store.tx_begin_read();
                 let mut count = 0u32;
-                let mut it = self.ledger.any().accounts_range(&transaction, next..);
-                while let Some((account, info)) = it.next() {
+                let mut it = self.ledger.any().accounts_range(&tx, next..);
+                while let Some((account, account_info)) = it.next() {
                     if count >= chunk_size {
                         break;
                     }
-                    if transaction.is_refresh_needed_with(Duration::from_millis(100)) {
+                    if tx.is_refresh_needed_with(Duration::from_millis(100)) {
                         drop(it);
-                        transaction.refresh();
-                        it = self.ledger.any().accounts_range(&transaction, account..);
+                        tx.refresh();
+                        it = self.ledger.any().accounts_range(&tx, account..);
                     }
 
                     self.stats.inc(StatType::BacklogScan, DetailType::Total);
 
-                    self.activate(&transaction, &account, &info);
+                    let conf_info = self
+                        .ledger
+                        .store
+                        .confirmation_height
+                        .get(&tx, &account)
+                        .unwrap_or_default();
+
+                    let info = ActivatedInfo {
+                        account,
+                        account_info,
+                        conf_info: conf_info.clone(),
+                    };
+
+                    scanned.push(info.clone());
+
+                    self.stats.inc(StatType::BacklogScan, DetailType::Scanned);
+
+                    // If conf info is empty then it means nothing is confirmed yet
+                    if conf_info.height < info.account_info.block_count {
+                        self.stats.inc(StatType::BacklogScan, DetailType::Activated);
+                        activated.push(info);
+                    }
+
+                    // TODO: Prevent overflow
                     next = (account.number().overflowing_add(U256::from(1)).0).into();
 
                     count += 1;
@@ -218,10 +233,24 @@ impl BacklogScanThread {
                     || self
                         .ledger
                         .any()
-                        .accounts_range(&transaction, next..)
+                        .accounts_range(&tx, next..)
                         .next()
                         .is_none();
             }
+
+            {
+                let observers = self.scanned_observers.read().unwrap();
+                for observer in &*observers {
+                    observer(&scanned);
+                }
+            }
+            {
+                let observers = self.activated_observers.read().unwrap();
+                for observer in &*observers {
+                    observer(&activated);
+                }
+            }
+
             lock = self.mutex.lock().unwrap();
             // Give the rest of the node time to progress without holding database lock
             lock = self
@@ -234,41 +263,9 @@ impl BacklogScanThread {
                 .0;
         }
     }
-
-    fn activate(&self, tx: &dyn Transaction, account: &Account, account_info: &AccountInfo) {
-        let conf_info = self
-            .ledger
-            .store
-            .confirmation_height
-            .get(tx, account)
-            .unwrap_or_default();
-
-        let info = ActivatedInfo {
-            account: *account,
-            account_info: account_info.clone(),
-            conf_info: conf_info.clone(),
-        };
-
-        self.stats.inc(StatType::BacklogScan, DetailType::Scanned);
-        {
-            let observers = self.scanned_observers.read().unwrap();
-            for observer in &*observers {
-                observer(tx, &info);
-            }
-        }
-
-        // If conf info is empty then it means nothing is confirmed yet
-        if conf_info.height < account_info.block_count {
-            self.stats.inc(StatType::BacklogScan, DetailType::Activated);
-
-            let observers = self.activated_observers.read().unwrap();
-            for observer in &*observers {
-                observer(tx, &info);
-            }
-        }
-    }
 }
 
+#[derive(Clone)]
 pub struct ActivatedInfo {
     pub account: Account,
     pub account_info: AccountInfo,
