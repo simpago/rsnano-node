@@ -3,7 +3,6 @@ use primitive_types::U256;
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::Ledger;
 use rsnano_network::bandwidth_limiter::RateLimiter;
-use rsnano_store_lmdb::Transaction;
 use std::{
     sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::{self, JoinHandle},
@@ -71,6 +70,7 @@ impl BacklogScan {
         }
     }
 
+    /// Accounts activated
     pub fn on_batch_activated(&self, callback: impl Fn(&[ActivatedInfo]) + Send + Sync + 'static) {
         self.activated_observers
             .write()
@@ -78,6 +78,7 @@ impl BacklogScan {
             .push(Box::new(callback));
     }
 
+    /// Accounts scanned but not activated
     pub fn on_batch_scanned(&self, callback: impl Fn(&[ActivatedInfo]) + Send + Sync + 'static) {
         self.scanned_observers
             .write()
@@ -209,8 +210,6 @@ impl BacklogScanThread {
                         break;
                     }
 
-                    self.stats.inc(StatType::BacklogScan, DetailType::Total);
-
                     let conf_info = self
                         .ledger
                         .store
@@ -243,6 +242,9 @@ impl BacklogScanThread {
                         .next()
                         .is_none();
             }
+
+            self.stats
+                .add(StatType::BacklogScan, DetailType::Total, total);
 
             self.stats.add(
                 StatType::BacklogScan,
