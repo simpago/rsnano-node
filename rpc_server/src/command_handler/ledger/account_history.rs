@@ -282,7 +282,7 @@ impl<'a> AccountHistoryHelper<'a> {
         block: &SavedBlock,
         tx: &LmdbReadTransaction,
     ) {
-        entry.local_timestamp = block.timestamp().into();
+        entry.local_timestamp = block.timestamp().as_u64().into();
         entry.height = block.height().into();
         entry.hash = block.hash();
         entry.confirmed = self

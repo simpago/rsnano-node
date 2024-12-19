@@ -43,7 +43,7 @@ impl RpcCommandHandler {
                     amount,
                     balance,
                     height: height.into(),
-                    local_timestamp: local_timestamp.into(),
+                    local_timestamp: local_timestamp.as_u64().into(),
                     successor,
                     confirmed: confirmed.into(),
                     contents,

@@ -106,7 +106,7 @@ mod tests {
         assert!(block.successor().is_none());
         assert_eq!(block.balance(), Amount::raw(5));
         assert_eq!(block.height(), 1);
-        assert_eq!(block.timestamp(), 2);
+        assert_eq!(block.timestamp(), UnixTimestamp::new(2));
         assert_eq!(block.source_epoch(), Epoch::Epoch0);
     }
 }

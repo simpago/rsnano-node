@@ -7,7 +7,7 @@ pub use peer::*;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
     thread::available_parallelism,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
 pub use stream::*;
 
@@ -129,6 +129,7 @@ pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
     pub const ZERO: Self = Self(0);
+    pub const MAX: Self = Self(u64::MAX);
 
     pub const fn new(seconds_since_epoch: u64) -> Self {
         Self(seconds_since_epoch)
@@ -161,6 +162,14 @@ impl UnixTimestamp {
 impl From<u64> for UnixTimestamp {
     fn from(value: u64) -> Self {
         Self::new(value)
+    }
+}
+
+impl TryFrom<SystemTime> for UnixTimestamp {
+    type Error = SystemTimeError;
+
+    fn try_from(value: SystemTime) -> Result<Self, Self::Error> {
+        Ok(Self(value.duration_since(UNIX_EPOCH)?.as_secs()))
     }
 }
 

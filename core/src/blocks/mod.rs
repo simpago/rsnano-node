@@ -27,7 +27,7 @@ mod builders;
 pub use builders::*;
 
 use crate::{
-    utils::{BufferWriter, Deserialize, MemoryStream, Stream},
+    utils::{BufferWriter, Deserialize, MemoryStream, Stream, UnixTimestamp},
     Account, Amount, BlockHash, BlockHashBuilder, Epoch, Epochs, FullHash, Link, PrivateKey,
     PublicKey, QualifiedRoot, Root, Signature,
 };
@@ -438,8 +438,8 @@ impl SavedBlock {
         self.sideband.height
     }
 
-    pub fn timestamp(&self) -> u64 {
-        self.sideband.timestamp.as_u64()
+    pub fn timestamp(&self) -> UnixTimestamp {
+        self.sideband.timestamp
     }
 
     pub fn subtype(&self) -> BlockSubType {

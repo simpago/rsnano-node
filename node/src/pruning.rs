@@ -2,7 +2,7 @@ use crate::{
     config::{NodeConfig, NodeFlags},
     utils::ThreadPool,
 };
-use rsnano_core::{Account, BlockHash};
+use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
 use rsnano_ledger::{Ledger, Writer};
 use rsnano_store_lmdb::Transaction;
 use std::{
@@ -11,7 +11,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 use tracing::debug;
 
@@ -43,19 +43,18 @@ impl LedgerPruning {
         self.stopped.store(true, Ordering::SeqCst);
     }
 
-    pub fn ledger_pruning(&self, batch_size_a: u64, bootstrap_weight_reached_a: bool) {
+    pub fn ledger_pruning(&self, batch_size_a: u64, bootstrap_weight_reached: bool) {
         let max_depth = if self.config.max_pruning_depth != 0 {
             self.config.max_pruning_depth
         } else {
             u64::MAX
         };
-        let cutoff_time = if bootstrap_weight_reached_a {
+        let cutoff_time: UnixTimestamp = if bootstrap_weight_reached {
             (SystemTime::now() - Duration::from_secs(self.config.max_pruning_age_s as u64))
-                .duration_since(UNIX_EPOCH)
+                .try_into()
                 .unwrap()
-                .as_secs()
         } else {
-            u64::MAX
+            UnixTimestamp::MAX
         };
         let mut pruned_count = 0;
         let mut transaction_write_count = 0;
@@ -105,11 +104,11 @@ impl LedgerPruning {
 
     pub fn collect_ledger_pruning_targets(
         &self,
-        pruning_targets_a: &mut VecDeque<BlockHash>,
-        last_account_a: &mut Account,
-        batch_read_size_a: u64,
-        max_depth_a: u64,
-        cutoff_time_a: u64,
+        pruning_targets: &mut VecDeque<BlockHash>,
+        last_account: &mut Account,
+        batch_read_size: u64,
+        max_depth: u64,
+        cutoff_time: UnixTimestamp,
     ) -> bool {
         let mut read_operations = 0;
         let mut finish_transaction = false;
@@ -118,15 +117,15 @@ impl LedgerPruning {
             .ledger
             .store
             .confirmation_height
-            .iter_range(&tx, *last_account_a..);
+            .iter_range(&tx, *last_account..);
 
         while let Some((account, info)) = it.next() {
             read_operations += 1;
             let mut hash = info.frontier;
             let mut depth = 0;
-            while !hash.is_zero() && depth < max_depth_a {
+            while !hash.is_zero() && depth < max_depth {
                 if let Some(block) = self.ledger.any().get_block(&tx, &hash) {
-                    if block.timestamp() > cutoff_time_a || depth == 0 {
+                    if block.timestamp() > cutoff_time || depth == 0 {
                         hash = block.previous();
                     } else {
                         break;
@@ -136,7 +135,7 @@ impl LedgerPruning {
                     hash = BlockHash::zero();
                 }
                 depth += 1;
-                if depth % batch_read_size_a == 0 {
+                if depth % batch_read_size == 0 {
                     drop(it);
                     tx.refresh();
                     it = self
@@ -147,17 +146,17 @@ impl LedgerPruning {
                 }
             }
             if !hash.is_zero() {
-                pruning_targets_a.push_back(hash);
+                pruning_targets.push_back(hash);
             }
             read_operations += depth;
-            if read_operations >= batch_read_size_a {
-                *last_account_a = account.inc_or_max();
+            if read_operations >= batch_read_size {
+                *last_account = account.inc_or_max();
                 finish_transaction = true;
                 break;
             }
         }
 
-        !finish_transaction || last_account_a.is_zero()
+        !finish_transaction || last_account.is_zero()
     }
 }
 
