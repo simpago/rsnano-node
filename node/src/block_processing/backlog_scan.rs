@@ -2,30 +2,31 @@ use crate::stats::{DetailType, StatType, Stats};
 use primitive_types::U256;
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::Ledger;
+use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_store_lmdb::Transaction;
 use std::{
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::{self, JoinHandle},
     time::Duration,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BacklogScanConfig {
-    /** Control if ongoing backlog population is enabled. If not, backlog population can still be triggered by RPC */
+    /// Control if ongoing backlog population is enabled. If not, backlog population can still be triggered by RPC
     pub enabled: bool,
 
-    /** Number of accounts per second to process. Number of accounts per single batch is this value divided by `frequency` */
-    pub batch_size: u32,
+    /// Number of accounts per second to process.
+    pub batch_size: usize,
 
-    /** Number of batches to run per second. Batches run in 1 second / `frequency` intervals */
-    pub frequency: u32,
+    /// Number of batches to run per second.
+    pub frequency: usize,
 }
 
 impl Default for BacklogScanConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            batch_size: 10 * 1000,
+            batch_size: 1000,
             frequency: 10,
         }
     }
@@ -95,6 +96,7 @@ impl BacklogScan {
             config: self.config.clone(),
             mutex: self.mutex.clone(),
             condition: self.condition.clone(),
+            limiter: RateLimiter::new(self.config.batch_size * self.config.frequency),
         };
 
         *self.thread.lock().unwrap() = Some(
@@ -147,6 +149,7 @@ struct BacklogScanThread {
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
+    limiter: RateLimiter,
 }
 
 impl BacklogScanThread {
@@ -157,15 +160,14 @@ impl BacklogScanThread {
                 self.stats.inc(StatType::BacklogScan, DetailType::Loop);
 
                 lock.triggered = false;
-                drop(lock);
-                self.populate_backlog();
-                lock = self.mutex.lock().unwrap();
+                // Does a single iteration over all accounts
+                lock = self.populate_backlog(lock);
+            } else {
+                lock = self
+                    .condition
+                    .wait_while(lock, |l| !l.stopped && !self.predicate(l))
+                    .unwrap();
             }
-
-            lock = self
-                .condition
-                .wait_while(lock, |l| !l.stopped && !self.predicate(l))
-                .unwrap();
         }
     }
 
@@ -173,30 +175,38 @@ impl BacklogScanThread {
         lock.triggered || self.config.enabled
     }
 
-    fn populate_backlog(&self) {
-        debug_assert!(self.config.frequency > 0);
-        let mut lock = self.mutex.lock().unwrap();
-
-        let chunk_size = self.config.batch_size / self.config.frequency;
+    fn populate_backlog<'a>(
+        &'a self,
+        mut lock: MutexGuard<'a, BacklogScanFlags>,
+    ) -> MutexGuard<'a, BacklogScanFlags> {
+        let mut total = 0;
         let mut next = Account::zero();
         let mut done = false;
         while !lock.stopped && !done {
+            // Wait for the rate limiter
+            while !self.limiter.should_pass(self.config.batch_size) {
+                lock = self
+                    .condition
+                    .wait_timeout_while(
+                        lock,
+                        Duration::from_millis(1000 / self.config.frequency as u64 / 2),
+                        |i| !i.stopped,
+                    )
+                    .unwrap()
+                    .0;
+            }
+
             drop(lock);
 
             let mut scanned = Vec::new();
             let mut activated = Vec::new();
             {
-                let mut tx = self.ledger.store.tx_begin_read();
-                let mut count = 0u32;
+                let tx = self.ledger.store.tx_begin_read();
+                let mut count = 0;
                 let mut it = self.ledger.any().accounts_range(&tx, next..);
                 while let Some((account, account_info)) = it.next() {
-                    if count >= chunk_size {
+                    if count >= self.config.batch_size {
                         break;
-                    }
-                    if tx.is_refresh_needed_with(Duration::from_millis(100)) {
-                        drop(it);
-                        tx.refresh();
-                        it = self.ledger.any().accounts_range(&tx, account..);
                     }
 
                     self.stats.inc(StatType::BacklogScan, DetailType::Total);
@@ -216,18 +226,14 @@ impl BacklogScanThread {
 
                     scanned.push(info.clone());
 
-                    self.stats.inc(StatType::BacklogScan, DetailType::Scanned);
-
-                    // If conf info is empty then it means nothing is confirmed yet
                     if conf_info.height < info.account_info.block_count {
-                        self.stats.inc(StatType::BacklogScan, DetailType::Activated);
                         activated.push(info);
                     }
 
                     // TODO: Prevent overflow
                     next = (account.number().overflowing_add(U256::from(1)).0).into();
-
                     count += 1;
+                    total += 1;
                 }
                 done = next == Account::zero()
                     || self
@@ -237,6 +243,17 @@ impl BacklogScanThread {
                         .next()
                         .is_none();
             }
+
+            self.stats.add(
+                StatType::BacklogScan,
+                DetailType::Scanned,
+                scanned.len() as u64,
+            );
+            self.stats.add(
+                StatType::BacklogScan,
+                DetailType::Activated,
+                scanned.len() as u64,
+            );
 
             {
                 let observers = self.scanned_observers.read().unwrap();
@@ -252,16 +269,8 @@ impl BacklogScanThread {
             }
 
             lock = self.mutex.lock().unwrap();
-            // Give the rest of the node time to progress without holding database lock
-            lock = self
-                .condition
-                .wait_timeout(
-                    lock,
-                    Duration::from_millis(1000 / self.config.frequency as u64),
-                )
-                .unwrap()
-                .0;
         }
+        lock
     }
 }
 

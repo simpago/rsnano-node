@@ -695,6 +695,7 @@ impl Node {
             stats.clone(),
         ));
 
+        //  TODO: Hook this direclty in the schedulers
         let schedulers_w = Arc::downgrade(&election_schedulers);
         let ledger_l = ledger.clone();
         backlog_scan.on_batch_activated(move |batch| {

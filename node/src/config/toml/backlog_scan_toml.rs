@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 pub struct BacklogScanToml {
     pub enable: Option<bool>,
-    pub batch_size: Option<u32>,
-    pub frequency: Option<u32>,
+    pub batch_size: Option<usize>,
+    pub frequency: Option<usize>,
 }
 
 impl From<&BacklogScanConfig> for BacklogScanToml {

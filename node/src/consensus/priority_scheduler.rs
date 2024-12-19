@@ -129,7 +129,10 @@ impl PriorityScheduler {
                 .unwrap(),
         };
 
-        let block = self.ledger.any().get_block(tx, &hash).unwrap();
+        let Some(block) = self.ledger.any().get_block(tx, &hash) else {
+            // Not activated
+            return false;
+        };
 
         if !self.ledger.dependents_confirmed(tx, &block) {
             self.stats
