@@ -1,11 +1,13 @@
-use super::{ActiveElections, Election, ElectionBehavior};
+use super::{
+    ordered_blocks::{BlockEntry, OrderedBlocks},
+    ActiveElections, Election, ElectionBehavior,
+};
 use crate::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, StatType, Stats},
 };
 use rsnano_core::{Amount, Block, QualifiedRoot, SavedBlock};
 use std::{
-    cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, Mutex},
 };
@@ -57,7 +59,7 @@ impl Bucket {
             active,
             stats: stats.clone(),
             data: Mutex::new(BucketData {
-                queue: BTreeSet::new(),
+                queue: Default::default(),
                 elections: OrderedElections::default(),
             }),
         }
@@ -201,7 +203,7 @@ impl BucketExt for Arc<Bucket> {
 }
 
 struct BucketData {
-    queue: BTreeSet<BlockEntry>,
+    queue: OrderedBlocks,
     elections: OrderedElections,
 }
 
@@ -212,35 +214,6 @@ impl BucketData {
         }
     }
 }
-
-struct BlockEntry {
-    time: u64,
-    block: SavedBlock,
-}
-
-impl Ord for BlockEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let time_order = self.time.cmp(&other.time);
-        match time_order {
-            Ordering::Equal => self.block.hash().cmp(&other.block.hash()),
-            _ => time_order,
-        }
-    }
-}
-
-impl PartialOrd for BlockEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for BlockEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.time == other.time && self.block.hash() == other.block.hash()
-    }
-}
-
-impl Eq for BlockEntry {}
 
 struct ElectionEntry {
     election: Arc<Election>,

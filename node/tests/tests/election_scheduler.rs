@@ -76,16 +76,15 @@ mod bucket {
         assert!(bucket.push(2000, block0.clone()));
         assert!(bucket.push(1001, block1.clone()));
         assert!(bucket.push(1000, block2.clone()));
-        assert!(bucket.push(900, block3.clone()));
+        assert_eq!(bucket.push(900, block3.clone()), false);
 
         assert_eq!(bucket.len(), 4);
         let blocks = bucket.blocks();
         assert_eq!(blocks.len(), 4);
         // Ensure correct order
-        assert_eq!(blocks[0], block3.into());
-        assert_eq!(blocks[1], block2.into());
-        assert_eq!(blocks[2], block1.into());
-        assert_eq!(blocks[3], block0.into());
+        assert_eq!(blocks[0], block2.into());
+        assert_eq!(blocks[1], block1.into());
+        assert_eq!(blocks[2], block0.into());
     }
 
     #[test]

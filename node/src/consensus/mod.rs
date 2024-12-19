@@ -8,6 +8,7 @@ mod election_status;
 mod hinted_scheduler;
 mod manual_scheduler;
 mod optimistic_scheduler;
+mod ordered_blocks;
 mod priority_scheduler;
 mod process_live_dispatcher;
 mod recently_confirmed_cache;
