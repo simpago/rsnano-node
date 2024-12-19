@@ -35,7 +35,7 @@ fn valid_open_block() {
             representative: open_block.representative_field().unwrap(),
             open_block: open_block.hash(),
             balance: open_block.balance_field().unwrap(),
-            modified: test.now.as_u64(),
+            modified: test.now,
             block_count: 1,
             epoch: Epoch::Epoch2
         }

@@ -1,4 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
+use rsnano_core::utils::UnixTimestamp;
 use rsnano_core::Account;
 use rsnano_node::Node;
 use rsnano_rpc_messages::{AccountInfo, WalletLedgerArgs, WalletLedgerResponse};
@@ -22,7 +23,7 @@ impl RpcCommandHandler {
             representative,
             weight,
             receivable,
-            modified_since,
+            modified_since.into(),
         );
         Ok(WalletLedgerResponse {
             accounts: account_dtos,
@@ -36,7 +37,7 @@ fn get_accounts_info(
     representative: bool,
     weight: bool,
     receivable: bool,
-    modified_since: u64,
+    modified_since: UnixTimestamp,
 ) -> HashMap<Account, AccountInfo> {
     let tx = node.store.tx_begin_read();
     let mut account_dtos = HashMap::new();
@@ -49,7 +50,7 @@ fn get_accounts_info(
                     open_block: info.open_block,
                     representative_block: node.ledger.representative_block_hash(&tx, &info.head),
                     balance: info.balance,
-                    modified_timestamp: info.modified.into(),
+                    modified_timestamp: info.modified.as_u64().into(),
                     block_count: info.block_count.into(),
                     representative: representative.then(|| info.representative.as_account()),
                     weight: weight.then(|| node.ledger.weight_exact(&tx, account.into())),

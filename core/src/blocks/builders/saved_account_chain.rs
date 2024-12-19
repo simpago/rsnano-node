@@ -295,7 +295,7 @@ impl SavedAccountChain {
             representative: self.representative,
             open_block: self.open(),
             balance: self.latest_block().balance(),
-            modified: 123,
+            modified: 123.into(),
             block_count: self.height(),
             epoch: self.epoch,
         }

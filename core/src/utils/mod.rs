@@ -124,13 +124,13 @@ pub fn system_time_as_nanoseconds(time: SystemTime) -> u64 {
 }
 
 /// Elapsed seconds since UNIX_EPOCH
-#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Default)]
 pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
     pub const ZERO: Self = Self(0);
 
-    pub fn new(seconds_since_epoch: u64) -> Self {
+    pub const fn new(seconds_since_epoch: u64) -> Self {
         Self(seconds_since_epoch)
     }
 

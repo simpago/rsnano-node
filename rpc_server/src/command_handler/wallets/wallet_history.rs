@@ -1,5 +1,5 @@
 use crate::command_handler::{ledger::AccountHistoryHelper, RpcCommandHandler};
-use rsnano_core::{Account, BlockHash};
+use rsnano_core::{utils::UnixTimestamp, Account, BlockHash};
 use rsnano_rpc_messages::{HistoryEntry, WalletHistoryArgs, WalletHistoryResponse};
 
 impl RpcCommandHandler {
@@ -7,7 +7,7 @@ impl RpcCommandHandler {
         &self,
         args: WalletHistoryArgs,
     ) -> anyhow::Result<WalletHistoryResponse> {
-        let modified_since = args.modified_since.unwrap_or(1.into()).inner();
+        let modified_since: UnixTimestamp = args.modified_since.unwrap_or(1.into()).inner().into();
         let accounts = self.node.wallets.get_accounts_of_wallet(&args.wallet)?;
         let mut entries: Vec<HistoryEntry> = Vec::new();
         let tx = self.node.store.tx_begin_read();
@@ -19,7 +19,7 @@ impl RpcCommandHandler {
 
                 while timestamp >= modified_since && !hash.is_zero() {
                     if let Some(block) = self.node.ledger.any().get_block(&tx, &hash) {
-                        timestamp = block.timestamp();
+                        timestamp = block.timestamp().into();
 
                         let helper = AccountHistoryHelper {
                             ledger: &self.node.ledger,

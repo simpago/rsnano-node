@@ -1,6 +1,7 @@
+use num_traits::AsPrimitive;
 use rsnano_core::{
-    Account, AccountInfo, Amount, BlockHash, BlockSubType, ConfirmationHeightInfo, Epoch, Epochs,
-    PendingInfo, PendingKey, PublicKey, SavedBlock,
+    utils::UnixTimestamp, Account, AccountInfo, Amount, BlockHash, BlockSubType,
+    ConfirmationHeightInfo, Epoch, Epochs, PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
 
 pub(crate) enum RollbackStep {
@@ -35,7 +36,7 @@ pub(crate) struct RollbackPlanner<'a> {
     pub pending_receive: Option<PendingInfo>,
     pub latest_block_for_destination: Option<BlockHash>,
     pub confirmation_height: ConfirmationHeightInfo,
-    pub now: u64,
+    pub now: UnixTimestamp,
 }
 
 impl<'a> RollbackPlanner<'a> {

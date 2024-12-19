@@ -3,7 +3,7 @@ use std::mem::size_of;
 use crate::{
     utils::{
         BufferWriter, Deserialize, FixedSizeSerialize, MutStreamAdapter, Serialize, Stream,
-        StreamExt,
+        StreamExt, UnixTimestamp,
     },
     Account, Amount, PublicKey,
 };
@@ -20,7 +20,7 @@ pub struct AccountInfo {
     pub open_block: BlockHash,
     pub balance: Amount,
     /** Seconds since posix epoch */
-    pub modified: u64,
+    pub modified: UnixTimestamp,
     pub block_count: u64,
     pub epoch: Epoch,
 }
@@ -39,7 +39,7 @@ impl AccountInfo {
             representative: PublicKey::from(2),
             open_block: BlockHash::from(3),
             balance: Amount::raw(42),
-            modified: 4,
+            modified: 4.into(),
             block_count: 5,
             epoch: Epoch::Epoch2,
         }
@@ -52,7 +52,7 @@ impl Serialize for AccountInfo {
         self.representative.serialize(stream);
         self.open_block.serialize(stream);
         self.balance.serialize(stream);
-        stream.write_u64_ne_safe(self.modified);
+        stream.write_u64_ne_safe(self.modified.as_u64());
         stream.write_u64_ne_safe(self.block_count);
         stream.write_u8_safe(self.epoch as u8)
     }
@@ -78,7 +78,7 @@ impl Deserialize for AccountInfo {
             representative: PublicKey::deserialize(stream)?,
             open_block: BlockHash::deserialize(stream)?,
             balance: Amount::deserialize(stream)?,
-            modified: stream.read_u64_ne()?,
+            modified: stream.read_u64_ne()?.into(),
             block_count: stream.read_u64_ne()?,
             epoch: Epoch::from_u8(stream.read_u8()?).ok_or_else(|| anyhow!("invalid epoch"))?,
         })

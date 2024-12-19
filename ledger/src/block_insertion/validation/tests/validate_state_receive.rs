@@ -18,7 +18,7 @@ fn valid_receive_block() {
             representative: receive.representative_field().unwrap(),
             open_block: old_account_info.open_block,
             balance: receive.balance_field().unwrap(),
-            modified: test.now.as_u64(),
+            modified: test.now,
             block_count: old_account_info.block_count + 1,
             epoch: old_account_info.epoch,
         }

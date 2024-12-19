@@ -38,7 +38,7 @@ impl<'a> RollbackPlannerFactory<'a> {
             pending_receive: self.load_pending_receive(),
             latest_block_for_destination: self.latest_block_for_destination(),
             confirmation_height: self.account_confirmation_height(),
-            now: UnixTimestamp::now().as_u64(),
+            now: UnixTimestamp::now(),
         };
         Ok(planner)
     }

@@ -23,7 +23,7 @@ impl RpcCommandHandler {
             open_block: info.open_block,
             representative_block: self.node.ledger.representative_block_hash(&txn, &info.head),
             balance: info.balance,
-            modified_timestamp: info.modified.into(),
+            modified_timestamp: info.modified.as_u64().into(),
             block_count: info.block_count.into(),
             account_version: (epoch_as_number(info.epoch) as u16).into(),
             confirmed_height: None,

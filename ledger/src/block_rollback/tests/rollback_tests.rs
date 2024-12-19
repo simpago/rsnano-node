@@ -59,7 +59,7 @@ fn rollback_legacy_change() {
     assert_eq!(
         instructions.set_account_info,
         AccountInfo {
-            modified: RollbackTest::SECONDS_SINCE_EPOCH,
+            modified: RollbackTest::TEST_NOW,
             ..previous_account_info
         }
     );

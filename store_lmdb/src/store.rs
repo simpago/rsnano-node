@@ -385,7 +385,7 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
     let backup_filename = format!(
         "{}_backup_{}.{}",
         file_stem,
-        UnixTimestamp::now().as_u64(),
+        UnixTimestamp::now(),
         extension
     );
     backup_path.push(&backup_filename);

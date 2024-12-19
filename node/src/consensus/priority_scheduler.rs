@@ -155,14 +155,14 @@ impl PriorityScheduler {
 
         let added = self
             .find_bucket(balance_priority)
-            .push(account_info.modified, block.into());
+            .push(account_info.modified.as_u64(), block.into());
 
         if added {
             self.stats
                 .inc(StatType::ElectionScheduler, DetailType::Activated);
             trace!(
                 account = account.encode_account(),
-                time = account_info.modified,
+                time = %account_info.modified,
                 priority = ?balance_priority,
                 "block activated"
             );

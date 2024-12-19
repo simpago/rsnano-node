@@ -40,7 +40,7 @@ fn valid_legacy_open_block() {
             representative: block.representative_field().unwrap(),
             open_block: block.hash(),
             balance: Amount::raw(100),
-            modified: test.now.as_u64(),
+            modified: test.now,
             block_count: 1,
             epoch: Epoch::Epoch0
         }

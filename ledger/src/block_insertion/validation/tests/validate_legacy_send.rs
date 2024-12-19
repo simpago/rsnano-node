@@ -41,7 +41,7 @@ fn valid_legacy_send_block() {
             representative: test.chain.account_info().representative,
             open_block: test.chain.open(),
             balance: test.chain.account_info().balance - Amount::raw(1),
-            modified: test.now.as_u64(),
+            modified: test.now,
             block_count: test.chain.height() + 1,
             epoch: Epoch::Epoch0
         }

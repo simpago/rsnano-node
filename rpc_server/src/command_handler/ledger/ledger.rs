@@ -1,5 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
-use rsnano_core::{Account, Amount};
+use rsnano_core::{utils::UnixTimestamp, Account, Amount};
 use rsnano_rpc_messages::{
     unwrap_bool_or_false, unwrap_u64_or_max, unwrap_u64_or_zero, LedgerAccountInfo, LedgerArgs,
     LedgerResponse,
@@ -11,7 +11,7 @@ impl RpcCommandHandler {
         let count = unwrap_u64_or_max(args.count);
         let threshold = args.threshold.unwrap_or(Amount::zero());
         let start = args.account.unwrap_or_default();
-        let modified_since = unwrap_u64_or_zero(args.modified_since);
+        let modified_since: UnixTimestamp = unwrap_u64_or_zero(args.modified_since).into();
         let sorting = unwrap_bool_or_false(args.sorting);
         let representative = unwrap_bool_or_false(args.representative);
         let weight = unwrap_bool_or_false(args.weight);
@@ -43,7 +43,7 @@ impl RpcCommandHandler {
                             .ledger
                             .representative_block_hash(&tx, &info.head),
                         balance: info.balance,
-                        modified_timestamp: info.modified.into(),
+                        modified_timestamp: info.modified.as_u64().into(),
                         block_count: info.block_count.into(),
                         representative: representative.then(|| info.representative.into()),
                         weight: weight.then(|| self.node.ledger.weight_exact(&tx, account.into())),
@@ -89,7 +89,7 @@ impl RpcCommandHandler {
                                 .ledger
                                 .representative_block_hash(&tx, &info.head),
                             balance: info.balance,
-                            modified_timestamp: info.modified.into(),
+                            modified_timestamp: info.modified.as_u64().into(),
                             block_count: info.block_count.into(),
                             representative: representative.then(|| info.representative.into()),
                             weight: weight

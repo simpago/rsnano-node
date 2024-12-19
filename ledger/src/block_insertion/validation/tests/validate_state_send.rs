@@ -24,7 +24,7 @@ fn valid_send_block() {
             representative: send_block.representative_field().unwrap(),
             open_block: old_account_info.open_block,
             balance: send_block.balance_field().unwrap(),
-            modified: test.now.as_u64(),
+            modified: test.now,
             block_count: old_account_info.block_count + 1,
             epoch: old_account_info.epoch,
         }
