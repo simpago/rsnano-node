@@ -6,7 +6,7 @@ use crate::{
     consensus::ActiveElectionsExt,
     stats::{DetailType, StatType, Stats},
 };
-use rsnano_core::{utils::UnixTimestamp, Amount, Block, BlockHash, QualifiedRoot, SavedBlock};
+use rsnano_core::{utils::UnixTimestamp, Block, BlockHash, QualifiedRoot, SavedBlock};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
