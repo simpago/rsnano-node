@@ -103,7 +103,7 @@ pub struct LedgerConstants {
 pub fn genesis_sideband(genesis_account: Account) -> BlockSideband {
     BlockSideband {
         height: 1,
-        timestamp: UnixTimestamp::now(),
+        timestamp: UnixTimestamp::ZERO,
         successor: BlockHash::zero(),
         account: genesis_account,
         balance: Amount::MAX,

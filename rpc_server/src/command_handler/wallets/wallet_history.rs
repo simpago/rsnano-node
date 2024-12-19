@@ -7,7 +7,7 @@ impl RpcCommandHandler {
         &self,
         args: WalletHistoryArgs,
     ) -> anyhow::Result<WalletHistoryResponse> {
-        let modified_since: UnixTimestamp = args.modified_since.unwrap_or(1.into()).inner().into();
+        let modified_since: UnixTimestamp = args.modified_since.unwrap_or_default().inner().into();
         let accounts = self.node.wallets.get_accounts_of_wallet(&args.wallet)?;
         let mut entries: Vec<HistoryEntry> = Vec::new();
         let tx = self.node.store.tx_begin_read();
