@@ -1,6 +1,7 @@
 mod active_elections;
 mod bootstrap_weights;
 mod bucket;
+mod bucketing;
 mod confirmation_solicitor;
 mod election;
 pub(crate) mod election_schedulers;

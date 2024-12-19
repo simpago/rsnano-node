@@ -1,4 +1,3 @@
-use rsnano_core::Amount;
 use rsnano_node::consensus::{Bucket, PriorityBucketConfig};
 use test_helpers::System;
 
@@ -12,15 +11,11 @@ mod bucket {
         let node = system.make_node();
 
         let bucket = Bucket::new(
-            Amount::nano(1000),
             PriorityBucketConfig::default(),
             node.active.clone(),
             node.stats.clone(),
         );
 
-        assert_eq!(bucket.can_accept(Amount::nano(999)), false);
-        assert_eq!(bucket.can_accept(Amount::nano(1000)), true);
-        assert_eq!(bucket.can_accept(Amount::nano(1001)), true);
         assert_eq!(bucket.len(), 0);
     }
 
@@ -30,7 +25,6 @@ mod bucket {
         let node = system.make_node();
 
         let bucket = Bucket::new(
-            Amount::zero(),
             PriorityBucketConfig::default(),
             node.active.clone(),
             node.stats.clone(),
@@ -49,7 +43,6 @@ mod bucket {
         let node = system.make_node();
 
         let bucket = Bucket::new(
-            Amount::zero(),
             PriorityBucketConfig::default(),
             node.active.clone(),
             node.stats.clone(),
@@ -66,7 +59,6 @@ mod bucket {
         let node = system.make_node();
 
         let bucket = Bucket::new(
-            Amount::zero(),
             PriorityBucketConfig::default(),
             node.active.clone(),
             node.stats.clone(),
@@ -100,12 +92,7 @@ mod bucket {
             max_blocks: 2,
             ..Default::default()
         };
-        let bucket = Bucket::new(
-            Amount::zero(),
-            config,
-            node.active.clone(),
-            node.stats.clone(),
-        );
+        let bucket = Bucket::new(config, node.active.clone(), node.stats.clone());
 
         let block0 = SavedBlock::new_test_instance_with_key(1);
         let block1 = SavedBlock::new_test_instance_with_key(2);

@@ -1,4 +1,4 @@
-use super::{ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
+use super::{bucketing::Bucketing, ActiveElections, Bucket, BucketExt, PriorityBucketConfig};
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Amount, BlockHash, ConfirmationHeightInfo,
@@ -19,43 +19,10 @@ pub struct PriorityScheduler {
     condition: Condvar,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
+    bucketing: Bucketing,
     buckets: Vec<Arc<Bucket>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     cleanup_thread: Mutex<Option<JoinHandle<()>>>,
-}
-
-fn create_buckets(
-    config: PriorityBucketConfig,
-    active: Arc<ActiveElections>,
-    stats: Arc<Stats>,
-) -> Vec<Arc<Bucket>> {
-    let mut buckets = Vec::new();
-    let mut build_region = |begin: u128, end: u128, count: usize| {
-        let width = (end - begin) / (count as u128);
-        for i in 0..count {
-            let minimum_balance = begin + (i as u128 * width);
-            buckets.push(Arc::new(Bucket::new(
-                minimum_balance.into(),
-                config.clone(),
-                active.clone(),
-                stats.clone(),
-            )))
-        }
-    };
-
-    build_region(0, 1 << 79, 1);
-    build_region(1 << 79, 1 << 88, 1);
-    build_region(1 << 88, 1 << 92, 2);
-    build_region(1 << 92, 1 << 96, 4);
-    build_region(1 << 96, 1 << 100, 8);
-    build_region(1 << 100, 1 << 104, 16);
-    build_region(1 << 104, 1 << 108, 16);
-    build_region(1 << 108, 1 << 112, 8);
-    build_region(1 << 112, 1 << 116, 4);
-    build_region(1 << 116, 1 << 120, 2);
-    build_region(1 << 120, 1 << 127, 1);
-
-    buckets
 }
 
 impl PriorityScheduler {
@@ -65,12 +32,23 @@ impl PriorityScheduler {
         stats: Arc<Stats>,
         active: Arc<ActiveElections>,
     ) -> Self {
+        let bucketing = Bucketing::default();
+        let mut buckets = Vec::with_capacity(bucketing.bucket_count());
+        for _ in 0..bucketing.bucket_count() {
+            buckets.push(Arc::new(Bucket::new(
+                config.clone(),
+                active.clone(),
+                stats.clone(),
+            )))
+        }
+
         Self {
             thread: Mutex::new(None),
             cleanup_thread: Mutex::new(None),
             mutex: Mutex::new(PrioritySchedulerImpl { stopped: false }),
             condition: Condvar::new(),
-            buckets: create_buckets(config, active, stats.clone()),
+            buckets,
+            bucketing,
             ledger,
             stats,
         }
@@ -176,15 +154,8 @@ impl PriorityScheduler {
     }
 
     fn find_bucket(&self, priority: Amount) -> &Bucket {
-        let mut result = &self.buckets[0];
-        for bucket in &self.buckets[1..] {
-            if bucket.can_accept(priority) {
-                result = bucket;
-            } else {
-                break;
-            }
-        }
-        result
+        let index = self.bucketing.bucket_index(priority);
+        &self.buckets[index]
     }
 
     pub fn len(&self) -> usize {

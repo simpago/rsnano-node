@@ -37,7 +37,6 @@ impl Default for PriorityBucketConfig {
 /// A struct which holds an ordered set of blocks to be scheduled, ordered by their block arrival time
 /// TODO: This combines both block ordering and election management, which makes the class harder to test. The functionality should be split.
 pub struct Bucket {
-    minimum_balance: Amount,
     config: PriorityBucketConfig,
     active: Arc<ActiveElections>,
     stats: Arc<Stats>,
@@ -46,13 +45,11 @@ pub struct Bucket {
 
 impl Bucket {
     pub fn new(
-        minimum_balance: Amount,
         config: PriorityBucketConfig,
         active: Arc<ActiveElections>,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
-            minimum_balance,
             config,
             active,
             stats: stats.clone(),
@@ -61,10 +58,6 @@ impl Bucket {
                 elections: OrderedElections::default(),
             }),
         }
-    }
-
-    pub fn can_accept(&self, priority: Amount) -> bool {
-        priority >= self.minimum_balance
     }
 
     pub fn contains(&self, hash: &BlockHash) -> bool {
