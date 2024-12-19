@@ -409,6 +409,7 @@ pub enum DetailType {
     ActivateFailed,
     ActivateSkip,
     ActivateFull,
+    Scanned,
 
     // active
     Insert,

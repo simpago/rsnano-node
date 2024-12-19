@@ -41,11 +41,12 @@ struct BacklogScanFlags {
 pub struct BacklogScan {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
-    /**
-     * Callback called for each backlogged account
-     */
+    /// Callback called for each backlogged account
     activated_observers:
         Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
+    scanned_observers:
+        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
+
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
     condition: Arc<Condvar>,
@@ -61,6 +62,7 @@ impl BacklogScan {
             ledger,
             stats,
             activated_observers: Arc::new(RwLock::new(Vec::new())),
+            scanned_observers: Arc::new(RwLock::new(Vec::new())),
             mutex: Arc::new(Mutex::new(BacklogScanFlags {
                 stopped: false,
                 triggered: false,
@@ -80,6 +82,16 @@ impl BacklogScan {
             .push(Box::new(callback));
     }
 
+    pub fn on_scanned(
+        &self,
+        callback: impl Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync + 'static,
+    ) {
+        self.scanned_observers
+            .write()
+            .unwrap()
+            .push(Box::new(callback));
+    }
+
     pub fn start(&self) {
         debug_assert!(self.thread.lock().unwrap().is_none());
 
@@ -87,6 +99,7 @@ impl BacklogScan {
             ledger: self.ledger.clone(),
             stats: self.stats.clone(),
             activated_observers: self.activated_observers.clone(),
+            scanned_observers: self.scanned_observers.clone(),
             config: self.config.clone(),
             mutex: self.mutex.clone(),
             condition: self.condition.clone(),
@@ -138,6 +151,8 @@ struct BacklogScanThread {
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
     activated_observers:
+        Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
+    scanned_observers:
         Arc<RwLock<Vec<Box<dyn Fn(&dyn Transaction, &ActivatedInfo) + Send + Sync>>>>,
     config: BacklogScanConfig,
     mutex: Arc<Mutex<BacklogScanFlags>>,
@@ -228,15 +243,24 @@ impl BacklogScanThread {
             .get(tx, account)
             .unwrap_or_default();
 
+        let info = ActivatedInfo {
+            account: *account,
+            account_info: account_info.clone(),
+            conf_info: conf_info.clone(),
+        };
+
+        self.stats.inc(StatType::BacklogScan, DetailType::Scanned);
+        {
+            let observers = self.scanned_observers.read().unwrap();
+            for observer in &*observers {
+                observer(tx, &info);
+            }
+        }
+
         // If conf info is empty then it means nothing is confirmed yet
         if conf_info.height < account_info.block_count {
             self.stats.inc(StatType::BacklogScan, DetailType::Activated);
 
-            let info = ActivatedInfo {
-                account: *account,
-                account_info: account_info.clone(),
-                conf_info: conf_info.clone(),
-            };
             let observers = self.activated_observers.read().unwrap();
             for observer in &*observers {
                 observer(tx, &info);
