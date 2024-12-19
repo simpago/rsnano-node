@@ -1,5 +1,6 @@
 use crate::{
     blocks::open_block::OpenBlockArgs,
+    utils::UnixTimestamp,
     work::{WorkPool, STUB_WORK_POOL},
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey,
     SavedBlock,
@@ -73,7 +74,7 @@ impl TestLegacyOpenBlockBuilder {
 
         let sideband = BlockSideband {
             height: 1,
-            timestamp: 2,
+            timestamp: UnixTimestamp::new(2),
             successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: 5.into(),

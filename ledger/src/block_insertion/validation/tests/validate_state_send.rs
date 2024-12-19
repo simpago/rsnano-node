@@ -47,7 +47,7 @@ fn valid_send_block() {
         result.set_sideband,
         BlockSideband {
             height: old_account_info.block_count + 1,
-            timestamp: test.now.as_u64(),
+            timestamp: test.now,
             successor: BlockHash::zero(),
             account: send_block.account_field().unwrap(),
             balance: send_block.balance_field().unwrap(),

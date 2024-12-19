@@ -27,7 +27,7 @@ fn valid_receive_block() {
         result.set_sideband,
         BlockSideband {
             height: old_account_info.block_count + 1,
-            timestamp: test.now.as_u64(),
+            timestamp: test.now,
             successor: BlockHash::zero(),
             account: receive.account_field().unwrap(),
             balance: receive.balance_field().unwrap(),

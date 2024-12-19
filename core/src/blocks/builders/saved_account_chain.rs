@@ -1,8 +1,9 @@
 use crate::{
-    epoch_v1_link, epoch_v2_link, Account, AccountInfo, Amount, Block, BlockDetails, BlockHash,
-    BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock, TestBlockBuilder,
-    TestLegacyChangeBlockBuilder, TestLegacyOpenBlockBuilder, TestLegacyReceiveBlockBuilder,
-    TestLegacySendBlockBuilder, TestStateBlockBuilder, DEV_GENESIS_KEY,
+    epoch_v1_link, epoch_v2_link, utils::UnixTimestamp, Account, AccountInfo, Amount, Block,
+    BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey, SavedBlock,
+    TestBlockBuilder, TestLegacyChangeBlockBuilder, TestLegacyOpenBlockBuilder,
+    TestLegacyReceiveBlockBuilder, TestLegacySendBlockBuilder, TestStateBlockBuilder,
+    DEV_GENESIS_KEY,
 };
 
 /// Builds blocks with sideband data as if they were saved in the ledger
@@ -331,7 +332,7 @@ impl SavedAccountChain {
 
         let sideband = BlockSideband {
             height: self.height() + 1,
-            timestamp: 1,
+            timestamp: UnixTimestamp::new(1),
             successor: BlockHash::zero(),
             account: self.account,
             balance: self.balance,

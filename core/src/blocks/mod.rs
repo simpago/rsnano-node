@@ -389,7 +389,7 @@ impl SavedBlock {
         let block = Block::new_test_open();
         let sideband = BlockSideband {
             height: 1,
-            timestamp: 222222,
+            timestamp: 222222.into(),
             successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),
@@ -414,7 +414,7 @@ impl SavedBlock {
     fn test_sideband(block: &Block) -> BlockSideband {
         BlockSideband {
             height: 2,
-            timestamp: 222222,
+            timestamp: 222222.into(),
             successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),
@@ -439,7 +439,7 @@ impl SavedBlock {
     }
 
     pub fn timestamp(&self) -> u64 {
-        self.sideband.timestamp
+        self.sideband.timestamp.as_u64()
     }
 
     pub fn subtype(&self) -> BlockSubType {

@@ -191,7 +191,7 @@ impl TestStateBlockBuilder {
         let details = BlockDetails::new(Epoch::Epoch0, true, false, false);
         let sideband = BlockSideband {
             height: 5,
-            timestamp: 6,
+            timestamp: 6.into(),
             successor: BlockHash::zero(),
             account: block.account_field().unwrap(),
             balance: block.balance_field().unwrap(),

@@ -18,7 +18,7 @@ fn valid_legacy_change_block() {
         instructions.set_sideband,
         BlockSideband {
             height: test.chain.height() + 1,
-            timestamp: test.now.as_u64(),
+            timestamp: test.now,
             successor: BlockHash::zero(),
             account: test.chain.account(),
             balance: test.chain.account_info().balance,

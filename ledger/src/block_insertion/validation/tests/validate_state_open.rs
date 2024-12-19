@@ -15,7 +15,7 @@ fn valid_open_block() {
         result.set_sideband,
         BlockSideband {
             height: 1,
-            timestamp: test.now.as_u64(),
+            timestamp: test.now,
             successor: BlockHash::zero(),
             account: open_block.account_field().unwrap(),
             balance: open_block.balance_field().unwrap(),

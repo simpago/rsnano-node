@@ -91,7 +91,7 @@ impl TestLegacySendBlockBuilder {
             successor: BlockHash::zero(),
             balance: block.balance_field().unwrap(),
             height: 5,
-            timestamp: 8,
+            timestamp: 8.into(),
             details,
             source_epoch: Epoch::Epoch0,
         };

@@ -1,5 +1,5 @@
 use crate::{
-    utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream},
+    utils::{BufferWriter, Deserialize, FixedSizeSerialize, Serialize, Stream, UnixTimestamp},
     Account, Amount, BlockDetails, BlockHash, BlockType, Epoch,
 };
 use num::FromPrimitive;
@@ -7,7 +7,7 @@ use num::FromPrimitive;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockSideband {
     pub height: u64,
-    pub timestamp: u64,
+    pub timestamp: UnixTimestamp,
     /// Successor to the current block
     pub successor: BlockHash,
     pub account: Account,
@@ -75,7 +75,7 @@ impl BlockSideband {
     pub fn from_stream(stream: &mut dyn Stream, block_type: BlockType) -> anyhow::Result<Self> {
         let mut result = Self {
             height: 0,
-            timestamp: 0,
+            timestamp: UnixTimestamp::ZERO,
             successor: BlockHash::zero(),
             account: Account::zero(),
             balance: Amount::zero(),
@@ -113,7 +113,7 @@ impl BlockSideband {
         }
 
         stream.read_bytes(&mut buffer, 8)?;
-        self.timestamp = u64::from_be_bytes(buffer);
+        self.timestamp = UnixTimestamp::from_be_bytes(buffer);
 
         if block_type == BlockType::State {
             self.details = BlockDetails::deserialize(stream)?;
@@ -127,7 +127,7 @@ impl BlockSideband {
     pub fn new_test_instance() -> Self {
         Self {
             height: 42,
-            timestamp: 1000,
+            timestamp: UnixTimestamp::new(1000),
             successor: BlockHash::from(3),
             account: Account::from(1),
             balance: Amount::raw(42),
@@ -152,7 +152,7 @@ mod tests {
         let details = BlockDetails::new(Epoch::Epoch0, false, false, false);
         let sideband = BlockSideband {
             height: 4,
-            timestamp: 5,
+            timestamp: UnixTimestamp::new(5),
             successor: 2.into(),
             account: 1.into(),
             balance: 3.into(),

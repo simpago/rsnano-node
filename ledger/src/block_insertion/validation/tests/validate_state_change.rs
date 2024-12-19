@@ -28,7 +28,7 @@ fn valid_change_block() {
         result.set_sideband,
         BlockSideband {
             height: old_account_info.block_count + 1,
-            timestamp: test.now.as_u64(),
+            timestamp: test.now,
             successor: BlockHash::zero(),
             account: change_block.account_field().unwrap(),
             balance: old_account_info.balance,

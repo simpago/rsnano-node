@@ -124,10 +124,12 @@ pub fn system_time_as_nanoseconds(time: SystemTime) -> u64 {
 }
 
 /// Elapsed seconds since UNIX_EPOCH
-#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
+    pub const ZERO: Self = Self(0);
+
     pub fn new(seconds_since_epoch: u64) -> Self {
         Self(seconds_since_epoch)
     }
@@ -145,6 +147,32 @@ impl UnixTimestamp {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs()
+    }
+
+    pub fn to_be_bytes(&self) -> [u8; 8] {
+        self.0.to_be_bytes()
+    }
+
+    pub fn from_be_bytes(bytes: [u8; 8]) -> Self {
+        Self(u64::from_be_bytes(bytes))
+    }
+}
+
+impl From<u64> for UnixTimestamp {
+    fn from(value: u64) -> Self {
+        Self::new(value)
+    }
+}
+
+impl std::fmt::Display for UnixTimestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl std::fmt::Debug for UnixTimestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0, f)
     }
 }
 

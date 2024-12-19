@@ -209,7 +209,7 @@ impl<'a> BlockValidator<'a> {
     pub(crate) fn new_sideband(&self) -> BlockSideband {
         BlockSideband {
             height: self.new_block_count(),
-            timestamp: self.now.as_u64(),
+            timestamp: self.now,
             successor: BlockHash::zero(),
             account: self.account,
             balance: self.new_balance(),
