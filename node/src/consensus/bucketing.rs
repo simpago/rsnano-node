@@ -5,6 +5,10 @@ pub(crate) struct Bucketing {
 }
 
 impl Bucketing {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     pub fn bucket_index(&self, balance: Amount) -> usize {
         let result = self
             .minimums
@@ -51,5 +55,42 @@ impl Default for Bucketing {
         build_region(1 << 120, 1 << 127, 1);
 
         Self { minimums }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bucket_creation() {
+        assert_eq!(Bucketing::new().bucket_count(), 63);
+    }
+
+    #[test]
+    fn bucket_0() {
+        assert_eq!(Bucketing::new().bucket_index(0.into()), 0);
+        assert_eq!(Bucketing::new().bucket_index(1.into()), 0);
+        assert_eq!(Bucketing::new().bucket_index(Amount::raw((1 << 79) - 1)), 0);
+    }
+
+    #[test]
+    fn bucket_1() {
+        assert_eq!(Bucketing::new().bucket_index(Amount::raw(1 << 79)), 1);
+    }
+
+    #[test]
+    fn nano_index() {
+        assert_eq!(Bucketing::new().bucket_index(Amount::nano(1)), 14);
+    }
+
+    #[test]
+    fn knano_index() {
+        assert_eq!(Bucketing::new().bucket_index(Amount::nano(1000)), 49);
+    }
+
+    #[test]
+    fn max_index() {
+        assert_eq!(Bucketing::new().bucket_index(Amount::MAX), 62);
     }
 }
