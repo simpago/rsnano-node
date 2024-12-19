@@ -43,6 +43,10 @@ macro_rules! u256_struct {
                     .map(|i| Self::from(i))
             }
 
+            pub fn inc_or_max(&self) -> Self {
+                self.inc().unwrap_or(Self::MAX)
+            }
+
             pub fn encode_hex(&self) -> String {
                 use std::fmt::Write;
                 let mut result = String::with_capacity(64);

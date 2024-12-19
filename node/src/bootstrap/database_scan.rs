@@ -84,7 +84,7 @@ impl AccountDatabaseScanner {
             };
 
             result.push(*account);
-            self.next = account.inc().unwrap_or_default(); // TODO: Handle account number overflow
+            self.next = account.inc_or_max(); // TODO: Handle account number overflow
 
             crawler.advance();
         }
@@ -127,7 +127,7 @@ impl PendingDatabaseScanner {
             result.push(key.receiving_account);
 
             // TODO: Handle account number overflow
-            self.next = key.receiving_account.inc().unwrap_or_default();
+            self.next = key.receiving_account.inc_or_max();
             crawler.advance();
         }
 

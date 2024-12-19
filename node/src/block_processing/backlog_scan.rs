@@ -229,18 +229,16 @@ impl BacklogScanThread {
                         activated.push(info);
                     }
 
-                    // TODO: Prevent overflow
-                    next = (account.number().overflowing_add(U256::from(1)).0).into();
+                    next = account.inc_or_max();
                     count += 1;
                     total += 1;
                 }
-                done = next == Account::zero()
-                    || self
-                        .ledger
-                        .any()
-                        .accounts_range(&tx, next..)
-                        .next()
-                        .is_none();
+                done = self
+                    .ledger
+                    .any()
+                    .accounts_range(&tx, next..)
+                    .next()
+                    .is_none();
             }
 
             self.stats

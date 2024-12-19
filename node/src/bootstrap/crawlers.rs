@@ -144,7 +144,7 @@ impl<'a> PendingDatabaseCrawler<'a> {
 
         if self.it.is_some() {
             // If that fails, perform a fresh lookup
-            self.seek(starting_account.inc().unwrap_or_default());
+            self.seek(starting_account.inc_or_max());
         }
     }
 

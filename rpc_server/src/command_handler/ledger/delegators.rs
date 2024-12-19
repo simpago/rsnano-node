@@ -7,12 +7,7 @@ impl RpcCommandHandler {
         let representative: PublicKey = args.account.into();
         let count = unwrap_u64_or(args.count, 1024) as usize;
         let threshold = args.threshold.unwrap_or(Amount::zero());
-
-        let start_account = args
-            .start
-            .unwrap_or(Account::zero())
-            .inc()
-            .unwrap_or_default();
+        let start_account = args.start.unwrap_or(Account::zero()).inc_or_max();
 
         let tx = self.node.ledger.read_txn();
 

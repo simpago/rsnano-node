@@ -151,7 +151,7 @@ impl LedgerPruning {
             }
             read_operations += depth;
             if read_operations >= batch_read_size_a {
-                *last_account_a = account.inc().unwrap_or_default();
+                *last_account_a = account.inc_or_max();
                 finish_transaction = true;
                 break;
             }
