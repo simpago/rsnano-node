@@ -1,9 +1,9 @@
 use crate::stats::{DetailType, StatType, Stats};
-use primitive_types::U256;
 use rsnano_core::{Account, AccountInfo, ConfirmationHeightInfo};
 use rsnano_ledger::Ledger;
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use std::{
+    cmp::max,
     sync::{Arc, Condvar, Mutex, MutexGuard, RwLock},
     thread::{self, JoinHandle},
     time::Duration,
@@ -17,8 +17,8 @@ pub struct BacklogScanConfig {
     /// Number of accounts per second to process.
     pub batch_size: usize,
 
-    /// Number of batches to run per second.
-    pub frequency: usize,
+    /// Number of accounts to scan per second
+    pub rate_limit: usize,
 }
 
 impl Default for BacklogScanConfig {
@@ -26,7 +26,7 @@ impl Default for BacklogScanConfig {
         Self {
             enabled: true,
             batch_size: 1000,
-            frequency: 10,
+            rate_limit: 10_000,
         }
     }
 }
@@ -97,7 +97,7 @@ impl BacklogScan {
             config: self.config.clone(),
             mutex: self.mutex.clone(),
             condition: self.condition.clone(),
-            limiter: RateLimiter::new(self.config.batch_size * self.config.frequency),
+            limiter: RateLimiter::new(self.config.rate_limit),
         };
 
         *self.thread.lock().unwrap() = Some(
@@ -186,13 +186,15 @@ impl BacklogScanThread {
         while !lock.stopped && !done {
             // Wait for the rate limiter
             while !self.limiter.should_pass(self.config.batch_size) {
+                let wait_time = Duration::from_millis(
+                    1000 / max(self.config.rate_limit / self.config.batch_size, 1) as u64 / 2,
+                );
+
                 lock = self
                     .condition
-                    .wait_timeout_while(
-                        lock,
-                        Duration::from_millis(1000 / self.config.frequency as u64 / 2),
-                        |i| !i.stopped,
-                    )
+                    .wait_timeout_while(lock, max(wait_time, Duration::from_millis(10)), |i| {
+                        !i.stopped
+                    })
                     .unwrap()
                     .0;
             }

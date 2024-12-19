@@ -114,7 +114,7 @@ mod tests {
         [node.backlog_scan]
         enable = false
         batch_size = 999
-        frequency = 999
+        rate_limit = 999
 
         [node.block_processor]
         max_peer_queue = 999
@@ -434,8 +434,8 @@ mod tests {
             default_cfg.node.backlog_scan.enabled
         );
         assert_ne!(
-            deserialized.node.backlog_scan.frequency,
-            default_cfg.node.backlog_scan.frequency
+            deserialized.node.backlog_scan.rate_limit,
+            default_cfg.node.backlog_scan.rate_limit
         );
 
         // Block Processor section

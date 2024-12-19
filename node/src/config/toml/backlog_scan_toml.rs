@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct BacklogScanToml {
     pub enable: Option<bool>,
     pub batch_size: Option<usize>,
-    pub frequency: Option<usize>,
+    pub rate_limit: Option<usize>,
 }
 
 impl From<&BacklogScanConfig> for BacklogScanToml {
@@ -13,7 +13,7 @@ impl From<&BacklogScanConfig> for BacklogScanToml {
         Self {
             enable: Some(value.enabled),
             batch_size: Some(value.batch_size),
-            frequency: Some(value.frequency),
+            rate_limit: Some(value.rate_limit),
         }
     }
 }
@@ -28,8 +28,8 @@ impl BacklogScanConfig {
             self.batch_size = size;
         }
 
-        if let Some(freq) = toml.frequency {
-            self.frequency = freq;
+        if let Some(freq) = toml.rate_limit {
+            self.rate_limit = freq;
         }
     }
 }
