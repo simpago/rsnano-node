@@ -117,13 +117,6 @@ pub fn milliseconds_since_epoch() -> u64 {
         .as_millis() as u64
 }
 
-pub fn seconds_since_epoch() -> u64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-}
-
 pub fn system_time_as_nanoseconds(time: SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .expect("Time went backwards")
@@ -140,11 +133,18 @@ impl UnixTimestamp {
     }
 
     pub fn now() -> Self {
-        Self(seconds_since_epoch())
+        Self(Self::seconds_since_unix_epoch())
     }
 
     pub fn as_u64(&self) -> u64 {
         self.0
+    }
+
+    fn seconds_since_unix_epoch() -> u64 {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
     }
 }
 

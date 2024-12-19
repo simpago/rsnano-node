@@ -207,15 +207,15 @@ impl<'a> BlockValidator<'a> {
     }
 
     pub(crate) fn new_sideband(&self) -> BlockSideband {
-        BlockSideband::new(
-            self.account,
-            BlockHash::zero(),
-            self.new_balance(),
-            self.new_block_count(),
-            self.now.as_u64(),
-            self.block_details(),
-            self.source_epoch(),
-        )
+        BlockSideband {
+            height: self.new_block_count(),
+            timestamp: self.now.as_u64(),
+            successor: BlockHash::zero(),
+            account: self.account,
+            balance: self.new_balance(),
+            details: self.block_details(),
+            source_epoch: self.source_epoch(),
+        }
     }
 
     pub(crate) fn new_account_info(&self) -> AccountInfo {

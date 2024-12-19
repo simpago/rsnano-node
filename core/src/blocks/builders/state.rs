@@ -189,15 +189,15 @@ impl TestStateBlockBuilder {
         let block = self.build();
 
         let details = BlockDetails::new(Epoch::Epoch0, true, false, false);
-        let sideband = BlockSideband::new(
-            block.account_field().unwrap(),
-            BlockHash::zero(),
-            block.balance_field().unwrap(),
-            5,
-            6,
+        let sideband = BlockSideband {
+            height: 5,
+            timestamp: 6,
+            successor: BlockHash::zero(),
+            account: block.account_field().unwrap(),
+            balance: block.balance_field().unwrap(),
             details,
-            Epoch::Epoch0,
-        );
+            source_epoch: Epoch::Epoch0,
+        };
         SavedBlock::new(block, sideband)
     }
 }

@@ -7,7 +7,7 @@ use crate::{
 };
 use lmdb::{DatabaseFlags, WriteFlags};
 use lmdb_sys::{MDB_CP_COMPACT, MDB_SUCCESS};
-use rsnano_core::utils::seconds_since_epoch;
+use rsnano_core::utils::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::CString,
@@ -385,7 +385,7 @@ fn backup_file_path(source_path: &Path) -> anyhow::Result<PathBuf> {
     let backup_filename = format!(
         "{}_backup_{}.{}",
         file_stem,
-        seconds_since_epoch(),
+        UnixTimestamp::now().as_u64(),
         extension
     );
     backup_path.push(&backup_filename);

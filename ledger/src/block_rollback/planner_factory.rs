@@ -1,7 +1,7 @@
 use super::rollback_planner::RollbackPlanner;
 use crate::Ledger;
 use rsnano_core::{
-    utils::seconds_since_epoch, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
+    utils::UnixTimestamp, Account, AccountInfo, Block, BlockHash, ConfirmationHeightInfo,
     PendingInfo, PendingKey, PublicKey, SavedBlock,
 };
 use rsnano_store_lmdb::Transaction;
@@ -38,7 +38,7 @@ impl<'a> RollbackPlannerFactory<'a> {
             pending_receive: self.load_pending_receive(),
             latest_block_for_destination: self.latest_block_for_destination(),
             confirmation_height: self.account_confirmation_height(),
-            now: seconds_since_epoch(),
+            now: UnixTimestamp::now().as_u64(),
         };
         Ok(planner)
     }

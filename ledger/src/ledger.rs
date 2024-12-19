@@ -7,7 +7,7 @@ use crate::{
     RepWeightsUpdater, RepresentativeBlockFinder, WriteGuard, WriteQueue,
 };
 use rsnano_core::{
-    utils::{seconds_since_epoch, ContainerInfo, UnixTimestamp},
+    utils::{ContainerInfo, UnixTimestamp},
     Account, AccountInfo, Amount, Block, BlockHash, BlockSubType, ConfirmationHeightInfo,
     DependentBlocks, Epoch, Link, PendingInfo, PendingKey, PublicKey, Root, SavedBlock,
 };
@@ -326,7 +326,7 @@ impl Ledger {
                 representative: genesis_account.into(),
                 open_block: genesis_hash,
                 balance: u128::MAX.into(),
-                modified: seconds_since_epoch(),
+                modified: UnixTimestamp::now().as_u64(),
                 block_count: 1,
                 epoch: Epoch::Epoch0,
             },

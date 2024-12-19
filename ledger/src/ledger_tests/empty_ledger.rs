@@ -3,7 +3,7 @@ use crate::{
     ledger_constants::{DEV_GENESIS_PUB_KEY, LEDGER_CONSTANTS_STUB},
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
-use rsnano_core::{utils::seconds_since_epoch, Account, BlockType};
+use rsnano_core::{utils::UnixTimestamp, Account, BlockType};
 
 #[test]
 fn account_balance_is_none_for_unknown_account() {
@@ -50,7 +50,7 @@ fn genesis_account_info() {
         .expect("genesis account not found");
 
     // Frontier time should have been updated when genesis balance was added
-    assert!(account_info.modified > 0 && account_info.modified <= seconds_since_epoch());
+    assert!(account_info.modified > 0 && account_info.modified <= UnixTimestamp::now().as_u64());
     assert_eq!(account_info.block_count, 1);
     assert_eq!(account_info.balance, LEDGER_CONSTANTS_STUB.genesis_amount);
 }

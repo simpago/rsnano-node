@@ -71,15 +71,15 @@ impl TestLegacyOpenBlockBuilder {
             is_epoch: false,
         };
 
-        let sideband = BlockSideband::new(
-            block.account_field().unwrap(),
-            BlockHash::zero(),
-            Amount::raw(5),
-            1,
-            2,
+        let sideband = BlockSideband {
+            height: 1,
+            timestamp: 2,
+            successor: BlockHash::zero(),
+            account: block.account_field().unwrap(),
+            balance: 5.into(),
             details,
-            Epoch::Epoch0,
-        );
+            source_epoch: Epoch::Epoch0,
+        };
 
         SavedBlock::new(block, sideband)
     }

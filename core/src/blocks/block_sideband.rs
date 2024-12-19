@@ -17,26 +17,6 @@ pub struct BlockSideband {
 }
 
 impl BlockSideband {
-    pub fn new(
-        account: Account,
-        successor: BlockHash,
-        balance: Amount,
-        height: u64,
-        timestamp: u64,
-        details: BlockDetails,
-        source_epoch: Epoch,
-    ) -> Self {
-        Self {
-            height,
-            timestamp,
-            successor,
-            account,
-            balance,
-            details,
-            source_epoch,
-        }
-    }
-
     pub fn serialized_size(block_type: BlockType) -> usize {
         let mut size = BlockHash::serialized_size(); // successor
 
@@ -170,15 +150,15 @@ mod tests {
     #[test]
     fn serialize() {
         let details = BlockDetails::new(Epoch::Epoch0, false, false, false);
-        let sideband = BlockSideband::new(
-            Account::from(1),
-            BlockHash::from(2),
-            Amount::raw(3),
-            4,
-            5,
+        let sideband = BlockSideband {
+            height: 4,
+            timestamp: 5,
+            successor: 2.into(),
+            account: 1.into(),
+            balance: 3.into(),
             details,
-            Epoch::Epoch0,
-        );
+            source_epoch: Epoch::Epoch0,
+        };
         let mut stream = MemoryStream::new();
         sideband.serialize(&mut stream, BlockType::LegacyReceive);
         let deserialized =

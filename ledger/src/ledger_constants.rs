@@ -1,6 +1,6 @@
 use rsnano_core::{
     epoch_v1_link, epoch_v2_link,
-    utils::{get_env_or_default_string, seconds_since_epoch},
+    utils::{get_env_or_default_string, UnixTimestamp},
     work::{WorkThresholds, WORK_THRESHOLDS_STUB},
     Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, Epochs, Networks,
     PublicKey, SavedBlock, DEV_GENESIS_KEY,
@@ -101,15 +101,15 @@ pub struct LedgerConstants {
 }
 
 pub fn genesis_sideband(genesis_account: Account) -> BlockSideband {
-    BlockSideband::new(
-        genesis_account,
-        BlockHash::from(0),
-        Amount::raw(u128::MAX),
-        1,
-        seconds_since_epoch(),
-        BlockDetails::new(Epoch::Epoch0, false, false, false),
-        Epoch::Epoch0,
-    )
+    BlockSideband {
+        height: 1,
+        timestamp: UnixTimestamp::now().as_u64(),
+        successor: BlockHash::zero(),
+        account: genesis_account,
+        balance: Amount::MAX,
+        details: BlockDetails::new(Epoch::Epoch0, false, false, false),
+        source_epoch: Epoch::Epoch0,
+    }
 }
 
 impl LedgerConstants {
