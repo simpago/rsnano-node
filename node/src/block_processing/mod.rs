@@ -1,3 +1,4 @@
+mod backlog_index;
 mod backlog_scan;
 mod block_processor;
 mod bounded_backlog;
