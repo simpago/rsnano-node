@@ -662,7 +662,7 @@ impl Ledger {
         block: &SavedBlock,
     ) -> (Amount, UnixTimestamp) {
         let previous_block = self.previous_block(tx, block);
-        block_priority(block, previous_block)
+        block_priority(block, previous_block.as_ref())
     }
 
     pub fn previous_block(&self, tx: &dyn Transaction, block: &SavedBlock) -> Option<SavedBlock> {

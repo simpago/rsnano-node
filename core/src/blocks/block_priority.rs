@@ -3,7 +3,7 @@ use std::cmp::max;
 
 pub fn block_priority(
     block: &SavedBlock,
-    previous_block: Option<SavedBlock>,
+    previous_block: Option<&SavedBlock>,
 ) -> (Amount, UnixTimestamp) {
     let previous_balance = previous_block
         .as_ref()
@@ -47,6 +47,24 @@ mod tests {
         let (prio_balance, prio_time) = block_priority(&open, None);
 
         assert_eq!(prio_balance, open.balance());
+        assert_eq!(prio_time, open.timestamp());
+    }
+
+    #[test]
+    fn receive_block() {
+        let mut lattice = SavedBlockLatticeBuilder::new();
+        let key = PrivateKey::from(42);
+        let send1 = lattice.genesis().send(&key, 1);
+        lattice.advance_time();
+        let send2 = lattice.genesis().send(&key, 1);
+        lattice.advance_time();
+        let open = lattice.account(&key).receive(&send1);
+        lattice.advance_time();
+        let receive = lattice.account(&key).receive(&send2);
+
+        let (prio_balance, prio_time) = block_priority(&receive, Some(&open));
+
+        assert_eq!(prio_balance, receive.balance());
         assert_eq!(prio_time, open.timestamp());
     }
 }
