@@ -1,10 +1,12 @@
 use serde_json::json;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct ContainerSize {
     pub count: usize,
     pub element_size: usize,
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Leaf {
     pub name: String,
     pub info: ContainerSize,
@@ -21,6 +23,7 @@ impl Leaf {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Node {
     pub name: String,
     pub children: ContainerInfo,
@@ -37,6 +40,7 @@ impl Node {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub enum ContainerInfoEntry {
     Leaf(Leaf),
     Node(Node),
@@ -51,6 +55,7 @@ impl ContainerInfoEntry {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct ContainerInfo(Vec<ContainerInfoEntry>);
 
 impl ContainerInfo {
