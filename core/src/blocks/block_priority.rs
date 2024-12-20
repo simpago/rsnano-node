@@ -67,4 +67,43 @@ mod tests {
         assert_eq!(prio_balance, receive.balance());
         assert_eq!(prio_time, open.timestamp());
     }
+
+    #[test]
+    fn send_block() {
+        let mut lattice = SavedBlockLatticeBuilder::new();
+        let send1 = lattice.genesis().send(42, Amount::nano(100));
+        lattice.advance_time();
+        let send2 = lattice.genesis().send(42, Amount::nano(50));
+
+        let (prio_balance, prio_time) = block_priority(&send2, Some(&send1));
+
+        assert_eq!(prio_balance, send1.balance());
+        assert_eq!(prio_time, send1.timestamp());
+    }
+
+    #[test]
+    fn full_send() {
+        let mut lattice = SavedBlockLatticeBuilder::new();
+        let send1 = lattice.genesis().send(42, Amount::nano(100));
+        lattice.advance_time();
+        let send2 = lattice.genesis().send_max(42);
+
+        let (prio_balance, prio_time) = block_priority(&send2, Some(&send1));
+
+        assert_eq!(prio_balance, send1.balance());
+        assert_eq!(prio_time, send1.timestamp());
+    }
+
+    #[test]
+    fn change_block() {
+        let mut lattice = SavedBlockLatticeBuilder::new();
+        let send = lattice.genesis().send(42, Amount::nano(100));
+        lattice.advance_time();
+        let change = lattice.genesis().change(12345);
+
+        let (prio_balance, prio_time) = block_priority(&change, Some(&send));
+
+        assert_eq!(prio_balance, change.balance());
+        assert_eq!(prio_time, send.timestamp());
+    }
 }
