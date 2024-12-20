@@ -785,7 +785,7 @@ impl Node {
                 .unwrap()
                 .on_new_realtime_channel(Arc::new(move |channel| {
                     if let Some(crawler) = rep_crawler_w.upgrade() {
-                        crawler.query_channel(channel);
+                        crawler.query_with_priority(channel);
                     }
                 }));
         }

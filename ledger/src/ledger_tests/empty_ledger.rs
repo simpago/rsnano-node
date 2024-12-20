@@ -50,10 +50,7 @@ fn genesis_account_info() {
         .expect("genesis account not found");
 
     // Frontier time should have been updated when genesis balance was added
-    assert!(
-        account_info.modified > UnixTimestamp::ZERO
-            && account_info.modified <= UnixTimestamp::now()
-    );
+    assert_eq!(account_info.modified, UnixTimestamp::ZERO);
     assert_eq!(account_info.block_count, 1);
     assert_eq!(account_info.balance, LEDGER_CONSTANTS_STUB.genesis_amount);
 }

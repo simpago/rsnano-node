@@ -175,7 +175,7 @@ fn recently_confirmed() {
         .find_node_id(&node2.get_node_id())
         .unwrap()
         .clone();
-    node1.rep_crawler.query_channel(channel); // this query should be dropped due to the recently_confirmed entry
+    node1.rep_crawler.query_with_priority(channel); // this query should be dropped due to the recently_confirmed entry
     assert_always_eq(
         Duration::from_millis(500),
         || node1.online_reps.lock().unwrap().peered_reps_count(),

@@ -87,6 +87,7 @@ impl RepCrawler {
                 stopped: false,
                 last_query: None,
                 responses: BoundedVecDeque::new(Self::MAX_RESPONSES),
+                prioritized: Default::default(),
             }),
             tokio,
         }
@@ -185,8 +186,12 @@ impl RepCrawler {
     }
 
     /// Attempt to determine if the peer manages one or more representative accounts
-    pub fn query_channel(&self, target_channel: Arc<ChannelInfo>) {
-        self.query(vec![target_channel]);
+    pub fn query_with_priority(&self, target_channel: Arc<ChannelInfo>) {
+        {
+            let mut guard = self.rep_crawler_impl.lock().unwrap();
+            guard.prioritized.push(target_channel);
+        }
+        self.condition.notify_all();
     }
 
     // Only for tests
@@ -237,7 +242,10 @@ impl RepCrawler {
             guard = self
                 .condition
                 .wait_timeout_while(guard, interval, |i| {
-                    !i.stopped && !i.query_predicate(interval) && i.responses.is_empty()
+                    !i.stopped
+                        && !i.query_predicate(interval)
+                        && i.responses.is_empty()
+                        && i.prioritized.is_empty()
                 })
                 .unwrap()
                 .0;
@@ -255,6 +263,14 @@ impl RepCrawler {
             }
 
             guard.cleanup();
+
+            if !guard.prioritized.is_empty() {
+                let mut prioritized_l = Vec::new();
+                std::mem::swap(&mut prioritized_l, &mut guard.prioritized);
+                drop(guard);
+                self.query(prioritized_l);
+                guard = self.rep_crawler_impl.lock().unwrap();
+            }
 
             if guard.query_predicate(interval) {
                 guard.last_query = Some(Instant::now());
@@ -379,6 +395,7 @@ impl RepCrawler {
                 guard.responses.len(),
                 size_of::<Arc<Vote>>() * 2,
             ),
+            ("prioritized", guard.prioritized.len(), 0),
         ]
         .into()
     }
@@ -399,6 +416,9 @@ struct RepCrawlerImpl {
     stopped: bool,
     last_query: Option<Instant>,
     responses: BoundedVecDeque<(ChannelId, Arc<Vote>)>,
+
+    /// Freshly established connections that should be queried asap
+    prioritized: Vec<Arc<ChannelInfo>>,
     is_dev_network: bool,
 }
 

@@ -21,7 +21,6 @@ use rsnano_store_lmdb::{
     LmdbRepWeightStore, LmdbStore, LmdbVersionStore, LmdbWriteTransaction, Transaction,
 };
 use std::{
-    cmp::max,
     collections::HashMap,
     net::SocketAddrV6,
     sync::{

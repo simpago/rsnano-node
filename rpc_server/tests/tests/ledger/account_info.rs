@@ -1,4 +1,4 @@
-use rsnano_core::{Account, Amount};
+use rsnano_core::{utils::UnixTimestamp, Account, Amount};
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_rpc_messages::AccountInfoArgs;
 use test_helpers::{setup_rpc_client_and_server, System};
@@ -49,7 +49,7 @@ fn account_info() {
     assert_eq!(result.open_block, *DEV_GENESIS_HASH);
     assert_eq!(result.representative_block, *DEV_GENESIS_HASH);
     assert_eq!(result.balance, Amount::MAX);
-    assert!(result.modified_timestamp > 0.into());
+    assert_eq!(result.modified_timestamp, 0.into());
     assert_eq!(result.block_count, 1.into());
     assert_eq!(result.account_version, 0.into());
     assert_eq!(result.confirmed_height, Some(1.into()));
