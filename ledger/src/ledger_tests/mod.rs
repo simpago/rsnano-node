@@ -6,9 +6,9 @@ use crate::{
     Ledger, LedgerContext, RepWeightCache, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH,
 };
 use rsnano_core::{
-    utils::{new_test_timestamp, TEST_ENDPOINT_1},
+    utils::{new_test_timestamp, UnixTimestamp, TEST_ENDPOINT_1},
     Account, Amount, BlockHash, PublicKey, QualifiedRoot, Root, SavedAccountChain,
-    TestBlockBuilder, DEV_GENESIS_KEY,
+    SavedBlockLatticeBuilder, TestBlockBuilder, DEV_GENESIS_KEY,
 };
 
 mod empty_ledger;
@@ -764,4 +764,23 @@ fn configured_peers_response() {
     let ledger = Ledger::new_null_builder().peers([(endpoint, now)]).finish();
     let tx = ledger.read_txn();
     assert_eq!(ledger.store.peer.iter(&tx).next().unwrap(), (endpoint, now));
+}
+
+#[test]
+fn block_priority() {
+    let mut lattice = SavedBlockLatticeBuilder::new();
+    lattice.set_now(UnixTimestamp::new(10));
+    let send = lattice.genesis().send(&*DEV_GENESIS_KEY, Amount::nano(500));
+    lattice.set_now(UnixTimestamp::new(20));
+    let receive = lattice.genesis().receive(&send);
+    let ledger = Ledger::new_null_builder()
+        .block(&send)
+        .block(&receive)
+        .finish();
+
+    let tx = ledger.read_txn();
+    let (prio_amount, prio_time) = ledger.block_priority(&tx, &receive);
+
+    assert_eq!(prio_amount, receive.balance());
+    assert_eq!(prio_time, send.timestamp());
 }

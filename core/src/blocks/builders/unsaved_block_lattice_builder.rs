@@ -1,44 +1,15 @@
-use crate::{
-    blocks::{
-        open_block::OpenBlockArgs, receive_block::ReceiveBlockArgs, send_block::SendBlockArgs,
-        state_block::EpochBlockArgs,
-    },
-    dev_epoch1_signer, epoch_v1_link,
-    work::{WorkPool, WorkPoolImpl},
-    Account, Amount, Block, BlockHash, ChangeBlockArgs, Epoch, Link, PendingInfo, PendingKey,
-    PrivateKey, PublicKey, Root, StateBlockArgs, DEV_GENESIS_BLOCK, DEV_GENESIS_KEY,
-};
-use std::collections::HashMap;
-
-pub struct UnsavedBlockLatticeBuilder {
-    accounts: HashMap<Account, Frontier>,
-    work_pool: WorkPoolImpl,
-    pending_receives: HashMap<PendingKey, PendingInfo>,
-}
+use super::saved_block_lattice_builder::{SavedAccountChainBuilder, SavedBlockLatticeBuilder};
+use crate::{Account, Amount, Block, PrivateKey, PublicKey, DEV_GENESIS_KEY};
 
 #[derive(Clone)]
-struct Frontier {
-    hash: BlockHash,
-    representative: PublicKey,
-    balance: Amount,
+pub struct UnsavedBlockLatticeBuilder {
+    inner: SavedBlockLatticeBuilder,
 }
 
 impl UnsavedBlockLatticeBuilder {
     pub fn new() -> Self {
-        let mut accounts = HashMap::new();
-        accounts.insert(
-            DEV_GENESIS_KEY.account(),
-            Frontier {
-                hash: DEV_GENESIS_BLOCK.hash(),
-                representative: DEV_GENESIS_KEY.public_key(),
-                balance: Amount::MAX,
-            },
-        );
-        let work_pool = WorkPoolImpl::new_dev();
         Self {
-            accounts,
-            work_pool,
-            pending_receives: Default::default(),
+            inner: SavedBlockLatticeBuilder::new(),
         }
     }
 
@@ -47,69 +18,23 @@ impl UnsavedBlockLatticeBuilder {
     }
 
     pub fn account<'a>(&'a mut self, key: &'a PrivateKey) -> UnsavedAccountChainBuilder<'a> {
-        UnsavedAccountChainBuilder { lattice: self, key }
+        UnsavedAccountChainBuilder {
+            inner: self.inner.account(key),
+        }
     }
 
     pub fn epoch_open(&mut self, account: impl Into<Account>) -> Block {
-        let account = account.into();
-        assert!(!self.accounts.contains_key(&account));
-        assert!(self
-            .pending_receives
-            .keys()
-            .any(|k| k.receiving_account == account));
-
-        let receive: Block = EpochBlockArgs {
-            epoch_signer: dev_epoch1_signer(),
-            account,
-            previous: BlockHash::zero(),
-            representative: PublicKey::zero(),
-            balance: Amount::zero(),
-            link: epoch_v1_link(),
-            work: self.work_pool.generate_dev2(account.into()).unwrap(),
-        }
-        .into();
-
-        self.accounts.insert(
-            account,
-            Frontier {
-                hash: receive.hash(),
-                representative: PublicKey::zero(),
-                balance: Amount::zero(),
-            },
-        );
-
-        receive
-    }
-
-    fn pop_pending_receive(
-        &mut self,
-        receiving_account: impl Into<Account>,
-        send_hash: BlockHash,
-    ) -> PendingInfo {
-        self.pending_receives
-            .remove(&PendingKey::new(receiving_account.into(), send_hash))
-            .expect("no pending receive found")
-    }
-}
-
-impl Clone for UnsavedBlockLatticeBuilder {
-    fn clone(&self) -> Self {
-        Self {
-            accounts: self.accounts.clone(),
-            work_pool: WorkPoolImpl::new_dev(),
-            pending_receives: self.pending_receives.clone(),
-        }
+        self.inner.epoch_open(account).block
     }
 }
 
 pub struct UnsavedAccountChainBuilder<'a> {
-    lattice: &'a mut UnsavedBlockLatticeBuilder,
-    key: &'a PrivateKey,
+    inner: SavedAccountChainBuilder<'a>,
 }
 
 impl<'a> UnsavedAccountChainBuilder<'a> {
     pub fn send_max(&mut self, destination: impl Into<Account>) -> Block {
-        self.send_all_except(destination, 0)
+        self.inner.send_max(destination).block
     }
 
     pub fn send_all_except(
@@ -117,46 +42,11 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         destination: impl Into<Account>,
         keep: impl Into<Amount>,
     ) -> Block {
-        let frontier = self.get_frontier();
-        self.send(destination, frontier.balance - keep.into())
+        self.inner.send_all_except(destination, keep).block
     }
 
     pub fn send(&mut self, destination: impl Into<Account>, amount: impl Into<Amount>) -> Block {
-        let destination = destination.into();
-        let frontier = self.get_frontier();
-        let amount = amount.into();
-        let new_balance = frontier.balance - amount;
-
-        let send: Block = StateBlockArgs {
-            key: self.key,
-            previous: frontier.hash,
-            representative: frontier.representative,
-            balance: new_balance,
-            link: destination.into(),
-            work: self
-                .lattice
-                .work_pool
-                .generate_dev2(frontier.hash.into())
-                .unwrap(),
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: send.hash(),
-            representative: frontier.representative,
-            balance: new_balance,
-        });
-
-        self.lattice.pending_receives.insert(
-            PendingKey::new(destination, send.hash()),
-            PendingInfo {
-                source: self.key.account(),
-                amount,
-                epoch: Epoch::Epoch0,
-            },
-        );
-
-        send
+        self.inner.send(destination, amount).block
     }
 
     pub fn legacy_send(
@@ -164,46 +54,11 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         destination: impl Into<Account>,
         amount: impl Into<Amount>,
     ) -> Block {
-        let destination = destination.into();
-        let frontier = self.get_frontier();
-        let amount = amount.into();
-        let new_balance = frontier.balance - amount;
-
-        let work = self
-            .lattice
-            .work_pool
-            .generate_dev2(frontier.hash.into())
-            .unwrap();
-
-        let send: Block = SendBlockArgs {
-            key: self.key,
-            previous: frontier.hash,
-            destination,
-            balance: new_balance,
-            work,
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: send.hash(),
-            balance: new_balance,
-            ..frontier
-        });
-
-        self.lattice.pending_receives.insert(
-            PendingKey::new(destination, send.hash()),
-            PendingInfo {
-                source: self.key.account(),
-                amount,
-                epoch: Epoch::Epoch0,
-            },
-        );
-
-        send
+        self.inner.legacy_send(destination, amount).block
     }
 
     pub fn legacy_open(&mut self, corresponding_send: &Block) -> Block {
-        self.legacy_open_with_rep(corresponding_send, self.key.public_key())
+        self.inner.legacy_open(corresponding_send).block
     }
 
     pub fn legacy_open_with_rep(
@@ -211,37 +66,13 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         corresponding_send: &Block,
         new_representative: impl Into<PublicKey>,
     ) -> Block {
-        assert!(!self.lattice.accounts.contains_key(&self.key.account()));
-        assert_eq!(corresponding_send.destination_or_link(), self.key.account());
-
-        let amount = self
-            .lattice
-            .pop_pending_receive(self.key, corresponding_send.hash())
-            .amount;
-
-        let root: Root = self.key.account().into();
-
-        let work = self.lattice.work_pool.generate_dev2(root).unwrap();
-        let receive: Block = OpenBlockArgs {
-            key: &self.key,
-            source: corresponding_send.hash(),
-            representative: new_representative.into(),
-            work,
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: receive.hash(),
-            representative: self.key.public_key(),
-            balance: amount,
-        });
-
-        receive
+        self.inner
+            .legacy_open_with_rep(corresponding_send, new_representative)
+            .block
     }
 
     pub fn legacy_receive(&mut self, corresponding_send: &Block) -> Block {
-        let frontier = self.get_frontier();
-        self.legacy_receive_with_rep(corresponding_send, frontier.representative)
+        self.inner.legacy_receive(corresponding_send).block
     }
 
     pub fn legacy_receive_with_rep(
@@ -249,37 +80,13 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         corresponding_send: &Block,
         new_representative: impl Into<PublicKey>,
     ) -> Block {
-        assert_eq!(corresponding_send.destination_or_link(), self.key.account());
-        let amount = self
-            .lattice
-            .pop_pending_receive(self.key, corresponding_send.hash())
-            .amount;
-
-        let frontier = self.get_frontier();
-        let root: Root = frontier.hash.into();
-        let new_balance = frontier.balance + amount;
-        let work = self.lattice.work_pool.generate_dev2(root).unwrap();
-
-        let receive: Block = ReceiveBlockArgs {
-            key: self.key,
-            previous: frontier.hash,
-            source: corresponding_send.hash(),
-            work,
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: receive.hash(),
-            representative: new_representative.into(),
-            balance: new_balance,
-        });
-
-        receive
+        self.inner
+            .legacy_open_with_rep(corresponding_send, new_representative)
+            .block
     }
 
     pub fn receive(&mut self, corresponding_send: &Block) -> Block {
-        let frontier = self.get_frontier_or_empty();
-        self.receive_and_change(corresponding_send, frontier.representative)
+        self.inner.receive(corresponding_send).block
     }
 
     pub fn receive_and_change(
@@ -287,149 +94,28 @@ impl<'a> UnsavedAccountChainBuilder<'a> {
         corresponding_send: &Block,
         new_representative: impl Into<PublicKey>,
     ) -> Block {
-        assert_eq!(corresponding_send.destination_or_link(), self.key.account());
-        let amount = self
-            .lattice
-            .pop_pending_receive(self.key, corresponding_send.hash())
-            .amount;
-
-        let frontier = self.get_frontier_or_empty();
-
-        let root: Root = if frontier.hash.is_zero() {
-            self.key.account().into()
-        } else {
-            frontier.hash.into()
-        };
-
-        let new_balance = frontier.balance + amount;
-
-        let receive: Block = StateBlockArgs {
-            key: self.key,
-            previous: frontier.hash,
-            representative: new_representative.into(),
-            balance: new_balance,
-            link: corresponding_send.hash().into(),
-            work: self.lattice.work_pool.generate_dev2(root).unwrap(),
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: receive.hash(),
-            representative: frontier.representative,
-            balance: new_balance,
-        });
-
-        receive
+        self.inner
+            .receive_and_change(corresponding_send, new_representative)
+            .block
     }
 
     pub fn legacy_change(&mut self, new_representative: impl Into<PublicKey>) -> Block {
-        let frontier = self.get_frontier();
-        let new_representative = new_representative.into();
-        let work = self
-            .lattice
-            .work_pool
-            .generate_dev2(frontier.hash.into())
-            .unwrap();
-
-        let change: Block = ChangeBlockArgs {
-            key: self.key,
-            previous: frontier.hash,
-            representative: new_representative,
-            work,
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: change.hash(),
-            representative: new_representative,
-            ..frontier
-        });
-
-        change
+        self.inner.legacy_change(new_representative).block
     }
 
     pub fn change(&mut self, new_representative: impl Into<PublicKey>) -> Block {
-        let frontier = self.get_frontier();
-        let new_representative = new_representative.into();
-        let change: Block = StateBlockArgs {
-            key: self.key,
-            previous: frontier.hash,
-            representative: new_representative,
-            balance: frontier.balance,
-            link: Link::zero(),
-            work: self
-                .lattice
-                .work_pool
-                .generate_dev2(frontier.hash.into())
-                .unwrap(),
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: change.hash(),
-            representative: new_representative,
-            balance: frontier.balance,
-        });
-
-        change
+        self.inner.change(new_representative).block
     }
 
     pub fn epoch1(&mut self) -> Block {
-        let frontier = self.get_frontier();
-        let epoch: Block = EpochBlockArgs {
-            epoch_signer: dev_epoch1_signer(),
-            account: self.key.account(),
-            previous: frontier.hash,
-            representative: frontier.representative,
-            balance: frontier.balance,
-            link: epoch_v1_link(),
-            work: self
-                .lattice
-                .work_pool
-                .generate_dev2(frontier.hash.into())
-                .unwrap(),
-        }
-        .into();
-
-        self.set_new_frontier(Frontier {
-            hash: epoch.hash(),
-            ..frontier
-        });
-
-        epoch
-    }
-
-    fn set_new_frontier(&mut self, new_frontier: Frontier) {
-        self.lattice
-            .accounts
-            .insert(self.key.account(), new_frontier);
-    }
-
-    fn get_frontier(&self) -> Frontier {
-        self.lattice
-            .accounts
-            .get(&self.key.account())
-            .expect("Cannot send/change from unopenend account!")
-            .clone()
-    }
-
-    fn get_frontier_or_empty(&self) -> Frontier {
-        self.lattice
-            .accounts
-            .get(&self.key.account())
-            .cloned()
-            .unwrap_or_else(|| Frontier {
-                hash: BlockHash::zero(),
-                representative: self.key.public_key(),
-                balance: Amount::zero(),
-            })
+        self.inner.epoch1().block
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{work::WorkThresholds, BlockDetails};
+    use crate::{work::WorkThresholds, BlockDetails, BlockHash, StateBlockArgs, DEV_GENESIS_BLOCK};
 
     #[test]
     fn state_send() {
