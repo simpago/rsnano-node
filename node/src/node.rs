@@ -1,7 +1,7 @@
 use crate::{
     block_processing::{
-        BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockSource, LocalBlockBroadcaster,
-        LocalBlockBroadcasterExt, UncheckedMap,
+        BacklogScan, BlockProcessor, BlockProcessorCleanup, BlockSource, BoundedBacklog,
+        LocalBlockBroadcaster, LocalBlockBroadcasterExt, UncheckedMap,
     },
     bootstrap::{BootstrapExt, BootstrapServer, BootstrapServerCleanup, BootstrapService},
     cementation::ConfirmingSet,
@@ -110,6 +110,7 @@ pub struct Node {
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
     pub backlog_scan: Arc<BacklogScan>,
+    bounded_backlog: BoundedBacklog,
     pub bootstrap: Arc<BootstrapService>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
@@ -712,6 +713,16 @@ impl Node {
             }
         });
 
+        let bounded_backlog = BoundedBacklog::new(
+            election_schedulers.priority.bucket_count(),
+            config.backlog.clone(),
+            ledger.clone(),
+            backlog_scan.clone(),
+            block_processor.clone(),
+            confirming_set.clone(),
+            stats.clone(),
+        );
+
         let bootstrap = Arc::new(BootstrapService::new(
             block_processor.clone(),
             ledger.clone(),
@@ -732,6 +743,51 @@ impl Node {
             !flags.disable_block_processor_republishing,
         ));
         local_block_broadcaster.initialize();
+
+        let vote_cache_w = Arc::downgrade(&vote_cache);
+        let vote_router_w = Arc::downgrade(&vote_router);
+        let recently_confirmed_w = Arc::downgrade(&recently_confirmed);
+        let scheduler_w = Arc::downgrade(&election_schedulers);
+        let confirming_set_w = Arc::downgrade(&confirming_set);
+        let local_block_broadcaster_w = Arc::downgrade(&local_block_broadcaster);
+        bounded_backlog.on_rolling_back(move |hash| {
+            if let Some(i) = vote_cache_w.upgrade() {
+                if i.lock().unwrap().contains(hash) {
+                    return false;
+                }
+            }
+
+            if let Some(i) = vote_router_w.upgrade() {
+                if i.contains(hash) {
+                    return false;
+                }
+            }
+
+            if let Some(i) = recently_confirmed_w.upgrade() {
+                if i.hash_exists(hash) {
+                    return false;
+                }
+            }
+
+            if let Some(i) = scheduler_w.upgrade() {
+                if i.contains(hash) {
+                    return false;
+                }
+            }
+
+            if let Some(i) = confirming_set_w.upgrade() {
+                if i.contains(hash) {
+                    return false;
+                }
+            }
+
+            if let Some(i) = local_block_broadcaster_w.upgrade() {
+                if i.contains(hash) {
+                    return false;
+                }
+            }
+            true
+        });
 
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(
             stats.clone(),
@@ -1131,6 +1187,7 @@ impl Node {
             election_schedulers,
             request_aggregator,
             backlog_scan,
+            bounded_backlog,
             bootstrap,
             local_block_broadcaster,
             process_live_dispatcher, // needs to stay alive

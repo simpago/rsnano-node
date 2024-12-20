@@ -7,7 +7,6 @@ use rsnano_core::{
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
-    cmp::max,
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
     time::Duration,
@@ -52,6 +51,10 @@ impl PriorityScheduler {
             ledger,
             stats,
         }
+    }
+
+    pub fn bucket_count(&self) -> usize {
+        self.bucketing.bucket_count()
     }
 
     pub fn stop(&self) {
