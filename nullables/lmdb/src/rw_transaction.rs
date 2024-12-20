@@ -7,10 +7,6 @@ pub struct RwTransaction {
 
 impl RwTransaction {
     pub fn new(tx: lmdb::RwTransaction<'static>) -> Self {
-        //debug_assert!(
-        //    tokio::task::try_id().is_none(),
-        //    "database operations are not allowed to run on network IO threads"
-        //);
         Self {
             strategy: RwTransactionStrategy::Real(RwTransactionWrapper(tx)),
         }

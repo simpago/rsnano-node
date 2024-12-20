@@ -3775,7 +3775,6 @@ version = "0.1.0"
 dependencies = [
  "lmdb-rkv",
  "lmdb-rkv-sys",
- "tokio",
 ]
 
 [[package]]
