@@ -328,7 +328,7 @@ impl Ledger {
                 representative: genesis_account.into(),
                 open_block: genesis_hash,
                 balance: u128::MAX.into(),
-                modified: UnixTimestamp::now(),
+                modified: UnixTimestamp::ZERO,
                 block_count: 1,
                 epoch: Epoch::Epoch0,
             },
