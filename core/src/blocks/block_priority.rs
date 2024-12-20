@@ -34,4 +34,19 @@ pub fn block_priority(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{PrivateKey, SavedBlockLatticeBuilder};
+
+    #[test]
+    fn open_block() {
+        let mut lattice = SavedBlockLatticeBuilder::new();
+        let key = PrivateKey::from(42);
+        let send = lattice.genesis().send(&key, 1);
+        lattice.advance_time();
+        let open = lattice.account(&key).receive(&send);
+
+        let (prio_balance, prio_time) = block_priority(&open, None);
+
+        assert_eq!(prio_balance, open.balance());
+        assert_eq!(prio_time, open.timestamp());
+    }
 }

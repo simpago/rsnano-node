@@ -52,6 +52,10 @@ impl SavedBlockLatticeBuilder {
         self.now = now;
     }
 
+    pub fn advance_time(&mut self) {
+        self.now = self.now.add(1);
+    }
+
     pub fn genesis(&mut self) -> SavedAccountChainBuilder {
         self.account(&DEV_GENESIS_KEY)
     }

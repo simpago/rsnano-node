@@ -6,6 +6,7 @@ pub use container_info::*;
 pub use peer::*;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
+    ops::AddAssign,
     thread::available_parallelism,
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
@@ -156,6 +157,10 @@ impl UnixTimestamp {
 
     pub fn from_be_bytes(bytes: [u8; 8]) -> Self {
         Self(u64::from_be_bytes(bytes))
+    }
+
+    pub fn add(&self, seconds: u64) -> Self {
+        Self(self.0 + seconds)
     }
 }
 
