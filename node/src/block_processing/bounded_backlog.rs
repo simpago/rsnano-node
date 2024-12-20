@@ -133,8 +133,30 @@ impl BoundedBacklogImpl {
                 };
 
                 let targets = guard.gather_targets(min(target_count, self.config.batch_size));
+                if !targets.is_empty() {
+                    drop(guard);
+                    self.stats.add(
+                        StatType::BoundedBacklog,
+                        DetailType::GatheredTargets,
+                        targets.len() as u64,
+                    );
+                    let processed = self.perform_rollbacks(&targets);
+                    guard = self.mutex.lock().unwrap();
 
-                todo!()
+                    // Erase rolled back blocks from the index
+                    for hash in &processed {
+                        guard.index.erase_hash(hash);
+                    }
+                } else {
+                    // Cooldown, this should not happen in normal operation
+                    self.stats
+                        .inc(StatType::BoundedBacklog, DetailType::NoTargets);
+                    guard = self
+                        .condition
+                        .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
+                        .unwrap()
+                        .0;
+                }
             } else {
                 guard = self
                     .condition
@@ -145,6 +167,10 @@ impl BoundedBacklogImpl {
                     .0;
             }
         }
+    }
+
+    fn perform_rollbacks(&self, targets: &[BlockHash]) -> Vec<BlockHash> {
+        todo!()
     }
 }
 
