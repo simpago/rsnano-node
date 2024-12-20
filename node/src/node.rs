@@ -792,7 +792,7 @@ impl Node {
 
         let history_w = Arc::downgrade(&history);
         let active_w = Arc::downgrade(&active_elections);
-        block_processor.on_block_rolled_back(move |blocks, rollback_root| {
+        block_processor.on_blocks_rolled_back(move |blocks, rollback_root| {
             let Some(history) = history_w.upgrade() else {
                 return;
             };

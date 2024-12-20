@@ -119,6 +119,10 @@ impl LocalBlockBroadcaster {
         self.mutex.lock().unwrap().local_blocks.len()
     }
 
+    pub fn contains(&self, hash: &BlockHash) -> bool {
+        self.mutex.lock().unwrap().local_blocks.contains(hash)
+    }
+
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
@@ -323,7 +327,7 @@ impl LocalBlockBroadcasterExt for Arc<LocalBlockBroadcaster> {
 
         let self_w = Arc::downgrade(self);
         self.block_processor
-            .on_block_rolled_back(move |blocks, _rollback_root| {
+            .on_blocks_rolled_back(move |blocks, _rollback_root| {
                 let Some(self_l) = self_w.upgrade() else {
                     return;
                 };
@@ -400,6 +404,10 @@ impl OrderedLocals {
 
     fn is_empty(&self) -> bool {
         self.sequenced.is_empty()
+    }
+
+    fn contains(&self, hash: &BlockHash) -> bool {
+        self.by_hash.contains_key(hash)
     }
 
     fn push_back(&mut self, entry: LocalEntry) {

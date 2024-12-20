@@ -307,11 +307,11 @@ impl BlockProcessor {
         self.processor_loop.process_active(block);
     }
 
-    pub fn on_block_rolled_back(
+    pub fn on_blocks_rolled_back(
         &self,
         callback: impl Fn(&[SavedBlock], QualifiedRoot) + Send + Sync + 'static,
     ) {
-        self.processor_loop.on_block_rolled_back(callback);
+        self.processor_loop.on_blocks_rolled_back(callback);
     }
     pub fn force(&self, block: Block) {
         self.processor_loop.force(block);
@@ -441,7 +441,7 @@ impl BlockProcessorLoopImpl {
         self.batch_processed.write().unwrap().push(observer);
     }
 
-    pub fn on_block_rolled_back(
+    pub fn on_blocks_rolled_back(
         &self,
         callback: impl Fn(&[SavedBlock], QualifiedRoot) + Send + Sync + 'static,
     ) {

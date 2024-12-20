@@ -923,6 +923,19 @@ impl BootstrapExt for Arc<BootstrapService> {
                 }
             }));
 
+        // Unblock rolled back accounts as the dependency is no longer valid
+        let self_w = Arc::downgrade(self);
+        self.block_processor
+            .on_blocks_rolled_back(move |blocks, _rollback_root| {
+                let Some(self_l) = self_w.upgrade() else {
+                    return;
+                };
+                let mut guard = self_l.mutex.lock().unwrap();
+                for block in blocks {
+                    guard.accounts.unblock(block.account(), None);
+                }
+            });
+
         let inserted = self
             .mutex
             .lock()
