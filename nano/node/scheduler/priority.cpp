@@ -128,7 +128,7 @@ bool nano::scheduler::priority::activate (secure::transaction const & transactio
 		{
 			auto const & bucket = buckets.at (bucket_index);
 			release_assert (bucket);
-			added = bucket->push (account_info.modified, block);
+			added = bucket->push (priority_timestamp, block);
 		}
 		if (added)
 		{
