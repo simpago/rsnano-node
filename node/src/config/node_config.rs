@@ -1,6 +1,8 @@
 use super::{websocket_config::WebsocketConfig, DiagnosticsConfig, Networks};
 use crate::{
-    block_processing::{BacklogScanConfig, BlockProcessorConfig, LocalBlockBroadcasterConfig},
+    block_processing::{
+        BacklogScanConfig, BlockProcessorConfig, BoundedBacklogConfig, LocalBlockBroadcasterConfig,
+    },
     bootstrap::{BootstrapConfig, BootstrapServerConfig},
     cementation::ConfirmingSetConfig,
     consensus::{
@@ -99,6 +101,7 @@ pub struct NodeConfig {
     pub confirming_set: ConfirmingSetConfig,
     pub monitor: MonitorConfig,
     pub backlog_scan: BacklogScanConfig,
+    pub backlog: BoundedBacklogConfig,
     pub network_duplicate_filter_cutoff: u64,
 }
 
@@ -325,6 +328,7 @@ impl NodeConfig {
             confirming_set: Default::default(),
             monitor: Default::default(),
             backlog_scan: Default::default(),
+            backlog: Default::default(),
             network_duplicate_filter_cutoff: 60,
         }
     }
