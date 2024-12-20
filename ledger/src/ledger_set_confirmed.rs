@@ -11,6 +11,9 @@ impl<'a> LedgerSetConfirmed<'a> {
     }
 
     pub fn get_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
+        if hash.is_zero() {
+            return None;
+        }
         let block = self.store.block.get(tx, hash)?;
         let info = self.store.confirmation_height.get(tx, &block.account())?;
         if block.height() <= info.height {
@@ -47,6 +50,9 @@ impl<'a> LedgerSetConfirmed<'a> {
     }
 
     pub fn block_exists_or_pruned(&self, tx: &dyn Transaction, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
         if self.store.pruned.exists(tx, hash) {
             true
         } else {

@@ -14,6 +14,9 @@ impl<'a> LedgerSetAny<'a> {
     }
 
     pub fn get_block(&self, tx: &dyn Transaction, hash: &BlockHash) -> Option<SavedBlock> {
+        if hash.is_zero() {
+            return None;
+        }
         self.store.block.get(tx, hash)
     }
 
@@ -71,10 +74,16 @@ impl<'a> LedgerSetAny<'a> {
     }
 
     pub fn block_exists(&self, tx: &dyn Transaction, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
         self.store.block.exists(tx, hash)
     }
 
     pub fn block_exists_or_pruned(&self, tx: &dyn Transaction, hash: &BlockHash) -> bool {
+        if hash.is_zero() {
+            return false;
+        }
         if self.store.pruned.exists(tx, hash) {
             true
         } else {
