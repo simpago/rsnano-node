@@ -375,6 +375,10 @@ impl Ledger {
         self.rep_weights.bootstrap_weight_max_blocks()
     }
 
+    pub fn unconfirmed_exists(&self, tx: &dyn Transaction, hash: &BlockHash) -> bool {
+        self.any().block_exists(tx, hash) && !self.confirmed().block_exists(tx, hash)
+    }
+
     pub fn account_receivable(
         &self,
         txn: &dyn Transaction,
@@ -686,6 +690,16 @@ impl Ledger {
 
     pub fn pruned_count(&self) -> u64 {
         self.store.cache.pruned_count.load(Ordering::SeqCst)
+    }
+
+    pub fn backlog_count(&self) -> u64 {
+        let blocks = self.block_count();
+        let cemented = self.cemented_count();
+        if blocks > cemented {
+            blocks - cemented
+        } else {
+            0
+        }
     }
 
     pub fn container_info(&self) -> ContainerInfo {

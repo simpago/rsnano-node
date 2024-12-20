@@ -10,6 +10,7 @@ pub enum Writer {
     BlockProcessor,
     Pruning,
     VotingFinal,
+    BoundedBacklog,
     Testing, // Used in tests to emulate a write lock
 }
 

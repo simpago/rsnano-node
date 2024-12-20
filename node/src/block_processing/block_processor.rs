@@ -32,6 +32,7 @@ pub enum BlockSource {
     Unchecked,
     Local,
     Forced,
+    Election,
 }
 
 impl From<BlockSource> for DetailType {
@@ -45,6 +46,7 @@ impl From<BlockSource> for DetailType {
             BlockSource::Unchecked => DetailType::Unchecked,
             BlockSource::Local => DetailType::Local,
             BlockSource::Forced => DetailType::Forced,
+            BlockSource::Election => DetailType::Election,
         }
     }
 }
@@ -136,6 +138,7 @@ pub struct BlockProcessorConfig {
     pub priority_live: usize,
     pub priority_bootstrap: usize,
     pub priority_local: usize,
+    pub priority_system: usize,
     pub batch_max_time: Duration,
     pub full_size: usize,
     pub batch_size: usize,
@@ -155,6 +158,7 @@ impl BlockProcessorConfig {
             priority_live: 1,
             priority_bootstrap: 8,
             priority_local: 16,
+            priority_system: 32,
             batch_max_time: Duration::from_millis(500),
             full_size: Self::DEFAULT_FULL_SIZE,
             batch_size: 256,
@@ -192,7 +196,9 @@ impl BlockProcessor {
                 config_l.priority_bootstrap
             }
             BlockSource::Local => config_l.priority_local,
-            BlockSource::Forced | BlockSource::Unknown => 1,
+            BlockSource::Election | BlockSource::Forced | BlockSource::Unknown => {
+                config.priority_system
+            }
         });
 
         Self {

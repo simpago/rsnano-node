@@ -1,5 +1,5 @@
 use crate::{
-    block_processing::BlockProcessor,
+    block_processing::{BlockProcessor, BlockSource},
     cementation::ConfirmingSet,
     config::NodeConfig,
     consensus::{ElectionState, VoteInfo},
@@ -16,8 +16,10 @@ use super::{
 };
 use rsnano_core::{Amount, BlockHash, MaybeSavedBlock, PublicKey, VoteCode, VoteSource};
 use rsnano_ledger::Ledger;
+use rsnano_network::ChannelId;
 use std::{
     collections::{BTreeMap, HashMap},
+    ops::Deref,
     sync::{atomic::Ordering, Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };
@@ -237,6 +239,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
         election: &Arc<Election>,
     ) {
         let tally = self.tally_impl(&mut election_lock);
+        assert!(!tally.is_empty());
         let (amount, block) = tally.first_key_value().unwrap();
         let winner_hash = block.hash();
         election_lock.status.tally = amount.amount();
@@ -264,6 +267,13 @@ impl VoteApplierExt for Arc<VoteApplier> {
             }
             let quorum_delta = self.online_reps.lock().unwrap().quorum_delta();
             if election_lock.final_weight >= quorum_delta {
+                // In some edge cases block might get rolled back while the election
+                // is confirming, reprocess it to ensure it's present in the ledger
+                self.block_processor.add(
+                    (**block).clone(),
+                    BlockSource::Election,
+                    ChannelId::LOOPBACK,
+                );
                 self.confirm_once(election_lock, election);
             }
         }

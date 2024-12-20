@@ -11,6 +11,7 @@ impl From<&GlobalConfig> for BlockProcessorConfig {
             priority_local: config.priority_local,
             priority_bootstrap: config.priority_bootstrap,
             priority_live: config.priority_live,
+            priority_system: config.priority_system,
             max_system_queue: config.max_system_queue,
             batch_max_time: Duration::from_millis(
                 value.node_config.block_processor_batch_max_time_ms as u64,

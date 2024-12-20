@@ -79,6 +79,7 @@ pub enum StatType {
     ActiveTimeout,
     Backlog,
     BacklogScan,
+    BoundedBacklog,
     Unchecked,
     ElectionScheduler,
     ElectionBucket,
@@ -198,6 +199,7 @@ pub enum DetailType {
     Unchecked,
     Local,
     Forced,
+    Election,
 
     // message specific
     NotAType,
@@ -559,6 +561,14 @@ pub enum DetailType {
     BlocksByHash,
     BlocksByAccount,
     AccountInfoByHash,
+
+    // bounded backlog
+    GatheredTargets,
+    PerformingRollbacks,
+    NoTargets,
+    RollbackMissingBlock,
+    RollbackSkipped,
+    LoopScan,
 }
 
 impl DetailType {
