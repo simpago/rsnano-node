@@ -2,6 +2,8 @@
 
 #include <nano/lib/logging.hpp>
 #include <nano/lib/thread_pool.hpp>
+#include <nano/node/block_context.hpp>
+#include <nano/node/block_source.hpp>
 #include <nano/node/fair_queue.hpp>
 #include <nano/node/fwd.hpp>
 #include <nano/secure/common.hpp>
@@ -14,22 +16,6 @@
 
 namespace nano
 {
-enum class block_source
-{
-	unknown = 0,
-	live,
-	live_originator,
-	bootstrap,
-	bootstrap_legacy,
-	unchecked,
-	local,
-	forced,
-	election,
-};
-
-std::string_view to_string (block_source);
-nano::stat::detail to_stat_detail (block_source);
-
 class block_processor_config final
 {
 public:
@@ -60,29 +46,6 @@ public:
  */
 class block_processor final
 {
-public: // Context
-	class context
-	{
-	public:
-		using result_t = nano::block_status;
-		using callback_t = std::function<void (result_t)>;
-
-		context (std::shared_ptr<nano::block> block, nano::block_source source, callback_t callback = nullptr);
-
-		std::shared_ptr<nano::block> block;
-		nano::block_source source;
-		callback_t callback;
-		std::chrono::steady_clock::time_point arrival{ std::chrono::steady_clock::now () };
-
-		std::future<result_t> get_future ();
-
-	private:
-		void set_result (result_t const &);
-		std::promise<result_t> promise;
-
-		friend class block_processor;
-	};
-
 public:
 	block_processor (nano::node_config const &, nano::ledger &, nano::unchecked_map &, nano::stats &, nano::logger &);
 	~block_processor ();
@@ -102,7 +65,7 @@ public:
 
 public: // Events
 	// All processed blocks including forks, rejected etc
-	using processed_batch_t = std::deque<std::pair<nano::block_status, context>>;
+	using processed_batch_t = std::deque<std::pair<nano::block_status, nano::block_context>>;
 	using processed_batch_event_t = nano::observer_set<processed_batch_t>;
 	processed_batch_event_t batch_processed;
 
@@ -122,14 +85,14 @@ private:
 	void run ();
 	// Roll back block in the ledger that conflicts with 'block'
 	void rollback_competitor (secure::write_transaction const &, nano::block const & block);
-	nano::block_status process_one (secure::write_transaction const &, context const &, bool forced = false);
+	nano::block_status process_one (secure::write_transaction const &, nano::block_context const &, bool forced = false);
 	processed_batch_t process_batch (nano::unique_lock<nano::mutex> &);
-	std::deque<context> next_batch (size_t max_count);
-	context next ();
-	bool add_impl (context, std::shared_ptr<nano::transport::channel> const & channel = nullptr);
+	std::deque<nano::block_context> next_batch (size_t max_count);
+	nano::block_context next ();
+	bool add_impl (nano::block_context, std::shared_ptr<nano::transport::channel> const & channel = nullptr);
 
 private:
-	nano::fair_queue<context, nano::block_source> queue;
+	nano::fair_queue<nano::block_context, nano::block_source> queue;
 
 	bool stopped{ false };
 	nano::condition_variable condition;

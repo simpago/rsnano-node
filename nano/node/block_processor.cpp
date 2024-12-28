@@ -121,7 +121,7 @@ bool nano::block_processor::add (std::shared_ptr<nano::block> const & block, blo
 	to_string (source),
 	channel ? channel->to_string () : "<unknown>"); // TODO: Lazy eval
 
-	return add_impl (context{ block, source, std::move (callback) }, channel);
+	return add_impl ({ block, source, std::move (callback) }, channel);
 }
 
 std::optional<nano::block_status> nano::block_processor::add_blocking (std::shared_ptr<nano::block> const & block, block_source const source)
@@ -129,7 +129,7 @@ std::optional<nano::block_status> nano::block_processor::add_blocking (std::shar
 	stats.inc (nano::stat::type::block_processor, nano::stat::detail::process_blocking);
 	logger.debug (nano::log::type::block_processor, "Processing block (blocking): {} (source: {})", block->hash ().to_string (), to_string (source));
 
-	context ctx{ block, source };
+	nano::block_context ctx{ block, source };
 	auto future = ctx.get_future ();
 	add_impl (std::move (ctx));
 
@@ -152,10 +152,10 @@ void nano::block_processor::force (std::shared_ptr<nano::block> const & block_a)
 	stats.inc (nano::stat::type::block_processor, nano::stat::detail::force);
 	logger.debug (nano::log::type::block_processor, "Forcing block: {}", block_a->hash ().to_string ());
 
-	add_impl (context{ block_a, block_source::forced });
+	add_impl ({ block_a, block_source::forced });
 }
 
-bool nano::block_processor::add_impl (context ctx, std::shared_ptr<nano::transport::channel> const & channel)
+bool nano::block_processor::add_impl (nano::block_context ctx, std::shared_ptr<nano::transport::channel> const & channel)
 {
 	auto const source = ctx.source;
 	bool added = false;
@@ -258,7 +258,7 @@ void nano::block_processor::run ()
 	}
 }
 
-auto nano::block_processor::next () -> context
+auto nano::block_processor::next () -> nano::block_context
 {
 	debug_assert (!mutex.try_lock ());
 	debug_assert (!queue.empty ()); // This should be checked before calling next
@@ -273,14 +273,14 @@ auto nano::block_processor::next () -> context
 	release_assert (false, "next() called when no blocks are ready");
 }
 
-auto nano::block_processor::next_batch (size_t max_count) -> std::deque<context>
+auto nano::block_processor::next_batch (size_t max_count) -> std::deque<nano::block_context>
 {
 	debug_assert (!mutex.try_lock ());
 	debug_assert (!queue.empty ());
 
 	queue.periodic_update ();
 
-	std::deque<context> results;
+	std::deque<nano::block_context> results;
 	while (!queue.empty () && results.size () < max_count)
 	{
 		results.push_back (next ());
@@ -335,7 +335,7 @@ auto nano::block_processor::process_batch (nano::unique_lock<nano::mutex> & lock
 	return processed;
 }
 
-nano::block_status nano::block_processor::process_one (secure::write_transaction const & transaction_a, context const & context, bool const forced_a)
+nano::block_status nano::block_processor::process_one (secure::write_transaction const & transaction_a, nano::block_context const & context, bool const forced_a)
 {
 	auto block = context.block;
 	auto const hash = block->hash ();
@@ -456,28 +456,6 @@ nano::container_info nano::block_processor::container_info () const
 }
 
 /*
- * block_processor::context
- */
-
-nano::block_processor::context::context (std::shared_ptr<nano::block> block, nano::block_source source_a, callback_t callback_a) :
-	block{ std::move (block) },
-	source{ source_a },
-	callback{ std::move (callback_a) }
-{
-	debug_assert (source != nano::block_source::unknown);
-}
-
-auto nano::block_processor::context::get_future () -> std::future<result_t>
-{
-	return promise.get_future ();
-}
-
-void nano::block_processor::context::set_result (result_t const & result)
-{
-	promise.set_value (result);
-}
-
-/*
  * block_processor_config
  */
 
@@ -505,18 +483,4 @@ nano::error nano::block_processor_config::deserialize (nano::tomlconfig & toml)
 	toml.get ("priority_local", priority_local);
 
 	return toml.get_error ();
-}
-
-/*
- *
- */
-
-std::string_view nano::to_string (nano::block_source source)
-{
-	return nano::enum_util::name (source);
-}
-
-nano::stat::detail nano::to_stat_detail (nano::block_source type)
-{
-	return nano::enum_util::cast<nano::stat::detail> (type);
 }
