@@ -82,7 +82,6 @@ public:
 	bool block_confirmed_or_being_confirmed (nano::secure::transaction const &, nano::block_hash const &);
 	bool block_confirmed_or_being_confirmed (nano::block_hash const &);
 
-	void do_rpc_callback (boost::asio::ip::tcp::resolver::iterator i_a, std::string const &, uint16_t, std::shared_ptr<std::string> const &, std::shared_ptr<std::string> const &, std::shared_ptr<boost::asio::ip::tcp::resolver> const &);
 	bool online () const;
 	bool init_error () const;
 	std::pair<uint64_t, std::unordered_map<nano::account, nano::uint128_t>> get_bootstrap_weights () const;
@@ -201,6 +200,8 @@ public:
 	nano::peer_history & peer_history;
 	std::unique_ptr<nano::monitor> monitor_impl;
 	nano::monitor & monitor;
+	std::unique_ptr<nano::rpc_callbacks> rpc_callbacks_impl;
+	nano::rpc_callbacks & rpc_callbacks;
 
 public:
 	std::chrono::steady_clock::time_point const startup_time;
