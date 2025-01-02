@@ -24,6 +24,7 @@ void nano::rpc_callbacks::setup_callbacks ()
 		auto block_a (status_a.winner);
 		if ((status_a.type == nano::election_status_type::active_confirmed_quorum || status_a.type == nano::election_status_type::active_confirmation_height))
 		{
+			// It's OK to capture this by reference since workers are stopped before node destruction
 			node.workers.post ([this, block_a, account_a, amount_a, is_state_send_a, is_state_epoch_a] () {
 				boost::property_tree::ptree event;
 				event.add ("account", account_a.to_account ());
@@ -62,6 +63,8 @@ void nano::rpc_callbacks::setup_callbacks ()
 				auto port (config.callback_port);
 				auto target (std::make_shared<std::string> (config.callback_target));
 				auto resolver (std::make_shared<boost::asio::ip::tcp::resolver> (node.io_ctx));
+
+				// It's OK to capture this by reference since io_context is stopped before node destruction
 				resolver->async_resolve (boost::asio::ip::tcp::resolver::query (address, std::to_string (port)), [this, address, port, target, body, resolver] (boost::system::error_code const & ec, boost::asio::ip::tcp::resolver::iterator i_a) {
 					if (!ec)
 					{
