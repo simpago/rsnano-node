@@ -1,4 +1,5 @@
 #include <nano/lib/block_type.hpp>
+#include <nano/lib/interval.hpp>
 #include <nano/node/node.hpp>
 #include <nano/node/rpc_callbacks.hpp>
 #include <nano/secure/ledger.hpp>
@@ -50,6 +51,15 @@ void nano::http_callbacks::setup_callbacks ()
 		if ((status_a.type == nano::election_status_type::active_confirmed_quorum || status_a.type == nano::election_status_type::active_confirmation_height))
 		{
 			stats.inc (nano::stat::type::http_callbacks_notified, nano::stat::detail::block_confirmed);
+
+			constexpr size_t warning_threshold = 10000;
+			static nano::interval warning_interval;
+
+			if (workers.queued_tasks () > warning_threshold && warning_interval.elapsed (15s))
+			{
+				stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::large_backlog);
+				logger.warn (nano::log::type::http_callbacks, "Backlog of {} http callback notifications to process", workers.queued_tasks ());
+			}
 
 			// Post callback processing to worker thread
 			// Safe to capture 'this' by reference as workers are stopped before this component destruction

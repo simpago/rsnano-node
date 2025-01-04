@@ -638,6 +638,7 @@ enum class detail
 
 	// http_callbacks
 	block_confirmed,
+	large_backlog,
 
 	_last // Must be the last enum
 };
