@@ -223,7 +223,7 @@ void nano::block_processor::run ()
 				}
 			}
 
-			if (log_interval.elapsed (15s))
+			if (log_interval.elapse (15s))
 			{
 				logger.info (nano::log::type::block_processor, "{} blocks (+ {} forced) in processing queue",
 				queue.size (),

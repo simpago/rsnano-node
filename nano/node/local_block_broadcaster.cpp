@@ -127,7 +127,7 @@ void nano::local_block_broadcaster::run ()
 		{
 			stats.inc (nano::stat::type::local_block_broadcaster, nano::stat::detail::loop);
 
-			if (cleanup_interval.elapsed (config.cleanup_interval))
+			if (cleanup_interval.elapse (config.cleanup_interval))
 			{
 				cleanup (lock);
 				debug_assert (lock.owns_lock ());

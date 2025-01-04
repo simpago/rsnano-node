@@ -28,5 +28,6 @@ private:
 	void do_rpc_callback (boost::asio::ip::tcp::resolver::iterator i_a, std::string const &, uint16_t, std::shared_ptr<std::string> const &, std::shared_ptr<std::string> const &, std::shared_ptr<boost::asio::ip::tcp::resolver> const &);
 
 	nano::thread_pool workers;
+	nano::interval_mt warning_interval;
 };
 }

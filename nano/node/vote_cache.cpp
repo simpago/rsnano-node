@@ -238,7 +238,7 @@ std::deque<nano::vote_cache::top_entry> nano::vote_cache::top (const nano::uint1
 	{
 		nano::lock_guard<nano::mutex> lock{ mutex };
 
-		if (cleanup_interval.elapsed (config.age_cutoff / 2))
+		if (cleanup_interval.elapse (config.age_cutoff / 2))
 		{
 			cleanup ();
 		}
