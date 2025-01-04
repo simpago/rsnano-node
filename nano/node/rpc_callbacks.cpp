@@ -33,6 +33,8 @@ void nano::http_callbacks::setup_callbacks ()
 		// Only process blocks that have achieved quorum or confirmation height
 		if ((status_a.type == nano::election_status_type::active_confirmed_quorum || status_a.type == nano::election_status_type::active_confirmation_height))
 		{
+			stats.inc (nano::stat::type::http_callbacks_notified, nano::stat::detail::block_confirmed);
+
 			// Post callback processing to worker thread
 			// Safe to capture 'this' by reference as workers are stopped before node destruction
 			node.workers.post ([this, block_a, account_a, amount_a, is_state_send_a, is_state_epoch_a] () {
@@ -93,8 +95,10 @@ void nano::http_callbacks::setup_callbacks ()
 					}
 					else
 					{
+						stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::error_resolving);
+						stats.inc (nano::stat::type::http_callbacks_ec, to_stat_detail (ec));
+
 						logger.error (nano::log::type::http_callbacks, "Error resolving callback: {}:{} ({})", address, port, ec.message ());
-						stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 					}
 				});
 			});
@@ -117,6 +121,8 @@ std::shared_ptr<boost::asio::ip::tcp::resolver> const & resolver)
 	// Check if we have more endpoints to try
 	if (i_a != boost::asio::ip::tcp::resolver::iterator{})
 	{
+		stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::initiate);
+
 		// Create socket and attempt connection
 		auto sock = std::make_shared<boost::asio::ip::tcp::socket> (node.io_ctx);
 		sock->async_connect (i_a->endpoint (),
@@ -152,36 +158,42 @@ std::shared_ptr<boost::asio::ip::tcp::resolver> const & resolver)
 								// Check response status
 								if (boost::beast::http::to_status_class (resp->result ()) == boost::beast::http::status_class::successful)
 								{
-									stats.inc (nano::stat::type::http_callback, nano::stat::detail::initiate, nano::stat::dir::out);
+									stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::success);
 								}
 								else
 								{
+									stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::bad_status);
+
 									logger.error (nano::log::type::http_callbacks, "Callback to {}:{} failed [status: {}]",
 									address, port, nano::util::to_str (resp->result ()));
-									stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 								}
 							}
 							else
 							{
+								stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::error_completing);
+								stats.inc (nano::stat::type::http_callbacks_ec, to_stat_detail (ec));
+
 								logger.error (nano::log::type::http_callbacks, "Unable to complete callback: {}:{} ({})",
 								address, port, ec.message ());
-								stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 							}
 						});
 					}
 					else
 					{
+						stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::error_sending);
+						stats.inc (nano::stat::type::http_callbacks_ec, to_stat_detail (ec));
+
 						logger.error (nano::log::type::http_callbacks, "Unable to send callback: {}:{} ({})", address, port, ec.message ());
-						stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 					}
 				});
 			}
-			else
+			else // Connection failed, try next endpoint if available
 			{
-				// Connection failed, try next endpoint if available
+				stats.inc (nano::stat::type::http_callbacks, nano::stat::detail::error_connecting);
+				stats.inc (nano::stat::type::http_callbacks_ec, to_stat_detail (ec));
+
 				logger.error (nano::log::type::http_callbacks, "Unable to connect to callback address({}): {}:{} ({})",
 				address, i_a->endpoint ().address ().to_string (), port, ec.message ());
-				stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 
 				++i_a;
 				do_rpc_callback (i_a, address, port, target, body, resolver);
