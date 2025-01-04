@@ -68,6 +68,7 @@ enum class name
 	vote_router,
 	online_reps,
 	monitor,
+	http_callbacks,
 };
 
 std::string_view to_string (name);

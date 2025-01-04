@@ -9,7 +9,8 @@ nano::http_callbacks::http_callbacks (nano::node & node_a) :
 	observers{ node_a.observers },
 	ledger{ node_a.ledger },
 	logger{ node_a.logger },
-	stats{ node_a.stats }
+	stats{ node_a.stats },
+	workers{ 1, nano::thread_role::name::http_callbacks }
 {
 	// Only set up callbacks if a callback address is configured
 	if (!config.callback_address.empty ())
@@ -17,6 +18,21 @@ nano::http_callbacks::http_callbacks (nano::node & node_a) :
 		logger.info (nano::log::type::http_callbacks, "Callbacks enabled on {}:{}", config.callback_address, config.callback_port);
 		setup_callbacks ();
 	}
+}
+
+void nano::http_callbacks::start ()
+{
+	workers.start ();
+}
+
+void nano::http_callbacks::stop ()
+{
+	workers.stop ();
+}
+
+nano::container_info nano::http_callbacks::container_info () const
+{
+	return workers.container_info ();
 }
 
 void nano::http_callbacks::setup_callbacks ()
@@ -36,8 +52,8 @@ void nano::http_callbacks::setup_callbacks ()
 			stats.inc (nano::stat::type::http_callbacks_notified, nano::stat::detail::block_confirmed);
 
 			// Post callback processing to worker thread
-			// Safe to capture 'this' by reference as workers are stopped before node destruction
-			node.workers.post ([this, block_a, account_a, amount_a, is_state_send_a, is_state_epoch_a] () {
+			// Safe to capture 'this' by reference as workers are stopped before this component destruction
+			workers.post ([this, block_a, account_a, amount_a, is_state_send_a, is_state_epoch_a] () {
 				// Construct the callback payload as a property tree
 				boost::property_tree::ptree event;
 				event.add ("account", account_a.to_account ());

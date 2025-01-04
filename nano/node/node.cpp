@@ -558,6 +558,7 @@ void nano::node::start ()
 	vote_router.start ();
 	online_reps.start ();
 	monitor.start ();
+	http_callbacks.start ();
 
 	add_initial_peers ();
 }
@@ -605,6 +606,7 @@ void nano::node::stop ()
 	message_processor.stop ();
 	network.stop ();
 	monitor.stop ();
+	http_callbacks.stop ();
 
 	bootstrap_workers.stop ();
 	wallet_workers.stop ();
@@ -1075,6 +1077,7 @@ nano::container_info nano::node::container_info () const
 	info.add ("bandwidth", outbound_limiter.container_info ());
 	info.add ("backlog_scan", backlog_scan.container_info ());
 	info.add ("bounded_backlog", backlog.container_info ());
+	info.add ("http_callbacks", http_callbacks.container_info ());
 	return info;
 }
 
