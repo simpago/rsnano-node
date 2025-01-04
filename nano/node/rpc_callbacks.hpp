@@ -4,10 +4,10 @@
 
 namespace nano
 {
-class rpc_callbacks
+class http_callbacks
 {
 public:
-	explicit rpc_callbacks (nano::node &);
+	explicit http_callbacks (nano::node &);
 
 private: // Dependencies
 	nano::node_config const & config;

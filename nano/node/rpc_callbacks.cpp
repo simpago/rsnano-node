@@ -3,7 +3,7 @@
 #include <nano/node/rpc_callbacks.hpp>
 #include <nano/secure/ledger.hpp>
 
-nano::rpc_callbacks::rpc_callbacks (nano::node & node_a) :
+nano::http_callbacks::http_callbacks (nano::node & node_a) :
 	node{ node_a },
 	config{ node_a.config },
 	observers{ node_a.observers },
@@ -14,12 +14,12 @@ nano::rpc_callbacks::rpc_callbacks (nano::node & node_a) :
 	// Only set up callbacks if a callback address is configured
 	if (!config.callback_address.empty ())
 	{
-		logger.info (nano::log::type::rpc_callbacks, "RPC callbacks enabled on {}:{}", config.callback_address, config.callback_port);
+		logger.info (nano::log::type::http_callbacks, "Callbacks enabled on {}:{}", config.callback_address, config.callback_port);
 		setup_callbacks ();
 	}
 }
 
-void nano::rpc_callbacks::setup_callbacks ()
+void nano::http_callbacks::setup_callbacks ()
 {
 	// Add observer for block confirmations
 	observers.blocks.add ([this] (nano::election_status const & status_a,
@@ -93,7 +93,7 @@ void nano::rpc_callbacks::setup_callbacks ()
 					}
 					else
 					{
-						logger.error (nano::log::type::rpc_callbacks, "Error resolving callback: {}:{} ({})", address, port, ec.message ());
+						logger.error (nano::log::type::http_callbacks, "Error resolving callback: {}:{} ({})", address, port, ec.message ());
 						stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 					}
 				});
@@ -107,7 +107,7 @@ void nano::rpc_callbacks::setup_callbacks ()
  * Handles connection establishment, request sending, and response processing
  * Includes retry logic for failed connection attempts
  */
-void nano::rpc_callbacks::do_rpc_callback (boost::asio::ip::tcp::resolver::iterator i_a,
+void nano::http_callbacks::do_rpc_callback (boost::asio::ip::tcp::resolver::iterator i_a,
 std::string const & address,
 uint16_t port,
 std::shared_ptr<std::string> const & target,
@@ -156,14 +156,14 @@ std::shared_ptr<boost::asio::ip::tcp::resolver> const & resolver)
 								}
 								else
 								{
-									logger.error (nano::log::type::rpc_callbacks, "Callback to {}:{} failed [status: {}]",
+									logger.error (nano::log::type::http_callbacks, "Callback to {}:{} failed [status: {}]",
 									address, port, nano::util::to_str (resp->result ()));
 									stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 								}
 							}
 							else
 							{
-								logger.error (nano::log::type::rpc_callbacks, "Unable to complete callback: {}:{} ({})",
+								logger.error (nano::log::type::http_callbacks, "Unable to complete callback: {}:{} ({})",
 								address, port, ec.message ());
 								stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 							}
@@ -171,7 +171,7 @@ std::shared_ptr<boost::asio::ip::tcp::resolver> const & resolver)
 					}
 					else
 					{
-						logger.error (nano::log::type::rpc_callbacks, "Unable to send callback: {}:{} ({})", address, port, ec.message ());
+						logger.error (nano::log::type::http_callbacks, "Unable to send callback: {}:{} ({})", address, port, ec.message ());
 						stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 					}
 				});
@@ -179,7 +179,7 @@ std::shared_ptr<boost::asio::ip::tcp::resolver> const & resolver)
 			else
 			{
 				// Connection failed, try next endpoint if available
-				logger.error (nano::log::type::rpc_callbacks, "Unable to connect to callback address({}): {}:{} ({})",
+				logger.error (nano::log::type::http_callbacks, "Unable to connect to callback address({}): {}:{} ({})",
 				address, i_a->endpoint ().address ().to_string (), port, ec.message ());
 				stats.inc (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out);
 

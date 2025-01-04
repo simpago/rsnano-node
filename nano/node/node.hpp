@@ -200,8 +200,8 @@ public:
 	nano::peer_history & peer_history;
 	std::unique_ptr<nano::monitor> monitor_impl;
 	nano::monitor & monitor;
-	std::unique_ptr<nano::rpc_callbacks> rpc_callbacks_impl;
-	nano::rpc_callbacks & rpc_callbacks;
+	std::unique_ptr<nano::http_callbacks> http_callbacks_impl;
+	nano::http_callbacks & http_callbacks;
 
 public:
 	std::chrono::steady_clock::time_point const startup_time;

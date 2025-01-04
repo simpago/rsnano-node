@@ -194,8 +194,8 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 	peer_history{ *peer_history_impl },
 	monitor_impl{ std::make_unique<nano::monitor> (config.monitor, *this) },
 	monitor{ *monitor_impl },
-	rpc_callbacks_impl{ std::make_unique<nano::rpc_callbacks> (*this) },
-	rpc_callbacks{ *rpc_callbacks_impl },
+	http_callbacks_impl{ std::make_unique<nano::http_callbacks> (*this) },
+	http_callbacks{ *http_callbacks_impl },
 	startup_time{ std::chrono::steady_clock::now () },
 	node_seq{ seq }
 {
