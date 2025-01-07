@@ -5,10 +5,11 @@ use crate::{
     utils::{ThreadPool, ThreadPoolImpl},
 };
 use rsnano_core::BlockHash;
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{Ledger, Writer};
 use std::{
     cmp::min,
-    sync::{Arc, Condvar, Mutex},
+    ops::Deref,
+    sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::Duration,
 };
@@ -57,12 +58,12 @@ impl BoundedBacklog {
                 ledger: ledger.clone(),
                 config: config.clone(),
                 bucket_count,
-                can_rollback: Box::new(|_| true),
             }),
             workers: ThreadPoolImpl::create(1, "Bounded b notif".to_string()),
             config,
             stats,
             ledger,
+            can_rollback: RwLock::new(Box::new(|_| true)),
         });
 
         Self {
@@ -88,8 +89,8 @@ impl BoundedBacklog {
     }
 
     // Give other components a chance to veto a rollback
-    pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + 'static) {
-        self.backlog_impl.mutex.lock().unwrap().can_rollback = Box::new(f);
+    pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
+        *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
     }
 }
 
@@ -100,6 +101,7 @@ struct BoundedBacklogImpl {
     config: BoundedBacklogConfig,
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
+    can_rollback: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
 impl BoundedBacklogImpl {
@@ -132,7 +134,11 @@ impl BoundedBacklogImpl {
                     0
                 };
 
-                let targets = guard.gather_targets(min(target_count, self.config.batch_size));
+                let targets = guard.gather_targets(
+                    min(target_count, self.config.batch_size),
+                    &*self.can_rollback.read().unwrap(),
+                );
+
                 if !targets.is_empty() {
                     drop(guard);
                     self.stats.add(
@@ -170,7 +176,51 @@ impl BoundedBacklogImpl {
     }
 
     fn perform_rollbacks(&self, targets: &[BlockHash]) -> Vec<BlockHash> {
-        todo!()
+        self.stats
+            .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
+
+        let _guard = self.ledger.write_queue.wait(Writer::BoundedBacklog);
+        let tx = self.ledger.rw_txn();
+
+        let mut processed = Vec::new();
+        for hash in targets {
+            // Skip the rollback if the block is being used by the node, this should be race free as it's checked while holding the ledger write lock
+            if !(self.can_rollback.read().unwrap())(hash) {
+                self.stats
+                    .inc(StatType::BoundedBacklog, DetailType::RollbackSkipped);
+                continue;
+            }
+
+            // TODO:
+
+            //	// Here we check that the block is still OK to rollback, there could be a delay between gathering the targets and performing the rollbacks
+            //	if (auto block = ledger.any.block_get (transaction, hash))
+            //	{
+            //		logger.debug (nano::log::type::bounded_backlog, "Rolling back: {}, account: {}", hash.to_string (), block->account ().to_account ());
+
+            //		std::deque<std::shared_ptr<nano::block>> rollback_list;
+            //		bool error = ledger.rollback (transaction, hash, rollback_list);
+            //		stats.inc (nano::stat::type::bounded_backlog, error ? nano::stat::detail::rollback_failed : nano::stat::detail::rollback);
+
+            //		for (auto const & rollback : rollback_list)
+            //		{
+            //			processed.push_back (rollback->hash ());
+            //		}
+
+            //		// Notify observers of the rolled back blocks on a background thread, avoid dispatching notifications when holding ledger write transaction
+            //		workers.post ([this, rollback_list = std::move (rollback_list), root = block->qualified_root ()] {
+            //			// TODO: Calling block_processor's event here is not ideal, but duplicating these events is even worse
+            //			block_processor.rolled_back.notify (rollback_list, root);
+            //		});
+            //	}
+            //	else
+            //	{
+            //		stats.inc (nano::stat::type::bounded_backlog, nano::stat::detail::rollback_missing_block);
+            //		processed.push_back (hash);
+            //	}
+        }
+
+        processed
     }
 }
 
@@ -180,7 +230,6 @@ struct BacklogData {
     ledger: Arc<Ledger>,
     config: BoundedBacklogConfig,
     bucket_count: usize,
-    can_rollback: Box<dyn Fn(&BlockHash) -> bool + Send>,
 }
 
 impl BacklogData {
@@ -190,7 +239,11 @@ impl BacklogData {
             && self.index.len() > self.config.max_backlog
     }
 
-    fn gather_targets(&self, max_count: usize) -> Vec<BlockHash> {
+    fn gather_targets(
+        &self,
+        max_count: usize,
+        can_rollback: impl Fn(&BlockHash) -> bool,
+    ) -> Vec<BlockHash> {
         let mut targets = Vec::new();
 
         // Start rolling back from lowest index buckets first
@@ -200,7 +253,7 @@ impl BacklogData {
                 let count = min(max_count, self.config.batch_size);
                 let top = self.index.top(bucket, count, |hash| {
                     // Only rollback if the block is not being used by the node
-                    (self.can_rollback)(hash)
+                    can_rollback(hash)
                 });
                 targets.extend(top);
             }
