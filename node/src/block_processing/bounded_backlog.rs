@@ -79,7 +79,7 @@ impl BoundedBacklog {
     }
 
     pub fn start(&self) {
-        //TODO debug_assert not running
+        debug_assert!(self.thread.lock().unwrap().is_none());
 
         let backlog_impl = self.backlog_impl.clone();
         let handle = std::thread::Builder::new()
@@ -97,7 +97,18 @@ impl BoundedBacklog {
     }
 
     pub fn stop(&self) {
-        todo!()
+        self.backlog_impl.mutex.lock().unwrap().stopped = true;
+        self.backlog_impl.condition.notify_all();
+
+        let handle = self.thread.lock().unwrap().take();
+        if let Some(handle) = handle {
+            handle.join().unwrap();
+        }
+
+        let handle = self.scan_thread.lock().unwrap().take();
+        if let Some(handle) = handle {
+            handle.join().unwrap();
+        }
     }
 
     // Give other components a chance to veto a rollback
