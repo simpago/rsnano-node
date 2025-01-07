@@ -6,9 +6,10 @@ use crate::{
 };
 use rsnano_core::BlockHash;
 use rsnano_ledger::{Ledger, Writer};
+use rsnano_network::bandwidth_limiter::RateLimiter;
+use rsnano_store_lmdb::LmdbReadTransaction;
 use std::{
     cmp::min,
-    ops::Deref,
     sync::{Arc, Condvar, Mutex, RwLock},
     thread::JoinHandle,
     time::Duration,
@@ -38,6 +39,7 @@ impl Default for BoundedBacklogConfig {
 
 pub struct BoundedBacklog {
     thread: Mutex<Option<JoinHandle<()>>>,
+    scan_thread: Mutex<Option<JoinHandle<()>>>,
     backlog_impl: Arc<BoundedBacklogImpl>,
 }
 
@@ -59,6 +61,7 @@ impl BoundedBacklog {
                 ledger: ledger.clone(),
                 config: config.clone(),
                 bucket_count,
+                scan_limiter: RateLimiter::new(config.batch_size),
             }),
             workers: ThreadPoolImpl::create(1, "Bounded b notif".to_string()),
             config,
@@ -71,6 +74,7 @@ impl BoundedBacklog {
         Self {
             backlog_impl,
             thread: Mutex::new(None),
+            scan_thread: Mutex::new(None),
         }
     }
 
@@ -84,7 +88,12 @@ impl BoundedBacklog {
             .unwrap();
         *self.thread.lock().unwrap() = Some(handle);
 
-        //TODO start scan thread
+        let backlog_impl = self.backlog_impl.clone();
+        let handle = std::thread::Builder::new()
+            .name("Bounded b scan".to_owned())
+            .spawn(move || backlog_impl.run_scan())
+            .unwrap();
+        *self.scan_thread.lock().unwrap() = Some(handle);
     }
 
     pub fn stop(&self) {
@@ -236,6 +245,54 @@ impl BoundedBacklogImpl {
 
         processed
     }
+
+    fn run_scan(&self) {
+        let mut guard = self.mutex.lock().unwrap();
+        while !guard.stopped {
+            let mut last = BlockHash::zero();
+            while !guard.stopped {
+                //	wait
+                while !guard.scan_limiter.should_pass(self.config.batch_size) {
+                    guard = self
+                        .condition
+                        .wait_timeout(guard, Duration::from_millis(100))
+                        .unwrap()
+                        .0;
+                    if guard.stopped {
+                        return;
+                    }
+                }
+
+                self.stats
+                    .inc(StatType::BoundedBacklog, DetailType::LoopScan);
+
+                let batch = guard.index.next(&last, self.config.batch_size);
+                // If batch is empty, we iterated over all accounts in the index
+                if batch.is_empty() {
+                    break;
+                }
+
+                drop(guard);
+                {
+                    let tx = self.ledger.read_txn();
+                    for hash in batch {
+                        self.stats
+                            .inc(StatType::BoundedBacklog, DetailType::Scanned);
+                        self.update(&tx, &hash);
+                        last = hash;
+                    }
+                }
+                guard = self.mutex.lock().unwrap();
+            }
+        }
+    }
+
+    fn update(&self, tx: &LmdbReadTransaction, hash: &BlockHash) {
+        // Erase if the block is either confirmed or missing
+        if !self.ledger.unconfirmed_exists(tx, hash) {
+            self.mutex.lock().unwrap().index.erase_hash(hash);
+        }
+    }
 }
 
 struct BacklogData {
@@ -244,6 +301,7 @@ struct BacklogData {
     ledger: Arc<Ledger>,
     config: BoundedBacklogConfig,
     bucket_count: usize,
+    scan_limiter: RateLimiter,
 }
 
 impl BacklogData {
