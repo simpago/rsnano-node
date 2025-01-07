@@ -594,8 +594,12 @@ impl Ledger {
         &self,
         txn: &mut LmdbWriteTransaction,
         block: &BlockHash,
-    ) -> anyhow::Result<Vec<SavedBlock>> {
-        BlockRollbackPerformer::new(self, txn).roll_back(block)
+    ) -> Result<Vec<SavedBlock>, (anyhow::Error, Vec<SavedBlock>)> {
+        let mut performer = BlockRollbackPerformer::new(self, txn);
+        match performer.roll_back(block) {
+            Ok(()) => Ok(performer.rolled_back),
+            Err(e) => Err((e, performer.rolled_back)),
+        }
     }
 
     /// Returns the latest block with representative information

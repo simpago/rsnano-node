@@ -13,6 +13,7 @@ use std::{
     thread::JoinHandle,
     time::Duration,
 };
+use tracing::debug;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {
@@ -63,6 +64,7 @@ impl BoundedBacklog {
             config,
             stats,
             ledger,
+            block_processor,
             can_rollback: RwLock::new(Box::new(|_| true)),
         });
 
@@ -84,6 +86,7 @@ impl BoundedBacklog {
 
         //TODO start scan thread
     }
+
     pub fn stop(&self) {
         todo!()
     }
@@ -101,6 +104,7 @@ struct BoundedBacklogImpl {
     config: BoundedBacklogConfig,
     stats: Arc<Stats>,
     ledger: Arc<Ledger>,
+    block_processor: Arc<BlockProcessor>,
     can_rollback: RwLock<Box<dyn Fn(&BlockHash) -> bool + Send + Sync>>,
 }
 
@@ -180,7 +184,7 @@ impl BoundedBacklogImpl {
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
         let _guard = self.ledger.write_queue.wait(Writer::BoundedBacklog);
-        let tx = self.ledger.rw_txn();
+        let mut tx = self.ledger.rw_txn();
 
         let mut processed = Vec::new();
         for hash in targets {
@@ -191,33 +195,43 @@ impl BoundedBacklogImpl {
                 continue;
             }
 
-            // TODO:
+            // Here we check that the block is still OK to rollback, there could be a delay between gathering the targets and performing the rollbacks
+            if let Some(block) = self.ledger.any().get_block(&tx, hash) {
+                debug!(
+                    "Rolling back: {}, account: {}",
+                    hash,
+                    block.account().encode_account()
+                );
 
-            //	// Here we check that the block is still OK to rollback, there could be a delay between gathering the targets and performing the rollbacks
-            //	if (auto block = ledger.any.block_get (transaction, hash))
-            //	{
-            //		logger.debug (nano::log::type::bounded_backlog, "Rolling back: {}, account: {}", hash.to_string (), block->account ().to_account ());
+                let rollback_list = match self.ledger.rollback(&mut tx, &block.hash()) {
+                    Ok(rollback_list) => {
+                        self.stats
+                            .inc(StatType::BoundedBacklog, DetailType::Rollback);
+                        rollback_list
+                    }
+                    Err((_, rollback_list)) => {
+                        self.stats
+                            .inc(StatType::BoundedBacklog, DetailType::RollbackFailed);
+                        rollback_list
+                    }
+                };
 
-            //		std::deque<std::shared_ptr<nano::block>> rollback_list;
-            //		bool error = ledger.rollback (transaction, hash, rollback_list);
-            //		stats.inc (nano::stat::type::bounded_backlog, error ? nano::stat::detail::rollback_failed : nano::stat::detail::rollback);
+                for rollback in &rollback_list {
+                    processed.push(rollback.hash());
+                }
 
-            //		for (auto const & rollback : rollback_list)
-            //		{
-            //			processed.push_back (rollback->hash ());
-            //		}
-
-            //		// Notify observers of the rolled back blocks on a background thread, avoid dispatching notifications when holding ledger write transaction
-            //		workers.post ([this, rollback_list = std::move (rollback_list), root = block->qualified_root ()] {
-            //			// TODO: Calling block_processor's event here is not ideal, but duplicating these events is even worse
-            //			block_processor.rolled_back.notify (rollback_list, root);
-            //		});
-            //	}
-            //	else
-            //	{
-            //		stats.inc (nano::stat::type::bounded_backlog, nano::stat::detail::rollback_missing_block);
-            //		processed.push_back (hash);
-            //	}
+                // Notify observers of the rolled back blocks on a background thread, avoid dispatching notifications when holding ledger write transaction
+                let block_processor = self.block_processor.clone();
+                self.workers.post(Box::new(move || {
+                    // TODO: Calling block_processor's event here is not ideal, but duplicating these events is even worse
+                    block_processor
+                        .notify_blocks_rolled_back(&rollback_list, block.qualified_root());
+                }));
+            } else {
+                self.stats
+                    .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
+                processed.push(*hash);
+            }
         }
 
         processed

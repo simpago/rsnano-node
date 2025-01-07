@@ -23,9 +23,9 @@ impl<'a> BlockRollbackPerformer<'a> {
         }
     }
 
-    pub(crate) fn roll_back(mut self, block_hash: &BlockHash) -> anyhow::Result<Vec<SavedBlock>> {
+    pub(crate) fn roll_back(&mut self, block_hash: &BlockHash) -> anyhow::Result<()> {
         self.roll_back_block_and_successors(block_hash)?;
-        Ok(self.rolled_back)
+        Ok(())
     }
 
     fn roll_back_block_and_successors(&mut self, block_hash: &BlockHash) -> anyhow::Result<()> {

@@ -313,6 +313,14 @@ impl BlockProcessor {
     ) {
         self.processor_loop.on_blocks_rolled_back(callback);
     }
+
+    pub fn notify_blocks_rolled_back(&self, blocks: &[SavedBlock], root: QualifiedRoot) {
+        let guard = self.processor_loop.roll_back_observers.read().unwrap();
+        if let Some(callback) = &*guard {
+            callback(blocks, root)
+        }
+    }
+
     pub fn force(&self, block: Block) {
         self.processor_loop.force(block);
     }
@@ -712,13 +720,14 @@ impl BlockProcessorLoopImpl {
                         debug!("Blocks rolled back: {}", rollback_list.len());
                         rollback_list
                     }
-                    Err(_) => {
+                    Err((e, rollback_list)) => {
                         self.stats.inc(StatType::Ledger, DetailType::RollbackFailed);
                         error!(
+                            ?e,
                             "Failed to roll back: {} because it or a successor was confirmed",
                             successor
                         );
-                        Vec::new()
+                        rollback_list
                     }
                 };
 
