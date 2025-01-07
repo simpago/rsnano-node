@@ -1,13 +1,14 @@
-use super::{backlog_index::BacklogIndex, BacklogScan, BlockProcessor};
+use super::{backlog_index::BacklogIndex, BlockProcessor};
 use crate::{
-    cementation::ConfirmingSet,
     stats::{DetailType, StatType, Stats},
     utils::{ThreadPool, ThreadPoolImpl},
 };
-use rsnano_core::{utils::ContainerInfo, BlockHash};
+use rsnano_core::{
+    utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
+};
 use rsnano_ledger::{Ledger, Writer};
 use rsnano_network::bandwidth_limiter::RateLimiter;
-use rsnano_store_lmdb::LmdbReadTransaction;
+use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::min,
     sync::{Arc, Condvar, Mutex, RwLock},
@@ -112,6 +113,59 @@ impl BoundedBacklog {
     // Give other components a chance to veto a rollback
     pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
         *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
+    }
+
+    pub fn activate(
+        &self,
+        tx: &mut LmdbReadTransaction,
+        account: &Account,
+        account_info: &AccountInfo,
+        conf_info: &ConfirmationHeightInfo,
+    ) {
+        debug_assert!(conf_info.frontier != account_info.head);
+
+        let contains = |hash: &BlockHash| {
+            let guard = self.backlog_impl.mutex.lock().unwrap();
+            guard.index.contains(hash)
+        };
+
+        // Insert blocks into the index starting from the account head block
+        let mut block = self
+            .backlog_impl
+            .ledger
+            .any()
+            .get_block(tx, &account_info.head);
+
+        while let Some(blk) = block {
+            // We reached the confirmed frontier, no need to track more blocks
+            if blk.hash() == conf_info.frontier {
+                break;
+            }
+
+            // Check if the block is already in the backlog, avoids unnecessary ledger lookups
+            if contains(&blk.hash()) {
+                break;
+            }
+
+            let inserted = self.insert(tx, &blk);
+
+            // If the block was not inserted, we already have it in the backlog
+            if !inserted {
+                break;
+            }
+
+            tx.refresh_if_needed();
+
+            block = self
+                .backlog_impl
+                .ledger
+                .any()
+                .get_block(tx, &blk.previous());
+        }
+    }
+
+    pub fn insert(&self, tx: &LmdbReadTransaction, block: &SavedBlock) -> bool {
+        todo!()
     }
 
     pub fn container_info(&self) -> ContainerInfo {
