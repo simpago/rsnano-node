@@ -458,6 +458,7 @@ enum class detail
 	transition_priority,
 	transition_priority_failed,
 	election_cleanup,
+	activate_immediately,
 
 	// active_elections
 	started,
