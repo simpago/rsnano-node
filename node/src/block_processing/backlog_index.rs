@@ -5,11 +5,11 @@ use rsnano_core::{
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Clone)]
-struct BacklogEntry {
-    hash: BlockHash,
-    account: Account,
-    bucket_index: usize,
-    priority: UnixTimestamp,
+pub(super) struct BacklogEntry {
+    pub hash: BlockHash,
+    pub account: Account,
+    pub bucket_index: usize,
+    pub priority: UnixTimestamp,
 }
 
 impl BacklogEntry {

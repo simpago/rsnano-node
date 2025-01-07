@@ -1,6 +1,7 @@
 use rsnano_core::Amount;
 
-pub(crate) struct Bucketing {
+#[derive(Clone)]
+pub struct Bucketing {
     minimums: Vec<Amount>,
 }
 

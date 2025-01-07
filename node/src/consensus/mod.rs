@@ -26,6 +26,7 @@ mod vote_router;
 pub use active_elections::*;
 pub(crate) use bootstrap_weights::*;
 pub use bucket::*;
+pub use bucketing::Bucketing;
 pub use confirmation_solicitor::ConfirmationSolicitor;
 pub use election::*;
 pub use election_status::{ElectionStatus, ElectionStatusType};

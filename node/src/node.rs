@@ -714,7 +714,7 @@ impl Node {
         });
 
         let bounded_backlog = BoundedBacklog::new(
-            election_schedulers.priority.bucket_count(),
+            election_schedulers.priority.bucketing().clone(),
             config.backlog.clone(),
             ledger.clone(),
             block_processor.clone(),

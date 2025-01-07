@@ -53,8 +53,8 @@ impl PriorityScheduler {
         }
     }
 
-    pub fn bucket_count(&self) -> usize {
-        self.bucketing.bucket_count()
+    pub fn bucketing(&self) -> &Bucketing {
+        &self.bucketing
     }
 
     pub fn stop(&self) {

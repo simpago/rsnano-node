@@ -1,5 +1,9 @@
-use super::{backlog_index::BacklogIndex, BlockProcessor};
+use super::{
+    backlog_index::{BacklogEntry, BacklogIndex},
+    BlockProcessor,
+};
 use crate::{
+    consensus::Bucketing,
     stats::{DetailType, StatType, Stats},
     utils::{ThreadPool, ThreadPoolImpl},
 };
@@ -42,11 +46,12 @@ pub struct BoundedBacklog {
     thread: Mutex<Option<JoinHandle<()>>>,
     scan_thread: Mutex<Option<JoinHandle<()>>>,
     backlog_impl: Arc<BoundedBacklogImpl>,
+    bucketing: Bucketing,
 }
 
 impl BoundedBacklog {
     pub fn new(
-        bucket_count: usize,
+        bucketing: Bucketing,
         config: BoundedBacklogConfig,
         ledger: Arc<Ledger>,
         block_processor: Arc<BlockProcessor>,
@@ -56,10 +61,10 @@ impl BoundedBacklog {
             condition: Condvar::new(),
             mutex: Mutex::new(BacklogData {
                 stopped: false,
-                index: BacklogIndex::new(bucket_count),
+                index: BacklogIndex::new(bucketing.bucket_count()),
                 ledger: ledger.clone(),
                 config: config.clone(),
-                bucket_count,
+                bucket_count: bucketing.bucket_count(),
                 scan_limiter: RateLimiter::new(config.batch_size),
             }),
             workers: ThreadPoolImpl::create(1, "Bounded b notif".to_string()),
@@ -74,6 +79,7 @@ impl BoundedBacklog {
             backlog_impl,
             thread: Mutex::new(None),
             scan_thread: Mutex::new(None),
+            bucketing,
         }
     }
 
@@ -165,7 +171,21 @@ impl BoundedBacklog {
     }
 
     pub fn insert(&self, tx: &LmdbReadTransaction, block: &SavedBlock) -> bool {
-        todo!()
+        let (priority_balance, priority_timestamp) =
+            self.backlog_impl.ledger.block_priority(tx, block);
+        let bucket_index = self.bucketing.bucket_index(priority_balance);
+
+        self.backlog_impl
+            .mutex
+            .lock()
+            .unwrap()
+            .index
+            .insert(BacklogEntry {
+                hash: block.hash(),
+                account: block.account(),
+                bucket_index,
+                priority: priority_timestamp,
+            })
     }
 
     pub fn container_info(&self) -> ContainerInfo {
