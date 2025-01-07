@@ -717,9 +717,7 @@ impl Node {
             election_schedulers.priority.bucket_count(),
             config.backlog.clone(),
             ledger.clone(),
-            backlog_scan.clone(),
             block_processor.clone(),
-            confirming_set.clone(),
             stats.clone(),
         );
 
@@ -1255,6 +1253,7 @@ impl Node {
                 self.inbound_message_queue.container_info(),
             )
             .node("bandwidth", self.network.limiter.container_info())
+            .node("bounded_backlog", self.bounded_backlog.container_info())
             .finish()
     }
 
@@ -1493,6 +1492,7 @@ impl NodeExt for Arc<Node> {
         self.confirming_set.start();
         self.election_schedulers.start();
         self.backlog_scan.start();
+        self.bounded_backlog.start();
         self.bootstrap_server.start();
         self.bootstrap
             .initialize(&self.network_params.ledger.genesis_account);
@@ -1542,6 +1542,7 @@ impl NodeExt for Arc<Node> {
         self.distributed_work.stop();
         self.backlog_scan.stop();
         self.bootstrap.stop();
+        self.bounded_backlog.stop();
         self.rep_crawler.stop();
         self.unchecked.stop();
         self.block_processor.stop();

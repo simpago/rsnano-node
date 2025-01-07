@@ -4,7 +4,7 @@ use crate::{
     stats::{DetailType, StatType, Stats},
     utils::{ThreadPool, ThreadPoolImpl},
 };
-use rsnano_core::BlockHash;
+use rsnano_core::{utils::ContainerInfo, BlockHash};
 use rsnano_ledger::{Ledger, Writer};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_store_lmdb::LmdbReadTransaction;
@@ -48,9 +48,7 @@ impl BoundedBacklog {
         bucket_count: usize,
         config: BoundedBacklogConfig,
         ledger: Arc<Ledger>,
-        backlog_scan: Arc<BacklogScan>,
         block_processor: Arc<BlockProcessor>,
-        confirming_set: Arc<ConfirmingSet>,
         stats: Arc<Stats>,
     ) -> Self {
         let backlog_impl = Arc::new(BoundedBacklogImpl {
@@ -114,6 +112,14 @@ impl BoundedBacklog {
     // Give other components a chance to veto a rollback
     pub fn on_rolling_back(&self, f: impl Fn(&BlockHash) -> bool + Send + Sync + 'static) {
         *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
+    }
+
+    pub fn container_info(&self) -> ContainerInfo {
+        let guard = self.backlog_impl.mutex.lock().unwrap();
+        ContainerInfo::builder()
+            .leaf("backlog", guard.index.len(), 0)
+            .node("index", guard.index.container_info())
+            .finish()
     }
 }
 
