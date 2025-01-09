@@ -10,8 +10,8 @@ use rsnano_ledger::{
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{ChannelId, DropPolicy, TrafficType};
 use rsnano_node::{
-    block_processing::BlockSource,
-    config::NodeFlags,
+    block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
+    config::{NodeConfig, NodeFlags},
     consensus::{ActiveElectionsExt, VoteApplierExt},
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
@@ -28,7 +28,7 @@ use std::{
 use test_helpers::{
     activate_hashes, assert_always_eq, assert_never, assert_timely, assert_timely2,
     assert_timely_eq, assert_timely_eq2, assert_timely_msg, establish_tcp, get_available_port,
-    make_fake_channel, start_election, start_elections, System,
+    make_fake_channel, setup_chains, start_election, System,
 };
 
 #[test]
@@ -3163,4 +3163,39 @@ fn fork_keep() {
     assert_eq!(*winner_tally, Amount::MAX - Amount::raw(100));
     assert!(node1.block_exists(&send1.hash()));
     assert!(node2.block_exists(&send1.hash()));
+}
+
+#[test]
+fn bounded_backlog() {
+    let mut system = System::new();
+    let node = system
+        .build_node()
+        .config(NodeConfig {
+            backlog: BoundedBacklogConfig {
+                max_backlog: 10,
+                bucket_threshold: 2,
+                ..Default::default()
+            },
+            backlog_scan: BacklogScanConfig {
+                enabled: false,
+                ..Default::default()
+            },
+            ..System::default_config()
+        })
+        .finish();
+
+    let howmany_blocks = 64;
+    let howmany_chains = 16;
+    let chains = setup_chains(
+        &node,
+        howmany_chains,
+        howmany_blocks,
+        &DEV_GENESIS_KEY,
+        false,
+    );
+
+    node.backlog_scan.trigger();
+
+    assert_timely_eq(Duration::from_secs(20), || node.ledger.block_count(), 11);
+    // 10 + genesis
 }

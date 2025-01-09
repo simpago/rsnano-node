@@ -230,6 +230,14 @@ impl BoundedBacklog {
     }
 }
 
+impl Drop for BoundedBacklog {
+    fn drop(&mut self) {
+        // Thread must be stopped before destruction
+        debug_assert!(self.thread.lock().unwrap().is_none());
+        debug_assert!(self.scan_thread.lock().unwrap().is_none());
+    }
+}
+
 struct BoundedBacklogImpl {
     mutex: Mutex<BacklogData>,
     condition: Condvar,
