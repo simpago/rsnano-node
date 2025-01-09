@@ -1307,6 +1307,25 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
 
         if let Some(existing) = existing {
             election_result = Some(existing.election.clone());
+
+            // Upgrade to priority election to enable immediate vote broadcasting.
+            let previous_behavior = existing.election.behavior();
+            if election_behavior == ElectionBehavior::Priority
+                && previous_behavior != ElectionBehavior::Priority
+            {
+                let transitioned = existing.election.transition_priority();
+                if transitioned {
+                    *guard.count_by_behavior_mut(previous_behavior) -= 1;
+                    *guard.count_by_behavior_mut(election_behavior) += 1;
+                    self.stats
+                        .inc(StatType::ActiveElections, DetailType::TransitionPriority);
+                } else {
+                    self.stats.inc(
+                        StatType::ActiveElections,
+                        DetailType::TransitionPriorityFailed,
+                    );
+                }
+            }
         } else {
             if !self.recently_confirmed.root_exists(&root) {
                 inserted = true;

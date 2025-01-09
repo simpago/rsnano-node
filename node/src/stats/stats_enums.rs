@@ -416,6 +416,8 @@ pub enum DetailType {
     // active
     Insert,
     InsertFailed,
+    TransitionPriority,
+    TransitionPriorityFailed,
     ElectionCleanup,
 
     // active_elections
