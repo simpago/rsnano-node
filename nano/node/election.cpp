@@ -168,12 +168,24 @@ std::chrono::milliseconds nano::election::confirm_req_time () const
 
 void nano::election::send_confirm_req (nano::confirmation_solicitor & solicitor_a)
 {
+	debug_assert (!mutex.try_lock ());
+
 	if (confirm_req_time () < (std::chrono::steady_clock::now () - last_req))
 	{
 		if (!solicitor_a.add (*this))
 		{
 			last_req = std::chrono::steady_clock::now ();
 			++confirmation_request_count;
+
+			node.stats.inc (nano::stat::type::election, nano::stat::detail::confirmation_request);
+			node.logger.debug (nano::log::type::election, "Sent confirmation request for root: {} (behavior: {}, state: {}, voters: {}, blocks: {}, duration: {}ms, confirmation requests: {})",
+			qualified_root.to_string (),
+			to_string (behavior_m),
+			to_string (state_m),
+			status.voter_count,
+			status.block_count,
+			duration ().count (),
+			confirmation_request_count.load ());
 		}
 	}
 }
@@ -196,9 +208,10 @@ bool nano::election::transition_priority ()
 	behavior_m = nano::election_behavior::priority;
 	last_vote = std::chrono::steady_clock::time_point{}; // allow new outgoing votes immediately
 
-	node.logger.debug (nano::log::type::election, "Transitioned election behavior to priority from {} for root: {}",
+	node.logger.debug (nano::log::type::election, "Transitioned election behavior to priority from {} for root: {} (duration: {}ms)",
 	to_string (behavior_m),
-	qualified_root.to_string ());
+	qualified_root.to_string (),
+	duration ().count ());
 
 	return true;
 }
@@ -252,10 +265,18 @@ void nano::election::broadcast_block (nano::confirmation_solicitor & solicitor_a
 	{
 		if (!solicitor_a.broadcast (*this))
 		{
-			node.stats.inc (nano::stat::type::election, last_block_hash.is_zero () ? nano::stat::detail::broadcast_block_initial : nano::stat::detail::broadcast_block_repeat);
-
 			last_block = std::chrono::steady_clock::now ();
 			last_block_hash = status.winner->hash ();
+
+			node.stats.inc (nano::stat::type::election, last_block_hash.is_zero () ? nano::stat::detail::broadcast_block_initial : nano::stat::detail::broadcast_block_repeat);
+			node.logger.debug (nano::log::type::election, "Broadcasting current winner: {} for root: {} (behavior: {}, state: {}, voters: {}, blocks: {}, duration: {}ms)",
+			status.winner->hash ().to_string (),
+			qualified_root.to_string (),
+			to_string (behavior_m),
+			to_string (state_m),
+			status.voter_count,
+			status.block_count,
+			duration ().count ());
 		}
 	}
 }

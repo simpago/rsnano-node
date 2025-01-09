@@ -21,6 +21,7 @@ enum class vote_code
 };
 
 nano::stat::detail to_stat_detail (vote_code);
+std::string_view to_string (vote_code);
 
 enum class vote_source
 {
@@ -30,6 +31,7 @@ enum class vote_source
 };
 
 nano::stat::detail to_stat_detail (vote_source);
+std::string_view to_string (vote_source);
 
 // This class routes votes to their associated election
 // This class holds a weak_ptr as this container does not own the elections

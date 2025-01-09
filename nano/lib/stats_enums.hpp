@@ -284,6 +284,7 @@ enum class detail
 	broadcast_block_repeat,
 	confirm_once,
 	confirm_once_failed,
+	confirmation_request,
 
 	// election types
 	manual,
