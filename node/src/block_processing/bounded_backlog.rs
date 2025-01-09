@@ -152,6 +152,11 @@ impl BoundedBacklog {
         }
     }
 
+    fn contains(&self, hash: &BlockHash) -> bool {
+        let guard = self.backlog_impl.mutex.lock().unwrap();
+        guard.index.contains(hash)
+    }
+
     fn activate(
         &self,
         tx: &mut LmdbReadTransaction,
@@ -160,11 +165,6 @@ impl BoundedBacklog {
         conf_info: &ConfirmationHeightInfo,
     ) {
         debug_assert!(conf_info.frontier != account_info.head);
-
-        let contains = |hash: &BlockHash| {
-            let guard = self.backlog_impl.mutex.lock().unwrap();
-            guard.index.contains(hash)
-        };
 
         // Insert blocks into the index starting from the account head block
         let mut block = self
@@ -180,7 +180,7 @@ impl BoundedBacklog {
             }
 
             // Check if the block is already in the backlog, avoids unnecessary ledger lookups
-            if contains(&blk.hash()) {
+            if self.contains(&blk.hash()) {
                 break;
             }
 
