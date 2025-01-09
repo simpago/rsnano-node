@@ -733,7 +733,7 @@ impl Node {
         let backlog_w = Arc::downgrade(&bounded_backlog);
         backlog_scan.on_batch_scanned(move |batch| {
             if let Some(backlog) = backlog_w.upgrade() {
-                // TODO
+                backlog.erase_accounts(batch.iter().map(|i| i.account));
             }
         });
 
@@ -741,15 +741,15 @@ impl Node {
         let backlog_w = Arc::downgrade(&bounded_backlog);
         block_processor.on_batch_processed(Box::new(move |batch| {
             if let Some(backlog) = backlog_w.upgrade() {
-                // TODO
+                backlog.insert_batch(batch);
             }
         }));
 
         // Remove rolled back blocks from the backlog
         let backlog_w = Arc::downgrade(&bounded_backlog);
-        block_processor.on_blocks_rolled_back(move |blocks, rollback_root| {
+        block_processor.on_blocks_rolled_back(move |blocks, _rollback_root| {
             if let Some(backlog) = backlog_w.upgrade() {
-                // TODO
+                backlog.erase_hashes(blocks.iter().map(|b| b.hash()));
             }
         });
 
@@ -757,7 +757,7 @@ impl Node {
         let backlog_w = Arc::downgrade(&bounded_backlog);
         confirming_set.on_batch_cemented(Box::new(move |batch| {
             if let Some(backlog) = backlog_w.upgrade() {
-                // TODO
+                backlog.erase_hashes(batch.iter().map(|i| i.block.hash()));
             }
         }));
 

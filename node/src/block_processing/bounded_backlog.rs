@@ -1,7 +1,7 @@
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::ActivatedInfo,
-    BlockProcessor,
+    BlockProcessor, BlockProcessorContext,
 };
 use crate::{
     consensus::Bucketing,
@@ -11,7 +11,7 @@ use crate::{
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, BlockHash, ConfirmationHeightInfo, SavedBlock,
 };
-use rsnano_ledger::{Ledger, Writer};
+use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::bandwidth_limiter::RateLimiter;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
@@ -126,6 +126,31 @@ impl BoundedBacklog {
         let mut tx = self.backlog_impl.ledger.read_txn();
         for info in batch {
             self.activate(&mut tx, &info.account, &info.account_info, &info.conf_info);
+        }
+    }
+
+    pub fn insert_batch(&self, batch: &[(BlockStatus, Arc<BlockProcessorContext>)]) {
+        let tx = self.backlog_impl.ledger.read_txn();
+        for (result, context) in batch {
+            if *result == BlockStatus::Progress {
+                if let Some(block) = context.saved_block.lock().unwrap().clone() {
+                    self.insert(&tx, &block);
+                }
+            }
+        }
+    }
+
+    pub fn erase_accounts(&self, accounts: impl IntoIterator<Item = Account>) {
+        let mut guard = self.backlog_impl.mutex.lock().unwrap();
+        for account in accounts.into_iter() {
+            guard.index.erase_account(&account);
+        }
+    }
+
+    pub fn erase_hashes(&self, accounts: impl IntoIterator<Item = BlockHash>) {
+        let mut guard = self.backlog_impl.mutex.lock().unwrap();
+        for account in accounts.into_iter() {
+            guard.index.erase_hash(&account);
         }
     }
 
