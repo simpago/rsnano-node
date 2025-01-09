@@ -47,8 +47,9 @@ pub(crate) struct AsyncTag {
     pub account: Account,
     pub hash: BlockHash,
     pub count: usize,
-    pub id: u64,
+    pub cutoff: Timestamp,
     pub timestamp: Timestamp,
+    pub id: u64,
 }
 
 #[derive(Default)]
@@ -76,6 +77,10 @@ impl OrderedTags {
     #[allow(dead_code)]
     pub fn get(&self, id: u64) -> Option<&AsyncTag> {
         self.by_id.get(&id)
+    }
+
+    pub fn get_mut(&mut self, id: u64) -> Option<&mut AsyncTag> {
+        self.by_id.get_mut(&id)
     }
 
     pub fn count_by_account(&self, account: &Account, source: QuerySource) -> usize {

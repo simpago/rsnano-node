@@ -31,7 +31,6 @@ use frontier_scan::{FrontierScan, FrontierScanConfig};
 use num::clamp;
 use ordered_tags::QuerySource;
 use ordered_tags::QueryType;
-use priority::Priority;
 use rand::{thread_rng, Rng, RngCore};
 use rsnano_core::{
     utils::ContainerInfo, Account, AccountInfo, Block, BlockHash, BlockType, Frontier,
@@ -152,20 +151,44 @@ impl BootstrapService {
         }
     }
 
-    fn send(&self, channel_id: ChannelId, request: &Message) {
+    fn send(&self, channel_id: ChannelId, request: &Message, id: u64) -> bool {
         self.stats.inc(StatType::Bootstrap, DetailType::Request);
 
         let query_type = QueryType::from(request);
         self.stats
             .inc(StatType::BootstrapRequest, query_type.into());
 
-        // TODO: There is no feedback mechanism if bandwidth limiter starts dropping our requests
-        self.message_publisher.lock().unwrap().try_send(
+        let enqueued = self.message_publisher.lock().unwrap().try_send(
             channel_id,
             &request,
             DropPolicy::CanDrop,
             TrafficType::Bootstrap,
         );
+
+        // TODO: nano_node does execute the following logic only after the message
+        // was actually sent
+        let mut guard = self.mutex.lock().unwrap();
+        if let Some(tag) = guard.tags.get_mut(id) {
+            if enqueued {
+                self.stats.inc_dir(
+                    StatType::Bootstrap,
+                    DetailType::RequestSuccess,
+                    Direction::Out,
+                );
+                // After the request has been sent, the peer has a limited time to respond
+                tag.cutoff = self.clock.now() + self.config.request_timeout;
+            } else {
+                self.stats.inc_dir(
+                    StatType::Bootstrap,
+                    DetailType::RequestFailed,
+                    Direction::Out,
+                );
+                guard.tags.remove(id);
+            }
+        }
+
+        // TODO: Return channel send result
+        true
     }
 
     fn create_asc_pull_request(&self, tag: &AsyncTag) -> Message {
@@ -271,11 +294,11 @@ impl BootstrapService {
         channel_id
     }
 
-    fn wait_priority(&self) -> (Account, Priority) {
-        let mut result = (Account::zero(), Priority::ZERO);
+    fn wait_priority(&self) -> PriorityResult {
+        let mut result = PriorityResult::default();
         self.wait(|i| {
             result = i.next_priority(&self.stats, self.clock.now());
-            !result.0.is_zero()
+            !result.account.is_zero()
         });
         result
     }
@@ -304,7 +327,13 @@ impl BootstrapService {
         result
     }
 
-    fn request(&self, account: Account, count: usize, channel_id: ChannelId, source: QuerySource) {
+    fn request(
+        &self,
+        account: Account,
+        count: usize,
+        channel_id: ChannelId,
+        source: QuerySource,
+    ) -> bool {
         let account_info = {
             let tx = self.ledger.read_txn();
             self.ledger.store.account.get(&tx, &account)
@@ -314,7 +343,7 @@ impl BootstrapService {
 
         let request = self.create_blocks_request(id, account, account_info, count, source, now);
 
-        self.send(channel_id, &request);
+        self.send(channel_id, &request, id)
     }
 
     fn create_blocks_request(
@@ -380,6 +409,7 @@ impl BootstrapService {
             id,
             account,
             timestamp: now,
+            cutoff: now + self.config.request_timeout * 4,
             query_type,
             start,
             source,
@@ -405,6 +435,7 @@ impl BootstrapService {
             hash,
             count: 0,
             id,
+            cutoff: now + self.config.request_timeout * 4,
             timestamp: now,
         };
 
@@ -417,19 +448,36 @@ impl BootstrapService {
             return;
         };
 
-        let (account, priority) = self.wait_priority();
-        if account.is_zero() {
+        let result = self.wait_priority();
+        if result.account.is_zero() {
             return;
         }
 
+        // Decide how many blocks to request
         let min_pull_count = 2;
-        let count = clamp(
-            f64::from(priority) as usize,
+        let pull_count = clamp(
+            f64::from(result.priority) as usize,
             min_pull_count,
             BootstrapServer::MAX_BLOCKS,
         );
 
-        self.request(account, count, channel_id, QuerySource::Priority);
+        let sent = self.request(
+            result.account,
+            pull_count,
+            channel_id,
+            QuerySource::Priority,
+        );
+
+        // Only cooldown accounts that are likely to have more blocks
+        // This is to avoid requesting blocks from the same frontier multiple times, before the block processor had a chance to process them
+        // Not throttling accounts that are probably up-to-date allows us to evict them from the priority set faster
+        if sent && result.fails == 0 {
+            self.mutex
+                .lock()
+                .unwrap()
+                .accounts
+                .timestamp_set(&result.account, self.clock.now());
+        }
     }
 
     fn run_priorities(&self) {
@@ -482,7 +530,7 @@ impl BootstrapService {
         let request =
             self.create_account_info_request(id, blocking, QuerySource::Dependencies, now);
 
-        self.send(channel_id, &request);
+        self.send(channel_id, &request, id);
     }
 
     fn run_frontiers(&self) {
@@ -524,10 +572,11 @@ impl BootstrapService {
             hash: BlockHash::zero(),
             count: 0,
             id,
+            cutoff: timestamp + self.config.request_timeout * 4,
             timestamp,
         };
         let message = self.create_asc_pull_request(&tag);
-        self.send(channel, &message);
+        self.send(channel, &message, id);
     }
 
     fn wait_frontier(&self) -> Account {
@@ -777,31 +826,37 @@ impl BootstrapService {
                 self.stats
                     .inc(StatType::BootstrapVerifyBlocks, DetailType::NothingNew);
 
-                let mut guard = self.mutex.lock().unwrap();
-                match guard.accounts.priority_down(&tag.account) {
-                    PriorityDownResult::Deprioritized => {
-                        self.stats
-                            .inc(StatType::BootstrapAccountSets, DetailType::Deprioritize);
+                {
+                    let mut guard = self.mutex.lock().unwrap();
+                    match guard.accounts.priority_down(&tag.account) {
+                        PriorityDownResult::Deprioritized => {
+                            self.stats
+                                .inc(StatType::BootstrapAccountSets, DetailType::Deprioritize);
+                        }
+                        PriorityDownResult::Erased => {
+                            self.stats
+                                .inc(StatType::BootstrapAccountSets, DetailType::Deprioritize);
+                            self.stats.inc(
+                                StatType::BootstrapAccountSets,
+                                DetailType::PriorityEraseThreshold,
+                            );
+                        }
+                        PriorityDownResult::AccountNotFound => {
+                            self.stats.inc(
+                                StatType::BootstrapAccountSets,
+                                DetailType::DeprioritizeFailed,
+                            );
+                        }
+                        PriorityDownResult::InvalidAccount => {}
                     }
-                    PriorityDownResult::Erased => {
-                        self.stats
-                            .inc(StatType::BootstrapAccountSets, DetailType::Deprioritize);
-                        self.stats.inc(
-                            StatType::BootstrapAccountSets,
-                            DetailType::PriorityEraseThreshold,
-                        );
+
+                    guard.accounts.timestamp_reset(&tag.account);
+
+                    if tag.source == QuerySource::Database {
+                        guard.throttle.add(false);
                     }
-                    PriorityDownResult::AccountNotFound => {
-                        self.stats.inc(
-                            StatType::BootstrapAccountSets,
-                            DetailType::DeprioritizeFailed,
-                        );
-                    }
-                    PriorityDownResult::InvalidAccount => {}
                 }
-                if tag.source == QuerySource::Database {
-                    guard.throttle.add(false);
-                }
+                self.condition.notify_all();
                 true
             }
             VerifyResult::Invalid => {
@@ -1149,20 +1204,18 @@ impl BootstrapLogic {
             .count()
     }
 
-    fn next_priority(&mut self, stats: &Stats, now: Timestamp) -> (Account, Priority) {
-        let account = self.accounts.next_priority(now, |account| {
+    fn next_priority(&mut self, stats: &Stats, now: Timestamp) -> PriorityResult {
+        let next = self.accounts.next_priority(now, |account| {
             self.tags.count_by_account(account, QuerySource::Priority) < 4
         });
 
-        if account.is_zero() {
+        if next.account.is_zero() {
             return Default::default();
         }
 
         stats.inc(StatType::BootstrapNext, DetailType::NextPriority);
-        self.accounts.timestamp_set(&account, now);
 
-        // TODO: Priority could be returned by the accounts.next_priority() call
-        (account, self.accounts.priority(&account))
+        next
     }
 
     /* Gets the next account from the database */
@@ -1218,8 +1271,7 @@ impl BootstrapLogic {
             self.config.throttle_coefficient,
         ));
 
-        let cutoff = now - self.config.request_timeout;
-        let should_timeout = |tag: &AsyncTag| tag.timestamp < cutoff;
+        let should_timeout = |tag: &AsyncTag| tag.cutoff < now;
 
         while let Some(front) = self.tags.front() {
             if !should_timeout(front) {

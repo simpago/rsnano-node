@@ -123,7 +123,7 @@ impl OrderedPriorities {
         &self,
         cutoff: Timestamp,
         filter: impl Fn(&Account) -> bool,
-    ) -> Option<Account> {
+    ) -> Option<&PriorityEntry> {
         self.by_priority
             .values()
             .flatten()
@@ -136,7 +136,6 @@ impl OrderedPriorities {
                 }
                 filter(&entry.account)
             })
-            .map(|e| e.account)
     }
 
     pub fn remove(&mut self, account: &Account) -> Option<PriorityEntry> {
@@ -278,7 +277,7 @@ mod tests {
                 .next_priority(Timestamp::new_test_instance(), |_account| true)
                 .unwrap();
 
-            assert_eq!(next, account);
+            assert_eq!(next.account, account);
         }
 
         #[test]
@@ -292,7 +291,7 @@ mod tests {
                 .next_priority(Timestamp::new_test_instance(), |_account| true)
                 .unwrap();
 
-            assert_eq!(next, Account::from(2));
+            assert_eq!(next.account, Account::from(2));
         }
 
         #[test]
@@ -312,7 +311,7 @@ mod tests {
                 .next_priority(now - Duration::from_secs(30), |_account| true)
                 .unwrap();
 
-            assert_eq!(next, Account::from(3));
+            assert_eq!(next.account, Account::from(3));
         }
 
         #[test]
@@ -331,7 +330,7 @@ mod tests {
                 })
                 .unwrap();
 
-            assert_eq!(next, Account::from(1));
+            assert_eq!(next.account, Account::from(1));
         }
     }
 
@@ -360,7 +359,7 @@ mod tests {
         let next = priorities
             .next_priority(Timestamp::new_test_instance(), |_| true)
             .unwrap();
-        assert_eq!(next, Account::from(2));
+        assert_eq!(next.account, Account::from(2));
     }
 
     #[test]

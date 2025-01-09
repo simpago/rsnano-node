@@ -122,6 +122,7 @@ pub enum DetailType {
     Erased,
     Request,
     RequestFailed,
+    RequestSuccess,
     Broadcast,
     Cleanup,
     Top,

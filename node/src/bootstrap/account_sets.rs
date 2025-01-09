@@ -53,6 +53,7 @@ pub(crate) enum PriorityDownResult {
 impl AccountSets {
     pub const PRIORITY_INITIAL: Priority = Priority::new(2.0);
     pub const PRIORITY_INCREASE: Priority = Priority::new(2.0);
+    pub const PRIORITY_DIVIDE: f64 = 2.0;
     pub const PRIORITY_MAX: Priority = Priority::new(128.0);
     pub const PRIORITY_CUTOFF: Priority = Priority::new(0.15);
     pub const MAX_FAILS: usize = 3;
@@ -109,12 +110,15 @@ impl AccountSets {
         }
 
         let change_result = self.priorities.modify(account, |entry| {
+            let priority = entry.priority / Self::PRIORITY_DIVIDE;
             if entry.fails >= AccountSets::MAX_FAILS
                 || entry.fails as f64 >= entry.priority.as_f64()
+                || priority <= Self::PRIORITY_CUTOFF
             {
                 false // delete entry
             } else {
                 entry.fails += 1;
+                entry.priority = priority;
                 true // keep
             }
         });
@@ -235,16 +239,26 @@ impl AccountSets {
     }
 
     /// Sampling
-    pub fn next_priority(&self, now: Timestamp, filter: impl Fn(&Account) -> bool) -> Account {
+    pub fn next_priority(
+        &self,
+        now: Timestamp,
+        filter: impl Fn(&Account) -> bool,
+    ) -> PriorityResult {
         if self.priorities.is_empty() {
-            return Account::zero();
+            return Default::default();
         }
 
         let cutoff = now - self.config.cooldown;
 
-        self.priorities
-            .next_priority(cutoff, filter)
-            .unwrap_or_default()
+        let Some(entry) = self.priorities.next_priority(cutoff, filter) else {
+            return Default::default();
+        };
+
+        PriorityResult {
+            account: entry.account,
+            priority: entry.priority,
+            fails: entry.fails,
+        }
     }
 
     pub fn next_blocking(&self, filter: impl Fn(&BlockHash) -> bool) -> BlockHash {
@@ -349,6 +363,13 @@ impl Default for AccountSets {
     }
 }
 
+#[derive(Default)]
+pub struct PriorityResult {
+    pub account: Account,
+    pub priority: Priority,
+    pub fails: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,7 +436,10 @@ mod tests {
         assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
 
         sets.priority_down(&account);
-        assert_eq!(sets.priority(&account), AccountSets::PRIORITY_INITIAL);
+        assert_eq!(
+            sets.priority(&account),
+            AccountSets::PRIORITY_INITIAL / AccountSets::PRIORITY_DIVIDE
+        );
     }
 
     #[test]
