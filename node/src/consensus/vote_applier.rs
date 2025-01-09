@@ -262,6 +262,7 @@ impl VoteApplierExt for Arc<VoteApplier> {
                 && self.node_config.enable_voting
                 && self.wallets.voting_reps_count() > 0
             {
+                election_lock.status.vote_broadcast_count += 1;
                 self.vote_generators
                     .generate_final_vote(&election.root, &status_winner_hash);
             }

@@ -53,6 +53,7 @@ pub struct ElectionStatus {
     pub election_end: SystemTime,
     pub election_duration: Duration,
     pub election_status_type: ElectionStatusType,
+    pub vote_broadcast_count: u32,
 }
 
 impl Default for ElectionStatus {
@@ -67,6 +68,7 @@ impl Default for ElectionStatus {
             election_end: SystemTime::now(),
             election_duration: Duration::ZERO,
             election_status_type: ElectionStatusType::InactiveConfirmationHeight,
+            vote_broadcast_count: 0,
         }
     }
 }

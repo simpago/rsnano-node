@@ -303,17 +303,15 @@ mod election_scheduler {
         assert_timely2(|| node.vote_router.active(&block.hash()));
         let election = node.active.election(&block.qualified_root()).unwrap();
         assert_eq!(election.behavior(), ElectionBehavior::Optimistic);
+        assert_timely_eq2(
+            || election.mutex.lock().unwrap().status.vote_broadcast_count,
+            1,
+        );
 
         // Confirm first block to allow upgrading second block's election
         node.confirm(blocks[howmany_blocks - 1].hash());
 
         // Attempt to start priority election for second block
-        node.stats.clear();
-        assert_eq!(
-            0,
-            node.stats
-                .count(StatType::Election, DetailType::BroadcastVote, Direction::In)
-        );
         node.active
             .insert(block.clone(), ElectionBehavior::Priority, None);
 
@@ -329,11 +327,8 @@ mod election_scheduler {
         );
         // Verify vote broadcast after transitioning
         assert_timely_eq2(
-            || {
-                node.stats
-                    .count(StatType::Election, DetailType::BroadcastVote, Direction::In)
-            },
-            1,
+            || election.mutex.lock().unwrap().status.vote_broadcast_count,
+            2,
         );
         assert!(node.active.active(block));
     }

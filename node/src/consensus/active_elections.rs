@@ -599,6 +599,7 @@ impl ActiveElections {
         if self.node_config.enable_voting && self.wallets.voting_reps_count() > 0 {
             self.stats
                 .inc(StatType::Election, DetailType::BroadcastVote);
+            election_guard.status.vote_broadcast_count += 1;
 
             if election_guard.is_confirmed()
                 || self
