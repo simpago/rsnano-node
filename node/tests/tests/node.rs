@@ -883,6 +883,31 @@ fn fork_multi_flip() {
     );
 }
 
+// This test is racy, there is no guarantee that the election won't be confirmed until all forks are fully processed
+#[test]
+fn fork_publish() {
+    let mut system = System::new();
+    let node1 = system.make_node();
+    node1.insert_into_wallet(&DEV_GENESIS_KEY);
+    let key1 = PrivateKey::new();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let mut fork_lattice = lattice.clone();
+    let send1 = lattice.genesis().send(&key1, 100);
+    let key2 = PrivateKey::new();
+    let send2 = fork_lattice.genesis().send(&key2, 100);
+    node1.process_active(send1.clone());
+    node1.process_active(send2.clone());
+    assert_timely_eq2(|| node1.active.len(), 1);
+    assert_timely2(|| node1.active.active(&send2));
+    let election = node1.active.election(&send1.qualified_root()).unwrap();
+    // Wait until the genesis rep activated & makes vote
+    assert_timely_eq2(|| election.vote_count(), 2);
+    let votes1 = election.mutex.lock().unwrap().last_votes.clone();
+    let existing1 = votes1.get(&DEV_GENESIS_PUB_KEY).unwrap();
+    assert_eq!(send1.hash(), existing1.hash);
+    assert_eq!(election.winner_hash(), Some(send1.hash()));
+}
+
 // In test case there used to be a race condition, it was worked around in:.
 // https://github.com/nanocurrency/nano-node/pull/4091
 // The election and the processing of block send2 happen in parallel.
