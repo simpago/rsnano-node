@@ -1047,6 +1047,8 @@ void nano::bootstrap_service::process_frontiers (std::deque<std::pair<nano::acco
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::outdated, outdated);
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::pending, pending);
 
+	logger.debug (nano::log::type::bootstrap, "Processed {} frontiers of which outdated: {}, pending: {}", frontiers.size (), outdated, pending);
+
 	nano::lock_guard<nano::mutex> guard{ mutex };
 
 	for (auto const & account : result)
