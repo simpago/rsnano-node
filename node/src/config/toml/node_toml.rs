@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::NodeConfig;
+use bounded_backlog_toml::BoundedBacklogToml;
 use rsnano_core::{utils::Peer, Account, Amount};
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, time::Duration};
@@ -26,6 +27,7 @@ pub struct NodeToml {
     pub io_threads: Option<u32>,
     pub max_queued_requests: Option<u32>,
     pub max_unchecked_blocks: Option<u32>,
+    pub max_backlog: Option<usize>,
     pub max_work_generate_multiplier: Option<f64>,
     pub network_threads: Option<u32>,
     pub online_weight_minimum: Option<String>,
@@ -68,6 +70,7 @@ pub struct NodeToml {
     pub vote_processor: Option<VoteProcessorToml>,
     pub websocket: Option<WebsocketToml>,
     pub backlog_scan: Option<BacklogScanToml>,
+    pub bounded_backlog: Option<BoundedBacklogToml>,
 }
 
 impl NodeConfig {
@@ -136,6 +139,9 @@ impl NodeConfig {
         }
         if let Some(max_unchecked_blocks) = toml.max_unchecked_blocks {
             self.max_unchecked_blocks = max_unchecked_blocks;
+        }
+        if let Some(max) = toml.max_backlog {
+            self.bounded_backlog.max_backlog = max;
         }
         if let Some(max_work_generate_multiplier) = toml.max_work_generate_multiplier {
             self.max_work_generate_multiplier = max_work_generate_multiplier;
@@ -342,8 +348,14 @@ impl NodeConfig {
                 self.callback_target = target.clone();
             }
         }
-        if let Some(backlog) = &toml.backlog_scan {
-            self.backlog_scan.merge_toml(&backlog);
+        if let Some(toml) = &toml.backlog_scan {
+            self.backlog_scan.merge_toml(toml);
+        }
+        self.bounded_backlog.merge_toml(toml);
+        if let Some(toml) = &toml.bounded_backlog {
+            if let Some(enable) = toml.enable {
+                self.enable_bounded_backlog = enable;
+            }
         }
     }
 }
@@ -371,6 +383,7 @@ impl From<&NodeConfig> for NodeToml {
             io_threads: Some(config.io_threads),
             max_queued_requests: Some(config.max_queued_requests),
             max_unchecked_blocks: Some(config.max_unchecked_blocks),
+            max_backlog: Some(config.bounded_backlog.max_backlog),
             max_work_generate_multiplier: Some(config.max_work_generate_multiplier),
             network_threads: Some(config.network_threads),
             online_weight_minimum: Some(config.online_weight_minimum.to_string_dec()),
@@ -445,7 +458,8 @@ impl From<&NodeConfig> for NodeToml {
             httpcallback: Some(config.into()),
             rep_crawler: Some(config.into()),
             experimental: Some(config.into()),
-            backlog_scan: (Some((&config.backlog_scan).into())),
+            backlog_scan: Some((&config.backlog_scan).into()),
+            bounded_backlog: Some(config.into()),
         }
     }
 }

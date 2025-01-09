@@ -109,12 +109,19 @@ mod tests {
         max_work_generate_multiplier = 999
         request_aggregator_threads = 999
         max_unchecked_blocks = 999
+        max_backlog = 999
         frontiers_confirmation = "always"
 
         [node.backlog_scan]
         enable = false
         batch_size = 999
         rate_limit = 999
+
+        [node.bounded_backlog]
+        enable = false
+        batch_size = 999
+        max_queued_notifications = 999
+        scan_rate = 999
 
         [node.block_processor]
         max_peer_queue = 999
@@ -935,6 +942,26 @@ mod tests {
         assert_ne!(
             deserialized.rpc.child_process.rpc_path,
             default_cfg.rpc.child_process.rpc_path
+        );
+        assert_ne!(
+            deserialized.node.bounded_backlog.max_backlog,
+            default_cfg.node.bounded_backlog.max_backlog
+        );
+        assert_ne!(
+            deserialized.node.enable_bounded_backlog,
+            default_cfg.node.enable_bounded_backlog
+        );
+        assert_ne!(
+            deserialized.node.bounded_backlog.batch_size,
+            default_cfg.node.bounded_backlog.batch_size
+        );
+        assert_ne!(
+            deserialized.node.bounded_backlog.max_queued_notifications,
+            default_cfg.node.bounded_backlog.max_queued_notifications
+        );
+        assert_ne!(
+            deserialized.node.bounded_backlog.scan_rate,
+            default_cfg.node.bounded_backlog.scan_rate
         );
     }
 

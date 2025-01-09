@@ -25,18 +25,18 @@ use tracing::debug;
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {
     pub max_backlog: usize,
-    pub overfill_factor: f64,
     pub batch_size: usize,
     pub max_queued_notifications: usize,
+    pub scan_rate: usize,
 }
 
 impl Default for BoundedBacklogConfig {
     fn default() -> Self {
         Self {
             max_backlog: 100_000,
-            overfill_factor: 1.5,
             batch_size: 32,
             max_queued_notifications: 128,
+            scan_rate: 64,
         }
     }
 }
@@ -64,7 +64,7 @@ impl BoundedBacklog {
                 ledger: ledger.clone(),
                 config: config.clone(),
                 bucket_count: bucketing.bucket_count(),
-                scan_limiter: RateLimiter::new(config.batch_size),
+                scan_limiter: RateLimiter::new(config.scan_rate),
             }),
             workers: ThreadPoolImpl::create(1, "Bounded b notif".to_string()),
             config,

@@ -3,6 +3,7 @@ mod backlog_scan_toml;
 mod block_processor_toml;
 mod bootstrap_server_toml;
 mod bootstrap_toml;
+mod bounded_backlog_toml;
 mod daemon_toml;
 mod diagnostics_toml;
 mod experimental_toml;

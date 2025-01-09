@@ -3171,7 +3171,7 @@ fn bounded_backlog() {
     let node = system
         .build_node()
         .config(NodeConfig {
-            backlog: BoundedBacklogConfig {
+            bounded_backlog: BoundedBacklogConfig {
                 max_backlog: 10,
                 ..Default::default()
             },

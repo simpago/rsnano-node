@@ -47,6 +47,7 @@ pub struct NodeConfig {
     pub enable_optimistic_scheduler: bool,
     pub enable_hinted_scheduler: bool,
     pub enable_monitor: bool,
+    pub enable_bounded_backlog: bool,
     pub bootstrap_initiator_threads: u32,
     pub bootstrap_serving_threads: u32,
     pub block_processor_batch_max_time_ms: i64,
@@ -101,7 +102,7 @@ pub struct NodeConfig {
     pub confirming_set: ConfirmingSetConfig,
     pub monitor: MonitorConfig,
     pub backlog_scan: BacklogScanConfig,
-    pub backlog: BoundedBacklogConfig,
+    pub bounded_backlog: BoundedBacklogConfig,
     pub network_duplicate_filter_cutoff: u64,
 }
 
@@ -241,6 +242,7 @@ impl NodeConfig {
             enable_optimistic_scheduler: true,
             enable_hinted_scheduler: true,
             enable_monitor: true,
+            enable_bounded_backlog: true,
             bootstrap_initiator_threads: 1,
             bootstrap_serving_threads: 1,
             block_processor_batch_max_time_ms: block_processor_cfg.batch_max_time.as_millis()
@@ -328,7 +330,7 @@ impl NodeConfig {
             confirming_set: Default::default(),
             monitor: Default::default(),
             backlog_scan: Default::default(),
-            backlog: Default::default(),
+            bounded_backlog: Default::default(),
             network_duplicate_filter_cutoff: 60,
         }
     }

@@ -715,7 +715,7 @@ impl Node {
 
         let bounded_backlog = Arc::new(BoundedBacklog::new(
             election_schedulers.priority.bucketing().clone(),
-            config.backlog.clone(),
+            config.bounded_backlog.clone(),
             ledger.clone(),
             block_processor.clone(),
             stats.clone(),
@@ -1532,7 +1532,9 @@ impl NodeExt for Arc<Node> {
         self.confirming_set.start();
         self.election_schedulers.start();
         self.backlog_scan.start();
-        self.bounded_backlog.start();
+        if self.config.enable_bounded_backlog {
+            self.bounded_backlog.start();
+        }
         self.bootstrap_server.start();
         self.bootstrap
             .initialize(&self.network_params.ledger.genesis_account);
