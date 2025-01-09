@@ -3186,7 +3186,7 @@ fn bounded_backlog() {
 
     let howmany_blocks = 64;
     let howmany_chains = 16;
-    let chains = setup_chains(
+    setup_chains(
         &node,
         howmany_chains,
         howmany_blocks,

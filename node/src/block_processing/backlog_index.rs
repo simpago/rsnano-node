@@ -13,6 +13,7 @@ pub(super) struct BacklogEntry {
 }
 
 impl BacklogEntry {
+    #[allow(dead_code)]
     pub fn new_test_instance() -> Self {
         Self {
             hash: 100.into(),

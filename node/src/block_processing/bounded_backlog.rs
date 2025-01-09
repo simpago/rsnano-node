@@ -291,7 +291,7 @@ impl BoundedBacklogImpl {
                         DetailType::GatheredTargets,
                         targets.len() as u64,
                     );
-                    let processed = self.perform_rollbacks(&targets);
+                    let processed = self.perform_rollbacks(&targets, target_count);
                     guard = self.mutex.lock().unwrap();
 
                     // Erase rolled back blocks from the index
@@ -320,7 +320,7 @@ impl BoundedBacklogImpl {
         }
     }
 
-    fn perform_rollbacks(&self, targets: &[BlockHash]) -> Vec<BlockHash> {
+    fn perform_rollbacks(&self, targets: &[BlockHash], max_rollbacks: usize) -> Vec<BlockHash> {
         self.stats
             .inc(StatType::BoundedBacklog, DetailType::PerformingRollbacks);
 
@@ -368,6 +368,11 @@ impl BoundedBacklogImpl {
                     block_processor
                         .notify_blocks_rolled_back(&rollback_list, block.qualified_root());
                 }));
+
+                // Return early if we reached the maximum number of rollbacks
+                if processed.len() >= max_rollbacks {
+                    break;
+                }
             } else {
                 self.stats
                     .inc(StatType::BoundedBacklog, DetailType::RollbackMissingBlock);
