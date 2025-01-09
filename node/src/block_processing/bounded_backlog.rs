@@ -25,7 +25,6 @@ use tracing::debug;
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundedBacklogConfig {
     pub max_backlog: usize,
-    pub bucket_threshold: usize,
     pub overfill_factor: f64,
     pub batch_size: usize,
     pub max_queued_notifications: usize,
@@ -35,7 +34,6 @@ impl Default for BoundedBacklogConfig {
     fn default() -> Self {
         Self {
             max_backlog: 100_000,
-            bucket_threshold: 1_000,
             overfill_factor: 1.5,
             batch_size: 32,
             max_queued_notifications: 128,
@@ -460,7 +458,7 @@ impl BacklogData {
         // Start rolling back from lowest index buckets first
         for bucket in 0..self.bucket_count {
             // Only start rolling back if the bucket is over the threshold of unconfirmed blocks
-            if self.index.len_of_bucket(bucket) > self.config.bucket_threshold {
+            if self.index.len_of_bucket(bucket) > self.bucket_threshold() {
                 let count = min(max_count, self.config.batch_size);
                 let top = self.index.top(bucket, count, |hash| {
                     // Only rollback if the block is not being used by the node
@@ -470,5 +468,9 @@ impl BacklogData {
             }
         }
         targets
+    }
+
+    fn bucket_threshold(&self) -> usize {
+        self.config.max_backlog / self.bucket_count
     }
 }

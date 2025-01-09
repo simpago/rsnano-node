@@ -3173,7 +3173,6 @@ fn bounded_backlog() {
         .config(NodeConfig {
             backlog: BoundedBacklogConfig {
                 max_backlog: 10,
-                bucket_threshold: 2,
                 ..Default::default()
             },
             backlog_scan: BacklogScanConfig {
