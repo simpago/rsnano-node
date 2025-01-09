@@ -1385,6 +1385,12 @@ TEST (node, bootstrap_fork_open)
 {
 	nano::test::system system;
 	nano::node_config node_config (system.get_available_port ());
+	node_config.bootstrap.account_sets.cooldown = 100ms; // Reduce cooldown to speed up fork resolution
+	// Disable automatic election activation
+	node_config.backlog_scan.enable = false;
+	node_config.priority_scheduler.enable = false;
+	node_config.hinted_scheduler.enable = false;
+	node_config.optimistic_scheduler.enable = false;
 	auto node0 = system.add_node (node_config);
 	node_config.peering_port = system.get_available_port ();
 	auto node1 = system.add_node (node_config);
@@ -1411,26 +1417,30 @@ TEST (node, bootstrap_fork_open)
 				 .sign (key0.prv, key0.pub)
 				 .work (*system.work.generate (key0.pub))
 				 .build ();
+
 	// Both know about send0
 	ASSERT_EQ (nano::block_status::progress, node0->process (send0));
 	ASSERT_EQ (nano::block_status::progress, node1->process (send0));
+
 	// Confirm send0 to allow starting and voting on the following blocks
-	for (auto node : system.nodes)
-	{
-		node->start_election (node->block (node->latest (nano::dev::genesis_key.pub)));
-		ASSERT_TIMELY (1s, node->active.election (send0->qualified_root ()));
-		auto election = node->active.election (send0->qualified_root ());
-		ASSERT_NE (nullptr, election);
-		election->force_confirm ();
-		ASSERT_TIMELY (2s, node->active.empty ());
-	}
-	ASSERT_TIMELY (3s, node0->block_confirmed (send0->hash ()));
+	nano::test::confirm (*node0, { send0 });
+	nano::test::confirm (*node1, { send0 });
+	ASSERT_TIMELY (5s, node0->block_confirmed (send0->hash ()));
+	ASSERT_TIMELY (5s, node1->block_confirmed (send0->hash ()));
+
 	// They disagree about open0/open1
 	ASSERT_EQ (nano::block_status::progress, node0->process (open0));
+	node0->confirming_set.add (open0->hash ());
+	ASSERT_TIMELY (5s, node0->block_confirmed (open0->hash ()));
+
 	ASSERT_EQ (nano::block_status::progress, node1->process (open1));
+	ASSERT_TRUE (node1->block_or_pruned_exists (open1->hash ()));
+	node1->start_election (open1); // Start election for open block which is necessary to resolve the fork
+	ASSERT_TIMELY (5s, node1->active.active (*open1));
+
+	// Allow node0 to vote on its fork
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
-	ASSERT_FALSE (node1->block_or_pruned_exists (open0->hash ()));
-	ASSERT_TIMELY (1s, node1->active.empty ());
+
 	ASSERT_TIMELY (10s, !node1->block_or_pruned_exists (open1->hash ()) && node1->block_or_pruned_exists (open0->hash ()));
 }
 
