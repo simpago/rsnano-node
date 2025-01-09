@@ -311,5 +311,5 @@ fn election_behavior() {
     let chain = setup_chain(&node, 1, &DEV_GENESIS_KEY, false);
 
     let election = start_election(&node, &chain[0].hash());
-    assert_eq!(election.behavior, ElectionBehavior::Manual);
+    assert_eq!(election.behavior(), ElectionBehavior::Manual);
 }

@@ -629,8 +629,8 @@ impl ActiveElections {
         election: &'a Arc<Election>,
     ) {
         // Keep track of election count by election type
-        debug_assert!(guard.count_by_behavior(election.behavior) > 0);
-        *guard.count_by_behavior_mut(election.behavior) -= 1;
+        debug_assert!(guard.count_by_behavior(election.behavior()) > 0);
+        *guard.count_by_behavior_mut(election.behavior()) -= 1;
 
         let election_winner: BlockHash;
         let election_state;
@@ -663,7 +663,7 @@ impl ActiveElections {
         );
         self.stats
             .inc(StatType::ActiveElectionsStopped, state.into());
-        self.stats.inc(state.into(), election.behavior.into());
+        self.stats.inc(state.into(), election.behavior().into());
 
         trace!(election = ?election, "active stopped");
 
@@ -674,7 +674,7 @@ impl ActiveElections {
                 .map(|k| k.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            election.behavior,
+            election.behavior(),
             election_state
         );
 
@@ -724,8 +724,8 @@ impl ActiveElections {
     }
 
     /// Calculates time delay between broadcasting confirmation requests
-    pub fn confirm_req_time(&self, election: &Election) -> Duration {
-        match election.behavior {
+    fn confirm_req_time(&self, election_data: &ElectionData) -> Duration {
+        match election_data.behavior {
             ElectionBehavior::Priority | ElectionBehavior::Manual | ElectionBehavior::Hinted => {
                 self.base_latency() * 5
             }
@@ -899,7 +899,7 @@ impl ActiveElections {
             }
         }
 
-        if !guard.is_confirmed() && election.time_to_live() < election.election_start.elapsed() {
+        if !guard.is_confirmed() && guard.time_to_live() < election.election_start.elapsed() {
             // It is possible the election confirmed while acquiring the mutex
             // state_change returning true would indicate it
             let state = guard.state;
@@ -922,7 +922,7 @@ impl ActiveElections {
         election: &Election,
         election_guard: &MutexGuard<ElectionData>,
     ) {
-        if self.confirm_req_time(election) < election.last_req_elapsed() {
+        if self.confirm_req_time(election_guard) < election.last_req_elapsed() {
             if !solicitor.add(election, election_guard) {
                 election.set_last_req();
                 election
@@ -1333,7 +1333,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 self.vote_router.connect(hash, Arc::downgrade(&election));
 
                 // Keep track of election count by election type
-                *guard.count_by_behavior_mut(election.behavior) += 1;
+                *guard.count_by_behavior_mut(election.behavior()) += 1;
 
                 self.stats
                     .inc(StatType::ActiveElections, DetailType::Started);

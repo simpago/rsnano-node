@@ -29,7 +29,6 @@ pub struct Election {
     // These are modified while not holding the mutex from transition_time only
     last_block: RwLock<Instant>,
     pub last_req: RwLock<Option<Instant>>,
-    pub behavior: ElectionBehavior,
     pub election_start: Instant,
     pub confirmation_action: Box<dyn Fn(Block) + Send + Sync>,
     pub live_vote_action: Box<dyn Fn(PublicKey) + Send + Sync>,
@@ -69,6 +68,7 @@ impl Election {
             final_weight: Amount::zero(),
             last_vote: None,
             last_block_hash: BlockHash::zero(),
+            behavior,
         };
 
         Self {
@@ -79,7 +79,6 @@ impl Election {
             is_quorum: AtomicBool::new(false),
             confirmation_request_count: AtomicU32::new(0),
             last_block: RwLock::new(Instant::now()),
-            behavior,
             election_start: Instant::now(),
             last_req: RwLock::new(None),
             confirmation_action,
@@ -137,13 +136,6 @@ impl Election {
         self.mutex.lock().unwrap().state == ElectionState::ExpiredUnconfirmed
     }
 
-    pub fn time_to_live(&self) -> Duration {
-        match self.behavior {
-            ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
-            ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
-        }
-    }
-
     pub fn contains(&self, hash: &BlockHash) -> bool {
         self.mutex.lock().unwrap().last_blocks.contains_key(hash)
     }
@@ -161,6 +153,10 @@ impl Election {
             .as_ref()
             .map(|w| w.hash())
     }
+
+    pub fn behavior(&self) -> ElectionBehavior {
+        self.mutex.lock().unwrap().behavior
+    }
 }
 
 impl Debug for Election {
@@ -168,7 +164,6 @@ impl Debug for Election {
         f.debug_struct("Election")
             .field("id", &self.id)
             .field("qualified_root", &self.qualified_root)
-            .field("behavior", &self.behavior)
             .field("height", &self.height)
             .finish()
     }
@@ -185,6 +180,7 @@ pub struct ElectionData {
     /** The last time vote for this election was generated */
     pub last_vote: Option<Instant>,
     pub last_block_hash: BlockHash,
+    pub behavior: ElectionBehavior,
 }
 
 impl ElectionData {
@@ -218,6 +214,13 @@ impl ElectionData {
         }
 
         Err(())
+    }
+
+    pub fn time_to_live(&self) -> Duration {
+        match self.behavior {
+            ElectionBehavior::Manual | ElectionBehavior::Priority => Duration::from_secs(60 * 5),
+            ElectionBehavior::Hinted | ElectionBehavior::Optimistic => Duration::from_secs(30),
+        }
     }
 
     fn valid_change(expected: ElectionState, desired: ElectionState) -> bool {

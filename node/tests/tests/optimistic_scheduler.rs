@@ -1,8 +1,7 @@
-use std::time::Duration;
-
 use rsnano_core::DEV_GENESIS_KEY;
 use rsnano_node::consensus::ElectionBehavior;
-use test_helpers::{assert_never, assert_timely, setup_chains, System};
+use std::time::Duration;
+use test_helpers::{assert_never, assert_timely2, setup_chains, System};
 
 /*
  * Ensure account gets activated for a single unconfirmed account chain
@@ -30,14 +29,12 @@ pub fn activate_one() {
 
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
-    assert_timely(Duration::from_secs(5), || {
-        node.vote_router.active(&block.hash())
-    });
+    assert_timely2(|| node.vote_router.active(&block.hash()));
     assert_eq!(
         node.active
             .election(&block.qualified_root())
             .unwrap()
-            .behavior,
+            .behavior(),
         ElectionBehavior::Optimistic
     );
 }
@@ -66,15 +63,13 @@ pub fn activate_one_zero_conf() {
     // Ensure unconfirmed account head block gets activated
     let block = blocks.last().unwrap();
 
-    assert_timely(Duration::from_secs(5), || {
-        node.vote_router.active(&block.hash())
-    });
+    assert_timely2(|| node.vote_router.active(&block.hash()));
 
     assert_eq!(
         node.active
             .election(&block.qualified_root())
             .unwrap()
-            .behavior,
+            .behavior(),
         ElectionBehavior::Optimistic
     );
 }
@@ -100,7 +95,7 @@ pub fn activate_many() {
     );
 
     // Ensure all unconfirmed accounts head block gets activated
-    assert_timely(Duration::from_secs(5), || {
+    assert_timely2(|| {
         chains.iter().all(|(_, blocks)| {
             let block = blocks.last().unwrap();
             node.vote_router.active(&block.hash())
@@ -108,7 +103,7 @@ pub fn activate_many() {
                     .active
                     .election(&block.qualified_root())
                     .unwrap()
-                    .behavior
+                    .behavior()
                     == ElectionBehavior::Optimistic
         })
     });
