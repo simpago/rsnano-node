@@ -1,5 +1,5 @@
 use rsnano_node::consensus::{Bucket, PriorityBucketConfig};
-use test_helpers::System;
+use test_helpers::{assert_timely2, assert_timely_eq2, System};
 
 mod bucket {
     use super::*;
@@ -116,11 +116,17 @@ mod bucket {
 }
 
 mod election_scheduler {
+    use std::time::Duration;
+
+    use super::*;
     use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, DEV_GENESIS_KEY};
     use rsnano_ledger::DEV_GENESIS_ACCOUNT;
-    use rsnano_node::{config::NodeConfig, consensus::ActiveElectionsExt};
-    use std::time::Duration;
-    use test_helpers::{assert_timely, assert_timely_eq, System};
+    use rsnano_node::{
+        config::NodeConfig,
+        consensus::{ActiveElectionsExt, ElectionBehavior, OptimisticSchedulerConfig},
+        stats::{DetailType, Direction, StatType},
+    };
+    use test_helpers::{setup_chains, setup_rep};
 
     #[test]
     fn activate_one_timely() {
@@ -140,9 +146,7 @@ mod election_scheduler {
             .priority
             .activate(&node.store.tx_begin_read(), &*DEV_GENESIS_ACCOUNT);
 
-        assert_timely(Duration::from_secs(5), || {
-            node.active.election(&send1.qualified_root()).is_some()
-        });
+        assert_timely2(|| node.active.election(&send1.qualified_root()).is_some());
     }
 
     #[test]
@@ -167,9 +171,7 @@ mod election_scheduler {
             .activate(&node.store.tx_begin_read(), &*DEV_GENESIS_ACCOUNT);
 
         // Assert that the election is created within 5 seconds
-        assert_timely(Duration::from_secs(5), || {
-            node.active.election(&send1.qualified_root()).is_some()
-        });
+        assert_timely2(|| node.active.election(&send1.qualified_root()).is_some());
     }
 
     #[test]
@@ -213,7 +215,7 @@ mod election_scheduler {
         let receive = node.process(receive.clone()).unwrap();
         node.confirming_set.add(receive.hash());
 
-        assert_timely(Duration::from_secs(5), || {
+        assert_timely2(|| {
             node.block_confirmed(&send.hash()) && node.block_confirmed(&receive.hash())
         });
 
@@ -228,14 +230,12 @@ mod election_scheduler {
             .priority
             .activate(&node.ledger.read_txn(), &DEV_GENESIS_ACCOUNT);
         let mut election = None;
-        assert_timely(Duration::from_secs(5), || {
-            match node.active.election(&block1.qualified_root()) {
-                Some(el) => {
-                    election = Some(el);
-                    true
-                }
-                None => false,
+        assert_timely2(|| match node.active.election(&block1.qualified_root()) {
+            Some(el) => {
+                election = Some(el);
+                true
             }
+            None => false,
         });
 
         let block2 = lattice.account(&key).send(&key, Amount::nano(1000));
@@ -245,18 +245,96 @@ mod election_scheduler {
         node.election_schedulers
             .priority
             .activate(&node.ledger.read_txn(), &key.account());
-        assert_timely_eq(
-            Duration::from_secs(5),
-            || node.election_schedulers.priority.len(),
-            1,
-        );
+        assert_timely_eq2(|| node.election_schedulers.priority.len(), 1);
         assert!(node.active.election(&block2.qualified_root()).is_none());
 
         // Election confirmed, next in queue should begin
         node.active.force_confirm(&election.unwrap());
-        assert_timely(Duration::from_secs(5), || {
-            node.active.election(&block2.qualified_root()).is_some()
-        });
+        assert_timely2(|| node.active.election(&block2.qualified_root()).is_some());
         assert!(node.election_schedulers.priority.is_empty());
+    }
+
+    /*
+     * Tests that an optimistic election can be transitioned to a priority election.
+     *
+     * The test:
+     * 1. Creates a chain of 2 blocks with an optimistic election for the second block
+     * 2. Confirms the first block in the chain
+     * 3. Attempts to start a priority election for the second block
+     * 4. Verifies that the existing optimistic election is transitioned to priority
+     * 5. Verifies a new vote is broadcast after the transition
+     */
+    #[test]
+    fn transition_optimistic_to_priority() {
+        let mut system = System::new();
+        system.network_params.network.vote_broadcast_interval = Duration::from_secs(15);
+
+        let node = system
+            .build_node()
+            .config(NodeConfig {
+                optimistic_scheduler: OptimisticSchedulerConfig {
+                    gap_threshold: 1,
+                    ..Default::default()
+                },
+                enable_voting: true,
+                enable_hinted_scheduler: false,
+                ..System::default_config()
+            })
+            .finish();
+
+        // Add representative
+        let rep_weight = Amount::nano(100_000);
+        let rep = setup_rep(&node, rep_weight, &DEV_GENESIS_KEY);
+        node.insert_into_wallet(&rep);
+
+        // Create a chain of blocks - and trigger an optimistic election for the last block
+        let howmany_blocks = 2;
+        let chains = setup_chains(
+            &node,
+            /* single chain */ 1,
+            howmany_blocks,
+            &DEV_GENESIS_KEY,
+            /* do not confirm */ false,
+        );
+        let (_account, blocks) = &chains[0];
+
+        // Wait for optimistic election to start for last block
+        let block = blocks.last().unwrap();
+        assert_timely2(|| node.vote_router.active(&block.hash()));
+        let election = node.active.election(&block.qualified_root()).unwrap();
+        assert_eq!(election.behavior(), ElectionBehavior::Optimistic);
+
+        // Confirm first block to allow upgrading second block's election
+        node.confirm(blocks[howmany_blocks - 1].hash());
+
+        // Attempt to start priority election for second block
+        node.stats.clear();
+        assert_eq!(
+            0,
+            node.stats
+                .count(StatType::Election, DetailType::BroadcastVote, Direction::In)
+        );
+        node.active
+            .insert(block.clone(), ElectionBehavior::Priority, None);
+
+        // Verify priority transition
+        assert_eq!(election.behavior(), ElectionBehavior::Priority);
+        assert_eq!(
+            1,
+            node.stats.count(
+                StatType::ActiveElections,
+                DetailType::TransitionPriority,
+                Direction::In
+            )
+        );
+        // Verify vote broadcast after transitioning
+        assert_timely_eq2(
+            || {
+                node.stats
+                    .count(StatType::Election, DetailType::BroadcastVote, Direction::In)
+            },
+            1,
+        );
+        assert!(node.active.active(block));
     }
 }

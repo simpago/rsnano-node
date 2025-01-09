@@ -1,4 +1,4 @@
-use rsnano_core::{Account, Block, BlockHash, HashOrAccount, DEV_GENESIS_KEY};
+use rsnano_core::{Account, Block, BlockHash, HashOrAccount, SavedBlock, DEV_GENESIS_KEY};
 use rsnano_ledger::DEV_GENESIS_ACCOUNT;
 use rsnano_messages::{
     AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq, AscPullReqType,
@@ -534,7 +534,9 @@ impl ResponseHelper {
 }
 
 /// Checks if both lists contain the same blocks, with `blocks_b`
-fn compare_blocks(blocks_a: &VecDeque<Block>, blocks_b: &[Block]) -> bool {
-    assert!(blocks_a.len() <= blocks_b.len());
-    blocks_a.iter().zip(blocks_b.iter()).all(|(a, b)| a == b)
+fn compare_blocks(blocks_a: &VecDeque<Block>, blocks_b: &[SavedBlock]) -> bool {
+    blocks_a
+        .iter()
+        .zip(blocks_b.iter().map(|b| &**b))
+        .all(|(a, b)| a == b)
 }

@@ -29,7 +29,7 @@ use tracing_subscriber::EnvFilter;
 
 pub struct System {
     runtime: Arc<AsyncRuntime>,
-    network_params: NetworkParams,
+    pub network_params: NetworkParams,
     pub work: Arc<WorkPoolImpl>,
     pub nodes: Vec<Arc<Node>>,
     pub initialization_blocks: Vec<Block>,
@@ -394,11 +394,17 @@ pub fn activate_hashes(node: &Node, hashes: &[BlockHash]) {
     }
 }
 
-pub fn setup_chain(node: &Node, count: usize, target: &PrivateKey, confirm: bool) -> Vec<Block> {
+pub fn setup_chain(
+    node: &Node,
+    count: usize,
+    target: &PrivateKey,
+    confirm: bool,
+) -> Vec<SavedBlock> {
     let mut latest = node.latest(&target.account());
     let mut balance = node.balance(&target.account());
 
-    let mut blocks = Vec::new();
+    let mut blocks = Vec::with_capacity(count);
+    let mut result = Vec::with_capacity(count);
 
     for _ in 0..count {
         let throwaway = PrivateKey::new();
@@ -417,7 +423,8 @@ pub fn setup_chain(node: &Node, count: usize, target: &PrivateKey, confirm: bool
     }
 
     for block in &blocks {
-        node.process(block.clone()).unwrap();
+        let saved = node.process(block.clone()).unwrap();
+        result.push(saved);
     }
 
     if confirm {
@@ -427,7 +434,7 @@ pub fn setup_chain(node: &Node, count: usize, target: &PrivateKey, confirm: bool
         }
     }
 
-    blocks
+    result
 }
 
 pub fn setup_chains(
@@ -436,7 +443,7 @@ pub fn setup_chains(
     block_count: usize,
     source: &PrivateKey,
     confirm: bool,
-) -> Vec<(Account, Vec<Block>)> {
+) -> Vec<(Account, Vec<SavedBlock>)> {
     let mut latest = node.latest(&source.account());
     let mut balance = node.balance(&source.account());
 
@@ -467,7 +474,7 @@ pub fn setup_chains(
 
         latest = send.hash();
         node.process(send.clone()).unwrap();
-        node.process(open.clone()).unwrap();
+        let open = node.process(open).unwrap();
 
         if confirm {
             node.confirm(send.hash());
@@ -741,6 +748,12 @@ pub fn upgrade_epoch(
     );
 
     epoch_block
+}
+
+pub fn setup_rep(node: &Node, amount: Amount, source: &PrivateKey) -> PrivateKey {
+    let destkey = PrivateKey::new();
+    setup_new_account(node, amount, source, &destkey, destkey.public_key(), true);
+    destkey
 }
 
 pub fn setup_new_account(

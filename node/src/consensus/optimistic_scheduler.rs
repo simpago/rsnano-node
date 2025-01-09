@@ -36,6 +36,12 @@ impl OptimisticSchedulerConfig {
     }
 }
 
+impl Default for OptimisticSchedulerConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct OptimisticScheduler {
     thread: Mutex<Option<JoinHandle<()>>>,
     config: OptimisticSchedulerConfig,
