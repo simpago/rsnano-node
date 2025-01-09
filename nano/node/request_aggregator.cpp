@@ -202,21 +202,36 @@ auto nano::request_aggregator::aggregate (nano::secure::transaction const & tran
 {
 	std::vector<std::shared_ptr<nano::block>> to_generate;
 	std::vector<std::shared_ptr<nano::block>> to_generate_final;
+
 	for (auto const & [hash, root] : requests_a)
 	{
-		// Ledger by hash
-		std::shared_ptr<nano::block> block = ledger.any.block_get (transaction, hash);
-
-		// Ledger by root
-		if (!block && !root.is_zero ())
-		{
-			// Search for block root
-			if (auto successor = ledger.any.block_successor (transaction, root.as_block_hash ()))
+		auto search_for_block = [&] () -> std::shared_ptr<nano::block> {
+			// Ledger by hash
+			if (auto block = ledger.any.block_get (transaction, hash))
 			{
-				block = ledger.any.block_get (transaction, successor.value ());
-				release_assert (block);
+				return block;
 			}
-		}
+
+			// Ledger by root
+			if (!root.is_zero ())
+			{
+				// Search for successor of root
+				if (auto successor = ledger.any.block_successor (transaction, root.as_block_hash ()))
+				{
+					return ledger.any.block_get (transaction, successor.value ());
+				}
+
+				// If that fails treat root as account
+				if (auto info = ledger.any.account_get (transaction, root.as_account ()))
+				{
+					return ledger.any.block_get (transaction, info->open_block);
+				}
+			}
+
+			return nullptr;
+		};
+
+		auto block = search_for_block ();
 
 		auto should_generate_final_vote = [&] (auto const & block) {
 			release_assert (block);
