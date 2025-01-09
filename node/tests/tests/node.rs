@@ -666,10 +666,23 @@ fn bootstrap_fork_open() {
 #[test]
 fn rep_self_vote() {
     let mut system = System::new();
-    let mut node_config = System::default_config_without_backlog_scan();
-    node_config.online_weight_minimum = Amount::MAX;
-    let node0 = system.build_node().config(node_config).finish();
-    let wallet_id = node0.wallets.wallet_ids()[0];
+    let node0 = system
+        .build_node()
+        .flags(NodeFlags {
+            // Prevent automatic election cleanup
+            disable_request_loop: true,
+            ..Default::default()
+        })
+        .config(NodeConfig {
+            online_weight_minimum: Amount::MAX,
+            // Disable automatic election activation
+            enable_priority_scheduler: false,
+            enable_hinted_scheduler: false,
+            enable_optimistic_scheduler: false,
+            ..System::default_config_without_backlog_scan()
+        })
+        .finish();
+
     let rep_big = PrivateKey::new();
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
@@ -691,22 +704,14 @@ fn rep_self_vote() {
 
     // Confirm both blocks, allowing voting on the upcoming block
     start_election(&node0, &open_big.hash());
-    assert_timely_msg(
-        Duration::from_secs(5),
-        || node0.active.election(&open_big.qualified_root()).is_some(),
-        "Election for open_big not found",
-    );
+
+    assert_timely2(|| node0.active.election(&open_big.qualified_root()).is_some());
     let election = node0.active.election(&open_big.qualified_root()).unwrap();
     node0.active.force_confirm(&election);
 
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id, &rep_big.raw_key(), true)
-        .unwrap();
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
+    // Insert representatives into the node to allow voting
+    node0.insert_into_wallet(&rep_big);
+    node0.insert_into_wallet(&DEV_GENESIS_KEY);
     assert_eq!(node0.wallets.voting_reps_count(), 2);
 
     let block0 = lattice.genesis().send_all_except(
@@ -722,8 +727,9 @@ fn rep_self_vote() {
     let election1 = start_election(&node0, &block0.hash());
 
     // Wait until representatives are activated & make vote
-    assert_timely_eq(Duration::from_secs(1), || election1.vote_count(), 3);
+    assert_timely_eq2(|| election1.vote_count(), 3);
 
+    // Election should receive votes from representatives hosted on the same node
     let rep_votes = election1.mutex.lock().unwrap().last_votes.clone();
     assert!(rep_votes.contains_key(&DEV_GENESIS_KEY.public_key()));
     assert!(rep_votes.contains_key(&rep_big.public_key()));
