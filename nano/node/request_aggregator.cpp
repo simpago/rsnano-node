@@ -15,16 +15,17 @@
 #include <nano/secure/ledger_set_confirmed.hpp>
 #include <nano/store/component.hpp>
 
-nano::request_aggregator::request_aggregator (request_aggregator_config const & config_a, nano::node & node_a, nano::stats & stats_a, nano::vote_generator & generator_a, nano::vote_generator & final_generator_a, nano::local_vote_history & history_a, nano::ledger & ledger_a, nano::wallets & wallets_a, nano::vote_router & vote_router_a) :
+nano::request_aggregator::request_aggregator (request_aggregator_config const & config_a, nano::node & node_a, nano::vote_generator & generator_a, nano::vote_generator & final_generator_a, nano::local_vote_history & history_a, nano::ledger & ledger_a, nano::wallets & wallets_a, nano::vote_router & vote_router_a) :
 	config{ config_a },
 	network_constants{ node_a.network_params.network },
-	stats (stats_a),
 	local_votes (history_a),
 	ledger (ledger_a),
 	wallets (wallets_a),
 	vote_router{ vote_router_a },
 	generator (generator_a),
-	final_generator (final_generator_a)
+	final_generator (final_generator_a),
+	stats (node_a.stats),
+	logger (node_a.logger)
 {
 	queue.max_size_query = [this] (auto const & origin) {
 		return config.max_queue;
@@ -238,15 +239,28 @@ auto nano::request_aggregator::aggregate (nano::secure::transaction const & tran
 			{
 				to_generate_final.push_back (block);
 				stats.inc (nano::stat::type::requests, nano::stat::detail::requests_final);
+
+				logger.debug (nano::log::type::request_aggregator, "Replying with final vote for: {} to: {}",
+				block->hash ().to_string (), // TODO: Lazy eval
+				channel_a->to_string ()); // TODO: Lazy eval
 			}
 			else
 			{
 				stats.inc (nano::stat::type::requests, nano::stat::detail::requests_non_final);
+
+				logger.debug (nano::log::type::request_aggregator, "Skipping reply with normal vote for: {} (requested by: {})",
+				block->hash ().to_string (), // TODO: Lazy eval
+				channel_a->to_string ()); // TODO: Lazy eval
 			}
 		}
 		else
 		{
 			stats.inc (nano::stat::type::requests, nano::stat::detail::requests_unknown);
+
+			logger.debug (nano::log::type::request_aggregator, "Cannot reply, block not found: {} with root: {} (requested by: {})",
+			hash.to_string (), // TODO: Lazy eval
+			root.to_string (), // TODO: Lazy eval
+			channel_a->to_string ()); // TODO: Lazy eval
 		}
 	}
 

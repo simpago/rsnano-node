@@ -86,6 +86,7 @@ enum class type
 	monitor,
 	confirming_set,
 	bounded_backlog,
+	request_aggregator,
 
 	// bootstrap
 	bulk_pull_client,
