@@ -557,6 +557,14 @@ nano::vote_code nano::election::vote (nano::account const & rep, uint64_t timest
 	nano::log::arg{ "vote_source", vote_source_a },
 	nano::log::arg{ "weight", weight });
 
+	node.logger.debug (nano::log::type::election, "Vote received for: {} from: {} root: {} (final: {}, weight: {}, source: {})",
+	block_hash_a.to_string (),
+	rep.to_account (),
+	qualified_root.to_string (),
+	nano::vote::is_final_timestamp (timestamp_a),
+	weight.convert_to<std::string> (),
+	to_string (vote_source_a));
+
 	if (!confirmed_locked ())
 	{
 		confirm_if_quorum (lock);
