@@ -490,11 +490,7 @@ fn inactive_votes_cache_election_start() {
     let channel = ChannelId::from(111);
     node.vote_processor_queue
         .vote(vote1, channel, VoteSource::Live);
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.vote_cache.lock().unwrap().size(),
-        3,
-    );
+    assert_timely_eq2(|| node.vote_cache.lock().unwrap().size(), 3);
     assert_eq!(node.active.len(), 0);
     assert_eq!(1, node.ledger.cemented_count());
 
@@ -508,7 +504,7 @@ fn inactive_votes_cache_election_start() {
     node.vote_processor_queue
         .vote(vote2, channel, VoteSource::Live);
     // Only election for send1 should start, other blocks are missing dependencies and don't have enough final weight
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
+    assert_timely_eq2(|| node.active.len(), 1);
     assert!(node.vote_router.active(&send1.hash()));
 
     // Confirm elections with weight quorum
@@ -518,9 +514,12 @@ fn inactive_votes_cache_election_start() {
     ));
     node.vote_processor_queue
         .vote(vote0, channel, VoteSource::Live);
-    assert_timely_eq(Duration::from_secs(5), || node.active.len(), 0);
-    assert_timely_eq(Duration::from_secs(5), || node.ledger.cemented_count(), 5);
-    assert!(node.block_hashes_confirmed(&[send1.hash(), send2.hash(), open1.hash(), open2.hash()]));
+    assert_timely_eq2(|| node.active.len(), 0);
+    assert_timely_eq2(|| node.ledger.cemented_count(), 5);
+    // Confirmation on disk may lag behind cemented_count cache
+    assert_timely2(|| {
+        node.block_hashes_confirmed(&[send1.hash(), send2.hash(), open1.hash(), open2.hash()])
+    });
 
     // A late block arrival also checks the inactive votes cache
     assert_eq!(node.active.len(), 0);
@@ -536,7 +535,7 @@ fn inactive_votes_cache_election_start() {
     assert_eq!(node.confirming_set.contains(&send3.hash()), false);
     // send7 cannot be voted on but an election should be started from inactive votes
     node.process_active(send4);
-    assert_timely_eq(Duration::from_secs(5), || node.ledger.cemented_count(), 7);
+    assert_timely_eq2(|| node.ledger.cemented_count(), 7);
 }
 
 #[test]
