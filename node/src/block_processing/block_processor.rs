@@ -214,7 +214,7 @@ impl BlockProcessor {
                 config,
                 stats,
                 workers: ThreadPoolImpl::create(1, "Blck proc notif"),
-                roll_back_observers: Arc::new(RwLock::new(None)),
+                roll_back_observers: Arc::new(RwLock::new(Vec::new())),
                 block_processed: RwLock::new(Vec::new()),
                 batch_processed: RwLock::new(Vec::new()),
             }),
@@ -316,8 +316,8 @@ impl BlockProcessor {
 
     pub fn notify_blocks_rolled_back(&self, blocks: &[SavedBlock], root: QualifiedRoot) {
         let guard = self.processor_loop.roll_back_observers.read().unwrap();
-        if let Some(callback) = &*guard {
-            callback(blocks, root)
+        for callback in &*guard {
+            callback(blocks, root.clone())
         }
     }
 
@@ -351,8 +351,7 @@ pub(crate) struct BlockProcessorLoopImpl {
     workers: ThreadPoolImpl,
 
     /// Rolled back blocks <rolled back block, root of rollback>
-    roll_back_observers:
-        Arc<RwLock<Option<Box<dyn Fn(&[SavedBlock], QualifiedRoot) + Send + Sync>>>>,
+    roll_back_observers: Arc<RwLock<Vec<Box<dyn Fn(&[SavedBlock], QualifiedRoot) + Send + Sync>>>>,
     block_processed: RwLock<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
     /// All processed blocks including forks, rejected etc
     batch_processed:
@@ -453,7 +452,10 @@ impl BlockProcessorLoopImpl {
         &self,
         callback: impl Fn(&[SavedBlock], QualifiedRoot) + Send + Sync + 'static,
     ) {
-        *self.roll_back_observers.write().unwrap() = Some(Box::new(callback));
+        self.roll_back_observers
+            .write()
+            .unwrap()
+            .push(Box::new(callback));
     }
 
     pub fn process_active(&self, block: Block) {
@@ -736,7 +738,7 @@ impl BlockProcessorLoopImpl {
                 let fork_block = fork_block.clone();
                 self.workers.post(Box::new(move || {
                     let callback_guard = observers.read().unwrap();
-                    if let Some(callback) = callback_guard.as_ref() {
+                    for callback in &*callback_guard {
                         callback(&rollback_list, fork_block.qualified_root());
                     }
                 }));

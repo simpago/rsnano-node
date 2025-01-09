@@ -110,7 +110,7 @@ pub struct Node {
     pub election_schedulers: Arc<ElectionSchedulers>,
     pub request_aggregator: Arc<RequestAggregator>,
     pub backlog_scan: Arc<BacklogScan>,
-    bounded_backlog: BoundedBacklog,
+    bounded_backlog: Arc<BoundedBacklog>,
     pub bootstrap: Arc<BootstrapService>,
     pub local_block_broadcaster: Arc<LocalBlockBroadcaster>,
     pub process_live_dispatcher: Arc<ProcessLiveDispatcher>,
@@ -713,13 +713,53 @@ impl Node {
             }
         });
 
-        let bounded_backlog = BoundedBacklog::new(
+        let bounded_backlog = Arc::new(BoundedBacklog::new(
             election_schedulers.priority.bucketing().clone(),
             config.backlog.clone(),
             ledger.clone(),
             block_processor.clone(),
             stats.clone(),
-        );
+        ));
+
+        // Activate accounts with unconfirmed blocks
+        let backlog_w = Arc::downgrade(&bounded_backlog);
+        backlog_scan.on_batch_activated(move |batch| {
+            if let Some(backlog) = backlog_w.upgrade() {
+                backlog.activate_batch(batch);
+            }
+        });
+
+        // Erase accounts with all confirmed blocks
+        let backlog_w = Arc::downgrade(&bounded_backlog);
+        backlog_scan.on_batch_scanned(move |batch| {
+            if let Some(backlog) = backlog_w.upgrade() {
+                // TODO
+            }
+        });
+
+        // Track unconfirmed blocks
+        let backlog_w = Arc::downgrade(&bounded_backlog);
+        block_processor.on_batch_processed(Box::new(move |batch| {
+            if let Some(backlog) = backlog_w.upgrade() {
+                // TODO
+            }
+        }));
+
+        // Remove rolled back blocks from the backlog
+        let backlog_w = Arc::downgrade(&bounded_backlog);
+        block_processor.on_blocks_rolled_back(move |blocks, rollback_root| {
+            if let Some(backlog) = backlog_w.upgrade() {
+                // TODO
+            }
+        });
+
+        // Remove cemented blocks from the backlog
+        let backlog_w = Arc::downgrade(&bounded_backlog);
+        confirming_set.on_batch_cemented(Box::new(move |batch| {
+            if let Some(backlog) = backlog_w.upgrade() {
+                // TODO
+            }
+        }));
 
         let bootstrap = Arc::new(BootstrapService::new(
             block_processor.clone(),

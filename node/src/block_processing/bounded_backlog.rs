@@ -1,5 +1,6 @@
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
+    backlog_scan::ActivatedInfo,
     BlockProcessor,
 };
 use crate::{
@@ -121,10 +122,17 @@ impl BoundedBacklog {
         *self.backlog_impl.can_rollback.write().unwrap() = Box::new(f);
     }
 
-    pub fn activate(
+    pub fn activate_batch(&self, batch: &[ActivatedInfo]) {
+        let mut tx = self.backlog_impl.ledger.read_txn();
+        for info in batch {
+            self.activate(&mut tx, &info.account, &info.account_info, &info.conf_info);
+        }
+    }
+
+    fn activate(
         &self,
         tx: &mut LmdbReadTransaction,
-        account: &Account,
+        _account: &Account,
         account_info: &AccountInfo,
         conf_info: &ConfirmationHeightInfo,
     ) {
