@@ -1355,16 +1355,23 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 // Keep track of election count by election type
                 *guard.count_by_behavior_mut(election.behavior()) += 1;
 
+                // Skip passive phase for blocks without cached votes to avoid bootstrap delays
+                let mut active_immediately = false;
+                if self.vote_cache.lock().unwrap().contains(&hash) {
+                    election.transition_active();
+                    active_immediately = true;
+                }
+
                 self.stats
                     .inc(StatType::ActiveElections, DetailType::Started);
                 self.stats
                     .inc(StatType::ActiveElectionsStarted, election_behavior.into());
 
-                trace!(behavior = ?election_behavior, ?election, "active started");
-
                 debug!(
-                    "Started new election for block: {} (behavior: {:?})",
-                    hash, election_behavior
+                    active_immediately,
+                    behavior = ?election_behavior,
+                    block = %hash,
+                    "Started new election"
                 );
 
                 election_result = Some(election);
