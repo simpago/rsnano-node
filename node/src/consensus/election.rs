@@ -103,6 +103,22 @@ impl Election {
             .state_change(ElectionState::Passive, ElectionState::Active);
     }
 
+    pub fn transition_priority(&self) -> bool {
+        let mut guard = self.mutex.lock().unwrap();
+        if matches!(
+            guard.behavior,
+            ElectionBehavior::Priority | ElectionBehavior::Manual
+        ) {
+            return false;
+        }
+
+        guard.behavior = ElectionBehavior::Priority;
+
+        // allow new outgoing votes immediately
+        guard.last_vote = None;
+        true
+    }
+
     pub fn cancel(&self) {
         let mut guard = self.mutex.lock().unwrap();
         let current = guard.state;
