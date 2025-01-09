@@ -3,7 +3,8 @@ use rsnano_core::{
     VoteSource, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_PUB_KEY};
-use rsnano_network::ChannelId;
+use rsnano_messages::{Message, Publish};
+use rsnano_network::{ChannelId, DropPolicy};
 use rsnano_node::{
     bootstrap::BootstrapConfig,
     config::{NodeConfig, NodeFlags},
@@ -19,9 +20,9 @@ use std::{
     usize,
 };
 use test_helpers::{
-    assert_always_eq, assert_never, assert_timely, assert_timely_eq, assert_timely_msg,
-    get_available_port, process_open_block, process_send_block, setup_independent_blocks,
-    start_election, start_elections, System,
+    assert_always_eq, assert_never, assert_timely, assert_timely2, assert_timely_eq,
+    assert_timely_eq2, assert_timely_msg, get_available_port, process_open_block,
+    process_send_block, setup_independent_blocks, start_election, start_elections, System,
 };
 
 /// What this test is doing:
@@ -34,55 +35,167 @@ use test_helpers::{
 /// Then send winning block and it should replace one of the existing blocks
 #[test]
 fn fork_replacement_tally() {
-    //let mut system = System::new();
-    //let mut node_config = System::default_config();
-    //node_config.frontiers_confirmation = FrontiersConfirmationMode::Disabled;
-    //let node1 = system.build_node().config(node_config).finish();
+    let mut system = System::new();
+    let node1 = system
+        .build_node()
+        .config(System::default_config_without_backlog_scan())
+        .finish();
 
-    //const REPS_COUNT: usize = 20;
-    //const MAX_BLOCKS: usize = 10;
+    const REPS_COUNT: usize = 20;
+    const MAX_BLOCKS: usize = 10;
 
-    //let keys: Vec<_> = std::iter::repeat_with(|| KeyPair::new())
-    //    .take(REPS_COUNT)
-    //    .collect();
-    //let mut latest = *DEV_GENESIS_HASH;
-    //let mut balance = Amount::MAX;
-    //let amount = node1.online_reps.lock().unwrap().minimum_principal_weight();
+    let keys: Vec<_> = std::iter::repeat_with(|| PrivateKey::new())
+        .take(REPS_COUNT)
+        .collect();
+    let amount = node1.online_reps.lock().unwrap().minimum_principal_weight();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
 
-    //// Create 20 representatives & confirm blocks
-    //for i in 0..REPS_COUNT {
-    //    balance = balance - (amount + Amount::raw(i as u128));
-    //    let send = BlockEnum::State(StateBlock::new(
-    //        *DEV_GENESIS_ACCOUNT,
-    //        latest,
-    //        *DEV_GENESIS_ACCOUNT,
-    //        balance,
-    //        keys[i].public_key().into(),
-    //        &DEV_GENESIS_KEY,
-    //        system.work.generate_dev2(latest.into()).unwrap(),
-    //    ));
-    //    node1.process_active(send.clone());
-    //    latest = send.hash();
-    //    let open = BlockEnum::State(StateBlock::new(
-    //        keys[i].public_key(),
-    //        BlockHash::zero(),
-    //        keys[i].public_key(),
-    //        amount + Amount::raw(i as u128),
-    //        send.hash().into(),
-    //        &keys[i],
-    //        system
-    //            .work
-    //            .generate_dev2(keys[i].public_key().into())
-    //            .unwrap(),
-    //    ));
-    //    node1.process_active(open.clone());
-    //    // Confirmation
-    //    let vote = Vote::new_final(&DEV_GENESIS_KEY, vec![send.hash(), open.hash()]);
-    //    node1
-    //        .vote_processor_queue
-    //        .vote(Arc::new(vote), channel, source)
-    //}
-    // TODO port remainig part
+    // Create 20 representatives & confirm blocks
+    for i in 0..REPS_COUNT {
+        let send = lattice
+            .genesis()
+            .send(keys[i].public_key(), amount + Amount::raw(i as u128));
+        node1.process_active(send.clone());
+        let open = lattice.account(&keys[i]).receive(&send);
+        node1.process_active(open.clone());
+        // Confirmation
+        let vote = Vote::new_final(&DEV_GENESIS_KEY, vec![send.hash(), open.hash()]);
+        node1
+            .vote_processor_queue
+            .vote(Arc::new(vote), ChannelId::LOOPBACK, VoteSource::Live);
+    }
+
+    assert_timely_eq2(
+        || node1.ledger.cemented_count() as usize,
+        1 + 2 * REPS_COUNT,
+    );
+
+    let key = PrivateKey::new();
+    let fork_lattice = lattice.clone();
+
+    let send_last = lattice.genesis().send(&key, Amount::nano(2000));
+
+    // Forks without votes
+    for i in 0..REPS_COUNT {
+        let mut fork_l = fork_lattice.clone();
+        let fork = fork_l
+            .genesis()
+            .send(&key, Amount::nano(1000) + Amount::raw(i as u128));
+        node1.process_active(fork.clone());
+
+        // Assert election exists and is the same for each fork
+        assert_timely2(|| node1.active.election(&fork.qualified_root()).is_some());
+    }
+
+    // Check overflow of blocks
+    assert_timely2(|| node1.active.election(&send_last.qualified_root()).is_some());
+    let election = node1.active.election(&send_last.qualified_root()).unwrap();
+    assert_timely_eq2(
+        || election.mutex.lock().unwrap().last_blocks.len(),
+        MAX_BLOCKS,
+    );
+
+    // Generate forks with votes to prevent new block insertion to election
+    for i in 0..REPS_COUNT {
+        let mut fork_l = fork_lattice.clone();
+        let fork = fork_l.genesis().send(&key, Amount::raw(1 + i as u128));
+        let vote = Arc::new(Vote::new(&keys[i], 0, 0, vec![fork.hash()]));
+        node1
+            .vote_processor_queue
+            .vote(vote, ChannelId::LOOPBACK, VoteSource::Live);
+        assert_timely2(|| node1.vote_cache.lock().unwrap().find(&fork.hash()).len() > 0);
+        node1.process_active(fork);
+    }
+
+    // function to count the number of rep votes (non genesis) found in election
+    // it also checks that there are 10 votes in the election
+    let count_rep_votes_in_election = || {
+        // Check that only max weight blocks remains (and start winner)
+        let guard = election.mutex.lock().unwrap();
+        if MAX_BLOCKS != guard.last_votes.len() {
+            return -1;
+        }
+        let mut vote_count = 0;
+        for i in 0..REPS_COUNT {
+            if guard.last_votes.contains_key(&keys[i].public_key()) {
+                vote_count += 1;
+            }
+        }
+        vote_count
+    };
+
+    // Check overflow of blocks
+    assert_timely_eq2(|| count_rep_votes_in_election(), 9);
+    assert_eq!(MAX_BLOCKS, election.mutex.lock().unwrap().last_blocks.len());
+
+    // Process correct block
+    let node2 = system
+        .build_node()
+        .config(System::default_config_without_backlog_scan())
+        .finish();
+    node1.network_filter.clear_all();
+    node2.message_flooder.lock().unwrap().flood(
+        &Message::Publish(Publish::new_from_originator(send_last.clone())),
+        DropPolicy::ShouldNotDrop,
+        1.0,
+    );
+    assert_timely2(|| {
+        node1
+            .stats
+            .count(StatType::Message, DetailType::Publish, Direction::In)
+            > 0
+    });
+
+    // Correct block without votes is ignored
+    assert_timely_eq2(
+        || election.mutex.lock().unwrap().last_blocks.len(),
+        MAX_BLOCKS,
+    );
+    let blocks1 = election.mutex.lock().unwrap().last_blocks.clone();
+    assert!(!blocks1.contains_key(&send_last.hash()));
+
+    // Process vote for correct block & replace existing lowest tally block
+    let vote = Arc::new(Vote::new(&DEV_GENESIS_KEY, 0, 0, vec![send_last.hash()]));
+    node1
+        .vote_processor_queue
+        .vote(vote, ChannelId::LOOPBACK, VoteSource::Live);
+    // ensure vote arrives before the block
+    assert_timely_eq2(
+        || {
+            node1
+                .vote_cache
+                .lock()
+                .unwrap()
+                .find(&send_last.hash())
+                .len()
+        },
+        1,
+    );
+    node1.network_filter.clear_all();
+    node2.message_flooder.lock().unwrap().flood(
+        &Message::Publish(Publish::new_from_originator(send_last.clone())),
+        DropPolicy::ShouldNotDrop,
+        1.0,
+    );
+    assert_timely2(|| {
+        node1
+            .stats
+            .count(StatType::Message, DetailType::Publish, Direction::In)
+            > 1
+    });
+
+    // the send_last block should replace one of the existing block of the election because it has higher vote weight
+    let find_send_last_block = || {
+        let guard = election.mutex.lock().unwrap();
+        guard.last_blocks.contains_key(&send_last.hash())
+    };
+    assert_timely2(|| find_send_last_block());
+    assert_eq!(MAX_BLOCKS, election.mutex.lock().unwrap().last_blocks.len());
+
+    assert_timely_eq2(|| count_rep_votes_in_election(), 8);
+
+    let votes2 = election.mutex.lock().unwrap().last_votes.clone();
+    assert!(votes2.contains_key(&DEV_GENESIS_PUB_KEY));
 }
 
 #[test]

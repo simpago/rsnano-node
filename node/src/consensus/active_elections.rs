@@ -475,8 +475,8 @@ impl ActiveElections {
         let inactive_tally = votes_tally(&inactive_existing);
         if inactive_tally > Amount::zero() && sorted.len() < ELECTION_MAX_BLOCKS {
             // If count of tally items is less than 10, remove any block without tally
-            election_guard = election.mutex.lock().unwrap();
-            for (hash, _) in &election_guard.last_blocks {
+            let guard = election.mutex.lock().unwrap();
+            for (hash, _) in &guard.last_blocks {
                 if sorted.iter().all(|(h, _)| h != hash) && *hash != winner_hash {
                     replaced_block = *hash;
                     break;

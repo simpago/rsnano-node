@@ -113,6 +113,7 @@ impl BoundedBacklog {
         if let Some(handle) = handle {
             handle.join().unwrap();
         }
+        self.backlog_impl.workers.stop();
     }
 
     // Give other components a chance to veto a rollback
