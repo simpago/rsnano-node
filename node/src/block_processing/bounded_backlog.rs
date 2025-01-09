@@ -253,67 +253,69 @@ impl BoundedBacklogImpl {
     fn run(&self) {
         let mut guard = self.mutex.lock().unwrap();
         while !guard.stopped {
-            if guard.predicate() {
-                // Wait until all notification about the previous rollbacks are processed
-                while self.workers.num_queued_tasks() >= self.config.max_queued_notifications {
-                    self.stats
-                        .inc(StatType::BoundedBacklog, DetailType::Cooldown);
-                    guard = self
-                        .condition
-                        .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
-                        .unwrap()
-                        .0;
-                    if guard.stopped {
-                        return;
-                    }
-                }
+            guard = self
+                .condition
+                .wait_timeout_while(guard, Duration::from_secs(1), |i| {
+                    !i.stopped && !i.predicate()
+                })
+                .unwrap()
+                .0;
 
-                self.stats.inc(StatType::BoundedBacklog, DetailType::Loop);
+            if guard.stopped {
+                return;
+            }
 
-                // Calculate the number of targets to rollback
-                let backlog = self.ledger.backlog_count() as usize;
-
-                let target_count = if backlog > self.config.max_backlog {
-                    backlog - self.config.max_backlog
-                } else {
-                    0
-                };
-
-                let targets = guard.gather_targets(
-                    min(target_count, self.config.batch_size),
-                    &*self.can_rollback.read().unwrap(),
-                );
-
-                if !targets.is_empty() {
-                    drop(guard);
-                    self.stats.add(
-                        StatType::BoundedBacklog,
-                        DetailType::GatheredTargets,
-                        targets.len() as u64,
-                    );
-                    let processed = self.perform_rollbacks(&targets, target_count);
-                    guard = self.mutex.lock().unwrap();
-
-                    // Erase rolled back blocks from the index
-                    for hash in &processed {
-                        guard.index.erase_hash(hash);
-                    }
-                } else {
-                    // Cooldown, this should not happen in normal operation
-                    self.stats
-                        .inc(StatType::BoundedBacklog, DetailType::NoTargets);
-                    guard = self
-                        .condition
-                        .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
-                        .unwrap()
-                        .0;
-                }
-            } else {
+            // Wait until all notification about the previous rollbacks are processed
+            while self.workers.num_queued_tasks() >= self.config.max_queued_notifications {
+                self.stats
+                    .inc(StatType::BoundedBacklog, DetailType::Cooldown);
                 guard = self
                     .condition
-                    .wait_timeout_while(guard, Duration::from_secs(1), |i| {
-                        !i.stopped && !i.predicate()
-                    })
+                    .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
+                    .unwrap()
+                    .0;
+                if guard.stopped {
+                    return;
+                }
+            }
+
+            self.stats.inc(StatType::BoundedBacklog, DetailType::Loop);
+
+            // Calculate the number of targets to rollback
+            let backlog = self.ledger.backlog_count() as usize;
+
+            let target_count = if backlog > self.config.max_backlog {
+                backlog - self.config.max_backlog
+            } else {
+                0
+            };
+
+            let targets = guard.gather_targets(
+                min(target_count, self.config.batch_size),
+                &*self.can_rollback.read().unwrap(),
+            );
+
+            if !targets.is_empty() {
+                drop(guard);
+                self.stats.add(
+                    StatType::BoundedBacklog,
+                    DetailType::GatheredTargets,
+                    targets.len() as u64,
+                );
+                let processed = self.perform_rollbacks(&targets, target_count);
+                guard = self.mutex.lock().unwrap();
+
+                // Erase rolled back blocks from the index
+                for hash in &processed {
+                    guard.index.erase_hash(hash);
+                }
+            } else {
+                // Cooldown, this should not happen in normal operation
+                self.stats
+                    .inc(StatType::BoundedBacklog, DetailType::NoTargets);
+                guard = self
+                    .condition
+                    .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
                     .unwrap()
                     .0;
             }
