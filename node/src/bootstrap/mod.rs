@@ -1109,37 +1109,12 @@ impl BootstrapLogic {
 
         match status {
             BlockStatus::Progress => {
-                let saved_block = saved_block.unwrap();
-                let account = saved_block.account();
-                // If we've inserted any block in to an account, unmark it as blocked
-                if self.accounts.unblock(account, None) {
-                    stats.inc(StatType::BootstrapAccountSets, DetailType::Unblock);
-                    stats.inc(
-                        StatType::BootstrapAccountSets,
-                        DetailType::PriorityUnblocked,
-                    );
-                } else {
-                    stats.inc(StatType::BootstrapAccountSets, DetailType::UnblockFailed);
-                }
-
-                match self.accounts.priority_up(&account) {
-                    PriorityUpResult::Updated => {
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::Prioritize);
-                    }
-                    PriorityUpResult::Inserted => {
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::Prioritize);
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);
-                    }
-                    PriorityUpResult::AccountBlocked => {
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
-                    }
-                    PriorityUpResult::InvalidAccount => {}
-                }
-
-                if saved_block.is_send() {
-                    let destination = saved_block.destination().unwrap();
-                    // Unblocking automatically inserts account into priority set
-                    if self.accounts.unblock(destination, Some(hash)) {
+                // Progress blocks from live traffic don't need further bootstrapping
+                if source != BlockSource::Live {
+                    let saved_block = saved_block.unwrap();
+                    let account = saved_block.account();
+                    // If we've inserted any block in to an account, unmark it as blocked
+                    if self.accounts.unblock(account, None) {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::Unblock);
                         stats.inc(
                             StatType::BootstrapAccountSets,
@@ -1148,11 +1123,39 @@ impl BootstrapLogic {
                     } else {
                         stats.inc(StatType::BootstrapAccountSets, DetailType::UnblockFailed);
                     }
-                    if self.accounts.priority_set_initial(&destination) {
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);
-                    } else {
-                        stats.inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
-                    };
+
+                    match self.accounts.priority_up(&account) {
+                        PriorityUpResult::Updated => {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::Prioritize);
+                        }
+                        PriorityUpResult::Inserted => {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::Prioritize);
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);
+                        }
+                        PriorityUpResult::AccountBlocked => {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
+                        }
+                        PriorityUpResult::InvalidAccount => {}
+                    }
+
+                    if saved_block.is_send() {
+                        let destination = saved_block.destination().unwrap();
+                        // Unblocking automatically inserts account into priority set
+                        if self.accounts.unblock(destination, Some(hash)) {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::Unblock);
+                            stats.inc(
+                                StatType::BootstrapAccountSets,
+                                DetailType::PriorityUnblocked,
+                            );
+                        } else {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::UnblockFailed);
+                        }
+                        if self.accounts.priority_set_initial(&destination) {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityInsert);
+                        } else {
+                            stats.inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
+                        };
+                    }
                 }
             }
             BlockStatus::GapSource => {
