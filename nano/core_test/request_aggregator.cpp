@@ -1,4 +1,5 @@
 #include <nano/lib/blocks.hpp>
+#include <nano/lib/function.hpp>
 #include <nano/lib/jsonconfig.hpp>
 #include <nano/node/active_elections.hpp>
 #include <nano/node/confirming_set.hpp>
@@ -9,11 +10,16 @@
 #include <nano/node/transport/inproc.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/secure/ledger_set_confirmed.hpp>
+#include <nano/secure/vote.hpp>
 #include <nano/test_common/network.hpp>
 #include <nano/test_common/system.hpp>
 #include <nano/test_common/testutil.hpp>
 
 #include <gtest/gtest.h>
+
+#include <atomic>
+#include <chrono>
+#include <future>
 
 using namespace std::chrono_literals;
 
@@ -449,4 +455,281 @@ TEST (request_aggregator, cannot_vote)
 	ASSERT_TIMELY_EQ (3s, 1, node.stats.count (nano::stat::type::requests, nano::stat::detail::requests_generated_votes));
 	ASSERT_EQ (0, node.stats.count (nano::stat::type::requests, nano::stat::detail::requests_unknown));
 	ASSERT_TIMELY (3s, 1 <= node.stats.count (nano::stat::type::message, nano::stat::detail::confirm_ack, nano::stat::dir::out));
+}
+
+namespace
+{
+std::future<nano::confirm_ack> observe_confirm_ack (std::shared_ptr<nano::transport::test_channel> const & channel)
+{
+	std::promise<nano::confirm_ack> promise;
+	auto future = promise.get_future ();
+
+	struct confirm_ack_visitor : public nano::message_visitor
+	{
+		std::optional<nano::confirm_ack> result;
+
+		void confirm_ack (nano::confirm_ack const & msg) override
+		{
+			result = msg;
+		}
+	};
+
+	channel->observers.clear ();
+	channel->observers.add (nano::wrap_move_only ([&, promise = std::move (promise)] (nano::message const & message, nano::transport::traffic_type const & type) mutable {
+		confirm_ack_visitor visitor{};
+		message.visit (visitor);
+		if (visitor.result)
+		{
+			promise.set_value (visitor.result.value ());
+		}
+	}));
+
+	return future;
+}
+}
+
+/*
+ * Request for a forked open block should return vote for the correct fork alternative
+ */
+TEST (request_aggregator, forked_open)
+{
+	nano::test::system system;
+	auto & node = *system.add_node ();
+
+	// Voting needs a rep key set up on the node
+	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
+
+	// Setup two forks of the open block
+	nano::keypair key;
+	nano::block_builder builder;
+	auto send0 = builder.send ()
+				 .previous (nano::dev::genesis->hash ())
+				 .destination (key.pub)
+				 .balance (nano::dev::constants.genesis_amount - 500)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (*system.work.generate (nano::dev::genesis->hash ()))
+				 .build ();
+	auto open0 = builder.open ()
+				 .source (send0->hash ())
+				 .representative (1)
+				 .account (key.pub)
+				 .sign (key.prv, key.pub)
+				 .work (*system.work.generate (key.pub))
+				 .build ();
+	auto open1 = builder.open ()
+				 .source (send0->hash ())
+				 .representative (2)
+				 .account (key.pub)
+				 .sign (key.prv, key.pub)
+				 .work (*system.work.generate (key.pub))
+				 .build ();
+
+	nano::test::process (node, { send0, open0 });
+	nano::test::confirm (node, { open0 });
+
+	auto channel = nano::test::test_channel (node);
+	auto future = observe_confirm_ack (channel);
+
+	// Request vote for the wrong fork
+	std::vector<std::pair<nano::block_hash, nano::root>> request{ { open1->hash (), open1->root () } };
+	ASSERT_TRUE (node.aggregator.request (request, channel));
+
+	ASSERT_EQ (future.wait_for (5s), std::future_status::ready);
+
+	auto ack = future.get ();
+	ASSERT_EQ (ack.vote->hashes.size (), 1);
+	ASSERT_EQ (ack.vote->hashes[0], open0->hash ()); // Vote for the correct fork alternative
+	ASSERT_EQ (ack.vote->account, nano::dev::genesis_key.pub);
+}
+
+/*
+ * Request for a conflicting epoch block should return vote for the correct alternative
+ */
+TEST (request_aggregator, epoch_conflict)
+{
+	nano::test::system system;
+	auto & node = *system.add_node ();
+
+	// Voting needs a rep key set up on the node
+	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
+
+	// Setup the initial chain and the conflicting blocks
+	nano::keypair key;
+	nano::keypair epoch_signer (nano::dev::genesis_key);
+	nano::state_block_builder builder;
+
+	// Create initial chain: send -> open -> change
+	auto send = builder.make_block ()
+				.account (nano::dev::genesis_key.pub)
+				.previous (nano::dev::genesis->hash ())
+				.representative (nano::dev::genesis_key.pub)
+				.balance (nano::dev::constants.genesis_amount - 1)
+				.link (key.pub)
+				.sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				.work (*system.work.generate (nano::dev::genesis->hash ()))
+				.build ();
+
+	auto open = builder.make_block ()
+				.account (key.pub)
+				.previous (0)
+				.representative (key.pub)
+				.balance (1)
+				.link (send->hash ())
+				.sign (key.prv, key.pub)
+				.work (*system.work.generate (key.pub))
+				.build ();
+
+	// Change block root is the open block hash, qualified root: {open, open}
+	auto change = builder.make_block ()
+				  .account (key.pub)
+				  .previous (open->hash ())
+				  .representative (key.pub)
+				  .balance (1)
+				  .link (0)
+				  .sign (key.prv, key.pub)
+				  .work (*system.work.generate (open->hash ()))
+				  .build ();
+
+	// Pending entry is needed first to process the epoch open block
+	auto pending = builder.make_block ()
+				   .account (nano::dev::genesis_key.pub)
+				   .previous (send->hash ())
+				   .representative (nano::dev::genesis_key.pub)
+				   .balance (nano::dev::constants.genesis_amount - 2)
+				   .link (change->root ().as_account ())
+				   .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				   .work (*system.work.generate (send->hash ()))
+				   .build ();
+
+	// Create conflicting epoch block with the same root as the change block, qualified root: {open, 0}
+	// This block is intentionally not processed immediately so the node doesn't know about it
+	auto epoch_open = builder.make_block ()
+					  .account (change->root ().as_account ())
+					  .previous (0)
+					  .representative (0)
+					  .balance (0)
+					  .link (node.ledger.epoch_link (nano::epoch::epoch_1))
+					  .sign (epoch_signer.prv, epoch_signer.pub)
+					  .work (*system.work.generate (open->hash ()))
+					  .build ();
+
+	// Process and confirm the initial chain with the change block
+	nano::test::process (node, { send, open, change });
+	nano::test::confirm (node, { change });
+	ASSERT_TIMELY (5s, node.block_confirmed (change->hash ()));
+
+	auto channel = nano::test::test_channel (node);
+
+	// Request vote for the conflicting epoch block
+	std::vector<std::pair<nano::block_hash, nano::root>> request{ { epoch_open->hash (), epoch_open->root () } };
+	auto future1 = observe_confirm_ack (channel);
+	ASSERT_TRUE (node.aggregator.request (request, channel));
+
+	ASSERT_EQ (future1.wait_for (5s), std::future_status::ready);
+
+	auto ack1 = future1.get ();
+	ASSERT_EQ (ack1.vote->hashes.size (), 1);
+	ASSERT_EQ (ack1.vote->hashes[0], change->hash ()); // Vote for the correct alternative (change block)
+	ASSERT_EQ (ack1.vote->account, nano::dev::genesis_key.pub);
+
+	// Process the conflicting epoch block
+	nano::test::process (node, { pending, epoch_open });
+	nano::test::confirm (node, { pending, epoch_open });
+
+	// Workaround for vote spacing dropping requests with the same root
+	// FIXME: Vote spacing should use full qualified root
+	WAIT (1s);
+
+	// Request vote for the conflicting epoch block again
+	auto future2 = observe_confirm_ack (channel);
+	ASSERT_TRUE (node.aggregator.request (request, channel));
+
+	ASSERT_EQ (future2.wait_for (5s), std::future_status::ready);
+
+	auto ack2 = future2.get ();
+	ASSERT_EQ (ack2.vote->hashes.size (), 1);
+	ASSERT_EQ (ack2.vote->hashes[0], epoch_open->hash ()); // Vote for the epoch block
+	ASSERT_EQ (ack2.vote->account, nano::dev::genesis_key.pub);
+}
+
+/*
+ * Request for multiple cemented blocks in a chain should generate votes regardless of vote spacing
+ */
+TEST (request_aggregator, cemented_no_spacing)
+{
+	nano::test::system system;
+	auto & node = *system.add_node ();
+
+	// Voting needs a rep key set up on the node
+	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
+
+	// Create a chain of 3 blocks: send1 -> send2 -> send3
+	nano::state_block_builder builder;
+	auto send1 = builder.make_block ()
+				 .account (nano::dev::genesis_key.pub)
+				 .previous (nano::dev::genesis->hash ())
+				 .representative (nano::dev::genesis_key.pub)
+				 .balance (nano::dev::constants.genesis_amount - 1)
+				 .link (nano::dev::genesis_key.pub)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (*system.work.generate (nano::dev::genesis->hash ()))
+				 .build ();
+
+	auto send2 = builder.make_block ()
+				 .account (nano::dev::genesis_key.pub)
+				 .previous (send1->hash ())
+				 .representative (nano::dev::genesis_key.pub)
+				 .balance (nano::dev::constants.genesis_amount - 2)
+				 .link (nano::dev::genesis_key.pub)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (*system.work.generate (send1->hash ()))
+				 .build ();
+
+	auto send3 = builder.make_block ()
+				 .account (nano::dev::genesis_key.pub)
+				 .previous (send2->hash ())
+				 .representative (nano::dev::genesis_key.pub)
+				 .balance (nano::dev::constants.genesis_amount - 3)
+				 .link (nano::dev::genesis_key.pub)
+				 .sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				 .work (*system.work.generate (send2->hash ()))
+				 .build ();
+
+	// Process and confirm all blocks in the chain
+	nano::test::process (node, { send1, send2, send3 });
+	nano::test::confirm (node, { send1, send2, send3 });
+	ASSERT_TRUE (node.block_confirmed (send3->hash ()));
+
+	auto channel = nano::test::test_channel (node);
+
+	// Request votes for blocks at different positions in the chain
+	std::vector<std::pair<nano::block_hash, nano::root>> request{
+		{ send1->hash (), send1->root () },
+		{ send2->hash (), send2->root () },
+		{ send3->hash (), send3->root () }
+	};
+
+	// Request votes for all blocks
+	auto future = observe_confirm_ack (channel);
+	ASSERT_TRUE (node.aggregator.request (request, channel));
+
+	// Wait for the votes
+	ASSERT_EQ (future.wait_for (5s), std::future_status::ready);
+	auto ack = future.get ();
+
+	// Verify we got votes for all blocks in the chain
+	ASSERT_EQ (ack.vote->hashes.size (), 3);
+	ASSERT_EQ (ack.vote->account, nano::dev::genesis_key.pub);
+
+	// Verify individual vote properties
+	std::set<nano::block_hash> voted_hashes;
+	for (auto const & hash : ack.vote->hashes)
+	{
+		voted_hashes.insert (hash);
+	}
+
+	// Verify we got votes for all three blocks
+	ASSERT_TRUE (voted_hashes.find (send1->hash ()) != voted_hashes.end ());
+	ASSERT_TRUE (voted_hashes.find (send2->hash ()) != voted_hashes.end ());
+	ASSERT_TRUE (voted_hashes.find (send3->hash ()) != voted_hashes.end ());
 }

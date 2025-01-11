@@ -26,7 +26,7 @@ public:
 	 * @returns true if there was an error
 	 */
 	bool deserialize (nano::stream &);
-	static std::size_t size (uint8_t count);
+	static std::size_t size (uint8_t count); // TODO: This name is confusing, vote size is number of hashes present, not the message size
 
 	nano::block_hash hash () const;
 	nano::block_hash full_hash () const;
