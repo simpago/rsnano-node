@@ -174,6 +174,8 @@ add_library(
   transport/tcp_server.cpp
   transport/tcp_socket.hpp
   transport/tcp_socket.cpp
+  transport/test_channel.hpp
+  transport/test_channel.cpp
   transport/traffic_type.hpp
   transport/traffic_type.cpp
   transport/transport.hpp

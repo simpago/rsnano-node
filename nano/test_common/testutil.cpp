@@ -259,6 +259,16 @@ std::shared_ptr<nano::transport::fake::channel> nano::test::fake_channel (nano::
 	return channel;
 }
 
+std::shared_ptr<nano::transport::test_channel> nano::test::test_channel (nano::node & node, nano::account node_id)
+{
+	auto channel = std::make_shared<nano::transport::test_channel> (node);
+	if (!node_id.is_zero ())
+	{
+		channel->set_node_id (node_id);
+	}
+	return channel;
+}
+
 std::shared_ptr<nano::election> nano::test::start_election (nano::test::system & system_a, nano::node & node_a, const nano::block_hash & hash_a)
 {
 	system_a.deadline_set (5s);

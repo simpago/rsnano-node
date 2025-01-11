@@ -46,6 +46,12 @@ public:
 		return observers.size ();
 	}
 
+	void clear ()
+	{
+		nano::lock_guard<nano::mutex> lock{ mutex };
+		observers.clear ();
+	}
+
 	nano::container_info container_info () const
 	{
 		nano::unique_lock<nano::mutex> lock{ mutex };
