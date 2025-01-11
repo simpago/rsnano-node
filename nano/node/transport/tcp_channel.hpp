@@ -66,7 +66,7 @@ public:
 	std::string to_string () const override;
 
 protected:
-	bool send_buffer (nano::shared_const_buffer const &, nano::transport::traffic_type, nano::transport::channel::callback_t) override;
+	bool send_impl (nano::message const &, nano::transport::traffic_type, nano::transport::channel::callback_t) override;
 
 private:
 	void start ();

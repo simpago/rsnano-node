@@ -18,8 +18,10 @@ nano::transport::inproc::channel::channel (nano::node & node, nano::node & desti
  * Send the buffer to the peer and call the callback function when done. The call never fails.
  * Note that the inbound message visitor will be called before the callback because it is called directly whereas the callback is spawned in the background.
  */
-bool nano::transport::inproc::channel::send_buffer (nano::shared_const_buffer const & buffer, nano::transport::traffic_type traffic_type, nano::transport::channel::callback_t callback)
+bool nano::transport::inproc::channel::send_impl (nano::message const & message, nano::transport::traffic_type traffic_type, nano::transport::channel::callback_t callback)
 {
+	auto buffer = message.to_shared_const_buffer ();
+
 	std::size_t offset{ 0 };
 	auto const buffer_read_fn = [&offset, buffer_v = buffer.to_bytes ()] (std::shared_ptr<std::vector<uint8_t>> const & data_a, std::size_t size_a, std::function<void (boost::system::error_code const &, std::size_t)> callback_a) {
 		debug_assert (buffer_v.size () >= (offset + size_a));

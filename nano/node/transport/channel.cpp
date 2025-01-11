@@ -16,8 +16,7 @@ nano::transport::channel::channel (nano::node & node_a) :
 
 bool nano::transport::channel::send (nano::message const & message, nano::transport::traffic_type traffic_type, callback_t callback)
 {
-	auto buffer = message.to_shared_const_buffer ();
-	bool sent = send_buffer (buffer, traffic_type, std::move (callback));
+	bool sent = send_impl (message, traffic_type, std::move (callback));
 	node.stats.inc (sent ? nano::stat::type::message : nano::stat::type::drop, to_stat_detail (message.type ()), nano::stat::dir::out, /* aggregate all */ true);
 	return sent;
 }
