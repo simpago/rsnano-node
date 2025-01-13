@@ -104,6 +104,19 @@ void nano::bootstrap::account_sets::priority_set (nano::account const & account,
 	}
 }
 
+void nano::bootstrap::account_sets::priority_erase (nano::account const & account)
+{
+	if (account.is_zero ())
+	{
+		return;
+	}
+
+	if (priorities.get<tag_account> ().erase (account) > 0)
+	{
+		stats.inc (nano::stat::type::bootstrap_account_sets, nano::stat::detail::priority_erase);
+	}
+}
+
 void nano::bootstrap::account_sets::block (nano::account const & account, nano::block_hash const & dependency)
 {
 	debug_assert (!account.is_zero ());
