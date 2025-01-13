@@ -1,6 +1,6 @@
 use crate::{
     utils::into_ipv6_socket_address, Channel, ChannelDirection, ChannelId, ChannelMode,
-    DeadChannelCleanupStep, DropPolicy, NetworkInfo, TrafficType,
+    DeadChannelCleanupStep, NetworkInfo, TrafficType,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -95,21 +95,6 @@ impl Network {
         )
     }
 
-    pub fn try_send_buffer(
-        &self,
-        channel_id: ChannelId,
-        buffer: &[u8],
-        drop_policy: DropPolicy,
-        traffic_type: TrafficType,
-    ) -> bool {
-        let channel = self.channels.lock().unwrap().get(&channel_id).cloned();
-        if let Some(channel) = channel {
-            channel.try_send_buffer(buffer, drop_policy, traffic_type)
-        } else {
-            false
-        }
-    }
-
     pub async fn send_buffer(
         &self,
         channel_id: ChannelId,
@@ -122,10 +107,6 @@ impl Network {
         } else {
             Err(anyhow!("Channel not found"))
         }
-    }
-
-    pub fn port(&self) -> u16 {
-        self.info.read().unwrap().listening_port()
     }
 }
 

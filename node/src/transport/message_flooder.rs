@@ -87,9 +87,10 @@ impl MessageFlooder {
             .unwrap()
             .random_fanout_realtime(scale);
 
+        let network_info = self.network.info.read().unwrap();
         for channel in channels {
             try_send_serialized_message(
-                &self.network,
+                &network_info,
                 &self.stats,
                 channel.channel_id(),
                 buffer,

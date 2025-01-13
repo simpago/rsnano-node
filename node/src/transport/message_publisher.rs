@@ -1,7 +1,7 @@
 use crate::stats::{Direction, StatType, Stats};
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
-use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
-use std::sync::Arc;
+use rsnano_network::{ChannelId, DropPolicy, Network, NetworkInfo, TrafficType};
+use std::sync::{Arc, RwLock};
 use tracing::trace;
 
 pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
@@ -10,6 +10,7 @@ pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 #[derive(Clone)]
 pub struct MessagePublisher {
     network: Arc<Network>,
+    network_info: Arc<RwLock<NetworkInfo>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     published_callback: Option<MessageCallback>,
@@ -18,6 +19,7 @@ pub struct MessagePublisher {
 impl MessagePublisher {
     pub fn new(network: Arc<Network>, stats: Arc<Stats>, protocol_info: ProtocolInfo) -> Self {
         Self {
+            network_info: network.info.clone(),
             network,
             stats,
             message_serializer: MessageSerializer::new(protocol_info),
@@ -32,6 +34,7 @@ impl MessagePublisher {
         buffer_size: usize,
     ) -> Self {
         Self {
+            network_info: network.info.clone(),
             network,
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
@@ -59,15 +62,18 @@ impl MessagePublisher {
         traffic_type: TrafficType,
     ) -> bool {
         let buffer = self.message_serializer.serialize(message);
-        let sent = try_send_serialized_message(
-            &self.network,
-            &self.stats,
-            channel_id,
-            buffer,
-            message,
-            drop_policy,
-            traffic_type,
-        );
+        let sent = {
+            let network_info = self.network_info.read().unwrap();
+            try_send_serialized_message(
+                &network_info,
+                &self.stats,
+                channel_id,
+                buffer,
+                message,
+                drop_policy,
+                traffic_type,
+            )
+        };
 
         if let Some(callback) = &self.published_callback {
             callback(channel_id, message);
@@ -86,8 +92,10 @@ impl MessagePublisher {
         self.network
             .send_buffer(channel_id, &buffer, traffic_type)
             .await?;
+
         self.stats
             .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);
+
         trace!(%channel_id, message = ?message, "Message sent");
 
         if let Some(callback) = &self.published_callback {
@@ -109,9 +117,12 @@ impl MessagePublisher {
         drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
-        let sent = self
-            .network
-            .try_send_buffer(channel_id, buffer, drop_policy, traffic_type);
+        let sent = self.network_info.read().unwrap().try_send_buffer(
+            channel_id,
+            buffer,
+            drop_policy,
+            traffic_type,
+        );
 
         if sent {
             self.stats
@@ -129,7 +140,7 @@ impl MessagePublisher {
 }
 
 pub(crate) fn try_send_serialized_message(
-    network: &Network,
+    network: &NetworkInfo,
     stats: &Stats,
     channel_id: ChannelId,
     buffer: &[u8],

@@ -1,6 +1,6 @@
 use crate::{
     bandwidth_limiter::BandwidthLimiter, utils::into_ipv6_socket_address, AsyncBufferReader,
-    ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NullNetworkObserver, TrafficType,
+    ChannelDirection, ChannelId, ChannelInfo, NullNetworkObserver, TrafficType,
 };
 use async_trait::async_trait;
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
@@ -149,16 +149,6 @@ impl Channel {
     ) -> anyhow::Result<()> {
         self.info.send_buffer(buffer, traffic_type).await?;
         Ok(())
-    }
-
-    // TODO delete and use channel_info directly
-    pub fn try_send_buffer(
-        &self,
-        buffer: &[u8],
-        drop_policy: DropPolicy,
-        traffic_type: TrafficType,
-    ) -> bool {
-        self.info.try_send_buffer(buffer, drop_policy, traffic_type)
     }
 
     async fn ongoing_checkup(&self) {

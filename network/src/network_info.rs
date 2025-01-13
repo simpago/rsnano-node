@@ -4,7 +4,8 @@ use crate::{
     bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
-    ChannelId, ChannelInfo, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
+    ChannelId, ChannelInfo, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver,
+    TrafficType,
 };
 use rand::{seq::SliceRandom, thread_rng};
 use rsnano_core::{utils::ContainerInfo, Networks, NodeId};
@@ -675,6 +676,21 @@ impl NetworkInfo {
             }
         }
         info
+    }
+
+    pub fn try_send_buffer(
+        &self,
+        channel_id: ChannelId,
+        buffer: &[u8],
+        drop_policy: DropPolicy,
+        traffic_type: TrafficType,
+    ) -> bool {
+        let channel = self.channels.get(&channel_id);
+        if let Some(channel) = channel {
+            channel.try_send_buffer(buffer, drop_policy, traffic_type)
+        } else {
+            false
+        }
     }
 
     pub fn len(&self) -> usize {
