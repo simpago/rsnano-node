@@ -9,24 +9,21 @@ use std::{
 use tokio::sync::Notify;
 
 pub struct WriteQueue {
-    generic_queue: Arc<Mutex<VecDeque<Entry>>>,
-    bootstrap_queue: Arc<Mutex<VecDeque<Entry>>>,
-    notify_enqueued: Arc<Notify>,
-    notify_dequeued: Arc<Notify>,
+    generic_queue: Mutex<VecDeque<Entry>>,
+    bootstrap_queue: Mutex<VecDeque<Entry>>,
+    notify_enqueued: Notify,
+    notify_dequeued: Notify,
     closed: Arc<AtomicBool>,
 }
 
 impl WriteQueue {
     pub fn new(max_size: usize) -> Self {
-        let notify_enqueued = Arc::new(Notify::new());
-        let notify_dequeued = Arc::new(Notify::new());
-        let closed = Arc::new(AtomicBool::new(false));
         Self {
-            generic_queue: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
-            bootstrap_queue: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
-            notify_enqueued,
-            notify_dequeued,
-            closed,
+            generic_queue: Mutex::new(VecDeque::with_capacity(max_size * 2)),
+            bootstrap_queue: Mutex::new(VecDeque::with_capacity(max_size * 2)),
+            notify_enqueued: Notify::new(),
+            notify_dequeued: Notify::new(),
+            closed: Arc::new(AtomicBool::new(false)),
         }
     }
 
