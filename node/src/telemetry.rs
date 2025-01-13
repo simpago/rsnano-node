@@ -20,7 +20,7 @@ use crate::{
     NetworkParams,
 };
 use rsnano_network::{
-    Channel, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy, NetworkInfo, TrafficType,
+    Channel, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy, Network, TrafficType,
 };
 
 /**
@@ -41,7 +41,7 @@ pub struct Telemetry {
     condition: Condvar,
     mutex: Mutex<TelemetryImpl>,
     network_params: NetworkParams,
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     message_publisher: Mutex<MessagePublisher>,
     node_id: PrivateKey,
     pub startup_time: Instant,
@@ -60,7 +60,7 @@ impl Telemetry {
         ledger: Arc<Ledger>,
         unchecked: Arc<UncheckedMap>,
         network_params: NetworkParams,
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         message_publisher: MessagePublisher,
         node_id: PrivateKey,
         clock: Arc<SteadyClock>,

@@ -1,6 +1,6 @@
 use rsnano_core::utils::{Peer, NULL_ENDPOINT};
 use rsnano_messages::{Keepalive, Message};
-use rsnano_network::NetworkInfo;
+use rsnano_network::Network;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::{Arc, RwLock},
@@ -8,12 +8,12 @@ use std::{
 
 #[derive(Clone)]
 pub struct KeepaliveMessageFactory {
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
     external_addr: Peer,
 }
 
 impl KeepaliveMessageFactory {
-    pub fn new(network: Arc<RwLock<NetworkInfo>>, external_addr: Peer) -> Self {
+    pub fn new(network: Arc<RwLock<Network>>, external_addr: Peer) -> Self {
         Self {
             network,
             external_addr,

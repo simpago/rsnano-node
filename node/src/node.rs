@@ -46,7 +46,7 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{
-    ChannelId, DeadChannelCleanup, DropPolicy, NetworkAdapter, NetworkCleanup, NetworkInfo,
+    ChannelId, DeadChannelCleanup, DropPolicy, Network, NetworkAdapter, NetworkCleanup,
     PeerConnector, TcpListener, TcpListenerExt, TrafficType,
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
@@ -87,7 +87,7 @@ pub struct Node {
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
-    pub network_info: Arc<RwLock<NetworkInfo>>,
+    pub network_info: Arc<RwLock<Network>>,
     pub network_adapter: Arc<NetworkAdapter>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
@@ -266,7 +266,7 @@ impl Node {
             Arc::new(ThreadPoolImpl::create(1, "Election work"));
 
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
-        let mut network_info = NetworkInfo::new(global_config.into());
+        let mut network_info = Network::new(global_config.into());
         network_info.set_observer(network_observer.clone());
 
         let network_info = Arc::new(RwLock::new(network_info));

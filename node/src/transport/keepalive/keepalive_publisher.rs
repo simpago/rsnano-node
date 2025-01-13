@@ -2,7 +2,7 @@ use super::KeepaliveMessageFactory;
 use crate::transport::MessagePublisher;
 use rsnano_core::utils::Peer;
 use rsnano_network::{
-    utils::into_ipv6_socket_address, ChannelId, DropPolicy, NetworkInfo, PeerConnector, TrafficType,
+    utils::into_ipv6_socket_address, ChannelId, DropPolicy, Network, PeerConnector, TrafficType,
 };
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
@@ -15,7 +15,7 @@ use tracing::error;
 /// or it sends a keepalive message if we are already connected
 pub struct KeepalivePublisher {
     keepalive_listener: OutputListenerMt<Peer>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
     peer_connector: Arc<PeerConnector>,
     message_publisher: Mutex<MessagePublisher>,
     message_factory: Arc<KeepaliveMessageFactory>,
@@ -23,7 +23,7 @@ pub struct KeepalivePublisher {
 
 impl KeepalivePublisher {
     pub fn new(
-        network: Arc<RwLock<NetworkInfo>>,
+        network: Arc<RwLock<Network>>,
         peer_connector: Arc<PeerConnector>,
         message_publisher: MessagePublisher,
         message_factory: Arc<KeepaliveMessageFactory>,

@@ -41,9 +41,7 @@ use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_network::{
-    bandwidth_limiter::RateLimiter, ChannelId, DropPolicy, NetworkInfo, TrafficType,
-};
+use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DropPolicy, Network, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     cmp::{max, min},
@@ -90,7 +88,7 @@ impl BootstrapService {
         block_processor: Arc<BlockProcessor>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         message_publisher: MessagePublisher,
         config: BootstrapConfig,
         clock: Arc<SteadyClock>,
@@ -1087,7 +1085,7 @@ struct BootstrapLogic {
     frontiers: FrontierScan,
     sync_dependencies_interval: Instant,
     config: BootstrapConfig,
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     /// Rate limiter for all types of requests
     limiter: RateLimiter,
 }

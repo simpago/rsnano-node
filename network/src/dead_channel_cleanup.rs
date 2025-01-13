@@ -1,4 +1,4 @@
-use crate::{ChannelId, NetworkInfo};
+use crate::{ChannelId, Network};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::{Arc, RwLock},
@@ -12,7 +12,7 @@ pub trait DeadChannelCleanupStep: Send {
 // Removes dead channels and all their related queue entries
 pub struct DeadChannelCleanup {
     clock: Arc<SteadyClock>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
     cleanup_cutoff: Duration,
     cleanup_steps: Vec<Box<dyn DeadChannelCleanupStep>>,
 }
@@ -20,7 +20,7 @@ pub struct DeadChannelCleanup {
 impl DeadChannelCleanup {
     pub fn new(
         clock: Arc<SteadyClock>,
-        network: Arc<RwLock<NetworkInfo>>,
+        network: Arc<RwLock<Network>>,
         cleanup_cutoff: Duration,
     ) -> Self {
         Self {

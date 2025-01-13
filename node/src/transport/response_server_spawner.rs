@@ -4,14 +4,14 @@ use super::{
 };
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
-use rsnano_network::{ChannelAdapter, ChannelDirection, NetworkInfo, ResponseServerSpawner};
+use rsnano_network::{ChannelAdapter, ChannelDirection, Network, ResponseServerSpawner};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct NanoResponseServerSpawner {
     pub(crate) tokio: tokio::runtime::Handle,
     pub(crate) stats: Arc<Stats>,
     pub(crate) node_id: PrivateKey,
-    pub(crate) network: Arc<RwLock<NetworkInfo>>,
+    pub(crate) network: Arc<RwLock<Network>>,
     pub(crate) network_filter: Arc<NetworkFilter>,
     pub(crate) inbound_queue: Arc<InboundMessageQueue>,
     pub(crate) network_params: NetworkParams,
@@ -23,7 +23,7 @@ impl NanoResponseServerSpawner {
     #[allow(dead_code)]
     pub(crate) fn new_null(tokio: tokio::runtime::Handle) -> Self {
         let network_filter = Arc::new(NetworkFilter::default());
-        let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
+        let network_info = Arc::new(RwLock::new(Network::new_test_instance()));
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
         let stats = Arc::new(Stats::default());
         Self {

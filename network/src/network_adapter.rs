@@ -1,6 +1,6 @@
 use crate::{
     utils::into_ipv6_socket_address, ChannelAdapter, ChannelDirection, ChannelId, ChannelMode,
-    DeadChannelCleanupStep, NetworkInfo,
+    DeadChannelCleanupStep, Network,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -15,14 +15,14 @@ use tracing::{debug, warn};
 /// Connects the Network to real TcpStreams
 pub struct NetworkAdapter {
     channel_adapters: Mutex<HashMap<ChannelId, Arc<ChannelAdapter>>>,
-    pub info: Arc<RwLock<NetworkInfo>>,
+    pub info: Arc<RwLock<Network>>,
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
 }
 
 impl NetworkAdapter {
     pub fn new(
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         clock: Arc<SteadyClock>,
         handle: tokio::runtime::Handle,
     ) -> Self {
@@ -91,7 +91,7 @@ impl NetworkAdapter {
 
     pub fn new_null(handle: tokio::runtime::Handle) -> Self {
         Self::new(
-            Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
+            Arc::new(RwLock::new(Network::new_test_instance())),
             Arc::new(SteadyClock::new_null()),
             handle,
         )

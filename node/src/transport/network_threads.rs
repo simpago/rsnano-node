@@ -7,7 +7,7 @@ use crate::{
     NetworkParams,
 };
 use rsnano_messages::{Keepalive, Message};
-use rsnano_network::{DeadChannelCleanup, DropPolicy, NetworkInfo, PeerConnector, TrafficType};
+use rsnano_network::{DeadChannelCleanup, DropPolicy, Network, PeerConnector, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::{Arc, Condvar, Mutex, RwLock},
@@ -20,7 +20,7 @@ pub(crate) struct NetworkThreads {
     keepalive_thread: Option<JoinHandle<()>>,
     reachout_thread: Option<JoinHandle<()>>,
     stopped: Arc<(Condvar, Mutex<bool>)>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
     peer_connector: Arc<PeerConnector>,
     flags: NodeFlags,
     network_params: NetworkParams,
@@ -36,7 +36,7 @@ pub(crate) struct NetworkThreads {
 
 impl NetworkThreads {
     pub fn new(
-        network: Arc<RwLock<NetworkInfo>>,
+        network: Arc<RwLock<Network>>,
         peer_connector: Arc<PeerConnector>,
         flags: NodeFlags,
         network_params: NetworkParams,
@@ -186,7 +186,7 @@ impl CleanupLoop {
 struct KeepaliveLoop {
     stopped: Arc<(Condvar, Mutex<bool>)>,
     stats: Arc<Stats>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
     keepalive_factory: Arc<KeepaliveMessageFactory>,
     message_flooder: MessageFlooder,
     clock: Arc<SteadyClock>,

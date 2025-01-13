@@ -8,7 +8,7 @@ use crate::{
 };
 use rsnano_core::{utils::ContainerInfo, BlockHash, Root};
 use rsnano_ledger::Ledger;
-use rsnano_network::{ChannelId, DeadChannelCleanupStep, NetworkInfo, TrafficType};
+use rsnano_network::{ChannelId, DeadChannelCleanupStep, Network, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::{max, min},
@@ -49,7 +49,7 @@ pub struct RequestAggregator {
     pub(crate) state: Arc<Mutex<RequestAggregatorState>>,
     condition: Arc<Condvar>,
     threads: Mutex<Vec<JoinHandle<()>>>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
 }
 
 impl RequestAggregator {
@@ -58,7 +58,7 @@ impl RequestAggregator {
         stats: Arc<Stats>,
         vote_generators: Arc<VoteGenerators>,
         ledger: Arc<Ledger>,
-        network: Arc<RwLock<NetworkInfo>>,
+        network: Arc<RwLock<Network>>,
     ) -> Self {
         let max_queue = config.max_queue;
         Self {
@@ -189,7 +189,7 @@ struct RequestAggregatorLoop {
     config: RequestAggregatorConfig,
     ledger: Arc<Ledger>,
     vote_generators: Arc<VoteGenerators>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
 }
 
 impl RequestAggregatorLoop {

@@ -23,7 +23,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
-use rsnano_network::{DropPolicy, NetworkInfo};
+use rsnano_network::{DropPolicy, Network};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
@@ -98,7 +98,7 @@ pub struct ActiveElections {
     block_processor: Arc<BlockProcessor>,
     vote_generators: Arc<VoteGenerators>,
     network_filter: Arc<NetworkFilter>,
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     active_started_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
@@ -124,7 +124,7 @@ impl ActiveElections {
         block_processor: Arc<BlockProcessor>,
         vote_generators: Arc<VoteGenerators>,
         network_filter: Arc<NetworkFilter>,
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         online_reps: Arc<Mutex<OnlineReps>>,

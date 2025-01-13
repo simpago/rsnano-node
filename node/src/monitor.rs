@@ -4,7 +4,7 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 use rsnano_ledger::Ledger;
-use rsnano_network::NetworkInfo;
+use rsnano_network::Network;
 use std::{
     sync::{Arc, Mutex, RwLock},
     time::Instant,
@@ -13,7 +13,7 @@ use tracing::info;
 
 pub struct Monitor {
     ledger: Arc<Ledger>,
-    network: Arc<RwLock<NetworkInfo>>,
+    network: Arc<RwLock<Network>>,
     online_reps: Arc<Mutex<OnlineReps>>,
     active: Arc<ActiveElections>,
     last_time: Option<Instant>,
@@ -24,7 +24,7 @@ pub struct Monitor {
 impl Monitor {
     pub fn new(
         ledger: Arc<Ledger>,
-        network: Arc<RwLock<NetworkInfo>>,
+        network: Arc<RwLock<Network>>,
         online_peers: Arc<Mutex<OnlineReps>>,
         active: Arc<ActiveElections>,
     ) -> Self {

@@ -2,7 +2,7 @@ use super::{Election, ElectionData};
 use crate::{representatives::PeeredRep, transport::MessageFlooder, NetworkParams};
 use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message, Publish};
-use rsnano_network::{ChannelId, DropPolicy, NetworkInfo, TrafficType};
+use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
 use std::{
     cmp::max,
     collections::{HashMap, HashSet},
@@ -11,7 +11,7 @@ use std::{
 
 /// This struct accepts elections that need further votes before they can be confirmed and bundles them in to single confirm_req packets
 pub struct ConfirmationSolicitor<'a> {
-    network_info: &'a RwLock<NetworkInfo>,
+    network_info: &'a RwLock<Network>,
     /// Global maximum amount of block broadcasts
     max_block_broadcasts: usize,
     /// Maximum amount of requests to be sent per election, bypassed if an existing vote is for a different hash
@@ -30,7 +30,7 @@ pub struct ConfirmationSolicitor<'a> {
 impl<'a> ConfirmationSolicitor<'a> {
     pub fn new(
         network_params: &NetworkParams,
-        network_info: &'a RwLock<NetworkInfo>,
+        network_info: &'a RwLock<Network>,
         message_flooder: MessageFlooder,
     ) -> Self {
         let max_election_broadcasts = max(network_info.read().unwrap().fanout(1.0) / 2, 1);

@@ -1,6 +1,6 @@
 use crate::stats::{Direction, StatType, Stats};
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
-use rsnano_network::{ChannelId, DropPolicy, NetworkAdapter, NetworkInfo, TrafficType};
+use rsnano_network::{ChannelId, DropPolicy, Network, NetworkAdapter, TrafficType};
 use std::sync::{Arc, RwLock};
 use tracing::trace;
 
@@ -9,7 +9,7 @@ pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 /// Publishes messages to peered nodes
 #[derive(Clone)]
 pub struct MessagePublisher {
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     published_callback: Option<MessageCallback>,
@@ -17,7 +17,7 @@ pub struct MessagePublisher {
 
 impl MessagePublisher {
     pub fn new(
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         stats: Arc<Stats>,
         protocol_info: ProtocolInfo,
     ) -> Self {
@@ -49,7 +49,7 @@ impl MessagePublisher {
 
     pub(crate) fn new_null() -> Self {
         Self::new(
-            Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
+            Arc::new(RwLock::new(Network::new_test_instance())),
             Arc::new(Stats::default()),
             Default::default(),
         )
@@ -144,7 +144,7 @@ impl MessagePublisher {
 }
 
 pub(crate) fn try_send_serialized_message(
-    network: &NetworkInfo,
+    network: &Network,
     stats: &Stats,
     channel_id: ChannelId,
     buffer: &[u8],

@@ -10,7 +10,7 @@ use crate::{
 };
 use rsnano_core::VoteSource;
 use rsnano_messages::Message;
-use rsnano_network::{Channel, NetworkInfo};
+use rsnano_network::{Channel, Network};
 use std::{
     net::SocketAddrV6,
     sync::{Arc, RwLock},
@@ -21,7 +21,7 @@ use tracing::trace;
 pub struct RealtimeMessageHandler {
     stats: Arc<Stats>,
     network_filter: Arc<NetworkFilter>,
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     block_processor: Arc<BlockProcessor>,
     config: NodeConfig,
     wallets: Arc<Wallets>,
@@ -35,7 +35,7 @@ pub struct RealtimeMessageHandler {
 impl RealtimeMessageHandler {
     pub(crate) fn new(
         stats: Arc<Stats>,
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         network_filter: Arc<NetworkFilter>,
         block_processor: Arc<BlockProcessor>,
         config: NodeConfig,

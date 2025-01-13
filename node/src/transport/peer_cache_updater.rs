@@ -3,7 +3,7 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 use rsnano_ledger::Ledger;
-use rsnano_network::{Channel, NetworkInfo};
+use rsnano_network::{Channel, Network};
 use rsnano_nullable_clock::SystemTimeFactory;
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
@@ -16,7 +16,7 @@ use tracing::debug;
 /// Writes a snapshot of the current peers to the database,
 /// so that we can reconnect to them when the node is restarted
 pub struct PeerCacheUpdater {
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     ledger: Arc<Ledger>,
     time_factory: SystemTimeFactory,
     stats: Arc<Stats>,
@@ -25,7 +25,7 @@ pub struct PeerCacheUpdater {
 
 impl PeerCacheUpdater {
     pub fn new(
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
         time_factory: SystemTimeFactory,
         stats: Arc<Stats>,
@@ -281,7 +281,7 @@ mod tests {
         Vec<SocketAddrV6>,
         Arc<Stats>,
     ) {
-        let mut network = NetworkInfo::new_test_instance();
+        let mut network = Network::new_test_instance();
         for endpoint in open_channels {
             let channel = network
                 .add(

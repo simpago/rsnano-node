@@ -13,7 +13,7 @@ use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmReq, Message};
-use rsnano_network::{Channel, ChannelId, DropPolicy, NetworkInfo, TrafficType};
+use rsnano_network::{Channel, ChannelId, DropPolicy, Network, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     collections::HashMap,
@@ -33,7 +33,7 @@ pub struct RepCrawler {
     stats: Arc<Stats>,
     config: NodeConfig,
     network_params: NetworkParams,
-    network_info: Arc<RwLock<NetworkInfo>>,
+    network_info: Arc<RwLock<Network>>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     active: Arc<ActiveElections>,
@@ -53,7 +53,7 @@ impl RepCrawler {
         query_timeout: Duration,
         config: NodeConfig,
         network_params: NetworkParams,
-        network_info: Arc<RwLock<NetworkInfo>>,
+        network_info: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
         steady_clock: Arc<SteadyClock>,

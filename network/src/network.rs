@@ -80,7 +80,7 @@ pub enum NetworkError {
     DuplicateConnection,
 }
 
-pub struct NetworkInfo {
+pub struct Network {
     next_channel_id: usize,
     channels: HashMap<ChannelId, Arc<Channel>>,
     stopped: bool,
@@ -92,7 +92,7 @@ pub struct NetworkInfo {
     observer: Arc<dyn NetworkObserver>,
 }
 
-impl NetworkInfo {
+impl Network {
     pub fn new(network_config: NetworkConfig) -> Self {
         Self {
             next_channel_id: 1,
@@ -700,7 +700,7 @@ impl NetworkInfo {
     }
 }
 
-impl Drop for NetworkInfo {
+impl Drop for Network {
     fn drop(&mut self) {
         self.stop();
     }
@@ -722,7 +722,7 @@ mod tests {
 
     #[test]
     fn newly_added_channel_is_not_a_realtime_channel() {
-        let mut network = NetworkInfo::new_test_instance();
+        let mut network = Network::new_test_instance();
         network
             .add(
                 TEST_ENDPOINT_1,
@@ -737,7 +737,7 @@ mod tests {
 
     #[test]
     fn reserved_ip_is_not_a_peer() {
-        let network = NetworkInfo::new_test_instance();
+        let network = Network::new_test_instance();
 
         assert!(network.not_a_peer(
             &SocketAddrV6::new(Ipv6Addr::new(0xff00u16, 0, 0, 0, 0, 0, 0, 0), 1000, 0, 0),
@@ -761,7 +761,7 @@ mod tests {
 
     #[test]
     fn upgrade_channel_to_realtime_channel() {
-        let mut network = NetworkInfo::new_test_instance();
+        let mut network = Network::new_test_instance();
         let channel = network
             .add(
                 TEST_ENDPOINT_1,
@@ -780,7 +780,7 @@ mod tests {
 
     #[test]
     fn random_fill_peering_endpoints_empty() {
-        let network = NetworkInfo::new_test_instance();
+        let network = Network::new_test_instance();
         let mut endpoints = [NULL_ENDPOINT; 3];
         network.random_fill_realtime(&mut endpoints);
         assert_eq!(endpoints, [NULL_ENDPOINT; 3]);
@@ -788,7 +788,7 @@ mod tests {
 
     #[test]
     fn random_fill_peering_endpoints_part() {
-        let mut network = NetworkInfo::new_test_instance();
+        let mut network = Network::new_test_instance();
         add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_1);
         add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_2);
         let mut endpoints = [NULL_ENDPOINT; 3];
@@ -800,7 +800,7 @@ mod tests {
 
     #[test]
     fn random_fill_peering_endpoints() {
-        let mut network = NetworkInfo::new_test_instance();
+        let mut network = Network::new_test_instance();
         add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_1);
         add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_2);
         add_realtime_channel_with_peering_addr(&mut network, TEST_ENDPOINT_3);
@@ -811,10 +811,7 @@ mod tests {
         assert!(endpoints.contains(&TEST_ENDPOINT_3));
     }
 
-    fn add_realtime_channel_with_peering_addr(
-        network: &mut NetworkInfo,
-        peering_addr: SocketAddrV6,
-    ) {
+    fn add_realtime_channel_with_peering_addr(network: &mut Network, peering_addr: SocketAddrV6) {
         let channel = network
             .add(
                 TEST_ENDPOINT_1,
@@ -836,14 +833,14 @@ mod tests {
 
         #[test]
         fn purge_empty() {
-            let mut network = NetworkInfo::new_test_instance();
+            let mut network = Network::new_test_instance();
             network.purge(Timestamp::new_test_instance(), Duration::from_secs(1));
             assert_eq!(network.len(), 0);
         }
 
         #[test]
         fn dont_purge_new_channel() {
-            let mut network = NetworkInfo::new_test_instance();
+            let mut network = Network::new_test_instance();
             let now = Timestamp::new_test_instance();
             network
                 .add(
@@ -860,7 +857,7 @@ mod tests {
 
         #[test]
         fn purge_if_last_activitiy_is_above_timeout() {
-            let mut network = NetworkInfo::new_test_instance();
+            let mut network = Network::new_test_instance();
             let now = Timestamp::new_test_instance();
             let channel = network
                 .add(
@@ -878,7 +875,7 @@ mod tests {
 
         #[test]
         fn dont_purge_if_packet_sent_within_timeout() {
-            let mut network = NetworkInfo::new_test_instance();
+            let mut network = Network::new_test_instance();
             let now = Timestamp::new_test_instance();
             let channel = network
                 .add(
