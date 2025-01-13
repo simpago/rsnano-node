@@ -66,7 +66,8 @@ impl ChannelAdapter {
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
         let info = channel_info.clone();
-        let channel = Self::new(channel_info.clone(), Arc::downgrade(&stream), clock.clone());
+        let channel_adapter =
+            Self::new(channel_info.clone(), Arc::downgrade(&stream), clock.clone());
 
         // process write queue:
         handle.spawn(async move {
@@ -119,7 +120,7 @@ impl ChannelAdapter {
             info.close();
         });
 
-        let channel = Arc::new(channel);
+        let channel = Arc::new(channel_adapter);
         let channel_l = channel.clone();
         handle.spawn(async move { channel_l.ongoing_checkup().await });
         channel

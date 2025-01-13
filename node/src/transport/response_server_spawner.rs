@@ -39,18 +39,18 @@ impl NanoResponseServerSpawner {
         }
     }
 
-    pub(crate) fn spawn_outbound(&self, channel: Arc<ChannelAdapter>) {
-        let response_server = self.spawn_response_server(channel);
+    pub(crate) fn spawn_outbound(&self, channel_adapter: Arc<ChannelAdapter>) {
+        let response_server = self.spawn_response_server(channel_adapter);
         self.tokio.spawn(async move {
             response_server.initiate_handshake().await;
         });
     }
 
-    fn spawn_response_server(&self, channel: Arc<ChannelAdapter>) -> Arc<ResponseServer> {
+    fn spawn_response_server(&self, channel_adapter: Arc<ChannelAdapter>) -> Arc<ResponseServer> {
         let server = Arc::new(ResponseServer::new(
             self.network.clone(),
             self.inbound_queue.clone(),
-            channel,
+            channel_adapter,
             self.network_filter.clone(),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),
@@ -68,12 +68,12 @@ impl NanoResponseServerSpawner {
 }
 
 impl ResponseServerSpawner for NanoResponseServerSpawner {
-    fn spawn(&self, channel: Arc<ChannelAdapter>) {
-        match channel.info.direction() {
+    fn spawn(&self, channel_adapter: Arc<ChannelAdapter>) {
+        match channel_adapter.info.direction() {
             ChannelDirection::Inbound => {
-                self.spawn_response_server(channel);
+                self.spawn_response_server(channel_adapter);
             }
-            ChannelDirection::Outbound => self.spawn_outbound(channel),
+            ChannelDirection::Outbound => self.spawn_outbound(channel_adapter),
         }
     }
 }

@@ -55,7 +55,7 @@ impl Default for TcpConfig {
 }
 
 pub struct ResponseServer {
-    channel: Arc<ChannelAdapter>,
+    channel_adapter: Arc<ChannelAdapter>,
     channel_info: Arc<ChannelInfo>,
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
@@ -83,7 +83,7 @@ impl ResponseServer {
     pub fn new(
         network_info: Arc<RwLock<NetworkInfo>>,
         inbound_queue: Arc<InboundMessageQueue>,
-        channel: Arc<ChannelAdapter>,
+        channel_adapter: Arc<ChannelAdapter>,
         network_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
@@ -93,13 +93,13 @@ impl ResponseServer {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        let channel_info = channel.info.clone();
+        let channel_info = channel_adapter.info.clone();
         let peer_addr = channel_info.peer_addr();
         Self {
             network_info,
             inbound_queue,
             channel_info,
-            channel,
+            channel_adapter,
             disable_bootstrap_listener: false,
             connections_max: 64,
             peer_addr: Mutex::new(peer_addr),
@@ -292,7 +292,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             self.network_params.network.protocol_info(),
             self.network_params.network.work.clone(),
             self.network_filter.clone(),
-            ChannelReader::new(self.channel.clone()),
+            ChannelReader::new(self.channel_adapter.clone()),
         );
 
         let mut first_message = true;

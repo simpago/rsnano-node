@@ -75,17 +75,17 @@ impl Network {
         );
 
         let channel_info = channel_info.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
-        let channel =
+        let channel_adapter =
             ChannelAdapter::create(channel_info, stream, self.clock.clone(), &self.handle);
 
         self.channels
             .lock()
             .unwrap()
-            .insert(channel.channel_id(), channel.clone());
+            .insert(channel_adapter.channel_id(), channel_adapter.clone());
 
         debug!(?peer_addr, ?direction, "Accepted connection");
 
-        Ok(channel)
+        Ok(channel_adapter)
     }
 
     pub fn new_null(handle: tokio::runtime::Handle) -> Self {
