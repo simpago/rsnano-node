@@ -15,6 +15,7 @@ use std::{
 use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use crate::{
+    bandwidth_limiter::BandwidthLimiter,
     utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
     write_queue::{Entry, WriteQueue},
     ChannelDirection, ChannelId, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver,
@@ -51,6 +52,7 @@ pub struct ChannelInfo {
     socket_type: AtomicU8,
     write_queue: WriteQueue,
     cancel_token: CancellationToken,
+    pub limiter: Arc<BandwidthLimiter>,
 }
 
 impl ChannelInfo {
@@ -63,6 +65,7 @@ impl ChannelInfo {
         direction: ChannelDirection,
         protocol_version: u8,
         now: Timestamp,
+        limiter: Arc<BandwidthLimiter>,
         observer: Arc<dyn NetworkObserver>,
     ) -> Self {
         Self {
@@ -88,6 +91,7 @@ impl ChannelInfo {
             }),
             write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, observer),
             cancel_token: CancellationToken::new(),
+            limiter,
         }
     }
 
@@ -99,6 +103,7 @@ impl ChannelInfo {
             ChannelDirection::Outbound,
             u8::MAX,
             Timestamp::new_test_instance(),
+            Arc::new(BandwidthLimiter::default()),
             Arc::new(NullNetworkObserver::new()),
         )
     }

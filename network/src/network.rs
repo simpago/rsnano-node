@@ -1,8 +1,7 @@
 use crate::{
-    bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
-    utils::into_ipv6_socket_address,
-    Channel, ChannelDirection, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy,
-    NetworkInfo, NetworkObserver, NullNetworkObserver, TrafficType,
+    utils::into_ipv6_socket_address, Channel, ChannelDirection, ChannelId, ChannelMode,
+    DeadChannelCleanupStep, DropPolicy, NetworkInfo, NetworkObserver, NullNetworkObserver,
+    TrafficType,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -17,7 +16,6 @@ use tracing::{debug, warn};
 pub struct Network {
     channels: Mutex<HashMap<ChannelId, Arc<Channel>>>,
     pub info: Arc<RwLock<NetworkInfo>>,
-    pub limiter: Arc<BandwidthLimiter>,
     clock: Arc<SteadyClock>,
     observer: Arc<dyn NetworkObserver>,
     handle: tokio::runtime::Handle,
@@ -25,14 +23,12 @@ pub struct Network {
 
 impl Network {
     pub fn new(
-        limiter_config: BandwidthLimiterConfig,
         network_info: Arc<RwLock<NetworkInfo>>,
         clock: Arc<SteadyClock>,
         handle: tokio::runtime::Handle,
     ) -> Self {
         Self {
             channels: Mutex::new(HashMap::new()),
-            limiter: Arc::new(BandwidthLimiter::new(limiter_config)),
             clock,
             info: network_info,
             observer: Arc::new(NullNetworkObserver::new()),
@@ -99,7 +95,6 @@ impl Network {
         let channel = Channel::create(
             channel_info,
             stream,
-            self.limiter.clone(),
             self.clock.clone(),
             self.observer.clone(),
             &self.handle,
@@ -117,7 +112,6 @@ impl Network {
 
     pub fn new_null(handle: tokio::runtime::Handle) -> Self {
         Self::new(
-            Default::default(),
             Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             Arc::new(SteadyClock::new_null()),
             handle,

@@ -18,7 +18,6 @@ use tokio::{select, time::sleep};
 pub struct Channel {
     channel_id: ChannelId,
     pub info: Arc<ChannelInfo>,
-    limiter: Arc<BandwidthLimiter>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
     observer: Arc<dyn NetworkObserver>,
@@ -28,14 +27,12 @@ impl Channel {
     fn new(
         channel_info: Arc<ChannelInfo>,
         stream: Weak<TcpStream>,
-        limiter: Arc<BandwidthLimiter>,
         clock: Arc<SteadyClock>,
         observer: Arc<dyn NetworkObserver>,
     ) -> Self {
         Self {
             channel_id: channel_info.channel_id(),
             info: channel_info,
-            limiter,
             stream,
             clock,
             observer,
@@ -56,10 +53,10 @@ impl Channel {
                 ChannelDirection::Outbound,
                 u8::MAX,
                 Timestamp::new_test_instance(),
+                Arc::new(BandwidthLimiter::default()),
                 Arc::new(NullNetworkObserver::new()),
             )),
             Arc::downgrade(&Arc::new(TcpStream::new_null())),
-            Arc::new(BandwidthLimiter::default()),
             Arc::new(SteadyClock::new_null()),
             Arc::new(NullNetworkObserver::new()),
         );
@@ -69,7 +66,6 @@ impl Channel {
     pub fn create(
         channel_info: Arc<ChannelInfo>,
         stream: TcpStream,
-        limiter: Arc<BandwidthLimiter>,
         clock: Arc<SteadyClock>,
         observer: Arc<dyn NetworkObserver>,
         handle: &tokio::runtime::Handle,
@@ -79,7 +75,6 @@ impl Channel {
         let channel = Self::new(
             channel_info.clone(),
             Arc::downgrade(&stream),
-            limiter,
             clock.clone(),
             observer.clone(),
         );
@@ -171,7 +166,7 @@ impl Channel {
             sleep(Duration::from_millis(20)).await;
         }
 
-        while !self.limiter.should_pass(buffer.len(), traffic_type) {
+        while !self.info.limiter.should_pass(buffer.len(), traffic_type) {
             // TODO: better implementation
             sleep(Duration::from_millis(20)).await;
         }
@@ -204,7 +199,7 @@ impl Channel {
             return false;
         }
 
-        let should_pass = self.limiter.should_pass(buffer.len(), traffic_type);
+        let should_pass = self.info.limiter.should_pass(buffer.len(), traffic_type);
         if !should_pass && drop_policy == DropPolicy::CanDrop {
             return false;
         } else {

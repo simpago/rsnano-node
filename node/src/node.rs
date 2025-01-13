@@ -283,12 +283,7 @@ impl Node {
 
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
-        let mut network = Network::new(
-            global_config.into(),
-            network_info.clone(),
-            steady_clock.clone(),
-            runtime.clone(),
-        );
+        let mut network = Network::new(network_info.clone(), steady_clock.clone(), runtime.clone());
         network.set_observer(network_observer.clone());
         let network = Arc::new(network);
 
@@ -1294,7 +1289,6 @@ impl Node {
                 "message_processor",
                 self.inbound_message_queue.container_info(),
             )
-            .node("bandwidth", self.network.limiter.container_info())
             .node("bounded_backlog", self.bounded_backlog.container_info())
             .finish()
     }

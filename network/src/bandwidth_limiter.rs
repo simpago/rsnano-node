@@ -37,6 +37,7 @@ impl RateLimiter {
     }
 }
 
+#[derive(Clone)]
 pub struct BandwidthLimiterConfig {
     pub generic_limit: usize,
     pub generic_burst_ratio: f64,

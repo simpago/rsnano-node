@@ -1,6 +1,7 @@
 use super::ChannelDirection;
 use crate::{
     attempt_container::AttemptContainer,
+    bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
     ChannelId, ChannelInfo, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
@@ -33,6 +34,7 @@ pub struct NetworkConfig {
     pub disable_max_peers_per_subnetwork: bool, // For testing only
     pub disable_network: bool,
     pub listening_port: u16,
+    pub limiter: BandwidthLimiterConfig,
 }
 
 impl NetworkConfig {
@@ -61,6 +63,7 @@ impl NetworkConfig {
                 Networks::NanoTestNetwork => 17076,
                 _ => 7075,
             },
+            limiter: BandwidthLimiterConfig::default(),
         }
     }
 }
@@ -85,6 +88,7 @@ pub struct NetworkInfo {
     attempts: AttemptContainer,
     network_config: NetworkConfig,
     excluded_peers: PeerExclusion,
+    bandwidth_limiter: Arc<BandwidthLimiter>,
     observer: Arc<dyn NetworkObserver>,
 }
 
@@ -96,9 +100,10 @@ impl NetworkInfo {
             stopped: false,
             new_realtime_channel_observers: Vec::new(),
             attempts: Default::default(),
-            network_config,
             excluded_peers: PeerExclusion::new(),
+            bandwidth_limiter: Arc::new(BandwidthLimiter::new(network_config.limiter.clone())),
             observer: Arc::new(NullNetworkObserver::new()),
+            network_config,
         }
     }
 
@@ -170,6 +175,7 @@ impl NetworkInfo {
             direction,
             self.network_config.min_protocol_version,
             now,
+            self.bandwidth_limiter.clone(),
             self.observer.clone(),
         ));
         self.channels.insert(channel_id, channel_info.clone());
@@ -686,6 +692,7 @@ impl NetworkInfo {
                 AttemptContainer::ELEMENT_SIZE,
             )
             .node("excluded_peers", self.excluded_peers.container_info())
+            .node("bandwidth", self.bandwidth_limiter.container_info())
             .finish()
     }
 }
