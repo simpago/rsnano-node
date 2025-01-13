@@ -9,7 +9,6 @@ pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 /// Publishes messages to peered nodes
 #[derive(Clone)]
 pub struct MessagePublisher {
-    network: Arc<Network>,
     network_info: Arc<RwLock<NetworkInfo>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
@@ -17,10 +16,13 @@ pub struct MessagePublisher {
 }
 
 impl MessagePublisher {
-    pub fn new(network: Arc<Network>, stats: Arc<Stats>, protocol_info: ProtocolInfo) -> Self {
+    pub fn new(
+        network_info: Arc<RwLock<NetworkInfo>>,
+        stats: Arc<Stats>,
+        protocol_info: ProtocolInfo,
+    ) -> Self {
         Self {
-            network_info: network.info.clone(),
-            network,
+            network_info,
             stats,
             message_serializer: MessageSerializer::new(protocol_info),
             published_callback: None,
@@ -35,7 +37,6 @@ impl MessagePublisher {
     ) -> Self {
         Self {
             network_info: network.info.clone(),
-            network,
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
             published_callback: None,
@@ -46,9 +47,9 @@ impl MessagePublisher {
         self.published_callback = Some(callback);
     }
 
-    pub(crate) fn new_null(handle: tokio::runtime::Handle) -> Self {
+    pub(crate) fn new_null() -> Self {
         Self::new(
-            Arc::new(Network::new_null(handle)),
+            Arc::new(RwLock::new(NetworkInfo::new_test_instance())),
             Arc::new(Stats::default()),
             Default::default(),
         )

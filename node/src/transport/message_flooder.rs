@@ -38,7 +38,7 @@ impl MessageFlooder {
             Arc::new(Mutex::new(OnlineReps::default())),
             Arc::new(Network::new_null(handle.clone())),
             Arc::new(Stats::default()),
-            MessagePublisher::new_null(handle),
+            MessagePublisher::new_null(),
         )
     }
 

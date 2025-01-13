@@ -332,7 +332,7 @@ impl Node {
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let mut message_publisher = MessagePublisher::new(
-            network.clone(),
+            network_info.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
         );
