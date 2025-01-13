@@ -1,5 +1,5 @@
 use crate::{
-    utils::into_ipv6_socket_address, Channel, ChannelDirection, ChannelId, ChannelMode,
+    utils::into_ipv6_socket_address, ChannelAdapter, ChannelDirection, ChannelId, ChannelMode,
     DeadChannelCleanupStep, NetworkInfo,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
@@ -13,7 +13,7 @@ use std::{
 use tracing::{debug, warn};
 
 pub struct Network {
-    channels: Mutex<HashMap<ChannelId, Arc<Channel>>>,
+    channels: Mutex<HashMap<ChannelId, Arc<ChannelAdapter>>>,
     pub info: Arc<RwLock<NetworkInfo>>,
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
@@ -55,7 +55,7 @@ impl Network {
         stream: TcpStream,
         direction: ChannelDirection,
         planned_mode: ChannelMode,
-    ) -> anyhow::Result<Arc<Channel>> {
+    ) -> anyhow::Result<Arc<ChannelAdapter>> {
         let peer_addr = stream
             .peer_addr()
             .map(into_ipv6_socket_address)
@@ -75,7 +75,8 @@ impl Network {
         );
 
         let channel_info = channel_info.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
-        let channel = Channel::create(channel_info, stream, self.clock.clone(), &self.handle);
+        let channel =
+            ChannelAdapter::create(channel_info, stream, self.clock.clone(), &self.handle);
 
         self.channels
             .lock()

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
-use rsnano_network::{Channel, ChannelDirection, NetworkInfo, ResponseServerSpawner};
+use rsnano_network::{ChannelAdapter, ChannelDirection, NetworkInfo, ResponseServerSpawner};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct NanoResponseServerSpawner {
@@ -39,14 +39,14 @@ impl NanoResponseServerSpawner {
         }
     }
 
-    pub(crate) fn spawn_outbound(&self, channel: Arc<Channel>) {
+    pub(crate) fn spawn_outbound(&self, channel: Arc<ChannelAdapter>) {
         let response_server = self.spawn_response_server(channel);
         self.tokio.spawn(async move {
             response_server.initiate_handshake().await;
         });
     }
 
-    fn spawn_response_server(&self, channel: Arc<Channel>) -> Arc<ResponseServer> {
+    fn spawn_response_server(&self, channel: Arc<ChannelAdapter>) -> Arc<ResponseServer> {
         let server = Arc::new(ResponseServer::new(
             self.network.clone(),
             self.inbound_queue.clone(),
@@ -68,7 +68,7 @@ impl NanoResponseServerSpawner {
 }
 
 impl ResponseServerSpawner for NanoResponseServerSpawner {
-    fn spawn(&self, channel: Arc<Channel>) {
+    fn spawn(&self, channel: Arc<ChannelAdapter>) {
         match channel.info.direction() {
             ChannelDirection::Inbound => {
                 self.spawn_response_server(channel);

@@ -3,7 +3,7 @@ use rsnano_core::{
     SavedBlock, StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_network::{Channel, ChannelDirection, ChannelInfo, ChannelMode};
+use rsnano_network::{ChannelAdapter, ChannelDirection, ChannelInfo, ChannelMode};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NodeConfig, NodeFlags},
@@ -348,7 +348,7 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelInfo> {
         .clone()
 }
 
-pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
+pub fn make_fake_channel(node: &Node) -> Arc<ChannelAdapter> {
     node.network
         .add(
             TcpStream::new_null(),

@@ -13,14 +13,15 @@ use std::{
 };
 use tokio::{select, time::sleep};
 
-pub struct Channel {
+/// Connects a Channel with a TcpStream
+pub struct ChannelAdapter {
     channel_id: ChannelId,
     pub info: Arc<ChannelInfo>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
 }
 
-impl Channel {
+impl ChannelAdapter {
     fn new(
         channel_info: Arc<ChannelInfo>,
         stream: Weak<TcpStream>,
@@ -140,20 +141,20 @@ impl Channel {
     }
 }
 
-impl Display for Channel {
+impl Display for ChannelAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.info.peer_addr().fmt(f)
     }
 }
 
-impl Drop for Channel {
+impl Drop for ChannelAdapter {
     fn drop(&mut self) {
         self.info.close();
     }
 }
 
 #[async_trait]
-impl AsyncBufferReader for Channel {
+impl AsyncBufferReader for ChannelAdapter {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         if count > buffer.len() {
             return Err(anyhow!("buffer is too small for read count"));
@@ -207,10 +208,10 @@ impl AsyncBufferReader for Channel {
     }
 }
 
-pub struct ChannelReader(Arc<Channel>);
+pub struct ChannelReader(Arc<ChannelAdapter>);
 
 impl ChannelReader {
-    pub fn new(channel: Arc<Channel>) -> Self {
+    pub fn new(channel: Arc<ChannelAdapter>) -> Self {
         Self(channel)
     }
 }
