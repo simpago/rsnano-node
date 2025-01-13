@@ -1,4 +1,6 @@
-use crate::{ChannelDirection, ChannelMode, Network, NetworkObserver, ResponseServerSpawner};
+use crate::{
+    ChannelDirection, ChannelMode, NetworkAdapter, NetworkObserver, ResponseServerSpawner,
+};
 use async_trait::async_trait;
 use rsnano_nullable_tcp::TcpStream;
 use std::{
@@ -16,7 +18,7 @@ use tracing::{debug, error, warn};
 /// Server side portion of tcp sessions. Listens for new socket connections and spawns tcp_server objects when connected.
 pub struct TcpListener {
     port: AtomicU16,
-    network: Arc<Network>,
+    network: Arc<NetworkAdapter>,
     network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     data: Mutex<TcpListenerData>,
@@ -39,7 +41,7 @@ struct TcpListenerData {
 impl TcpListener {
     pub fn new(
         port: u16,
-        network: Arc<Network>,
+        network: Arc<NetworkAdapter>,
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
         response_server_spawner: Arc<dyn ResponseServerSpawner>,

@@ -12,21 +12,22 @@ use std::{
 };
 use tracing::{debug, warn};
 
-pub struct Network {
-    channels: Mutex<HashMap<ChannelId, Arc<ChannelAdapter>>>,
+/// Connects the Network to real TcpStreams
+pub struct NetworkAdapter {
+    channel_adapters: Mutex<HashMap<ChannelId, Arc<ChannelAdapter>>>,
     pub info: Arc<RwLock<NetworkInfo>>,
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
 }
 
-impl Network {
+impl NetworkAdapter {
     pub fn new(
         network_info: Arc<RwLock<NetworkInfo>>,
         clock: Arc<SteadyClock>,
         handle: tokio::runtime::Handle,
     ) -> Self {
         Self {
-            channels: Mutex::new(HashMap::new()),
+            channel_adapters: Mutex::new(HashMap::new()),
             clock,
             info: network_info,
             handle,
@@ -78,7 +79,7 @@ impl Network {
         let channel_adapter =
             ChannelAdapter::create(channel_info, stream, self.clock.clone(), &self.handle);
 
-        self.channels
+        self.channel_adapters
             .lock()
             .unwrap()
             .insert(channel_adapter.channel_id(), channel_adapter.clone());
@@ -97,17 +98,17 @@ impl Network {
     }
 }
 
-pub struct NetworkCleanup(Arc<Network>);
+pub struct NetworkCleanup(Arc<NetworkAdapter>);
 
 impl NetworkCleanup {
-    pub fn new(network: Arc<Network>) -> Self {
+    pub fn new(network: Arc<NetworkAdapter>) -> Self {
         Self(network)
     }
 }
 
 impl DeadChannelCleanupStep for NetworkCleanup {
     fn clean_up_dead_channels(&self, dead_channel_ids: &[ChannelId]) {
-        let mut channels = self.0.channels.lock().unwrap();
+        let mut channels = self.0.channel_adapters.lock().unwrap();
         for channel_id in dead_channel_ids {
             channels.remove(channel_id);
         }

@@ -1,5 +1,5 @@
 use crate::{
-    ChannelDirection, ChannelMode, Network, NetworkObserver, NullNetworkObserver,
+    ChannelDirection, ChannelMode, NetworkAdapter, NetworkObserver, NullNetworkObserver,
     NullResponseServerSpawner, ResponseServerSpawner,
 };
 use rsnano_nullable_clock::SteadyClock;
@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 /// Establishes a network connection to a given peer
 pub struct PeerConnector {
     connect_timeout: Duration,
-    network: Arc<Network>,
+    network: Arc<NetworkAdapter>,
     network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     cancel_token: CancellationToken,
@@ -25,7 +25,7 @@ impl PeerConnector {
 
     pub fn new(
         connect_timeout: Duration,
-        network: Arc<Network>,
+        network: Arc<NetworkAdapter>,
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
         response_server_spawner: Arc<dyn ResponseServerSpawner>,
@@ -46,7 +46,7 @@ impl PeerConnector {
     pub fn new_null(tokio: tokio::runtime::Handle) -> Self {
         Self {
             connect_timeout: Self::DEFAULT_TIMEOUT,
-            network: Arc::new(Network::new_null(tokio.clone())),
+            network: Arc::new(NetworkAdapter::new_null(tokio.clone())),
             network_observer: Arc::new(NullNetworkObserver::new()),
             tokio: tokio.clone(),
             cancel_token: CancellationToken::new(),
@@ -135,7 +135,7 @@ impl PeerConnector {
 
 async fn connect_impl(
     peer: SocketAddrV6,
-    network: &Network,
+    network: &NetworkAdapter,
     response_server_spawner: &dyn ResponseServerSpawner,
 ) -> anyhow::Result<()> {
     let tcp_stream = connect_stream(peer).await?;
