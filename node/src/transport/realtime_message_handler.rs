@@ -21,7 +21,7 @@ use tracing::trace;
 pub struct RealtimeMessageHandler {
     stats: Arc<Stats>,
     network_filter: Arc<NetworkFilter>,
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     block_processor: Arc<BlockProcessor>,
     config: NodeConfig,
     wallets: Arc<Wallets>,
@@ -35,7 +35,7 @@ pub struct RealtimeMessageHandler {
 impl RealtimeMessageHandler {
     pub(crate) fn new(
         stats: Arc<Stats>,
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         network_filter: Arc<NetworkFilter>,
         block_processor: Arc<BlockProcessor>,
         config: NodeConfig,
@@ -48,7 +48,7 @@ impl RealtimeMessageHandler {
     ) -> Self {
         Self {
             stats,
-            network_info,
+            network,
             network_filter,
             block_processor,
             config,
@@ -79,7 +79,7 @@ impl RealtimeMessageHandler {
                         SocketAddrV6::new(*channel.peer_addr().ip(), peer0.port(), 0, 0);
 
                     // Remember this for future forwarding to other peers
-                    self.network_info
+                    self.network
                         .read()
                         .unwrap()
                         .set_peering_addr(channel.channel_id(), peering_addr);

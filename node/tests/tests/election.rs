@@ -68,7 +68,7 @@ fn quorum_minimum_update_weight_before_quorum_checks() {
     node1.vote_router.vote(&vote1, VoteSource::Live);
 
     let channel = node1
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node2.get_node_id())

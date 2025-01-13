@@ -88,7 +88,7 @@ impl BootstrapService {
         block_processor: Arc<BlockProcessor>,
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         message_publisher: MessagePublisher,
         config: BootstrapConfig,
         clock: Arc<SteadyClock>,
@@ -113,7 +113,7 @@ impl BootstrapService {
                 )),
                 sync_dependencies_interval: Instant::now(),
                 config: config.clone(),
-                network_info,
+                network,
                 limiter: RateLimiter::new(config.rate_limit),
             })),
             condition: Arc::new(Condvar::new()),
@@ -1085,7 +1085,7 @@ struct BootstrapLogic {
     frontiers: FrontierScan,
     sync_dependencies_interval: Instant,
     config: BootstrapConfig,
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     /// Rate limiter for all types of requests
     limiter: RateLimiter,
 }
@@ -1263,7 +1263,7 @@ impl BootstrapLogic {
     }
 
     fn cleanup_and_sync(&mut self, account_count: u64, stats: &Stats, now: Timestamp) {
-        let channels = self.network_info.read().unwrap().list_realtime_channels(0);
+        let channels = self.network.read().unwrap().list_realtime_channels(0);
         self.scoring.sync(channels);
         self.scoring.timeout();
 

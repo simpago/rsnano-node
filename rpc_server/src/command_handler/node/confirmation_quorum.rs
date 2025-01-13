@@ -26,7 +26,7 @@ impl RpcCommandHandler {
                 .map(|rep| {
                     let endpoint = self
                         .node
-                        .network_info
+                        .network
                         .read()
                         .unwrap()
                         .get(rep.channel_id)

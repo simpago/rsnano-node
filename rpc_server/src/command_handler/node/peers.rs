@@ -8,7 +8,7 @@ impl RpcCommandHandler {
         let mut peers: HashMap<SocketAddrV6, PeerInfo> = HashMap::new();
 
         self.node
-            .network_info
+            .network
             .read()
             .unwrap()
             .random_realtime_channels(usize::MAX, 0)

@@ -9,7 +9,7 @@ pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 /// Publishes messages to peered nodes
 #[derive(Clone)]
 pub struct MessagePublisher {
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     published_callback: Option<MessageCallback>,
@@ -17,12 +17,12 @@ pub struct MessagePublisher {
 
 impl MessagePublisher {
     pub fn new(
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         stats: Arc<Stats>,
         protocol_info: ProtocolInfo,
     ) -> Self {
         Self {
-            network_info,
+            network,
             stats,
             message_serializer: MessageSerializer::new(protocol_info),
             published_callback: None,
@@ -36,7 +36,7 @@ impl MessagePublisher {
         buffer_size: usize,
     ) -> Self {
         Self {
-            network_info: network_adapter.info.clone(),
+            network: network_adapter.network.clone(),
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
             published_callback: None,
@@ -64,7 +64,7 @@ impl MessagePublisher {
     ) -> bool {
         let buffer = self.message_serializer.serialize(message);
         let sent = {
-            let network_info = self.network_info.read().unwrap();
+            let network_info = self.network.read().unwrap();
             try_send_serialized_message(
                 &network_info,
                 &self.stats,
@@ -90,7 +90,7 @@ impl MessagePublisher {
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
         let buffer = self.message_serializer.serialize(message);
-        let channel = self.network_info.read().unwrap().get(channel_id).cloned();
+        let channel = self.network.read().unwrap().get(channel_id).cloned();
         if let Some(channel) = channel {
             channel.send_buffer(&buffer, traffic_type).await?;
         } else {
@@ -121,7 +121,7 @@ impl MessagePublisher {
         drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
-        let sent = self.network_info.read().unwrap().try_send_buffer(
+        let sent = self.network.read().unwrap().try_send_buffer(
             channel_id,
             buffer,
             drop_policy,

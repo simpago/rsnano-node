@@ -111,7 +111,7 @@ impl TcpListenerExt for Arc<TcpListener> {
 
             self_l
                 .network_adapter
-                .info
+                .network
                 .write()
                 .unwrap()
                 .set_listening_port(addr.port());

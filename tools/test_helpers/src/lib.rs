@@ -133,13 +133,13 @@ impl System {
             let start = Instant::now();
             loop {
                 if node
-                    .network_info
+                    .network
                     .read()
                     .unwrap()
                     .find_node_id(&other.node_id.public_key().into())
                     .is_some()
                     && other
-                        .network_info
+                        .network
                         .read()
                         .unwrap()
                         .find_node_id(&node.node_id.public_key().into())
@@ -332,7 +332,7 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<Channel> {
     assert_timely_msg(
         Duration::from_secs(2),
         || {
-            node.network_info
+            node.network
                 .read()
                 .unwrap()
                 .find_node_id(&peer.node_id.public_key().into())
@@ -341,7 +341,7 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<Channel> {
         "node did not connect",
     );
 
-    node.network_info
+    node.network
         .read()
         .unwrap()
         .find_node_id(&peer.node_id.public_key().into())
@@ -350,7 +350,7 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<Channel> {
 }
 
 pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
-    node.network_info
+    node.network
         .write()
         .unwrap()
         .add(

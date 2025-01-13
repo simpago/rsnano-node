@@ -1675,7 +1675,7 @@ fn local_block_broadcast() {
         Duration::from_secs(5),
         || {
             node1
-                .network_info
+                .network
                 .read()
                 .unwrap()
                 .find_node_id(&node2.get_node_id())
@@ -1784,7 +1784,7 @@ fn fork_no_vote_quorum() {
     let vote = Vote::new(&PrivateKey::new(), 0, 0, vec![send2.hash()]);
     let confirm = Message::ConfirmAck(ConfirmAck::new_with_own_vote(vote));
     let channel = node2
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node3.node_id())
@@ -2357,7 +2357,7 @@ fn rep_crawler_rep_remove() {
         .insert_adhoc2(&wallet_id, &DEV_GENESIS_KEY.raw_key(), true)
         .unwrap();
     let channel_genesis_rep = searching_node
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node_genesis_rep.get_node_id())
@@ -2390,7 +2390,7 @@ fn rep_crawler_rep_remove() {
         Duration::from_secs(10),
         || {
             searching_node
-                .network_info
+                .network
                 .read()
                 .unwrap()
                 .find_node_id(&node_rep2.get_node_id())
@@ -2399,7 +2399,7 @@ fn rep_crawler_rep_remove() {
         "channel to rep2 not found",
     );
     let channel_rep2 = searching_node
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node_rep2.get_node_id())

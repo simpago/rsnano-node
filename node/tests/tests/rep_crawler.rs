@@ -15,7 +15,7 @@ fn ignore_rebroadcast() {
     let node2 = system.make_node();
 
     let channel1to2 = node1
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node2.node_id())
@@ -23,7 +23,7 @@ fn ignore_rebroadcast() {
         .channel_id();
 
     let channel2to1 = node2
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node1.node_id())
@@ -105,7 +105,7 @@ fn rep_weight() {
     assert_timely_eq(
         Duration::from_secs(5),
         || {
-            node.network_info
+            node.network
                 .read()
                 .unwrap()
                 .count_by_mode(ChannelMode::Realtime)
@@ -114,7 +114,7 @@ fn rep_weight() {
     );
 
     let (channel1, channel2, channel3) = {
-        let network = node.network_info.read().unwrap();
+        let network = node.network.read().unwrap();
         (
             network
                 .find_node_id(&node1.get_node_id())
@@ -169,7 +169,7 @@ fn recently_confirmed() {
     let node2 = system.make_node();
     node2.insert_into_wallet(&DEV_GENESIS_KEY);
     let channel = node1
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node2.get_node_id())

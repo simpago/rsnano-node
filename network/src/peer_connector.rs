@@ -69,7 +69,7 @@ impl PeerConnector {
         }
 
         {
-            let mut network = self.network_adapter.info.write().unwrap();
+            let mut network = self.network_adapter.network.write().unwrap();
 
             if let Err(e) =
                 network.add_outbound_attempt(peer, ChannelMode::Realtime, self.clock.now())
@@ -122,7 +122,7 @@ impl PeerConnector {
                 }
             }
 
-            network_l.info.write().unwrap().remove_attempt(&peer);
+            network_l.network.write().unwrap().remove_attempt(&peer);
         });
 
         true

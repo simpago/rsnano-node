@@ -41,7 +41,7 @@ pub struct Telemetry {
     condition: Condvar,
     mutex: Mutex<TelemetryImpl>,
     network_params: NetworkParams,
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     message_publisher: Mutex<MessagePublisher>,
     node_id: PrivateKey,
     pub startup_time: Instant,
@@ -60,7 +60,7 @@ impl Telemetry {
         ledger: Arc<Ledger>,
         unchecked: Arc<UncheckedMap>,
         network_params: NetworkParams,
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         message_publisher: MessagePublisher,
         node_id: PrivateKey,
         clock: Arc<SteadyClock>,
@@ -72,7 +72,7 @@ impl Telemetry {
             ledger,
             unchecked,
             network_params,
-            network_info,
+            network,
             message_publisher: Mutex::new(message_publisher),
             thread: Mutex::new(None),
             condition: Condvar::new(),
@@ -128,7 +128,7 @@ impl Telemetry {
         }
 
         if data.genesis_block != self.network_params.ledger.genesis_block.hash() {
-            self.network_info
+            self.network
                 .write()
                 .unwrap()
                 .peer_misbehaved(channel.channel_id(), self.clock.now());
@@ -257,7 +257,7 @@ impl Telemetry {
     }
 
     fn run_requests(&self) {
-        let channel_ids = self.network_info.read().unwrap().random_list_realtime_ids();
+        let channel_ids = self.network.read().unwrap().random_list_realtime_ids();
         for channel_id in channel_ids {
             self.request(channel_id);
         }
@@ -275,7 +275,7 @@ impl Telemetry {
 
     fn run_broadcasts(&self) {
         let telemetry = self.local_telemetry();
-        let channel_ids = self.network_info.read().unwrap().random_list_realtime_ids();
+        let channel_ids = self.network.read().unwrap().random_list_realtime_ids();
         let message = Message::TelemetryAck(TelemetryAck(Some(telemetry)));
         for channel_id in channel_ids {
             self.broadcast(channel_id, &message);
@@ -344,7 +344,7 @@ impl Telemetry {
 
     pub fn local_telemetry(&self) -> TelemetryData {
         let peer_count = self
-            .network_info
+            .network
             .read()
             .unwrap()
             .count_by_mode(ChannelMode::Realtime) as u32;

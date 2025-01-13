@@ -87,7 +87,7 @@ pub struct Node {
     pub unchecked: Arc<UncheckedMap>,
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
-    pub network_info: Arc<RwLock<Network>>,
+    pub network: Arc<RwLock<Network>>,
     pub network_adapter: Arc<NetworkAdapter>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
@@ -266,10 +266,10 @@ impl Node {
             Arc::new(ThreadPoolImpl::create(1, "Election work"));
 
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
-        let mut network_info = Network::new(global_config.into());
-        network_info.set_observer(network_observer.clone());
+        let mut network = Network::new(global_config.into());
+        network.set_observer(network_observer.clone());
 
-        let network_info = Arc::new(RwLock::new(network_info));
+        let network_info = Arc::new(RwLock::new(network));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
             steady_clock.clone(),
@@ -1193,7 +1193,7 @@ impl Node {
             telemetry,
             syn_cookies,
             network_adapter,
-            network_info,
+            network: network_info,
             ledger,
             store,
             stats,
@@ -1242,7 +1242,7 @@ impl Node {
     }
 
     pub fn container_info(&self) -> ContainerInfo {
-        let tcp_channels = self.network_info.read().unwrap().container_info();
+        let tcp_channels = self.network.read().unwrap().container_info();
         let online_reps = self.online_reps.lock().unwrap().container_info();
         let vote_cache = self.vote_cache.lock().unwrap().container_info();
 

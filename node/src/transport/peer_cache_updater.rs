@@ -16,7 +16,7 @@ use tracing::debug;
 /// Writes a snapshot of the current peers to the database,
 /// so that we can reconnect to them when the node is restarted
 pub struct PeerCacheUpdater {
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     ledger: Arc<Ledger>,
     time_factory: SystemTimeFactory,
     stats: Arc<Stats>,
@@ -25,14 +25,14 @@ pub struct PeerCacheUpdater {
 
 impl PeerCacheUpdater {
     pub fn new(
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
         time_factory: SystemTimeFactory,
         stats: Arc<Stats>,
         erase_cutoff: Duration,
     ) -> Self {
         Self {
-            network_info,
+            network,
             ledger,
             time_factory,
             stats,
@@ -41,7 +41,7 @@ impl PeerCacheUpdater {
     }
 
     fn save_peers(&self, tx: &mut LmdbWriteTransaction) {
-        let live_peers = self.network_info.read().unwrap().list_realtime_channels(0);
+        let live_peers = self.network.read().unwrap().list_realtime_channels(0);
         for peer in &live_peers {
             self.save_peer(tx, peer);
         }

@@ -23,14 +23,14 @@ impl NanoResponseServerSpawner {
     #[allow(dead_code)]
     pub(crate) fn new_null(tokio: tokio::runtime::Handle) -> Self {
         let network_filter = Arc::new(NetworkFilter::default());
-        let network_info = Arc::new(RwLock::new(Network::new_test_instance()));
+        let network = Arc::new(RwLock::new(Network::new_test_instance()));
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
         let stats = Arc::new(Stats::default());
         Self {
             tokio: tokio.clone(),
             stats: stats.clone(),
             node_id: PrivateKey::from(42),
-            network: network_info,
+            network,
             inbound_queue: Arc::new(InboundMessageQueue::default()),
             network_params,
             syn_cookies: Arc::new(SynCookies::new(1)),

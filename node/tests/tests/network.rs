@@ -38,7 +38,7 @@ fn last_contacted() {
         Duration::from_secs(3),
         || {
             node0
-                .network_info
+                .network
                 .read()
                 .unwrap()
                 .count_by_mode(ChannelMode::Realtime)
@@ -48,7 +48,7 @@ fn last_contacted() {
 
     // channel0 is the other side of channel1, same connection different endpoint
     let channel0 = node0
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node1.node_id())
@@ -108,7 +108,7 @@ fn last_contacted() {
     );
     assert_eq!(
         node0
-            .network_info
+            .network
             .read()
             .unwrap()
             .count_by_mode(ChannelMode::Realtime),
@@ -334,7 +334,7 @@ fn duplicate_vote_detection() {
 
     // Publish duplicate detection through TCP
     let channel_id = node0
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node1.node_id())
@@ -414,7 +414,7 @@ fn duplicate_revert_vote() {
 
     // Publish duplicate detection through TCP
     let channel_id = node0
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node1.node_id())
@@ -491,7 +491,7 @@ fn expire_duplicate_filter() {
 
     // Publish duplicate detection through TCP
     let channel_id = node0
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node1.node_id())

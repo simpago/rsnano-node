@@ -98,7 +98,7 @@ pub struct ActiveElections {
     block_processor: Arc<BlockProcessor>,
     vote_generators: Arc<VoteGenerators>,
     network_filter: Arc<NetworkFilter>,
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     vote_cache: Arc<Mutex<VoteCache>>,
     stats: Arc<Stats>,
     active_started_observer: Mutex<Vec<Box<dyn Fn(BlockHash) + Send + Sync>>>,
@@ -124,7 +124,7 @@ impl ActiveElections {
         block_processor: Arc<BlockProcessor>,
         vote_generators: Arc<VoteGenerators>,
         network_filter: Arc<NetworkFilter>,
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         vote_cache: Arc<Mutex<VoteCache>>,
         stats: Arc<Stats>,
         online_reps: Arc<Mutex<OnlineReps>>,
@@ -159,7 +159,7 @@ impl ActiveElections {
             block_processor,
             vote_generators,
             network_filter,
-            network_info,
+            network,
             vote_cache,
             stats,
             active_started_observer: Mutex::new(Vec::new()),
@@ -806,7 +806,7 @@ impl ActiveElections {
 
         let publisher = self.message_flooder.lock().unwrap().clone();
         let mut solicitor =
-            ConfirmationSolicitor::new(&self.network_params, &self.network_info, publisher);
+            ConfirmationSolicitor::new(&self.network_params, &self.network, publisher);
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
         solicitor.prepare(&peered_prs);
 

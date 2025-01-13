@@ -58,7 +58,7 @@ impl MessageFlooder {
         let mut channels;
         let fanout;
         {
-            let network = self.network_adapter.info.read().unwrap();
+            let network = self.network_adapter.network.read().unwrap();
             fanout = network.fanout(scale);
             channels = network.random_list_realtime(usize::MAX, 0)
         }
@@ -82,12 +82,12 @@ impl MessageFlooder {
         let buffer = self.message_serializer.serialize(message);
         let channels = self
             .network_adapter
-            .info
+            .network
             .read()
             .unwrap()
             .random_fanout_realtime(scale);
 
-        let network_info = self.network_adapter.info.read().unwrap();
+        let network_info = self.network_adapter.network.read().unwrap();
         for channel in channels {
             try_send_serialized_message(
                 &network_info,

@@ -33,7 +33,7 @@ pub struct RepCrawler {
     stats: Arc<Stats>,
     config: NodeConfig,
     network_params: NetworkParams,
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     condition: Condvar,
     ledger: Arc<Ledger>,
     active: Arc<ActiveElections>,
@@ -53,7 +53,7 @@ impl RepCrawler {
         query_timeout: Duration,
         config: NodeConfig,
         network_params: NetworkParams,
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
         steady_clock: Arc<SteadyClock>,
@@ -67,7 +67,7 @@ impl RepCrawler {
             stats: Arc::clone(&stats),
             config: config.clone(),
             network_params,
-            network_info,
+            network,
             condition: Condvar::new(),
             ledger,
             active,
@@ -289,7 +289,7 @@ impl RepCrawler {
 
                 /* include channels with ephemeral remote ports */
                 let random_peers = self
-                    .network_info
+                    .network
                     .read()
                     .unwrap()
                     .random_realtime_channels(required_peer_count, 0);

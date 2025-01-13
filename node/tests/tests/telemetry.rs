@@ -18,7 +18,7 @@ fn invalid_signature() {
     let message = Message::TelemetryAck(TelemetryAck(Some(telemetry)));
 
     let channel = make_fake_channel(&node);
-    node.network_info
+    node.network
         .read()
         .unwrap()
         .set_node_id(channel.channel_id(), node_id);
@@ -46,7 +46,7 @@ fn basic() {
 
     // Request telemetry metrics
     let channel = node_client
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node_server.get_node_id())
@@ -102,7 +102,7 @@ fn disconnected() {
 
     // Request telemetry metrics
     let channel = node_client
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node_server.get_node_id())
@@ -141,7 +141,7 @@ fn disable_metrics() {
 
     // Try and request metrics from a node which is turned off but a channel is not closed yet
     let channel = node_client
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node_server.get_node_id())
@@ -159,7 +159,7 @@ fn disable_metrics() {
 
     // It should still be able to receive metrics though
     let channel1 = node_server
-        .network_info
+        .network
         .read()
         .unwrap()
         .find_node_id(&node_client.get_node_id())

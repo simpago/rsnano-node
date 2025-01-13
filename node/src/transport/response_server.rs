@@ -69,7 +69,7 @@ pub struct ResponseServer {
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
     allow_bootstrap: bool,
-    network_info: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
     initiate_handshake_listener: OutputListenerMt<()>,
@@ -81,7 +81,7 @@ static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
 
 impl ResponseServer {
     pub fn new(
-        network_info: Arc<RwLock<Network>>,
+        network: Arc<RwLock<Network>>,
         inbound_queue: Arc<InboundMessageQueue>,
         channel_adapter: Arc<ChannelAdapter>,
         network_filter: Arc<NetworkFilter>,
@@ -96,7 +96,7 @@ impl ResponseServer {
         let channel_info = channel_adapter.channel.clone();
         let peer_addr = channel_info.peer_addr();
         Self {
-            network_info,
+            network,
             inbound_queue,
             channel: channel_info,
             channel_adapter,
@@ -159,7 +159,7 @@ impl ResponseServer {
         }
 
         let bootstrap_count = self
-            .network_info
+            .network
             .read()
             .unwrap()
             .count_by_mode(ChannelMode::Bootstrap);
@@ -249,7 +249,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
         }
 
         let result = self
-            .network_info
+            .network
             .read()
             .unwrap()
             .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id);
@@ -306,7 +306,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 Ok(msg) => {
                     if first_message {
                         // TODO: if version using changes => peer misbehaved!
-                        self.network_info.read().unwrap().set_protocol_version(
+                        self.network.read().unwrap().set_protocol_version(
                             self.channel.channel_id(),
                             msg.protocol.version_using,
                         );
@@ -415,7 +415,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     );
                     if matches!(result, HandshakeStatus::AbortOwnNodeId) {
                         if let Some(peering_addr) = self.channel.peering_addr() {
-                            self.network_info.write().unwrap().perma_ban(peering_addr);
+                            self.network.write().unwrap().perma_ban(peering_addr);
                         }
                     }
                     return ProcessResult::Abort;

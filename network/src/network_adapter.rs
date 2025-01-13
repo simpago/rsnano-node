@@ -15,7 +15,7 @@ use tracing::{debug, warn};
 /// Connects the Network to real TcpStreams
 pub struct NetworkAdapter {
     channel_adapters: Mutex<HashMap<ChannelId, Arc<ChannelAdapter>>>,
-    pub info: Arc<RwLock<Network>>,
+    pub network: Arc<RwLock<Network>>,
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
 }
@@ -29,7 +29,7 @@ impl NetworkAdapter {
         Self {
             channel_adapters: Mutex::new(HashMap::new()),
             clock,
-            info: network_info,
+            network: network_info,
             handle,
         }
     }
@@ -47,7 +47,7 @@ impl NetworkAdapter {
     }
 
     fn should_wait_for_inbound_slot(&self) -> bool {
-        let info = self.info.read().unwrap();
+        let info = self.network.read().unwrap();
         !info.is_inbound_slot_available() && !info.is_stopped()
     }
 
@@ -67,7 +67,7 @@ impl NetworkAdapter {
             .map(into_ipv6_socket_address)
             .unwrap_or(NULL_ENDPOINT);
 
-        let channel_info = self.info.write().unwrap().add(
+        let channel_info = self.network.write().unwrap().add(
             local_addr,
             peer_addr,
             direction,

@@ -101,7 +101,7 @@ fn telemetry_all() {
     let peer_port = peer_telemetry.port.unwrap().inner();
     let peer_endpoint = SocketAddrV6::new(peer_address, peer_port, 0, 0);
 
-    let network_info = node.network_info.read().unwrap();
+    let network_info = node.network.read().unwrap();
     let matching_channels = network_info.find_channels_by_peering_addr(&peer_endpoint.into());
     assert!(
         !matching_channels.is_empty(),
