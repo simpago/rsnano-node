@@ -14,14 +14,14 @@ use std::{
 use tokio::{select, time::sleep};
 
 /// Connects a Channel with a TcpStream
-pub struct ChannelAdapter {
+pub struct TcpChannelAdapter {
     channel_id: ChannelId,
     pub channel: Arc<Channel>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
 }
 
-impl ChannelAdapter {
+impl TcpChannelAdapter {
     fn new(channel: Arc<Channel>, stream: Weak<TcpStream>, clock: Arc<SteadyClock>) -> Self {
         Self {
             channel_id: channel.channel_id(),
@@ -137,20 +137,20 @@ impl ChannelAdapter {
     }
 }
 
-impl Display for ChannelAdapter {
+impl Display for TcpChannelAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.channel.peer_addr().fmt(f)
     }
 }
 
-impl Drop for ChannelAdapter {
+impl Drop for TcpChannelAdapter {
     fn drop(&mut self) {
         self.channel.close();
     }
 }
 
 #[async_trait]
-impl AsyncBufferReader for ChannelAdapter {
+impl AsyncBufferReader for TcpChannelAdapter {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         if count > buffer.len() {
             return Err(anyhow!("buffer is too small for read count"));
@@ -204,10 +204,10 @@ impl AsyncBufferReader for ChannelAdapter {
     }
 }
 
-pub struct ChannelReader(Arc<ChannelAdapter>);
+pub struct ChannelReader(Arc<TcpChannelAdapter>);
 
 impl ChannelReader {
-    pub fn new(channel: Arc<ChannelAdapter>) -> Self {
+    pub fn new(channel: Arc<TcpChannelAdapter>) -> Self {
         Self(channel)
     }
 }

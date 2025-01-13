@@ -1,31 +1,31 @@
 pub mod attempt_container;
 pub mod bandwidth_limiter;
 mod channel;
-mod channel_adapter;
 mod dead_channel_cleanup;
 mod network;
-mod network_adapter;
 mod network_observer;
 mod peer_connector;
 pub mod peer_exclusion;
 mod response_server_spawner;
+mod tcp_channel_adapter;
 mod tcp_listener;
+mod tcp_network_adapter;
 pub mod token_bucket;
 pub mod utils;
 pub mod write_queue;
 
 use async_trait::async_trait;
 pub use channel::*;
-pub use channel_adapter::*;
 pub use dead_channel_cleanup::*;
 pub use network::*;
-pub use network_adapter::*;
 pub use network_observer::*;
 use num_derive::FromPrimitive;
 pub use peer_connector::*;
 pub use response_server_spawner::*;
 use std::fmt::{Debug, Display};
+pub use tcp_channel_adapter::*;
 pub use tcp_listener::*;
+pub use tcp_network_adapter::*;
 
 #[macro_use]
 extern crate anyhow;

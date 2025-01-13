@@ -1,7 +1,7 @@
 use super::{try_send_serialized_message, MessagePublisher};
 use crate::{representatives::OnlineReps, stats::Stats};
 use rsnano_messages::{Message, MessageSerializer};
-use rsnano_network::{Channel, DropPolicy, NetworkAdapter, TrafficType};
+use rsnano_network::{Channel, DropPolicy, TcpNetworkAdapter, TrafficType};
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
@@ -11,7 +11,7 @@ use std::{
 #[derive(Clone)]
 pub struct MessageFlooder {
     online_reps: Arc<Mutex<OnlineReps>>,
-    network_adapter: Arc<NetworkAdapter>,
+    network_adapter: Arc<TcpNetworkAdapter>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     publisher: MessagePublisher,
@@ -20,7 +20,7 @@ pub struct MessageFlooder {
 impl MessageFlooder {
     pub fn new(
         online_reps: Arc<Mutex<OnlineReps>>,
-        network_adapter: Arc<NetworkAdapter>,
+        network_adapter: Arc<TcpNetworkAdapter>,
         stats: Arc<Stats>,
         publisher: MessagePublisher,
     ) -> Self {
@@ -36,7 +36,7 @@ impl MessageFlooder {
     pub(crate) fn new_null(handle: tokio::runtime::Handle) -> Self {
         Self::new(
             Arc::new(Mutex::new(OnlineReps::default())),
-            Arc::new(NetworkAdapter::new_null(handle.clone())),
+            Arc::new(TcpNetworkAdapter::new_null(handle.clone())),
             Arc::new(Stats::default()),
             MessagePublisher::new_null(),
         )

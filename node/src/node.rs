@@ -46,8 +46,8 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, Message, Publish};
 use rsnano_network::{
-    ChannelId, DeadChannelCleanup, DropPolicy, Network, NetworkAdapter, NetworkCleanup,
-    PeerConnector, TcpListener, TcpListenerExt, TrafficType,
+    ChannelId, DeadChannelCleanup, DropPolicy, Network, NetworkCleanup, PeerConnector, TcpListener,
+    TcpListenerExt, TcpNetworkAdapter, TrafficType,
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
 use rsnano_nullable_http_client::{HttpClient, Url};
@@ -88,7 +88,7 @@ pub struct Node {
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
     pub network: Arc<RwLock<Network>>,
-    pub network_adapter: Arc<NetworkAdapter>,
+    pub network_adapter: Arc<TcpNetworkAdapter>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
     online_weight_sampler: Arc<OnlineWeightSampler>,
@@ -283,7 +283,7 @@ impl Node {
 
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
-        let network_adapter = Arc::new(NetworkAdapter::new(
+        let network_adapter = Arc::new(TcpNetworkAdapter::new(
             network_info.clone(),
             steady_clock.clone(),
             runtime.clone(),

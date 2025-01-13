@@ -1,6 +1,6 @@
 use crate::{
-    utils::into_ipv6_socket_address, ChannelAdapter, ChannelDirection, ChannelId, ChannelMode,
-    DeadChannelCleanupStep, Network,
+    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, ChannelMode,
+    DeadChannelCleanupStep, Network, TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -12,15 +12,15 @@ use std::{
 };
 use tracing::{debug, warn};
 
-/// Connects the Network to real TcpStreams
-pub struct NetworkAdapter {
-    channel_adapters: Mutex<HashMap<ChannelId, Arc<ChannelAdapter>>>,
+/// Connects the Network to TcpStreams
+pub struct TcpNetworkAdapter {
+    channel_adapters: Mutex<HashMap<ChannelId, Arc<TcpChannelAdapter>>>,
     pub network: Arc<RwLock<Network>>,
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
 }
 
-impl NetworkAdapter {
+impl TcpNetworkAdapter {
     pub fn new(
         network_info: Arc<RwLock<Network>>,
         clock: Arc<SteadyClock>,
@@ -56,7 +56,7 @@ impl NetworkAdapter {
         stream: TcpStream,
         direction: ChannelDirection,
         planned_mode: ChannelMode,
-    ) -> anyhow::Result<Arc<ChannelAdapter>> {
+    ) -> anyhow::Result<Arc<TcpChannelAdapter>> {
         let peer_addr = stream
             .peer_addr()
             .map(into_ipv6_socket_address)
@@ -77,7 +77,7 @@ impl NetworkAdapter {
 
         let channel_info = channel_info.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
         let channel_adapter =
-            ChannelAdapter::create(channel_info, stream, self.clock.clone(), &self.handle);
+            TcpChannelAdapter::create(channel_info, stream, self.clock.clone(), &self.handle);
 
         self.channel_adapters
             .lock()
@@ -98,10 +98,10 @@ impl NetworkAdapter {
     }
 }
 
-pub struct NetworkCleanup(Arc<NetworkAdapter>);
+pub struct NetworkCleanup(Arc<TcpNetworkAdapter>);
 
 impl NetworkCleanup {
-    pub fn new(network: Arc<NetworkAdapter>) -> Self {
+    pub fn new(network: Arc<TcpNetworkAdapter>) -> Self {
         Self(network)
     }
 }
