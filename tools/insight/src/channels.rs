@@ -2,7 +2,7 @@ use crate::message_collection::MessageCollection;
 use rsnano_core::Amount;
 use rsnano_ledger::RepWeightCache;
 use rsnano_messages::TelemetryData;
-use rsnano_network::{ChannelDirection, ChannelId, ChannelInfo};
+use rsnano_network::{Channel, ChannelDirection, ChannelId};
 use rsnano_node::representatives::PeeredRep;
 use std::{
     collections::{HashMap, HashSet},
@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-pub(crate) struct Channel {
+pub(crate) struct ChannelModel {
     pub channel_id: ChannelId,
     pub remote_addr: SocketAddrV6,
     pub direction: ChannelDirection,
@@ -27,7 +27,7 @@ pub(crate) enum RepState {
 }
 
 pub(crate) struct Channels {
-    channel_map: HashMap<ChannelId, Channel>,
+    channel_map: HashMap<ChannelId, ChannelModel>,
     sorted_channels: Vec<(ChannelId, SocketAddrV6)>,
     selected: Option<ChannelId>,
     selected_index: Option<usize>,
@@ -47,7 +47,7 @@ impl Channels {
 
     pub(crate) fn update(
         &mut self,
-        channels: Vec<Arc<ChannelInfo>>,
+        channels: Vec<Arc<Channel>>,
         telemetries: HashMap<SocketAddrV6, TelemetryData>,
         reps: Vec<PeeredRep>,
         rep_weights: &RepWeightCache,
@@ -64,7 +64,7 @@ impl Channels {
                 } else {
                     self.channel_map.insert(
                         info.channel_id(),
-                        Channel {
+                        ChannelModel {
                             channel_id: info.channel_id(),
                             remote_addr: info.peer_addr(),
                             direction: info.direction(),
@@ -122,7 +122,7 @@ impl Channels {
         }
     }
 
-    pub(crate) fn get(&self, index: usize) -> Option<&Channel> {
+    pub(crate) fn get(&self, index: usize) -> Option<&ChannelModel> {
         let (channel_id, _) = self.sorted_channels.get(index)?;
         self.channel_map.get(channel_id)
     }
@@ -165,7 +165,7 @@ mod tests {
         let messages = Arc::new(RwLock::new(MessageCollection::default()));
         let mut channels = Channels::new(messages.clone());
         channels.update(
-            vec![Arc::new(ChannelInfo::new_test_instance())],
+            vec![Arc::new(Channel::new_test_instance())],
             HashMap::new(),
             Vec::new(),
             &RepWeightCache::new(),
@@ -184,7 +184,7 @@ mod tests {
         let messages = Arc::new(RwLock::new(MessageCollection::default()));
         let mut channels = Channels::new(messages.clone());
         channels.update(
-            vec![Arc::new(ChannelInfo::new_test_instance())],
+            vec![Arc::new(Channel::new_test_instance())],
             HashMap::new(),
             Vec::new(),
             &RepWeightCache::new(),

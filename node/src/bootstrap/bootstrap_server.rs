@@ -8,7 +8,7 @@ use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_network::{ChannelId, ChannelInfo, DeadChannelCleanupStep, DropPolicy, TrafficType};
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, DropPolicy, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::min,
@@ -109,7 +109,7 @@ impl BootstrapServer {
         *self.server_impl.on_response.lock().unwrap() = Some(cb);
     }
 
-    pub fn request(&self, message: AscPullReq, channel: Arc<ChannelInfo>) -> bool {
+    pub fn request(&self, message: AscPullReq, channel: Arc<Channel>) -> bool {
         if !self.verify(&message) {
             self.stats
                 .inc(StatType::BootstrapServer, DetailType::Invalid);
@@ -169,7 +169,7 @@ pub(crate) struct BootstrapServerImpl {
     on_response: Arc<Mutex<Option<Box<dyn Fn(&AscPullAck, ChannelId) + Send + Sync>>>>,
     stopped: AtomicBool,
     condition: Condvar,
-    queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<ChannelInfo>)>>,
+    queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
     message_publisher: Mutex<MessagePublisher>,
 }
@@ -194,8 +194,8 @@ impl BootstrapServerImpl {
 
     fn run_batch<'a>(
         &'a self,
-        mut queue: MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<ChannelInfo>)>>,
-    ) -> MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<ChannelInfo>)>> {
+        mut queue: MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
+    ) -> MutexGuard<'a, FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>> {
         let batch = queue.next_batch(self.batch_size);
         drop(queue);
 

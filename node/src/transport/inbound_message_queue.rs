@@ -2,7 +2,7 @@ use super::{FairQueue, MessageCallback};
 use crate::stats::{DetailType, StatType, Stats};
 use rsnano_core::utils::ContainerInfo;
 use rsnano_messages::Message;
-use rsnano_network::{ChannelId, ChannelInfo, DeadChannelCleanupStep};
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep};
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
@@ -38,7 +38,7 @@ impl InboundMessageQueue {
         self.inbound_dropped_callback = Some(callback);
     }
 
-    pub fn put(&self, message: Message, channel: Arc<ChannelInfo>) -> bool {
+    pub fn put(&self, message: Message, channel: Arc<Channel>) -> bool {
         let message_type = message.message_type();
         let added = self
             .state
@@ -73,7 +73,7 @@ impl InboundMessageQueue {
     pub(crate) fn next_batch(
         &self,
         max_batch_size: usize,
-    ) -> VecDeque<(ChannelId, (Message, Arc<ChannelInfo>))> {
+    ) -> VecDeque<(ChannelId, (Message, Arc<Channel>))> {
         self.state.lock().unwrap().queue.next_batch(max_batch_size)
     }
 
@@ -133,7 +133,7 @@ impl DeadChannelCleanupStep for InboundMessageQueueCleanup {
 }
 
 struct State {
-    queue: FairQueue<ChannelId, (Message, Arc<ChannelInfo>)>,
+    queue: FairQueue<ChannelId, (Message, Arc<Channel>)>,
     stopped: bool,
 }
 
@@ -146,10 +146,7 @@ mod tests {
     fn put_and_get_one_message() {
         let manager = InboundMessageQueue::new(1, Arc::new(Stats::default()));
         assert_eq!(manager.size(), 0);
-        manager.put(
-            Message::BulkPush,
-            Arc::new(ChannelInfo::new_test_instance()),
-        );
+        manager.put(Message::BulkPush, Arc::new(Channel::new_test_instance()));
         assert_eq!(manager.size(), 1);
         assert_eq!(manager.next_batch(1000).len(), 1);
         assert_eq!(manager.size(), 0);

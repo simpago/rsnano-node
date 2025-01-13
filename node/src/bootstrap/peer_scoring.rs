@@ -1,6 +1,6 @@
 use super::BootstrapConfig;
 use rsnano_core::utils::ContainerInfo;
-use rsnano_network::{ChannelId, ChannelInfo, TrafficType};
+use rsnano_network::{Channel, ChannelId, TrafficType};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Weak},
@@ -10,7 +10,7 @@ use std::{
 pub(crate) struct PeerScoring {
     scoring: OrderedScoring,
     config: BootstrapConfig,
-    channels: Vec<Arc<ChannelInfo>>,
+    channels: Vec<Arc<Channel>>,
 }
 
 impl PeerScoring {
@@ -31,7 +31,7 @@ impl PeerScoring {
         });
     }
 
-    pub fn channel(&mut self) -> Option<Arc<ChannelInfo>> {
+    pub fn channel(&mut self) -> Option<Arc<Channel>> {
         self.channels
             .iter()
             .find(|c| {
@@ -50,7 +50,7 @@ impl PeerScoring {
 
     fn try_send_message(
         scoring: &mut OrderedScoring,
-        channel: &Arc<ChannelInfo>,
+        channel: &Arc<Channel>,
         config: &BootstrapConfig,
     ) -> bool {
         let mut result = false;
@@ -79,7 +79,7 @@ impl PeerScoring {
             .count()
     }
 
-    fn limit_exceeded(&self, channel: &ChannelInfo) -> bool {
+    fn limit_exceeded(&self, channel: &Channel) -> bool {
         if let Some(existing) = self.scoring.get(channel.channel_id()) {
             existing.outstanding >= self.config.channel_limit
         } else {
@@ -93,7 +93,7 @@ impl PeerScoring {
     }
 
     // Synchronize channels with the network, passed channels should be shuffled
-    pub fn sync(&mut self, channels: Vec<Arc<ChannelInfo>>) {
+    pub fn sync(&mut self, channels: Vec<Arc<Channel>>) {
         self.channels = channels;
     }
 
@@ -109,7 +109,7 @@ impl PeerScoring {
 
 struct PeerScore {
     channel_id: ChannelId,
-    channel: Weak<ChannelInfo>,
+    channel: Weak<Channel>,
     /// Number of outstanding requests to a peer
     outstanding: usize,
     request_count_total: usize,
@@ -117,7 +117,7 @@ struct PeerScore {
 }
 
 impl PeerScore {
-    fn new(channel: &Arc<ChannelInfo>) -> Self {
+    fn new(channel: &Arc<Channel>) -> Self {
         Self {
             channel_id: channel.channel_id(),
             channel: Arc::downgrade(channel),

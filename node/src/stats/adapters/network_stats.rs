@@ -1,6 +1,6 @@
 use crate::stats::{DetailType, Direction, StatType, Stats};
 use anyhow::Error;
-use rsnano_network::{ChannelDirection, ChannelInfo, NetworkError, NetworkObserver, TrafficType};
+use rsnano_network::{Channel, ChannelDirection, NetworkError, NetworkObserver, TrafficType};
 use std::{net::SocketAddrV6, sync::Arc};
 use tracing::debug;
 
@@ -34,7 +34,7 @@ impl NetworkObserver for NetworkStats {
             .inc_dir(StatType::Tcp, DetailType::TcpWriteError, Direction::In);
     }
 
-    fn channel_timed_out(&self, channel: &ChannelInfo) {
+    fn channel_timed_out(&self, channel: &Channel) {
         self.0.inc_dir(
             StatType::Tcp,
             DetailType::TcpIoTimeoutDrop,

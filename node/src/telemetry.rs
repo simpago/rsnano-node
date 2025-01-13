@@ -20,8 +20,7 @@ use crate::{
     NetworkParams,
 };
 use rsnano_network::{
-    ChannelId, ChannelInfo, ChannelMode, DeadChannelCleanupStep, DropPolicy, NetworkInfo,
-    TrafficType,
+    Channel, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy, NetworkInfo, TrafficType,
 };
 
 /**
@@ -107,7 +106,7 @@ impl Telemetry {
         self.telemetry_processed_callbacks.lock().unwrap().push(f);
     }
 
-    fn verify(&self, telemetry: &TelemetryAck, channel: &ChannelInfo) -> bool {
+    fn verify(&self, telemetry: &TelemetryAck, channel: &Channel) -> bool {
         let Some(data) = &telemetry.0 else {
             self.stats
                 .inc(StatType::Telemetry, DetailType::EmptyPayload);
@@ -143,7 +142,7 @@ impl Telemetry {
     }
 
     /// Process telemetry message from network
-    pub fn process(&self, telemetry: &TelemetryAck, channel: &ChannelInfo) {
+    pub fn process(&self, telemetry: &TelemetryAck, channel: &Channel) {
         if !self.verify(telemetry, channel) {
             return;
         }

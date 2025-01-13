@@ -10,7 +10,7 @@ use crate::{
 };
 use rsnano_core::VoteSource;
 use rsnano_messages::Message;
-use rsnano_network::{ChannelInfo, NetworkInfo};
+use rsnano_network::{Channel, NetworkInfo};
 use std::{
     net::SocketAddrV6,
     sync::{Arc, RwLock},
@@ -61,7 +61,7 @@ impl RealtimeMessageHandler {
         }
     }
 
-    pub fn process(&self, message: Message, channel: &Arc<ChannelInfo>) {
+    pub fn process(&self, message: Message, channel: &Arc<Channel>) {
         self.stats.inc_dir(
             StatType::Message,
             message.message_type().into(),

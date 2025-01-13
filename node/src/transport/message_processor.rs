@@ -1,7 +1,7 @@
 use super::{InboundMessageQueue, RealtimeMessageHandler};
 use crate::config::{NodeConfig, NodeFlags};
 use rsnano_messages::Message;
-use rsnano_network::{ChannelId, ChannelInfo};
+use rsnano_network::{Channel, ChannelId};
 use std::{
     cmp::{max, min},
     collections::VecDeque,
@@ -108,7 +108,7 @@ impl State {
         }
     }
 
-    fn handle_batch(&self, batch: VecDeque<(ChannelId, (Message, Arc<ChannelInfo>))>) {
+    fn handle_batch(&self, batch: VecDeque<(ChannelId, (Message, Arc<Channel>))>) {
         let start = Instant::now();
         let batch_size = batch.len();
         for (_, (message, channel)) in batch {

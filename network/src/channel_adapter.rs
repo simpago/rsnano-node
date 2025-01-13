@@ -1,6 +1,6 @@
 use crate::{
-    bandwidth_limiter::BandwidthLimiter, AsyncBufferReader, ChannelDirection, ChannelId,
-    ChannelInfo, NullNetworkObserver,
+    bandwidth_limiter::BandwidthLimiter, AsyncBufferReader, Channel, ChannelDirection, ChannelId,
+    NullNetworkObserver,
 };
 use async_trait::async_trait;
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
@@ -16,17 +16,13 @@ use tokio::{select, time::sleep};
 /// Connects a Channel with a TcpStream
 pub struct ChannelAdapter {
     channel_id: ChannelId,
-    pub info: Arc<ChannelInfo>,
+    pub info: Arc<Channel>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
 }
 
 impl ChannelAdapter {
-    fn new(
-        channel_info: Arc<ChannelInfo>,
-        stream: Weak<TcpStream>,
-        clock: Arc<SteadyClock>,
-    ) -> Self {
+    fn new(channel_info: Arc<Channel>, stream: Weak<TcpStream>, clock: Arc<SteadyClock>) -> Self {
         Self {
             channel_id: channel_info.channel_id(),
             info: channel_info,
@@ -42,7 +38,7 @@ impl ChannelAdapter {
     pub fn new_null_with_id(id: impl Into<ChannelId>) -> Self {
         let channel_id = id.into();
         let channel = Self::new(
-            Arc::new(ChannelInfo::new(
+            Arc::new(Channel::new(
                 channel_id,
                 TEST_ENDPOINT_1,
                 TEST_ENDPOINT_2,
@@ -59,7 +55,7 @@ impl ChannelAdapter {
     }
 
     pub fn create(
-        channel_info: Arc<ChannelInfo>,
+        channel_info: Arc<Channel>,
         stream: TcpStream,
         clock: Arc<SteadyClock>,
         handle: &tokio::runtime::Handle,

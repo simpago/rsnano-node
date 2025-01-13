@@ -13,7 +13,7 @@ use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmReq, Message};
-use rsnano_network::{ChannelId, ChannelInfo, DropPolicy, NetworkInfo, TrafficType};
+use rsnano_network::{Channel, ChannelId, DropPolicy, NetworkInfo, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     collections::HashMap,
@@ -151,7 +151,7 @@ impl RepCrawler {
     }
 
     /// Attempt to determine if the peer manages one or more representative accounts
-    pub fn query(&self, target_channels: Vec<Arc<ChannelInfo>>) {
+    pub fn query(&self, target_channels: Vec<Arc<Channel>>) {
         let Some(hash_root) = self.prepare_query_target() else {
             debug!("No block to query");
             self.stats.inc_dir(
@@ -186,7 +186,7 @@ impl RepCrawler {
     }
 
     /// Attempt to determine if the peer manages one or more representative accounts
-    pub fn query_with_priority(&self, target_channel: Arc<ChannelInfo>) {
+    pub fn query_with_priority(&self, target_channel: Arc<Channel>) {
         {
             let mut guard = self.rep_crawler_impl.lock().unwrap();
             guard.prioritized.push(target_channel);
@@ -418,7 +418,7 @@ struct RepCrawlerImpl {
     responses: BoundedVecDeque<(ChannelId, Arc<Vote>)>,
 
     /// Freshly established connections that should be queried asap
-    prioritized: Vec<Arc<ChannelInfo>>,
+    prioritized: Vec<Arc<Channel>>,
     is_dev_network: bool,
 }
 
@@ -433,9 +433,9 @@ impl RepCrawlerImpl {
     fn prepare_crawl_targets(
         &self,
         sufficient_weight: bool,
-        mut random_peers: Vec<Arc<ChannelInfo>>,
+        mut random_peers: Vec<Arc<Channel>>,
         now: Timestamp,
-    ) -> Vec<Arc<ChannelInfo>> {
+    ) -> Vec<Arc<Channel>> {
         // TODO: Make these values configurable
         const CONSERVATIVE_MAX_ATTEMPTS: usize = 4;
         const AGGRESSIVE_MAX_ATTEMPTS: usize = 8;

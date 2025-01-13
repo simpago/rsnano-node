@@ -9,7 +9,7 @@ use crate::{
 use async_trait::async_trait;
 use rsnano_core::{NodeId, PrivateKey};
 use rsnano_messages::*;
-use rsnano_network::{ChannelAdapter, ChannelInfo, ChannelMode, ChannelReader, NetworkInfo};
+use rsnano_network::{Channel, ChannelAdapter, ChannelMode, ChannelReader, NetworkInfo};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     net::SocketAddrV6,
@@ -56,7 +56,7 @@ impl Default for TcpConfig {
 
 pub struct ResponseServer {
     channel_adapter: Arc<ChannelAdapter>,
-    channel_info: Arc<ChannelInfo>,
+    channel_info: Arc<Channel>,
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
 

@@ -4,8 +4,7 @@ use crate::{
     bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
-    ChannelId, ChannelInfo, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver,
-    TrafficType,
+    Channel, ChannelId, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver, TrafficType,
 };
 use rand::{seq::SliceRandom, thread_rng};
 use rsnano_core::{utils::ContainerInfo, Networks, NodeId};
@@ -83,9 +82,9 @@ pub enum NetworkError {
 
 pub struct NetworkInfo {
     next_channel_id: usize,
-    channels: HashMap<ChannelId, Arc<ChannelInfo>>,
+    channels: HashMap<ChannelId, Arc<Channel>>,
     stopped: bool,
-    new_realtime_channel_observers: Vec<Arc<dyn Fn(Arc<ChannelInfo>) + Send + Sync>>,
+    new_realtime_channel_observers: Vec<Arc<dyn Fn(Arc<Channel>) + Send + Sync>>,
     attempts: AttemptContainer,
     network_config: NetworkConfig,
     excluded_peers: PeerExclusion,
@@ -117,16 +116,11 @@ impl NetworkInfo {
         self.observer = observer;
     }
 
-    pub fn on_new_realtime_channel(
-        &mut self,
-        callback: Arc<dyn Fn(Arc<ChannelInfo>) + Send + Sync>,
-    ) {
+    pub fn on_new_realtime_channel(&mut self, callback: Arc<dyn Fn(Arc<Channel>) + Send + Sync>) {
         self.new_realtime_channel_observers.push(callback);
     }
 
-    pub fn new_realtime_channel_observers(
-        &self,
-    ) -> Vec<Arc<dyn Fn(Arc<ChannelInfo>) + Send + Sync>> {
+    pub fn new_realtime_channel_observers(&self) -> Vec<Arc<dyn Fn(Arc<Channel>) + Send + Sync>> {
         self.new_realtime_channel_observers.clone()
     }
 
@@ -166,7 +160,7 @@ impl NetworkInfo {
         direction: ChannelDirection,
         planned_mode: ChannelMode,
         now: Timestamp,
-    ) -> Result<Arc<ChannelInfo>, NetworkError> {
+    ) -> Result<Arc<Channel>, NetworkError> {
         let result = self.validate_new_connection(&peer_addr, direction, planned_mode, now);
         if let Err(e) = result {
             self.observer.error(e, &peer_addr, direction);
@@ -174,7 +168,7 @@ impl NetworkInfo {
         result?;
 
         let channel_id = self.get_next_channel_id();
-        let channel_info = Arc::new(ChannelInfo::new(
+        let channel_info = Arc::new(Channel::new(
             channel_id,
             local_addr,
             peer_addr,
@@ -203,7 +197,7 @@ impl NetworkInfo {
         self.network_config.listening_port = port
     }
 
-    pub fn get(&self, channel_id: ChannelId) -> Option<&Arc<ChannelInfo>> {
+    pub fn get(&self, channel_id: ChannelId) -> Option<&Arc<Channel>> {
         self.channels.get(&channel_id)
     }
 
@@ -217,7 +211,7 @@ impl NetworkInfo {
         }
     }
 
-    pub fn find_node_id(&self, node_id: &NodeId) -> Option<&Arc<ChannelInfo>> {
+    pub fn find_node_id(&self, node_id: &NodeId) -> Option<&Arc<Channel>> {
         self.channels
             .values()
             .find(|c| c.node_id() == Some(*node_id) && c.is_alive())
@@ -226,7 +220,7 @@ impl NetworkInfo {
     pub fn find_realtime_channel_by_remote_addr(
         &self,
         endpoint: &SocketAddrV6,
-    ) -> Option<&Arc<ChannelInfo>> {
+    ) -> Option<&Arc<Channel>> {
         self.channels.values().find(|c| {
             c.mode() == ChannelMode::Realtime && c.is_alive() && c.peer_addr() == *endpoint
         })
@@ -246,7 +240,7 @@ impl NetworkInfo {
             .map(|c| c.channel_id())
     }
 
-    pub fn random_realtime_channels(&self, count: usize, min_version: u8) -> Vec<Arc<ChannelInfo>> {
+    pub fn random_realtime_channels(&self, count: usize, min_version: u8) -> Vec<Arc<Channel>> {
         let mut channels = self.list_realtime(min_version);
         let mut rng = thread_rng();
         channels.shuffle(&mut rng);
@@ -256,11 +250,11 @@ impl NetworkInfo {
         channels
     }
 
-    pub fn random_fanout_realtime(&self, scale: f32) -> Vec<Arc<ChannelInfo>> {
+    pub fn random_fanout_realtime(&self, scale: f32) -> Vec<Arc<Channel>> {
         self.random_realtime_channels(self.fanout(scale), 0)
     }
 
-    pub fn list_realtime(&self, min_version: u8) -> Vec<Arc<ChannelInfo>> {
+    pub fn list_realtime(&self, min_version: u8) -> Vec<Arc<Channel>> {
         self.channels
             .values()
             .filter(|c| {
@@ -272,7 +266,7 @@ impl NetworkInfo {
             .collect()
     }
 
-    pub fn list_realtime_channels(&self, min_version: u8) -> Vec<Arc<ChannelInfo>> {
+    pub fn list_realtime_channels(&self, min_version: u8) -> Vec<Arc<Channel>> {
         let mut result = self.list_realtime(min_version);
         result.sort_by_key(|i| i.peer_addr());
         result
@@ -284,7 +278,7 @@ impl NetworkInfo {
             || endpoint == &SocketAddrV6::new(Ipv6Addr::LOCALHOST, self.listening_port(), 0, 0)
     }
 
-    pub fn random_list_realtime(&self, count: usize, min_version: u8) -> Vec<Arc<ChannelInfo>> {
+    pub fn random_list_realtime(&self, count: usize, min_version: u8) -> Vec<Arc<Channel>> {
         let mut channels = self.list_realtime(min_version);
         let mut rng = thread_rng();
         channels.shuffle(&mut rng);
@@ -302,7 +296,7 @@ impl NetworkInfo {
     }
 
     /// Returns channel IDs of removed channels
-    pub fn purge(&mut self, now: Timestamp, cutoff_period: Duration) -> Vec<Arc<ChannelInfo>> {
+    pub fn purge(&mut self, now: Timestamp, cutoff_period: Duration) -> Vec<Arc<Channel>> {
         self.close_idle_channels(now, cutoff_period);
 
         // Check if any tcp channels belonging to old protocol versions which may still be alive due to async operations
@@ -337,7 +331,7 @@ impl NetworkInfo {
     }
 
     /// Removes dead channels and returns their channel ids
-    fn remove_dead_channels(&mut self) -> Vec<Arc<ChannelInfo>> {
+    fn remove_dead_channels(&mut self) -> Vec<Arc<Channel>> {
         let dead_channels: Vec<_> = self
             .channels
             .values()
@@ -422,7 +416,7 @@ impl NetworkInfo {
         }
     }
 
-    pub fn iter_by_last_bootstrap_attempt(&self) -> Vec<Arc<ChannelInfo>> {
+    pub fn iter_by_last_bootstrap_attempt(&self) -> Vec<Arc<Channel>> {
         let mut channels: Vec<_> = self
             .channels
             .values()
@@ -433,10 +427,7 @@ impl NetworkInfo {
         channels
     }
 
-    pub fn find_channels_by_remote_addr(
-        &self,
-        remote_addr: &SocketAddrV6,
-    ) -> Vec<Arc<ChannelInfo>> {
+    pub fn find_channels_by_remote_addr(&self, remote_addr: &SocketAddrV6) -> Vec<Arc<Channel>> {
         self.channels
             .values()
             .filter(|c| c.is_alive() && c.peer_addr() == *remote_addr)
@@ -444,10 +435,7 @@ impl NetworkInfo {
             .collect()
     }
 
-    pub fn find_channels_by_peering_addr(
-        &self,
-        peering_addr: &SocketAddrV6,
-    ) -> Vec<Arc<ChannelInfo>> {
+    pub fn find_channels_by_peering_addr(&self, peering_addr: &SocketAddrV6) -> Vec<Arc<Channel>> {
         self.channels
             .values()
             .filter(|c| c.is_alive() && c.peering_addr() == Some(*peering_addr))
@@ -620,10 +608,7 @@ impl NetworkInfo {
         &self,
         channel_id: ChannelId,
         node_id: NodeId,
-    ) -> Option<(
-        Arc<ChannelInfo>,
-        Vec<Arc<dyn Fn(Arc<ChannelInfo>) + Send + Sync>>,
-    )> {
+    ) -> Option<(Arc<Channel>, Vec<Arc<dyn Fn(Arc<Channel>) + Send + Sync>>)> {
         if self.is_stopped() {
             return None;
         }
@@ -703,11 +688,7 @@ impl NetworkInfo {
 
     pub fn container_info(&self) -> ContainerInfo {
         ContainerInfo::builder()
-            .leaf(
-                "channels",
-                self.channels.len(),
-                size_of::<Arc<ChannelInfo>>(),
-            )
+            .leaf("channels", self.channels.len(), size_of::<Arc<Channel>>())
             .leaf(
                 "attempts",
                 self.attempts.len(),

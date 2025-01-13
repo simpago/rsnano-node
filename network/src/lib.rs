@@ -1,7 +1,7 @@
 pub mod attempt_container;
 pub mod bandwidth_limiter;
+mod channel;
 mod channel_adapter;
-mod channel_info;
 mod dead_channel_cleanup;
 mod network_adapter;
 mod network_info;
@@ -15,8 +15,8 @@ pub mod utils;
 pub mod write_queue;
 
 use async_trait::async_trait;
+pub use channel::*;
 pub use channel_adapter::*;
-pub use channel_info::*;
 pub use dead_channel_cleanup::*;
 pub use network_adapter::*;
 pub use network_info::*;

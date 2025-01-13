@@ -3,7 +3,7 @@ use crate::{
     utils::{CancellationToken, Runnable},
 };
 use rsnano_ledger::Ledger;
-use rsnano_network::{ChannelInfo, NetworkInfo};
+use rsnano_network::{Channel, NetworkInfo};
 use rsnano_nullable_clock::SystemTimeFactory;
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::{
@@ -47,7 +47,7 @@ impl PeerCacheUpdater {
         }
     }
 
-    fn save_peer(&self, tx: &mut LmdbWriteTransaction, channel: &ChannelInfo) {
+    fn save_peer(&self, tx: &mut LmdbWriteTransaction, channel: &Channel) {
         let Some(endpoint) = channel.peering_addr() else {
             return;
         };

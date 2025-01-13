@@ -5,7 +5,7 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_network::{ChannelAdapter, ChannelDirection, ChannelInfo, ChannelMode};
+use rsnano_network::{Channel, ChannelAdapter, ChannelDirection, ChannelMode};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NodeConfig, NodeFlags},
@@ -326,7 +326,7 @@ fn init_tracing() {
     });
 }
 
-pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelInfo> {
+pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<Channel> {
     node.peer_connector
         .connect_to(peer.tcp_listener.local_address());
 
@@ -350,7 +350,7 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelInfo> {
         .clone()
 }
 
-pub fn make_fake_channel(node: &Node) -> Arc<ChannelInfo> {
+pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
     node.network_info
         .write()
         .unwrap()

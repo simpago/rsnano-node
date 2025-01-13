@@ -1,7 +1,7 @@
 use super::{try_send_serialized_message, MessagePublisher};
 use crate::{representatives::OnlineReps, stats::Stats};
 use rsnano_messages::{Message, MessageSerializer};
-use rsnano_network::{ChannelInfo, DropPolicy, NetworkAdapter, TrafficType};
+use rsnano_network::{Channel, DropPolicy, NetworkAdapter, TrafficType};
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
@@ -70,7 +70,7 @@ impl MessageFlooder {
         }
     }
 
-    fn remove_no_pr(&self, channels: &mut Vec<Arc<ChannelInfo>>, count: usize) {
+    fn remove_no_pr(&self, channels: &mut Vec<Arc<Channel>>, count: usize) {
         {
             let reps = self.online_reps.lock().unwrap();
             channels.retain(|c| !reps.is_pr(c.channel_id()));

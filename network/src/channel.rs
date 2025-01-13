@@ -26,7 +26,7 @@ use crate::{
 /// Default timeout in seconds
 const DEFAULT_TIMEOUT: u64 = 120;
 
-pub struct ChannelInfo {
+pub struct Channel {
     channel_id: ChannelId,
     local_addr: SocketAddrV6,
     peer_addr: SocketAddrV6,
@@ -57,7 +57,7 @@ pub struct ChannelInfo {
     observer: Arc<dyn NetworkObserver>,
 }
 
-impl ChannelInfo {
+impl Channel {
     const MAX_QUEUE_SIZE: usize = 128;
 
     pub fn new(

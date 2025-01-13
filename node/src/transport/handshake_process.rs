@@ -5,7 +5,7 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
     ProtocolInfo,
 };
-use rsnano_network::{ChannelInfo, TrafficType};
+use rsnano_network::{Channel, TrafficType};
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -67,7 +67,7 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) async fn initiate_handshake(&self, channel: &ChannelInfo) -> Result<(), ()> {
+    pub(crate) async fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
         let endpoint = self.peer_addr;
         let query = self.prepare_query(&endpoint);
         if query.is_none() {
@@ -114,7 +114,7 @@ impl HandshakeProcess {
     pub(crate) async fn process_handshake(
         &self,
         message: &NodeIdHandshake,
-        channel: &ChannelInfo,
+        channel: &Channel,
     ) -> HandshakeStatus {
         if message.query.is_none() && message.response.is_none() {
             self.stats.inc_dir(
@@ -204,7 +204,7 @@ impl HandshakeProcess {
         &self,
         query: &NodeIdHandshakeQuery,
         v2: bool,
-        channel: &ChannelInfo,
+        channel: &Channel,
     ) -> anyhow::Result<()> {
         let response = self.prepare_response(query, v2);
         let own_query = self.prepare_query(&self.peer_addr);
