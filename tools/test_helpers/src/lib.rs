@@ -5,7 +5,7 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_network::{Channel, ChannelAdapter, ChannelDirection, ChannelMode};
+use rsnano_network::{Channel, ChannelDirection, ChannelMode};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NodeConfig, NodeFlags},
@@ -15,7 +15,6 @@ use rsnano_node::{
     wallets::WalletsExt,
     NetworkParams, Node, NodeBuilder, NodeExt,
 };
-use rsnano_nullable_tcp::TcpStream;
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;
 use std::{

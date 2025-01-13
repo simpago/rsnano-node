@@ -69,7 +69,7 @@ impl NanoResponseServerSpawner {
 
 impl ResponseServerSpawner for NanoResponseServerSpawner {
     fn spawn(&self, channel_adapter: Arc<ChannelAdapter>) {
-        match channel_adapter.info.direction() {
+        match channel_adapter.channel.direction() {
             ChannelDirection::Inbound => {
                 self.spawn_response_server(channel_adapter);
             }

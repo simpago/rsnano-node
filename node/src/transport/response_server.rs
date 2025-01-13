@@ -56,7 +56,7 @@ impl Default for TcpConfig {
 
 pub struct ResponseServer {
     channel_adapter: Arc<ChannelAdapter>,
-    channel_info: Arc<Channel>,
+    channel: Arc<Channel>,
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
 
@@ -93,12 +93,12 @@ impl ResponseServer {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        let channel_info = channel_adapter.info.clone();
+        let channel_info = channel_adapter.channel.clone();
         let peer_addr = channel_info.peer_addr();
         Self {
             network_info,
             inbound_queue,
-            channel_info,
+            channel: channel_info,
             channel_adapter,
             disable_bootstrap_listener: false,
             connections_max: 64,
@@ -128,7 +128,7 @@ impl ResponseServer {
     }
 
     pub fn is_stopped(&self) -> bool {
-        !self.channel_info.is_alive()
+        !self.channel.is_alive()
     }
 
     pub fn peer_addr(&self) -> SocketAddrV6 {
@@ -150,7 +150,7 @@ impl ResponseServer {
             return false;
         }
 
-        if self.channel_info.mode() != ChannelMode::Undefined {
+        if self.channel.mode() != ChannelMode::Undefined {
             return false;
         }
 
@@ -168,7 +168,7 @@ impl ResponseServer {
             return false;
         }
 
-        self.channel_info.set_mode(ChannelMode::Bootstrap);
+        self.channel.set_mode(ChannelMode::Bootstrap);
         debug!("Switched to bootstrap mode ({})", self.peer_addr());
         true
     }
@@ -183,19 +183,19 @@ impl ResponseServer {
     }
 
     fn is_undefined_connection(&self) -> bool {
-        self.channel_info.mode() == ChannelMode::Undefined
+        self.channel.mode() == ChannelMode::Undefined
     }
 
     fn is_bootstrap_connection(&self) -> bool {
-        self.channel_info.mode() == ChannelMode::Bootstrap
+        self.channel.mode() == ChannelMode::Bootstrap
     }
 
     fn is_realtime_connection(&self) -> bool {
-        self.channel_info.mode() == ChannelMode::Realtime
+        self.channel.mode() == ChannelMode::Realtime
     }
 
     fn queue_realtime(&self, message: Message) {
-        self.inbound_queue.put(message, self.channel_info.clone());
+        self.inbound_queue.put(message, self.channel.clone());
         // TODO: Throttle if not added
     }
 
@@ -203,18 +203,18 @@ impl ResponseServer {
         self.latest_keepalives
             .lock()
             .unwrap()
-            .insert(self.channel_info.channel_id(), keepalive);
+            .insert(self.channel.channel_id(), keepalive);
     }
 
     pub async fn initiate_handshake(&self) {
         self.initiate_handshake_listener.emit(());
         if self
             .handshake_process
-            .initiate_handshake(&self.channel_info)
+            .initiate_handshake(&self.channel)
             .await
             .is_err()
         {
-            self.channel_info.close();
+            self.channel.close();
         }
     }
 }
@@ -223,7 +223,7 @@ impl Drop for ResponseServer {
     fn drop(&mut self) {
         let peer_addr = { *self.peer_addr.lock().unwrap() };
         debug!("Exiting server: {}", peer_addr);
-        self.channel_info.close();
+        self.channel.close();
     }
 }
 
@@ -244,7 +244,7 @@ pub enum ProcessResult {
 #[async_trait]
 impl ResponseServerExt for Arc<ResponseServer> {
     fn to_realtime_connection(&self, node_id: &NodeId) -> bool {
-        if self.channel_info.mode() != ChannelMode::Undefined {
+        if self.channel.mode() != ChannelMode::Undefined {
             return false;
         }
 
@@ -252,7 +252,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             .network_info
             .read()
             .unwrap()
-            .upgrade_to_realtime_connection(self.channel_info.channel_id(), *node_id);
+            .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id);
 
         if let Some((channel, observers)) = result {
             for observer in observers {
@@ -264,14 +264,14 @@ impl ResponseServerExt for Arc<ResponseServer> {
 
             debug!(
                 "Switched to realtime mode (addr: {}, node_id: {})",
-                self.channel_info.peer_addr(),
+                self.channel.peer_addr(),
                 node_id
             );
             true
         } else {
             debug!(
-                channel_id = ?self.channel_info.channel_id(),
-                peer = %self.channel_info.peer_addr(),
+                channel_id = ?self.channel.channel_id(),
+                peer = %self.channel.peer_addr(),
                 %node_id,
                 "Could not upgrade channel to realtime connection, because another channel for the same node ID was found",
             );
@@ -283,7 +283,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
         {
             let mut guard = self.peer_addr.lock().unwrap();
             if guard.port() == 0 {
-                *guard = self.channel_info.peer_addr();
+                *guard = self.channel.peer_addr();
             }
             debug!("Starting response server for peer: {}", *guard);
         }
@@ -307,7 +307,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     if first_message {
                         // TODO: if version using changes => peer misbehaved!
                         self.network_info.read().unwrap().set_protocol_version(
-                            self.channel_info.channel_id(),
+                            self.channel.channel_id(),
                             msg.protocol.version_using,
                         );
                         first_message = false;
@@ -351,7 +351,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
 
             match result {
                 ProcessResult::Abort => {
-                    self.channel_info.close();
+                    self.channel.close();
                     break;
                 }
                 ProcessResult::Progress => {}
@@ -394,7 +394,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
                 Message::NodeIdHandshake(payload) => {
                     self.handshake_process
-                        .process_handshake(payload, &self.channel_info)
+                        .process_handshake(payload, &self.channel)
                         .await
                 }
 
@@ -414,7 +414,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         self.peer_addr()
                     );
                     if matches!(result, HandshakeStatus::AbortOwnNodeId) {
-                        if let Some(peering_addr) = self.channel_info.peering_addr() {
+                        if let Some(peering_addr) = self.channel.peering_addr() {
                             self.network_info.write().unwrap().perma_ban(peering_addr);
                         }
                     }

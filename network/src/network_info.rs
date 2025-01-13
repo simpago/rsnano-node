@@ -168,7 +168,7 @@ impl NetworkInfo {
         result?;
 
         let channel_id = self.get_next_channel_id();
-        let channel_info = Arc::new(Channel::new(
+        let channel = Arc::new(Channel::new(
             channel_id,
             local_addr,
             peer_addr,
@@ -178,9 +178,9 @@ impl NetworkInfo {
             self.bandwidth_limiter.clone(),
             self.observer.clone(),
         ));
-        self.channels.insert(channel_id, channel_info.clone());
+        self.channels.insert(channel_id, channel.clone());
         self.observer.accepted(&peer_addr, direction);
-        Ok(channel_info)
+        Ok(channel)
     }
 
     fn get_next_channel_id(&mut self) -> ChannelId {

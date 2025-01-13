@@ -16,16 +16,16 @@ use tokio::{select, time::sleep};
 /// Connects a Channel with a TcpStream
 pub struct ChannelAdapter {
     channel_id: ChannelId,
-    pub info: Arc<Channel>,
+    pub channel: Arc<Channel>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
 }
 
 impl ChannelAdapter {
-    fn new(channel_info: Arc<Channel>, stream: Weak<TcpStream>, clock: Arc<SteadyClock>) -> Self {
+    fn new(channel: Arc<Channel>, stream: Weak<TcpStream>, clock: Arc<SteadyClock>) -> Self {
         Self {
-            channel_id: channel_info.channel_id(),
-            info: channel_info,
+            channel_id: channel.channel_id(),
+            channel,
             stream,
             clock,
         }
@@ -55,15 +55,14 @@ impl ChannelAdapter {
     }
 
     pub fn create(
-        channel_info: Arc<Channel>,
+        channel: Arc<Channel>,
         stream: TcpStream,
         clock: Arc<SteadyClock>,
         handle: &tokio::runtime::Handle,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
-        let info = channel_info.clone();
-        let channel_adapter =
-            Self::new(channel_info.clone(), Arc::downgrade(&stream), clock.clone());
+        let info = channel.clone();
+        let channel_adapter = Self::new(channel.clone(), Arc::downgrade(&stream), clock.clone());
 
         // process write queue:
         handle.spawn(async move {
@@ -72,7 +71,7 @@ impl ChannelAdapter {
                     _ = info.cancelled() =>{
                         return;
                     },
-                  res = channel_info.pop() => res
+                  res = channel.pop() => res
                 };
 
                 if let Some(entry) = res {
@@ -130,7 +129,7 @@ impl ChannelAdapter {
         loop {
             sleep(Duration::from_secs(2)).await;
             let now = self.clock.now();
-            let timed_out = self.info.check_timeout(now);
+            let timed_out = self.channel.check_timeout(now);
             if timed_out {
                 break;
             }
@@ -140,13 +139,13 @@ impl ChannelAdapter {
 
 impl Display for ChannelAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.info.peer_addr().fmt(f)
+        self.channel.peer_addr().fmt(f)
     }
 }
 
 impl Drop for ChannelAdapter {
     fn drop(&mut self) {
-        self.info.close();
+        self.channel.close();
     }
 }
 
@@ -157,7 +156,7 @@ impl AsyncBufferReader for ChannelAdapter {
             return Err(anyhow!("buffer is too small for read count"));
         }
 
-        if self.info.is_closed() {
+        if self.channel.is_closed() {
             return Err(anyhow!("Tried to read from a closed TcpStream"));
         }
 
@@ -168,7 +167,7 @@ impl AsyncBufferReader for ChannelAdapter {
         let mut read = 0;
         loop {
             let res = select! {
-                _  = self.info.cancelled() =>{
+                _  = self.channel.cancelled() =>{
                     return Err(anyhow!("cancelled"));
                 },
                 res = stream.readable() => res
@@ -177,13 +176,13 @@ impl AsyncBufferReader for ChannelAdapter {
                 Ok(_) => {
                     match stream.try_read(&mut buffer[read..count]) {
                         Ok(0) => {
-                            self.info.read_failed();
+                            self.channel.read_failed();
                             return Err(anyhow!("remote side closed the channel"));
                         }
                         Ok(n) => {
                             read += n;
                             if read >= count {
-                                self.info.read_succeeded(count, self.clock.now());
+                                self.channel.read_succeeded(count, self.clock.now());
                                 return Ok(());
                             }
                         }
@@ -191,13 +190,13 @@ impl AsyncBufferReader for ChannelAdapter {
                             continue;
                         }
                         Err(e) => {
-                            self.info.read_failed();
+                            self.channel.read_failed();
                             return Err(e.into());
                         }
                     };
                 }
                 Err(e) => {
-                    self.info.read_failed();
+                    self.channel.read_failed();
                     return Err(e.into());
                 }
             }
