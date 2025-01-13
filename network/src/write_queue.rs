@@ -27,16 +27,12 @@ impl WriteQueue {
         }
     }
 
-    pub async fn insert(
-        &self,
-        buffer: Arc<Vec<u8>>,
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
+    pub async fn insert(&self, buffer: Arc<Vec<u8>>, traffic_type: TrafficType) {
         let queue = self.queue_for(traffic_type);
 
         loop {
             if self.closed.load(Ordering::SeqCst) {
-                return Ok(());
+                return;
             }
 
             {
@@ -52,12 +48,10 @@ impl WriteQueue {
         }
 
         self.notify_enqueued.notify_one();
-        // TODO return ()
-        Ok(())
     }
 
-    /// returns: inserted | write_error
-    pub fn try_insert(&self, buffer: Arc<Vec<u8>>, traffic_type: TrafficType) -> (bool, bool) {
+    /// returns: inserted
+    pub fn try_insert(&self, buffer: Arc<Vec<u8>>, traffic_type: TrafficType) -> bool {
         let queue = self.queue_for(traffic_type);
         let inserted;
         {
@@ -75,8 +69,7 @@ impl WriteQueue {
             self.notify_enqueued.notify_one();
         }
 
-        // TODO remove unused write error return
-        (inserted, false)
+        inserted
     }
 
     pub fn capacity(&self, traffic_type: TrafficType) -> usize {

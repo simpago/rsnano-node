@@ -204,21 +204,13 @@ impl Channel {
 
         let buf_size = buffer.len();
 
-        let result = self
-            .write_queue
+        self.write_queue
             .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
             .await;
 
-        if result.is_ok() {
-            self.observer.send_succeeded(buf_size, traffic_type);
-            self.info.set_last_activity(self.clock.now());
-        } else {
-            self.observer.send_failed();
-            debug!(channel_id = %self.channel_id(), remote_addr = ?self.info.peer_addr(), "Closing channel after write error");
-            self.info.close();
-        }
+        self.observer.send_succeeded(buf_size, traffic_type);
+        self.info.set_last_activity(self.clock.now());
 
-        result?;
         Ok(())
     }
 
@@ -243,15 +235,10 @@ impl Channel {
             // TODO notify bandwidth limiter that we are sending it anyway
         }
 
-        let (inserted, write_error) = self
+        let inserted = self
             .write_queue
             .try_insert(Arc::new(buffer.to_vec()), traffic_type); // TODO don't copy into vec. Split into fixed size packets
 
-        if write_error {
-            self.observer.send_failed();
-            self.info.close();
-            debug!(peer_addr = ?self.info.peer_addr(), channel_id = %self.channel_id(), mode = ?self.info.mode(), "Closing socket after write error");
-        }
         inserted
     }
 
