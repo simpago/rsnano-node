@@ -176,13 +176,8 @@ impl Channel {
             bail!("socket closed");
         }
 
-        let buf_size = buffer.len();
-
         self.info.send_buffer(buffer, traffic_type).await?;
-
-        self.observer.send_succeeded(buf_size, traffic_type);
         self.info.set_last_activity(self.clock.now());
-
         Ok(())
     }
 

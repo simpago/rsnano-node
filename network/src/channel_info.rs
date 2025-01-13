@@ -12,6 +12,7 @@ use std::{
     },
     time::Duration,
 };
+use tokio::time::sleep;
 use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use crate::{
@@ -53,6 +54,7 @@ pub struct ChannelInfo {
     write_queue: WriteQueue,
     cancel_token: CancellationToken,
     pub limiter: Arc<BandwidthLimiter>,
+    observer: Arc<dyn NetworkObserver>,
 }
 
 impl ChannelInfo {
@@ -89,9 +91,10 @@ impl ChannelInfo {
                     None
                 },
             }),
-            write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, observer),
+            write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, observer.clone()),
             cancel_token: CancellationToken::new(),
             limiter,
+            observer,
         }
     }
 
@@ -262,9 +265,29 @@ impl ChannelInfo {
         buffer: &[u8],
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
+        if self.is_closed() {
+            bail!("socket closed");
+        }
+
+        while self.is_queue_full(traffic_type) {
+            // TODO: better implementation
+            sleep(Duration::from_millis(20)).await;
+        }
+
+        while !self.limiter.should_pass(buffer.len(), traffic_type) {
+            // TODO: better implementation
+            sleep(Duration::from_millis(20)).await;
+        }
+
+        if self.is_closed() {
+            bail!("socket closed");
+        }
+
+        let buf_size = buffer.len();
         self.write_queue
             .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
             .await;
+        self.observer.send_succeeded(buf_size, traffic_type);
         Ok(())
     }
 

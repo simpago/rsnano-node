@@ -134,7 +134,7 @@ impl BlockValidationTest {
     }
 }
 
-fn new_test_validator<'a>(block: &'a Block, account: Account) -> BlockValidator {
+fn new_test_validator<'a>(block: &'a Block, account: Account) -> BlockValidator<'a> {
     BlockValidator {
         block,
         epochs: &LEDGER_CONSTANTS_STUB.epochs,
