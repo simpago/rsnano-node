@@ -19,7 +19,6 @@ use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
 use std::{
     collections::{BTreeMap, HashMap},
-    ops::Deref,
     sync::{atomic::Ordering, Arc, Mutex, MutexGuard, RwLock, Weak},
     time::{Duration, SystemTime},
 };

@@ -152,6 +152,7 @@ impl Channel {
             .unwrap_or(no_addr)
     }
 
+    // TODO delete and use channel_info directly
     pub async fn send_buffer(
         &self,
         buffer: &[u8],
@@ -185,27 +186,13 @@ impl Channel {
         Ok(())
     }
 
+    // TODO delete and use channel_info directly
     pub fn try_send_buffer(
         &self,
         buffer: &[u8],
         drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
-        if self.info.is_closed() {
-            return false;
-        }
-
-        if drop_policy == DropPolicy::CanDrop && self.info.is_queue_full(traffic_type) {
-            return false;
-        }
-
-        let should_pass = self.info.limiter.should_pass(buffer.len(), traffic_type);
-        if !should_pass && drop_policy == DropPolicy::CanDrop {
-            return false;
-        } else {
-            // TODO notify bandwidth limiter that we are sending it anyway
-        }
-
         self.info.try_send_buffer(buffer, drop_policy, traffic_type)
     }
 

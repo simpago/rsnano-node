@@ -31,13 +31,6 @@ impl OrderedEntries {
         inserted
     }
 
-    /// Iterate in insertion order
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Entry> {
-        self.sequenced
-            .iter()
-            .map(|hash| self.by_hash.get(hash).unwrap())
-    }
-
     pub(crate) fn contains(&self, hash: &BlockHash) -> bool {
         self.by_hash.contains_key(hash)
     }

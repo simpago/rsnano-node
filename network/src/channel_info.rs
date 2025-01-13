@@ -236,6 +236,21 @@ impl ChannelInfo {
         drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
+        if self.is_closed() {
+            return false;
+        }
+
+        if drop_policy == DropPolicy::CanDrop && self.is_queue_full(traffic_type) {
+            return false;
+        }
+
+        let should_pass = self.limiter.should_pass(buffer.len(), traffic_type);
+        if !should_pass && drop_policy == DropPolicy::CanDrop {
+            return false;
+        } else {
+            // TODO notify bandwidth limiter that we are sending it anyway
+        }
+
         let inserted = self
             .write_queue
             .try_insert(Arc::new(buffer.to_vec()), traffic_type); // TODO don't copy into vec. Split into fixed size packets

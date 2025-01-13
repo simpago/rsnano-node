@@ -157,10 +157,6 @@ impl OrderedScoring {
         self.by_channel.get(&channel_id)
     }
 
-    fn contains(&self, channel_id: ChannelId) -> bool {
-        self.by_channel.contains_key(&channel_id)
-    }
-
     fn insert(&mut self, score: PeerScore) -> Option<PeerScore> {
         let outstanding = score.outstanding;
         let channel_id = score.channel_id;
@@ -230,9 +226,5 @@ impl OrderedScoring {
         } else {
             self.by_outstanding.remove(&outstanding);
         }
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &PeerScore> {
-        self.by_channel.values()
     }
 }

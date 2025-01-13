@@ -618,7 +618,6 @@ impl Node {
             node_id: node_id.clone(),
             network: network_info.clone(),
             inbound_queue: inbound_message_queue.clone(),
-            node_flags: flags.clone(),
             network_params: network_params.clone(),
             syn_cookies: syn_cookies.clone(),
             latest_keepalives: latest_keepalives.clone(),

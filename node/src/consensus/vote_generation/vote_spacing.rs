@@ -97,7 +97,7 @@ impl EntryContainer {
         }
     }
 
-    fn iter_entries<'a>(&'a self, ids: &'a HashSet<usize>) -> impl Iterator<Item = &Entry> + 'a {
+    fn iter_entries<'a>(&'a self, ids: &'a HashSet<usize>) -> impl Iterator<Item = &'a Entry> + 'a {
         ids.iter().map(|&id| &self.entries[&id])
     }
 

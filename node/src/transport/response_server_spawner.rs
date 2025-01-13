@@ -2,7 +2,7 @@ use super::{
     InboundMessageQueue, LatestKeepalives, NetworkFilter, ResponseServer, ResponseServerExt,
     SynCookies,
 };
-use crate::{config::NodeFlags, stats::Stats, NetworkParams};
+use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
 use rsnano_network::{Channel, ChannelDirection, NetworkInfo, ResponseServerSpawner};
 use std::sync::{Arc, Mutex, RwLock};
@@ -14,7 +14,6 @@ pub struct NanoResponseServerSpawner {
     pub(crate) network: Arc<RwLock<NetworkInfo>>,
     pub(crate) network_filter: Arc<NetworkFilter>,
     pub(crate) inbound_queue: Arc<InboundMessageQueue>,
-    pub(crate) node_flags: NodeFlags,
     pub(crate) network_params: NetworkParams,
     pub(crate) syn_cookies: Arc<SynCookies>,
     pub(crate) latest_keepalives: Arc<Mutex<LatestKeepalives>>,
@@ -23,7 +22,6 @@ pub struct NanoResponseServerSpawner {
 impl NanoResponseServerSpawner {
     #[allow(dead_code)]
     pub(crate) fn new_null(tokio: tokio::runtime::Handle) -> Self {
-        let flags = NodeFlags::default();
         let network_filter = Arc::new(NetworkFilter::default());
         let network_info = Arc::new(RwLock::new(NetworkInfo::new_test_instance()));
         let network_params = NetworkParams::new(Networks::NanoDevNetwork);
@@ -34,7 +32,6 @@ impl NanoResponseServerSpawner {
             node_id: PrivateKey::from(42),
             network: network_info,
             inbound_queue: Arc::new(InboundMessageQueue::default()),
-            node_flags: flags,
             network_params,
             syn_cookies: Arc::new(SynCookies::new(1)),
             latest_keepalives: Arc::new(Mutex::new(LatestKeepalives::default())),
