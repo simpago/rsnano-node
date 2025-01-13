@@ -1829,7 +1829,7 @@ fn fork_open() {
 
     node.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send1.clone())),
-        channel.info.clone(),
+        channel.clone(),
     );
 
     assert_timely_msg(
@@ -1851,7 +1851,7 @@ fn fork_open() {
     let open1 = lattice.account(&key1).receive_and_change(&send1, 1);
     node.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(open1.clone())),
-        channel.info.clone(),
+        channel.clone(),
     );
     assert_timely_eq(Duration::from_secs(5), || node.active.len(), 1);
 
@@ -1860,7 +1860,7 @@ fn fork_open() {
     let open2 = fork_lattice.account(&key1).receive_and_change(&send1, 2);
     node.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(open2.clone())),
-        channel.info.clone(),
+        channel.clone(),
     );
     assert_timely_msg(
         Duration::from_secs(5),
@@ -2099,7 +2099,7 @@ fn fork_election_invalid_block_signature() {
     let channel = make_fake_channel(&node1);
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send1.clone())),
-        channel.info.clone(),
+        channel.clone(),
     );
     assert_timely_msg(
         Duration::from_secs(5),
@@ -2111,11 +2111,11 @@ fn fork_election_invalid_block_signature() {
 
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send3)),
-        channel.info.clone(),
+        channel.clone(),
     );
     node1.inbound_message_queue.put(
         Message::Publish(Publish::new_forward(send2.clone())),
-        channel.info.clone(),
+        channel.clone(),
     );
     assert_timely_msg(
         Duration::from_secs(3),
@@ -2336,7 +2336,7 @@ fn rep_crawler_rep_remove() {
     assert_eq!(channel_rep1.channel_id(), reps[0].channel_id);
 
     // When rep1 disconnects then rep1 should not be found anymore
-    channel_rep1.info.close();
+    channel_rep1.close();
     assert_timely_eq(
         Duration::from_secs(5),
         || {

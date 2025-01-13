@@ -174,7 +174,7 @@ fn receivable_processor_confirm_insufficient_pos() {
     ));
     assert_eq!(1, election.vote_count());
 
-    node1.inbound_message_queue.put(con1, channel.info.clone());
+    node1.inbound_message_queue.put(con1, channel);
 
     assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
 }
@@ -196,7 +196,7 @@ fn receivable_processor_confirm_sufficient_pos() {
     ));
     assert_eq!(1, election.vote_count());
 
-    node1.inbound_message_queue.put(con1, channel.info.clone());
+    node1.inbound_message_queue.put(con1, channel);
 
     assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
 }

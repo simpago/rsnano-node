@@ -45,9 +45,7 @@ fn started_election() {
         let key1 = PrivateKey::new();
         let send1 = lattice.genesis().send_max(&key1);
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
-        node1
-            .inbound_message_queue
-            .put(publish1, channel1.info.clone());
+        node1.inbound_message_queue.put(publish1, channel1);
         assert_timely(Duration::from_secs(1), || {
             node1.active.election(&send1.qualified_root()).is_some()
         });
@@ -87,9 +85,7 @@ fn stopped_election() {
         let key1 = PrivateKey::new();
         let send1 = lattice.genesis().send_max(&key1);
         let publish1 = Message::Publish(Publish::new_forward(send1.clone()));
-        node1
-            .inbound_message_queue
-            .put(publish1, channel1.info.clone());
+        node1.inbound_message_queue.put(publish1, channel1);
         assert_timely(Duration::from_secs(1), || {
             node1.active.election(&send1.qualified_root()).is_some()
         });

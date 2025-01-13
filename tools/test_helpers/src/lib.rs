@@ -1,6 +1,8 @@
 use rsnano_core::{
-    work::WorkPoolImpl, Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey,
-    SavedBlock, StateBlockArgs, WalletId, DEV_GENESIS_KEY,
+    utils::{NULL_ENDPOINT, TEST_ENDPOINT_1},
+    work::WorkPoolImpl,
+    Account, Amount, Block, BlockHash, Epoch, Networks, PrivateKey, PublicKey, SavedBlock,
+    StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
 use rsnano_network::{ChannelAdapter, ChannelDirection, ChannelInfo, ChannelMode};
@@ -348,12 +350,16 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelInfo> {
         .clone()
 }
 
-pub fn make_fake_channel(node: &Node) -> Arc<ChannelAdapter> {
-    node.network_adapter
+pub fn make_fake_channel(node: &Node) -> Arc<ChannelInfo> {
+    node.network_info
+        .write()
+        .unwrap()
         .add(
-            TcpStream::new_null(),
+            NULL_ENDPOINT,
+            TEST_ENDPOINT_1,
             ChannelDirection::Inbound,
             ChannelMode::Realtime,
+            node.steady_clock.now(),
         )
         .unwrap()
 }
