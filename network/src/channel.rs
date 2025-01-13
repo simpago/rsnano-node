@@ -14,7 +14,6 @@ use std::{
     time::Duration,
 };
 use tokio::{select, time::sleep};
-use tokio_util::sync::CancellationToken;
 
 pub struct Channel {
     channel_id: ChannelId,
@@ -23,7 +22,6 @@ pub struct Channel {
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
     observer: Arc<dyn NetworkObserver>,
-    cancel_token: CancellationToken,
 }
 
 impl Channel {
@@ -33,7 +31,6 @@ impl Channel {
         limiter: Arc<BandwidthLimiter>,
         clock: Arc<SteadyClock>,
         observer: Arc<dyn NetworkObserver>,
-        cancel_token: CancellationToken,
     ) -> Self {
         Self {
             channel_id: channel_info.channel_id(),
@@ -42,7 +39,6 @@ impl Channel {
             stream,
             clock,
             observer,
-            cancel_token,
         }
     }
 
@@ -66,7 +62,6 @@ impl Channel {
             Arc::new(BandwidthLimiter::default()),
             Arc::new(SteadyClock::new_null()),
             Arc::new(NullNetworkObserver::new()),
-            CancellationToken::new(),
         );
         channel
     }
@@ -81,21 +76,19 @@ impl Channel {
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
         let info = channel_info.clone();
-        let cancel_token = CancellationToken::new();
         let channel = Self::new(
             channel_info.clone(),
             Arc::downgrade(&stream),
             limiter,
             clock.clone(),
             observer.clone(),
-            cancel_token.clone(),
         );
 
         // process write queue:
         handle.spawn(async move {
             loop {
                 let res = select! {
-                    _ = cancel_token.cancelled() =>{
+                    _ = info.cancelled() =>{
                         return;
                     },
                   res = channel_info.pop() => res
@@ -106,7 +99,7 @@ impl Channel {
                     let buffer = &entry.buffer;
                     loop {
                         select! {
-                            _ = cancel_token.cancelled() =>{
+                            _ = info.cancelled() =>{
                                 return;
                             }
                             res = stream.writable() =>{
@@ -272,7 +265,7 @@ impl AsyncBufferReader for Channel {
         let mut read = 0;
         loop {
             let res = select! {
-                _  = self.cancel_token.cancelled() =>{
+                _  = self.info.cancelled() =>{
                     return Err(anyhow!("cancelled"));
                 },
                 res = stream.readable() => res

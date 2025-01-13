@@ -12,6 +12,7 @@ use std::{
     },
     time::Duration,
 };
+use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use crate::{
     utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
@@ -49,6 +50,7 @@ pub struct ChannelInfo {
 
     socket_type: AtomicU8,
     write_queue: WriteQueue,
+    cancel_token: CancellationToken,
 }
 
 impl ChannelInfo {
@@ -85,6 +87,7 @@ impl ChannelInfo {
                 },
             }),
             write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, observer),
+            cancel_token: CancellationToken::new(),
         }
     }
 
@@ -222,17 +225,6 @@ impl ChannelInfo {
         self.write_queue.capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
     }
 
-    pub async fn send_buffer(
-        &self,
-        buffer: &[u8],
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
-        self.write_queue
-            .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
-            .await;
-        Ok(())
-    }
-
     pub fn try_send_buffer(
         &self,
         buffer: &[u8],
@@ -245,8 +237,23 @@ impl ChannelInfo {
         inserted
     }
 
+    pub async fn send_buffer(
+        &self,
+        buffer: &[u8],
+        traffic_type: TrafficType,
+    ) -> anyhow::Result<()> {
+        self.write_queue
+            .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
+            .await;
+        Ok(())
+    }
+
     pub async fn pop(&self) -> Option<Entry> {
         self.write_queue.pop().await
+    }
+
+    pub fn cancelled(&self) -> WaitForCancellationFuture<'_> {
+        self.cancel_token.cancelled()
     }
 }
 
