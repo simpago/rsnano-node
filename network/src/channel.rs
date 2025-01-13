@@ -1,7 +1,5 @@
 use crate::{
-    bandwidth_limiter::BandwidthLimiter,
-    utils::into_ipv6_socket_address,
-    write_queue::{WriteQueue, WriteQueueReceiver},
+    bandwidth_limiter::BandwidthLimiter, utils::into_ipv6_socket_address, write_queue::WriteQueue,
     AsyncBufferReader, ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkObserver,
     NullNetworkObserver, TrafficType, WriteQueueAdapter,
 };
@@ -40,21 +38,20 @@ impl Channel {
         clock: Arc<SteadyClock>,
         observer: Arc<dyn NetworkObserver>,
         cancel_token: CancellationToken,
-    ) -> (Self, WriteQueueReceiver) {
-        let (write_queue, receiver) = WriteQueue::new(Self::MAX_QUEUE_SIZE);
+    ) -> Self {
+        let write_queue = WriteQueue::new(Self::MAX_QUEUE_SIZE);
+        let write_queue = Arc::new(write_queue);
 
-        let channel = Self {
+        Self {
             channel_id: channel_info.channel_id(),
             info: channel_info,
             limiter,
-            write_queue: Arc::new(write_queue),
+            write_queue,
             stream,
             clock,
             observer,
             cancel_token,
-        };
-
-        (channel, receiver)
+        }
     }
 
     pub fn new_null() -> Self {
@@ -63,7 +60,7 @@ impl Channel {
 
     pub fn new_null_with_id(id: impl Into<ChannelId>) -> Self {
         let channel_id = id.into();
-        let (channel, _receiver) = Self::new(
+        let channel = Self::new(
             Arc::new(ChannelInfo::new(
                 channel_id,
                 TEST_ENDPOINT_1,
@@ -92,7 +89,7 @@ impl Channel {
         let stream = Arc::new(stream);
         let info = channel_info.clone();
         let cancel_token = CancellationToken::new();
-        let (channel, mut receiver) = Self::new(
+        let channel = Self::new(
             channel_info,
             Arc::downgrade(&stream),
             limiter,
@@ -101,9 +98,10 @@ impl Channel {
             cancel_token.clone(),
         );
 
-        let write_queue = Arc::downgrade(&channel.write_queue);
+        let write_queue_w = Arc::downgrade(&channel.write_queue);
+        let write_queue = channel.write_queue.clone();
         info.set_write_queue(Box::new(WriteQueueAdapterImpl {
-            queue: write_queue,
+            queue: write_queue_w,
             cancel_token: cancel_token.clone(),
         }));
 
@@ -114,7 +112,7 @@ impl Channel {
                     _ = cancel_token.cancelled() =>{
                         return;
                     },
-                  res = receiver.pop() => res
+                  res = write_queue.pop() => res
                 };
 
                 if let Some((entry, traffic_type)) = res {

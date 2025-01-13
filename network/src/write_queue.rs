@@ -17,27 +17,17 @@ pub struct WriteQueue {
 }
 
 impl WriteQueue {
-    pub fn new(max_size: usize) -> (Self, WriteQueueReceiver) {
+    pub fn new(max_size: usize) -> Self {
         let notify_enqueued = Arc::new(Notify::new());
         let notify_dequeued = Arc::new(Notify::new());
         let closed = Arc::new(AtomicBool::new(false));
-        let receiver = WriteQueueReceiver {
-            generic: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
-            bootstrap: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
-            enqueued: notify_enqueued.clone(),
-            dequeued: notify_dequeued.clone(),
-            closed: closed.clone(),
-        };
-        (
-            Self {
-                generic_queue: receiver.generic.clone(),
-                bootstrap_queue: receiver.bootstrap.clone(),
-                notify_enqueued,
-                notify_dequeued,
-                closed,
-            },
-            receiver,
-        )
+        Self {
+            generic_queue: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
+            bootstrap_queue: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
+            notify_enqueued,
+            notify_dequeued,
+            closed,
+        }
     }
 
     pub async fn insert(
@@ -103,29 +93,7 @@ impl WriteQueue {
         }
     }
 
-    pub fn close(&self) {
-        self.closed.store(true, Ordering::SeqCst);
-        self.notify_enqueued.notify_one();
-        self.notify_dequeued.notify_one();
-    }
-}
-
-impl Drop for WriteQueue {
-    fn drop(&mut self) {
-        self.close();
-    }
-}
-
-pub struct WriteQueueReceiver {
-    generic: Arc<Mutex<VecDeque<Entry>>>,
-    bootstrap: Arc<Mutex<VecDeque<Entry>>>,
-    enqueued: Arc<Notify>,
-    dequeued: Arc<Notify>,
-    closed: Arc<AtomicBool>,
-}
-
-impl WriteQueueReceiver {
-    pub async fn pop(&mut self) -> Option<(Entry, TrafficType)> {
+    pub async fn pop(&self) -> Option<(Entry, TrafficType)> {
         let mut entry;
         let traffic_type;
 
@@ -136,7 +104,7 @@ impl WriteQueueReceiver {
 
             // always prefer generic queue!
             {
-                let mut guard = self.generic.lock().unwrap();
+                let mut guard = self.generic_queue.lock().unwrap();
                 entry = guard.pop_front();
                 if entry.is_some() {
                     traffic_type = TrafficType::Generic;
@@ -145,7 +113,7 @@ impl WriteQueueReceiver {
             }
 
             {
-                let mut guard = self.bootstrap.lock().unwrap();
+                let mut guard = self.bootstrap_queue.lock().unwrap();
                 entry = guard.pop_front();
                 if entry.is_some() {
                     traffic_type = TrafficType::Bootstrap;
@@ -153,12 +121,24 @@ impl WriteQueueReceiver {
                 }
             }
 
-            self.enqueued.notified().await;
+            self.notify_enqueued.notified().await;
         }
 
         let entry = entry?;
-        self.dequeued.notify_one();
+        self.notify_dequeued.notify_one();
         Some((entry, traffic_type))
+    }
+
+    pub fn close(&self) {
+        self.closed.store(true, Ordering::SeqCst);
+        self.notify_enqueued.notify_one();
+        self.notify_dequeued.notify_one();
+    }
+}
+
+impl Drop for WriteQueue {
+    fn drop(&mut self) {
+        self.close();
     }
 }
 
