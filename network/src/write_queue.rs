@@ -1,35 +1,40 @@
 use crate::TrafficType;
-use std::sync::Arc;
-use tokio::sync::{
-    mpsc::{self},
-    Notify,
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
+use tokio::sync::Notify;
 
 pub struct WriteQueue {
-    generic_queue: mpsc::Sender<Entry>,
-    bootstrap_queue: mpsc::Sender<Entry>,
+    generic_queue: Arc<Mutex<VecDeque<Entry>>>,
+    bootstrap_queue: Arc<Mutex<VecDeque<Entry>>>,
     notify_enqueued: Arc<Notify>,
     notify_dequeued: Arc<Notify>,
+    closed: Arc<AtomicBool>,
 }
 
 impl WriteQueue {
     pub fn new(max_size: usize) -> (Self, WriteQueueReceiver) {
-        let (generic_tx, generic_rx) = mpsc::channel(max_size * 2);
-        let (bootstrap_tx, bootstrap_rx) = mpsc::channel(max_size * 2);
         let notify_enqueued = Arc::new(Notify::new());
         let notify_dequeued = Arc::new(Notify::new());
+        let closed = Arc::new(AtomicBool::new(false));
         let receiver = WriteQueueReceiver {
-            generic: generic_rx,
-            bootstrap: bootstrap_rx,
+            generic: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
+            bootstrap: Arc::new(Mutex::new(VecDeque::with_capacity(max_size * 2))),
             enqueued: notify_enqueued.clone(),
             dequeued: notify_dequeued.clone(),
+            closed: closed.clone(),
         };
         (
             Self {
-                generic_queue: generic_tx,
-                bootstrap_queue: bootstrap_tx,
+                generic_queue: receiver.generic.clone(),
+                bootstrap_queue: receiver.bootstrap.clone(),
                 notify_enqueued,
                 notify_dequeued,
+                closed,
             },
             receiver,
         )
@@ -42,69 +47,118 @@ impl WriteQueue {
     ) -> anyhow::Result<()> {
         let queue = self.queue_for(traffic_type);
 
-        while queue.capacity() == 0 {
+        loop {
+            if self.closed.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+
+            {
+                let mut guard = queue.lock().unwrap();
+                if guard.capacity() > 0 {
+                    let entry = Entry { buffer };
+                    guard.push_back(entry);
+                    break;
+                }
+            }
+
             self.notify_dequeued.notified().await;
         }
 
-        let entry = Entry { buffer };
-        queue
-            .send(entry)
-            .await
-            .map_err(|_| anyhow!("queue closed"))?;
         self.notify_enqueued.notify_one();
+        // TODO return ()
         Ok(())
     }
 
     /// returns: inserted | write_error
     pub fn try_insert(&self, buffer: Arc<Vec<u8>>, traffic_type: TrafficType) -> (bool, bool) {
-        let entry = Entry { buffer };
         let queue = self.queue_for(traffic_type);
-        match queue.try_send(entry) {
-            Ok(()) => {
-                self.notify_enqueued.notify_one();
-                (true, false)
+        let inserted;
+        {
+            let mut guard = queue.lock().unwrap();
+            if guard.capacity() > 0 {
+                let entry = Entry { buffer };
+                guard.push_back(entry);
+                inserted = true;
+            } else {
+                inserted = false;
             }
-            Err(mpsc::error::TrySendError::Full(_)) => (false, false),
-            Err(mpsc::error::TrySendError::Closed(_)) => (false, true),
         }
+
+        if inserted {
+            self.notify_enqueued.notify_one();
+        }
+
+        // TODO remove unused write error return
+        (inserted, false)
     }
 
     pub fn capacity(&self, traffic_type: TrafficType) -> usize {
-        self.queue_for(traffic_type).capacity()
+        self.queue_for(traffic_type).lock().unwrap().capacity()
     }
 
-    fn queue_for(&self, traffic_type: TrafficType) -> &mpsc::Sender<Entry> {
+    fn queue_for(&self, traffic_type: TrafficType) -> &Mutex<VecDeque<Entry>> {
         match traffic_type {
             TrafficType::Generic => &self.generic_queue,
             TrafficType::Bootstrap => &self.bootstrap_queue,
         }
     }
+
+    pub fn close(&self) {
+        self.closed.store(true, Ordering::SeqCst);
+        self.notify_enqueued.notify_one();
+        self.notify_dequeued.notify_one();
+    }
+}
+
+impl Drop for WriteQueue {
+    fn drop(&mut self) {
+        self.close();
+    }
 }
 
 pub struct WriteQueueReceiver {
-    generic: mpsc::Receiver<Entry>,
-    bootstrap: mpsc::Receiver<Entry>,
+    generic: Arc<Mutex<VecDeque<Entry>>>,
+    bootstrap: Arc<Mutex<VecDeque<Entry>>>,
     enqueued: Arc<Notify>,
     dequeued: Arc<Notify>,
+    closed: Arc<AtomicBool>,
 }
 
 impl WriteQueueReceiver {
     pub async fn pop(&mut self) -> Option<(Entry, TrafficType)> {
-        // always prefer generic queue!
-        if let Ok(result) = self.generic.try_recv() {
-            return Some((result, TrafficType::Generic));
+        let mut entry;
+        let traffic_type;
+
+        loop {
+            if self.closed.load(Ordering::SeqCst) {
+                return None;
+            }
+
+            // always prefer generic queue!
+            {
+                let mut guard = self.generic.lock().unwrap();
+                entry = guard.pop_front();
+                if entry.is_some() {
+                    traffic_type = TrafficType::Generic;
+                    break;
+                }
+            }
+
+            {
+                let mut guard = self.bootstrap.lock().unwrap();
+                entry = guard.pop_front();
+                if entry.is_some() {
+                    traffic_type = TrafficType::Bootstrap;
+                    break;
+                }
+            }
+
+            self.enqueued.notified().await;
         }
 
-        let result = tokio::select! {
-            v = self.generic.recv() => v.map(|i| (i, TrafficType::Generic)),
-            v = self.bootstrap.recv() => v.map(|i| (i, TrafficType::Bootstrap)),
-        };
-
-        if result.is_some() {
-            self.dequeued.notify_one();
-        }
-
-        result
+        let entry = entry?;
+        self.dequeued.notify_one();
+        Some((entry, traffic_type))
     }
 }
 
