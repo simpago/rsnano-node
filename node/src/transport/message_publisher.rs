@@ -30,13 +30,13 @@ impl MessagePublisher {
     }
 
     pub fn new_with_buffer_size(
-        network: Arc<NetworkAdapter>,
+        network_adapter: Arc<NetworkAdapter>,
         stats: Arc<Stats>,
         protocol_info: ProtocolInfo,
         buffer_size: usize,
     ) -> Self {
         Self {
-            network_info: network.info.clone(),
+            network_info: network_adapter.info.clone(),
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
             published_callback: None,

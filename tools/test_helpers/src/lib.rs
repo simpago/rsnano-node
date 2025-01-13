@@ -349,7 +349,7 @@ pub fn establish_tcp(node: &Node, peer: &Node) -> Arc<ChannelInfo> {
 }
 
 pub fn make_fake_channel(node: &Node) -> Arc<ChannelAdapter> {
-    node.network
+    node.network_adapter
         .add(
             TcpStream::new_null(),
             ChannelDirection::Inbound,

@@ -11,7 +11,7 @@ use std::{
 #[derive(Clone)]
 pub struct MessageFlooder {
     online_reps: Arc<Mutex<OnlineReps>>,
-    network: Arc<NetworkAdapter>,
+    network_adapter: Arc<NetworkAdapter>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     publisher: MessagePublisher,
@@ -20,13 +20,13 @@ pub struct MessageFlooder {
 impl MessageFlooder {
     pub fn new(
         online_reps: Arc<Mutex<OnlineReps>>,
-        network: Arc<NetworkAdapter>,
+        network_adapter: Arc<NetworkAdapter>,
         stats: Arc<Stats>,
         publisher: MessagePublisher,
     ) -> Self {
         Self {
             online_reps,
-            network,
+            network_adapter,
             stats,
             message_serializer: publisher.get_serializer(),
             publisher,
@@ -58,7 +58,7 @@ impl MessageFlooder {
         let mut channels;
         let fanout;
         {
-            let network = self.network.info.read().unwrap();
+            let network = self.network_adapter.info.read().unwrap();
             fanout = network.fanout(scale);
             channels = network.random_list_realtime(usize::MAX, 0)
         }
@@ -81,13 +81,13 @@ impl MessageFlooder {
     pub fn flood(&mut self, message: &Message, drop_policy: DropPolicy, scale: f32) {
         let buffer = self.message_serializer.serialize(message);
         let channels = self
-            .network
+            .network_adapter
             .info
             .read()
             .unwrap()
             .random_fanout_realtime(scale);
 
-        let network_info = self.network.info.read().unwrap();
+        let network_info = self.network_adapter.info.read().unwrap();
         for channel in channels {
             try_send_serialized_message(
                 &network_info,

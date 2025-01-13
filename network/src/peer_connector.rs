@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 /// Establishes a network connection to a given peer
 pub struct PeerConnector {
     connect_timeout: Duration,
-    network: Arc<NetworkAdapter>,
+    network_adapter: Arc<NetworkAdapter>,
     network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     cancel_token: CancellationToken,
@@ -25,7 +25,7 @@ impl PeerConnector {
 
     pub fn new(
         connect_timeout: Duration,
-        network: Arc<NetworkAdapter>,
+        network_adapter: Arc<NetworkAdapter>,
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
         response_server_spawner: Arc<dyn ResponseServerSpawner>,
@@ -33,7 +33,7 @@ impl PeerConnector {
     ) -> Self {
         Self {
             connect_timeout,
-            network,
+            network_adapter,
             network_observer,
             tokio,
             cancel_token: CancellationToken::new(),
@@ -46,7 +46,7 @@ impl PeerConnector {
     pub fn new_null(tokio: tokio::runtime::Handle) -> Self {
         Self {
             connect_timeout: Self::DEFAULT_TIMEOUT,
-            network: Arc::new(NetworkAdapter::new_null(tokio.clone())),
+            network_adapter: Arc::new(NetworkAdapter::new_null(tokio.clone())),
             network_observer: Arc::new(NullNetworkObserver::new()),
             tokio: tokio.clone(),
             cancel_token: CancellationToken::new(),
@@ -69,7 +69,7 @@ impl PeerConnector {
         }
 
         {
-            let mut network = self.network.info.write().unwrap();
+            let mut network = self.network_adapter.info.write().unwrap();
 
             if let Err(e) =
                 network.add_outbound_attempt(peer, ChannelMode::Realtime, self.clock.now())
@@ -98,7 +98,7 @@ impl PeerConnector {
         self.network_observer.connection_attempt(&peer);
         self.network_observer.merge_peer();
 
-        let network_l = self.network.clone();
+        let network_l = self.network_adapter.clone();
         let response_server_spawner_l = self.response_server_spawner.clone();
         let connect_timeout = self.connect_timeout;
         let cancel_token = self.cancel_token.clone();
@@ -135,12 +135,12 @@ impl PeerConnector {
 
 async fn connect_impl(
     peer: SocketAddrV6,
-    network: &NetworkAdapter,
+    network_adapter: &NetworkAdapter,
     response_server_spawner: &dyn ResponseServerSpawner,
 ) -> anyhow::Result<()> {
     let tcp_stream = connect_stream(peer).await?;
 
-    let channel = network.add(
+    let channel = network_adapter.add(
         tcp_stream,
         ChannelDirection::Outbound,
         ChannelMode::Realtime,

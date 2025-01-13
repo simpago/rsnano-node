@@ -88,7 +88,7 @@ pub struct Node {
     pub ledger: Arc<Ledger>,
     pub syn_cookies: Arc<SynCookies>,
     pub network_info: Arc<RwLock<NetworkInfo>>,
-    pub network: Arc<NetworkAdapter>,
+    pub network_adapter: Arc<NetworkAdapter>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
     online_weight_sampler: Arc<OnlineWeightSampler>,
@@ -283,13 +283,13 @@ impl Node {
 
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
-        let network = Arc::new(NetworkAdapter::new(
+        let network_adapter = Arc::new(NetworkAdapter::new(
             network_info.clone(),
             steady_clock.clone(),
             runtime.clone(),
         ));
 
-        dead_channel_cleanup.add_step(NetworkCleanup::new(network.clone()));
+        dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
 
         let mut inbound_message_queue =
             InboundMessageQueue::new(config.message_processor.max_queue, stats.clone());
@@ -343,7 +343,7 @@ impl Node {
 
         let message_flooder = MessageFlooder::new(
             online_reps.clone(),
-            network.clone(),
+            network_adapter.clone(),
             stats.clone(),
             message_publisher.clone(),
         );
@@ -601,7 +601,7 @@ impl Node {
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new());
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
-            network.clone(),
+            network_adapter.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
             512,
@@ -628,7 +628,7 @@ impl Node {
 
         let peer_connector = Arc::new(PeerConnector::new(
             config.tcp.connect_timeout,
-            network.clone(),
+            network_adapter.clone(),
             network_observer.clone(),
             runtime.clone(),
             response_server_spawner.clone(),
@@ -671,7 +671,7 @@ impl Node {
         //
         let tcp_listener = Arc::new(TcpListener::new(
             network_info.read().unwrap().listening_port(),
-            network.clone(),
+            network_adapter.clone(),
             network_observer.clone(),
             runtime.clone(),
             response_server_spawner.clone(),
@@ -1192,7 +1192,7 @@ impl Node {
             unchecked,
             telemetry,
             syn_cookies,
-            network,
+            network_adapter,
             network_info,
             ledger,
             store,

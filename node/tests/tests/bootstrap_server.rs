@@ -14,7 +14,9 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use test_helpers::{assert_always_eq, assert_timely_eq, make_fake_channel, setup_chains, System};
+use test_helpers::{
+    assert_always_eq, assert_timely_eq, assert_timely_eq2, make_fake_channel, setup_chains, System,
+};
 
 #[test]
 fn serve_account_blocks() {
@@ -85,7 +87,7 @@ fn serve_hash() {
     node.inbound_message_queue
         .put(request, channel.info.clone());
 
-    assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
+    assert_timely_eq2(|| responses.len(), 1);
 
     let response = responses.get().pop().unwrap();
     // Ensure we got response exactly for what we asked for
@@ -129,7 +131,7 @@ fn serve_hash_one() {
     node.inbound_message_queue
         .put(request, channel.info.clone());
 
-    assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
+    assert_timely_eq2(|| responses.len(), 1);
 
     let response = responses.get().pop().unwrap();
     // Ensure we got response exactly for what we asked for
@@ -209,7 +211,7 @@ fn serve_missing() {
     node.inbound_message_queue
         .put(request, channel.info.clone());
 
-    assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
+    assert_timely_eq2(|| responses.len(), 1);
 
     let response = responses.get().pop().unwrap();
     // Ensure we got response exactly for what we asked for
@@ -299,7 +301,7 @@ fn serve_account_info() {
     node.inbound_message_queue
         .put(request, channel.info.clone());
 
-    assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
+    assert_timely_eq2(|| responses.len(), 1);
 
     let response = responses.get().pop().unwrap();
     // Ensure we got response exactly for what we asked for
@@ -345,7 +347,7 @@ fn serve_account_info_missing() {
     node.inbound_message_queue
         .put(request, channel.info.clone());
 
-    assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
+    assert_timely_eq2(|| responses.len(), 1);
 
     let response = responses.get().pop().unwrap();
     // Ensure we got response exactly for what we asked for
@@ -388,7 +390,7 @@ fn serve_frontiers() {
     node.inbound_message_queue
         .put(request, channel.info.clone());
 
-    assert_timely_eq(Duration::from_secs(5), || responses.len(), 1);
+    assert_timely_eq2(|| responses.len(), 1);
 
     let response = responses.get().pop().unwrap();
     // Ensure we got response exactly for what we asked for

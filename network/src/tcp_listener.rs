@@ -18,7 +18,7 @@ use tracing::{debug, error, warn};
 /// Server side portion of tcp sessions. Listens for new socket connections and spawns tcp_server objects when connected.
 pub struct TcpListener {
     port: AtomicU16,
-    network: Arc<NetworkAdapter>,
+    network_adapter: Arc<NetworkAdapter>,
     network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     data: Mutex<TcpListenerData>,
@@ -41,14 +41,14 @@ struct TcpListenerData {
 impl TcpListener {
     pub fn new(
         port: u16,
-        network: Arc<NetworkAdapter>,
+        network_adapter: Arc<NetworkAdapter>,
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
         response_server_spawner: Arc<dyn ResponseServerSpawner>,
     ) -> Self {
         Self {
             port: AtomicU16::new(port),
-            network,
+            network_adapter,
             network_observer,
             data: Mutex::new(TcpListenerData {
                 stopped: true,
@@ -110,7 +110,7 @@ impl TcpListenerExt for Arc<TcpListener> {
             debug!("Listening for incoming connections on: {}", addr);
 
             self_l
-                .network
+                .network_adapter
                 .info
                 .write()
                 .unwrap()
@@ -126,7 +126,7 @@ impl TcpListenerExt for Arc<TcpListener> {
     async fn run(&self, listener: tokio::net::TcpListener) {
         let run_loop = async {
             loop {
-                self.network.wait_for_available_inbound_slot().await;
+                self.network_adapter.wait_for_available_inbound_slot().await;
 
                 let Ok((stream, _)) = listener.accept().await else {
                     warn!("Could not accept incoming connection");
@@ -135,7 +135,7 @@ impl TcpListenerExt for Arc<TcpListener> {
                 };
 
                 let tcp_stream = TcpStream::new(stream);
-                match self.network.add(
+                match self.network_adapter.add(
                     tcp_stream,
                     ChannelDirection::Inbound,
                     ChannelMode::Undefined,
