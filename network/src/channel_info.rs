@@ -15,7 +15,9 @@ use std::{
 
 use crate::{
     utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
-    ChannelDirection, ChannelId, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
+    write_queue::{Entry, WriteQueue},
+    ChannelDirection, ChannelId, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver,
+    TrafficType,
 };
 
 /// Default timeout in seconds
@@ -46,10 +48,12 @@ pub struct ChannelInfo {
     closed: AtomicBool,
 
     socket_type: AtomicU8,
-    observer: Arc<dyn NetworkObserver>,
+    write_queue: WriteQueue,
 }
 
 impl ChannelInfo {
+    const MAX_QUEUE_SIZE: usize = 128;
+
     pub fn new(
         channel_id: ChannelId,
         local_addr: SocketAddrV6,
@@ -74,14 +78,13 @@ impl ChannelInfo {
             closed: AtomicBool::new(false),
             data: Mutex::new(ChannelInfoData {
                 node_id: None,
-                write_queue: None,
                 peering_addr: if direction == ChannelDirection::Outbound {
                     Some(peer_addr)
                 } else {
                     None
                 },
             }),
-            observer,
+            write_queue: WriteQueue::new(Self::MAX_QUEUE_SIZE, observer),
         }
     }
 
@@ -95,10 +98,6 @@ impl ChannelInfo {
             Timestamp::new_test_instance(),
             Arc::new(NullNetworkObserver::new()),
         )
-    }
-
-    pub(crate) fn set_write_queue(&self, queue: Box<dyn WriteQueueAdapter>) {
-        self.data.lock().unwrap().write_queue = Some(queue);
     }
 
     pub fn channel_id(&self) -> ChannelId {
@@ -191,10 +190,7 @@ impl ChannelInfo {
     pub fn close(&self) {
         self.closed.store(true, Ordering::Relaxed);
         self.set_timeout(Duration::ZERO);
-        let guard = self.data.lock().unwrap();
-        if let Some(queue) = &guard.write_queue {
-            queue.close();
-        }
+        self.write_queue.close();
     }
 
     pub fn set_node_id(&self, node_id: NodeId) {
@@ -223,21 +219,38 @@ impl ChannelInfo {
     }
 
     pub fn is_queue_full(&self, traffic_type: TrafficType) -> bool {
-        let guard = self.data.lock().unwrap();
-        match &guard.write_queue {
-            Some(queue) => queue.is_queue_full(traffic_type),
-            None => false,
-        }
+        self.write_queue.capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
+    }
+
+    pub async fn send_buffer(
+        &self,
+        buffer: &[u8],
+        traffic_type: TrafficType,
+    ) -> anyhow::Result<()> {
+        self.write_queue
+            .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
+            .await;
+        Ok(())
+    }
+
+    pub fn try_send_buffer(
+        &self,
+        buffer: &[u8],
+        drop_policy: DropPolicy,
+        traffic_type: TrafficType,
+    ) -> bool {
+        let inserted = self
+            .write_queue
+            .try_insert(Arc::new(buffer.to_vec()), traffic_type); // TODO don't copy into vec. Split into fixed size packets
+        inserted
+    }
+
+    pub async fn pop(&self) -> Option<Entry> {
+        self.write_queue.pop().await
     }
 }
 
 struct ChannelInfoData {
     node_id: Option<NodeId>,
     peering_addr: Option<SocketAddrV6>,
-    write_queue: Option<Box<dyn WriteQueueAdapter>>,
-}
-
-pub(crate) trait WriteQueueAdapter: Send + Sync {
-    fn is_queue_full(&self, traffic_type: TrafficType) -> bool;
-    fn close(&self);
 }

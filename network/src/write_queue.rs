@@ -13,7 +13,7 @@ pub struct WriteQueue {
     bootstrap_queue: Mutex<VecDeque<Entry>>,
     notify_enqueued: Notify,
     notify_dequeued: Notify,
-    closed: Arc<AtomicBool>,
+    closed: AtomicBool,
     observer: Arc<dyn NetworkObserver>,
 }
 
@@ -24,7 +24,7 @@ impl WriteQueue {
             bootstrap_queue: Mutex::new(VecDeque::with_capacity(max_size * 2)),
             notify_enqueued: Notify::new(),
             notify_dequeued: Notify::new(),
-            closed: Arc::new(AtomicBool::new(false)),
+            closed: AtomicBool::new(false),
             observer,
         }
     }

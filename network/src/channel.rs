@@ -1,7 +1,7 @@
 use crate::{
-    bandwidth_limiter::BandwidthLimiter, utils::into_ipv6_socket_address, write_queue::WriteQueue,
-    AsyncBufferReader, ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkObserver,
-    NullNetworkObserver, TrafficType, WriteQueueAdapter,
+    bandwidth_limiter::BandwidthLimiter, utils::into_ipv6_socket_address, AsyncBufferReader,
+    ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkObserver, NullNetworkObserver,
+    TrafficType,
 };
 use async_trait::async_trait;
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
@@ -20,7 +20,6 @@ pub struct Channel {
     channel_id: ChannelId,
     pub info: Arc<ChannelInfo>,
     limiter: Arc<BandwidthLimiter>,
-    write_queue: Arc<WriteQueue>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
     observer: Arc<dyn NetworkObserver>,
@@ -28,8 +27,6 @@ pub struct Channel {
 }
 
 impl Channel {
-    const MAX_QUEUE_SIZE: usize = 128;
-
     fn new(
         channel_info: Arc<ChannelInfo>,
         stream: Weak<TcpStream>,
@@ -38,14 +35,10 @@ impl Channel {
         observer: Arc<dyn NetworkObserver>,
         cancel_token: CancellationToken,
     ) -> Self {
-        let write_queue = WriteQueue::new(Self::MAX_QUEUE_SIZE, observer.clone());
-        let write_queue = Arc::new(write_queue);
-
         Self {
             channel_id: channel_info.channel_id(),
             info: channel_info,
             limiter,
-            write_queue,
             stream,
             clock,
             observer,
@@ -90,20 +83,13 @@ impl Channel {
         let info = channel_info.clone();
         let cancel_token = CancellationToken::new();
         let channel = Self::new(
-            channel_info,
+            channel_info.clone(),
             Arc::downgrade(&stream),
             limiter,
             clock.clone(),
             observer.clone(),
             cancel_token.clone(),
         );
-
-        let write_queue_w = Arc::downgrade(&channel.write_queue);
-        let write_queue = channel.write_queue.clone();
-        info.set_write_queue(Box::new(WriteQueueAdapterImpl {
-            queue: write_queue_w,
-            cancel_token: cancel_token.clone(),
-        }));
 
         // process write queue:
         handle.spawn(async move {
@@ -112,7 +98,7 @@ impl Channel {
                     _ = cancel_token.cancelled() =>{
                         return;
                     },
-                  res = write_queue.pop() => res
+                  res = channel_info.pop() => res
                 };
 
                 if let Some(entry) = res {
@@ -203,9 +189,7 @@ impl Channel {
 
         let buf_size = buffer.len();
 
-        self.write_queue
-            .insert(Arc::new(buffer.to_vec()), traffic_type) // TODO don't copy into vec. Split into fixed size packets
-            .await;
+        self.info.send_buffer(buffer, traffic_type).await?;
 
         self.observer.send_succeeded(buf_size, traffic_type);
         self.info.set_last_activity(self.clock.now());
@@ -234,11 +218,7 @@ impl Channel {
             // TODO notify bandwidth limiter that we are sending it anyway
         }
 
-        let inserted = self
-            .write_queue
-            .try_insert(Arc::new(buffer.to_vec()), traffic_type); // TODO don't copy into vec. Split into fixed size packets
-
-        inserted
+        self.info.try_send_buffer(buffer, drop_policy, traffic_type)
     }
 
     async fn ongoing_checkup(&self) {
@@ -345,23 +325,5 @@ impl ChannelReader {
 impl AsyncBufferReader for ChannelReader {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
         self.0.read(buffer, count).await
-    }
-}
-
-struct WriteQueueAdapterImpl {
-    queue: Weak<WriteQueue>,
-    cancel_token: CancellationToken,
-}
-
-impl WriteQueueAdapter for WriteQueueAdapterImpl {
-    fn is_queue_full(&self, traffic_type: TrafficType) -> bool {
-        match self.queue.upgrade() {
-            Some(queue) => queue.capacity(traffic_type) <= Channel::MAX_QUEUE_SIZE,
-            None => true,
-        }
-    }
-
-    fn close(&self) {
-        self.cancel_token.cancel();
     }
 }
