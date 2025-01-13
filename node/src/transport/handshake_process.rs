@@ -5,7 +5,7 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
     ProtocolInfo,
 };
-use rsnano_network::{Channel, TrafficType};
+use rsnano_network::{ChannelInfo, TrafficType};
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -67,7 +67,7 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) async fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
+    pub(crate) async fn initiate_handshake(&self, channel: &ChannelInfo) -> Result<(), ()> {
         let endpoint = self.peer_addr;
         let query = self.prepare_query(&endpoint);
         if query.is_none() {
@@ -88,7 +88,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
 
-        match channel.info.send_buffer(data, TrafficType::Generic).await {
+        match channel.send_buffer(data, TrafficType::Generic).await {
             Ok(()) => {
                 self.stats
                     .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
@@ -114,7 +114,7 @@ impl HandshakeProcess {
     pub(crate) async fn process_handshake(
         &self,
         message: &NodeIdHandshake,
-        channel: &Channel,
+        channel: &ChannelInfo,
     ) -> HandshakeStatus {
         if message.query.is_none() && message.response.is_none() {
             self.stats.inc_dir(
@@ -158,7 +158,7 @@ impl HandshakeProcess {
         if let Some(query) = message.query.clone() {
             // Send response + our own query
             if self
-                .send_response(&query, message.is_v2, channel)
+                .send_response(&query, message.is_v2, &channel)
                 .await
                 .is_err()
             {
@@ -204,7 +204,7 @@ impl HandshakeProcess {
         &self,
         query: &NodeIdHandshakeQuery,
         v2: bool,
-        channel: &Channel,
+        channel: &ChannelInfo,
     ) -> anyhow::Result<()> {
         let response = self.prepare_response(query, v2);
         let own_query = self.prepare_query(&self.peer_addr);
@@ -219,7 +219,7 @@ impl HandshakeProcess {
 
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
-        match channel.info.send_buffer(buffer, TrafficType::Generic).await {
+        match channel.send_buffer(buffer, TrafficType::Generic).await {
             Ok(_) => {
                 self.stats
                     .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
