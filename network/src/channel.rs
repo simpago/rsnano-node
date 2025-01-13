@@ -15,7 +15,6 @@ use std::{
 };
 use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
 
 pub struct Channel {
     channel_id: ChannelId,
@@ -39,7 +38,7 @@ impl Channel {
         observer: Arc<dyn NetworkObserver>,
         cancel_token: CancellationToken,
     ) -> Self {
-        let write_queue = WriteQueue::new(Self::MAX_QUEUE_SIZE);
+        let write_queue = WriteQueue::new(Self::MAX_QUEUE_SIZE, observer.clone());
         let write_queue = Arc::new(write_queue);
 
         Self {
@@ -68,6 +67,7 @@ impl Channel {
                 ChannelDirection::Outbound,
                 u8::MAX,
                 Timestamp::new_test_instance(),
+                Arc::new(NullNetworkObserver::new()),
             )),
             Arc::downgrade(&Arc::new(TcpStream::new_null())),
             Arc::new(BandwidthLimiter::default()),
@@ -115,7 +115,7 @@ impl Channel {
                   res = write_queue.pop() => res
                 };
 
-                if let Some((entry, traffic_type)) = res {
+                if let Some(entry) = res {
                     let mut written = 0;
                     let buffer = &entry.buffer;
                     loop {
@@ -129,7 +129,6 @@ impl Channel {
                                 Ok(n) => {
                                     written += n;
                                     if written >= buffer.len() {
-                                        observer.send_succeeded(written, traffic_type);
                                         info.set_last_activity(clock.now());
                                         break;
                                     }

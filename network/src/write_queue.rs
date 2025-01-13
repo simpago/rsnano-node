@@ -1,4 +1,4 @@
-use crate::TrafficType;
+use crate::{NetworkObserver, TrafficType};
 use std::{
     collections::VecDeque,
     sync::{
@@ -14,16 +14,18 @@ pub struct WriteQueue {
     notify_enqueued: Notify,
     notify_dequeued: Notify,
     closed: Arc<AtomicBool>,
+    observer: Arc<dyn NetworkObserver>,
 }
 
 impl WriteQueue {
-    pub fn new(max_size: usize) -> Self {
+    pub fn new(max_size: usize, observer: Arc<dyn NetworkObserver>) -> Self {
         Self {
             generic_queue: Mutex::new(VecDeque::with_capacity(max_size * 2)),
             bootstrap_queue: Mutex::new(VecDeque::with_capacity(max_size * 2)),
             notify_enqueued: Notify::new(),
             notify_dequeued: Notify::new(),
             closed: Arc::new(AtomicBool::new(false)),
+            observer,
         }
     }
 
@@ -83,7 +85,7 @@ impl WriteQueue {
         }
     }
 
-    pub async fn pop(&self) -> Option<(Entry, TrafficType)> {
+    pub async fn pop(&self) -> Option<Entry> {
         let mut entry;
         let traffic_type;
 
@@ -116,7 +118,9 @@ impl WriteQueue {
 
         let entry = entry?;
         self.notify_dequeued.notify_one();
-        Some((entry, traffic_type))
+        self.observer
+            .send_succeeded(entry.buffer.len(), traffic_type);
+        Some(entry)
     }
 
     pub fn close(&self) {

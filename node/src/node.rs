@@ -265,9 +265,11 @@ impl Node {
         let election_workers: Arc<dyn ThreadPool> =
             Arc::new(ThreadPoolImpl::create(1, "Election work"));
 
-        let network_info = Arc::new(RwLock::new(NetworkInfo::new(global_config.into())));
-
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
+        let mut network_info = NetworkInfo::new(global_config.into());
+        network_info.set_observer(network_observer.clone());
+
+        let network_info = Arc::new(RwLock::new(network_info));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
             steady_clock.clone(),

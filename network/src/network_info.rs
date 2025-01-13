@@ -3,7 +3,7 @@ use crate::{
     attempt_container::AttemptContainer,
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
-    ChannelId, ChannelInfo, ChannelMode, TrafficType,
+    ChannelId, ChannelInfo, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
 };
 use rand::{seq::SliceRandom, thread_rng};
 use rsnano_core::{utils::ContainerInfo, Networks, NodeId};
@@ -85,6 +85,7 @@ pub struct NetworkInfo {
     attempts: AttemptContainer,
     network_config: NetworkConfig,
     excluded_peers: PeerExclusion,
+    observer: Arc<dyn NetworkObserver>,
 }
 
 impl NetworkInfo {
@@ -97,12 +98,17 @@ impl NetworkInfo {
             attempts: Default::default(),
             network_config,
             excluded_peers: PeerExclusion::new(),
+            observer: Arc::new(NullNetworkObserver::new()),
         }
     }
 
     #[allow(dead_code)]
     pub fn new_test_instance() -> Self {
         Self::new(NetworkConfig::default_for(Networks::NanoDevNetwork))
+    }
+
+    pub fn set_observer(&mut self, observer: Arc<dyn NetworkObserver>) {
+        self.observer = observer;
     }
 
     pub fn on_new_realtime_channel(
@@ -164,6 +170,7 @@ impl NetworkInfo {
             direction,
             self.network_config.min_protocol_version,
             now,
+            self.observer.clone(),
         ));
         self.channels.insert(channel_id, channel_info.clone());
         Ok(channel_info)

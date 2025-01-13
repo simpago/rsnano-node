@@ -8,14 +8,14 @@ use std::{
     net::{Ipv6Addr, SocketAddrV6},
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicU8, Ordering},
-        Mutex,
+        Arc, Mutex,
     },
     time::Duration,
 };
 
 use crate::{
     utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
-    ChannelDirection, ChannelId, ChannelMode, TrafficType,
+    ChannelDirection, ChannelId, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
 };
 
 /// Default timeout in seconds
@@ -46,6 +46,7 @@ pub struct ChannelInfo {
     closed: AtomicBool,
 
     socket_type: AtomicU8,
+    observer: Arc<dyn NetworkObserver>,
 }
 
 impl ChannelInfo {
@@ -56,6 +57,7 @@ impl ChannelInfo {
         direction: ChannelDirection,
         protocol_version: u8,
         now: Timestamp,
+        observer: Arc<dyn NetworkObserver>,
     ) -> Self {
         Self {
             channel_id,
@@ -79,6 +81,7 @@ impl ChannelInfo {
                     None
                 },
             }),
+            observer,
         }
     }
 
@@ -90,6 +93,7 @@ impl ChannelInfo {
             ChannelDirection::Outbound,
             u8::MAX,
             Timestamp::new_test_instance(),
+            Arc::new(NullNetworkObserver::new()),
         )
     }
 
