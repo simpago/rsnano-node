@@ -145,34 +145,6 @@ impl ResponseServer {
         }
     }
 
-    fn to_bootstrap_connection(&self) -> bool {
-        if !self.allow_bootstrap {
-            return false;
-        }
-
-        if self.channel.mode() != ChannelMode::Undefined {
-            return false;
-        }
-
-        if self.disable_bootstrap_listener {
-            return false;
-        }
-
-        let bootstrap_count = self
-            .network
-            .read()
-            .unwrap()
-            .count_by_mode(ChannelMode::Bootstrap);
-
-        if bootstrap_count >= self.connections_max {
-            return false;
-        }
-
-        self.channel.set_mode(ChannelMode::Bootstrap);
-        debug!("Switched to bootstrap mode ({})", self.peer_addr());
-        true
-    }
-
     fn set_last_telemetry_req(&self) {
         let mut lk = self.last_telemetry_req.lock().unwrap();
         *lk = Some(Instant::now());
@@ -437,33 +409,15 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     return ProcessResult::Progress; // Continue receiving new messages
                 }
                 HandshakeStatus::Bootstrap => {
-                    if !self.to_bootstrap_connection() {
-                        self.stats.inc_dir(
-                            StatType::TcpServer,
-                            DetailType::HandshakeError,
-                            Direction::In,
-                        );
-                        debug!(
-                            "Error switching to bootstrap mode: {:?} ({})",
-                            message.message_type(),
-                            self.peer_addr()
-                        );
-                        return ProcessResult::Abort;
-                    } else {
-                        // Fall through to process the bootstrap message
-                    }
+                    debug!(peer = ?self.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
+                    // Legacy bootstrap is not supported anymore
+                    return ProcessResult::Abort;
                 }
             }
         } else if self.is_realtime_connection() {
             return self.process_realtime(message);
         }
 
-        // The server will switch to bootstrap mode immediately after processing the first bootstrap message, thus no `else if`
-        if self.is_bootstrap_connection() {
-            // Ignored sicne V28
-            // TODO: Abort connection?
-            return ProcessResult::Progress;
-        }
         debug_assert!(false);
         ProcessResult::Abort
     }
