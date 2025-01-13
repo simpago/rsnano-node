@@ -89,9 +89,12 @@ impl MessagePublisher {
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
         let buffer = self.message_serializer.serialize(message);
-        self.network
-            .send_buffer(channel_id, &buffer, traffic_type)
-            .await?;
+        let channel = self.network_info.read().unwrap().get(channel_id).cloned();
+        if let Some(channel) = channel {
+            channel.send_buffer(&buffer, traffic_type).await?;
+        } else {
+            bail!("Channel not found");
+        }
 
         self.stats
             .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);

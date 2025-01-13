@@ -88,7 +88,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
 
-        match channel.send_buffer(data, TrafficType::Generic).await {
+        match channel.info.send_buffer(data, TrafficType::Generic).await {
             Ok(()) => {
                 self.stats
                     .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
@@ -219,7 +219,7 @@ impl HandshakeProcess {
 
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
-        match channel.send_buffer(buffer, TrafficType::Generic).await {
+        match channel.info.send_buffer(buffer, TrafficType::Generic).await {
             Ok(_) => {
                 self.stats
                     .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);

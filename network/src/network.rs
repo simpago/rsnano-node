@@ -1,6 +1,6 @@
 use crate::{
     utils::into_ipv6_socket_address, Channel, ChannelDirection, ChannelId, ChannelMode,
-    DeadChannelCleanupStep, NetworkInfo, TrafficType,
+    DeadChannelCleanupStep, NetworkInfo,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -93,20 +93,6 @@ impl Network {
             Arc::new(SteadyClock::new_null()),
             handle,
         )
-    }
-
-    pub async fn send_buffer(
-        &self,
-        channel_id: ChannelId,
-        buffer: &[u8],
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
-        let channel = self.channels.lock().unwrap().get(&channel_id).cloned();
-        if let Some(channel) = channel {
-            channel.send_buffer(buffer, traffic_type).await
-        } else {
-            Err(anyhow!("Channel not found"))
-        }
     }
 }
 

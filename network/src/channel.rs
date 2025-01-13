@@ -1,6 +1,6 @@
 use crate::{
-    bandwidth_limiter::BandwidthLimiter, utils::into_ipv6_socket_address, AsyncBufferReader,
-    ChannelDirection, ChannelId, ChannelInfo, NullNetworkObserver, TrafficType,
+    bandwidth_limiter::BandwidthLimiter, AsyncBufferReader, ChannelDirection, ChannelId,
+    ChannelInfo, NullNetworkObserver,
 };
 use async_trait::async_trait;
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
@@ -8,7 +8,6 @@ use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_nullable_tcp::TcpStream;
 use std::{
     fmt::Display,
-    net::{Ipv6Addr, SocketAddrV6},
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -127,28 +126,6 @@ impl Channel {
 
     pub fn channel_id(&self) -> ChannelId {
         self.channel_id
-    }
-
-    pub fn local_addr(&self) -> SocketAddrV6 {
-        let no_addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0);
-        let Some(stream) = self.stream.upgrade() else {
-            return no_addr;
-        };
-
-        stream
-            .local_addr()
-            .map(|addr| into_ipv6_socket_address(addr))
-            .unwrap_or(no_addr)
-    }
-
-    // TODO delete and use channel_info directly
-    pub async fn send_buffer(
-        &self,
-        buffer: &[u8],
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
-        self.info.send_buffer(buffer, traffic_type).await?;
-        Ok(())
     }
 
     async fn ongoing_checkup(&self) {
