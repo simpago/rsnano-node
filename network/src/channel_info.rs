@@ -53,7 +53,7 @@ pub struct ChannelInfo {
     socket_type: AtomicU8,
     write_queue: WriteQueue,
     cancel_token: CancellationToken,
-    pub limiter: Arc<BandwidthLimiter>,
+    limiter: Arc<BandwidthLimiter>,
     observer: Arc<dyn NetworkObserver>,
 }
 
@@ -297,6 +297,22 @@ impl ChannelInfo {
 
     pub fn cancelled(&self) -> WaitForCancellationFuture<'_> {
         self.cancel_token.cancelled()
+    }
+
+    pub fn check_timeout(&self, now: Timestamp) -> bool {
+        // If the socket is already dead, stop doing checkups
+        if !self.is_alive() {
+            return true;
+        }
+
+        // if there is no activity for timeout seconds then disconnect
+        let has_timed_out = (now - self.last_activity()) > self.timeout();
+        if has_timed_out {
+            self.observer.channel_timed_out(&self);
+            self.set_timed_out(true);
+            self.close();
+        }
+        has_timed_out
     }
 }
 

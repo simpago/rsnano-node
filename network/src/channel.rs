@@ -158,24 +158,6 @@ impl Channel {
         buffer: &[u8],
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
-        if self.info.is_closed() {
-            bail!("socket closed");
-        }
-
-        while self.info.is_queue_full(traffic_type) {
-            // TODO: better implementation
-            sleep(Duration::from_millis(20)).await;
-        }
-
-        while !self.info.limiter.should_pass(buffer.len(), traffic_type) {
-            // TODO: better implementation
-            sleep(Duration::from_millis(20)).await;
-        }
-
-        if self.info.is_closed() {
-            bail!("socket closed");
-        }
-
         self.info.send_buffer(buffer, traffic_type).await?;
         self.info.set_last_activity(self.clock.now());
         Ok(())
@@ -194,19 +176,10 @@ impl Channel {
     async fn ongoing_checkup(&self) {
         loop {
             sleep(Duration::from_secs(2)).await;
-            // If the socket is already dead, close just in case, and stop doing checkups
-            if !self.info.is_alive() {
-                return;
-            }
-
             let now = self.clock.now();
-
-            // if there is no activity for timeout seconds then disconnect
-            let has_timed_out = (now - self.info.last_activity()) > self.info.timeout();
-            if has_timed_out {
-                self.observer.channel_timed_out(&self.info);
-                self.info.set_timed_out(true);
-                self.info.close();
+            let timed_out = self.info.check_timeout(now);
+            if timed_out {
+                break;
             }
         }
     }
