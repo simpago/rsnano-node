@@ -736,7 +736,7 @@ void nano::bootstrap_service::cleanup_and_sync ()
 		tags_by_order.pop_front ();
 	}
 
-	if (sync_dependencies_interval.elapsed (60s))
+	if (sync_dependencies_interval.elapse (60s))
 	{
 		stats.inc (nano::stat::type::bootstrap, nano::stat::detail::sync_dependencies);
 		accounts.sync_dependencies ();

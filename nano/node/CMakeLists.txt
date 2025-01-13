@@ -135,6 +135,8 @@ add_library(
   rep_tiers.cpp
   request_aggregator.hpp
   request_aggregator.cpp
+  rpc_callbacks.hpp
+  rpc_callbacks.cpp
   scheduler/bucket.cpp
   scheduler/bucket.hpp
   scheduler/component.hpp

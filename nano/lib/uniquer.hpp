@@ -27,7 +27,7 @@ public:
 
 		nano::lock_guard<nano::mutex> guard{ mutex };
 
-		if (cleanup_interval.elapsed (cleanup_cutoff))
+		if (cleanup_interval.elapse (cleanup_cutoff))
 		{
 			cleanup ();
 		}

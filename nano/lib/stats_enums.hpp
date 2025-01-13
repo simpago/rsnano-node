@@ -26,7 +26,9 @@ enum class type
 	election,
 	election_cleanup,
 	election_vote,
-	http_callback,
+	http_callbacks,
+	http_callbacks_notified,
+	http_callbacks_ec,
 	ipc,
 	tcp,
 	tcp_server,
@@ -166,6 +168,8 @@ enum class detail
 	other,
 	drop,
 	queued,
+	error,
+	failed,
 
 	// processing queue
 	queue,
@@ -625,6 +629,17 @@ enum class detail
 	timed_out,
 	host_unreachable,
 	not_supported,
+
+	// http
+	error_resolving,
+	error_connecting,
+	error_sending,
+	error_completing,
+	bad_status,
+
+	// http_callbacks
+	block_confirmed,
+	large_backlog,
 
 	_last // Must be the last enum
 };

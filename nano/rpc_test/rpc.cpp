@@ -5252,7 +5252,7 @@ TEST (rpc, block_confirm_confirmed)
 		auto transaction = node->ledger.tx_begin_read ();
 		ASSERT_TRUE (node->ledger.confirmed.block_exists_or_pruned (transaction, nano::dev::genesis->hash ()));
 	}
-	ASSERT_EQ (0, node->stats.count (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out));
+	ASSERT_EQ (0, node->stats.count (nano::stat::type::http_callbacks_ec));
 	auto const rpc_ctx = add_rpc (system, node);
 	boost::property_tree::ptree request;
 	request.put ("action", "block_confirm");
@@ -5266,7 +5266,7 @@ TEST (rpc, block_confirm_confirmed)
 	// Check callback
 	// Callback result is error because callback target port isn't listening
 	// Check for error count greater than zero as the address goes through DNS resolution and may make multiple attempts for multiple IPs per DNS
-	ASSERT_TIMELY (5s, node->stats.count (nano::stat::type::error, nano::stat::detail::http_callback, nano::stat::dir::out) != 0);
+	ASSERT_TIMELY (5s, node->stats.count (nano::stat::type::http_callbacks_ec) != 0);
 }
 
 TEST (rpc, node_id)

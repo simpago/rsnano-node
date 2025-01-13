@@ -39,7 +39,7 @@ enum class type
 	qt,
 	rpc,
 	rpc_connection,
-	rpc_callbacks,
+	http_callbacks,
 	rpc_request,
 	ipc,
 	ipc_server,

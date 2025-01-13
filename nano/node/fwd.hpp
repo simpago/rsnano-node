@@ -33,6 +33,7 @@ class recently_cemented_cache;
 class recently_confirmed_cache;
 class rep_crawler;
 class rep_tiers;
+class http_callbacks;
 class telemetry;
 class unchecked_map;
 class stats;
