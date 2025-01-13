@@ -1,4 +1,3 @@
-use num_traits::AsPrimitive;
 use rsnano_core::{
     utils::UnixTimestamp, Account, AccountInfo, Amount, BlockHash, BlockSubType,
     ConfirmationHeightInfo, Epoch, Epochs, PendingInfo, PendingKey, PublicKey, SavedBlock,

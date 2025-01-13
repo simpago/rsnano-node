@@ -1,7 +1,6 @@
 use crate::{
     utils::into_ipv6_socket_address, Channel, ChannelDirection, ChannelId, ChannelMode,
-    DeadChannelCleanupStep, DropPolicy, NetworkInfo, NetworkObserver, NullNetworkObserver,
-    TrafficType,
+    DeadChannelCleanupStep, DropPolicy, NetworkInfo, TrafficType,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -17,7 +16,6 @@ pub struct Network {
     channels: Mutex<HashMap<ChannelId, Arc<Channel>>>,
     pub info: Arc<RwLock<NetworkInfo>>,
     clock: Arc<SteadyClock>,
-    observer: Arc<dyn NetworkObserver>,
     handle: tokio::runtime::Handle,
 }
 
@@ -31,13 +29,8 @@ impl Network {
             channels: Mutex::new(HashMap::new()),
             clock,
             info: network_info,
-            observer: Arc::new(NullNetworkObserver::new()),
             handle,
         }
-    }
-
-    pub fn set_observer(&mut self, observer: Arc<dyn NetworkObserver>) {
-        self.observer = observer;
     }
 
     pub async fn wait_for_available_inbound_slot(&self) {
@@ -81,24 +74,8 @@ impl Network {
             self.clock.now(),
         );
 
-        let channel_info = match channel_info {
-            Ok(c) => {
-                self.observer.accepted(&peer_addr, direction);
-                c
-            }
-            Err(e) => {
-                self.observer.error(e, &peer_addr, direction);
-                return Err(anyhow!("Could not add channel: {:?}", e));
-            }
-        };
-
-        let channel = Channel::create(
-            channel_info,
-            stream,
-            self.clock.clone(),
-            self.observer.clone(),
-            &self.handle,
-        );
+        let channel_info = channel_info.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
+        let channel = Channel::create(channel_info, stream, self.clock.clone(), &self.handle);
 
         self.channels
             .lock()

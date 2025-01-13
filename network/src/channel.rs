@@ -1,7 +1,6 @@
 use crate::{
     bandwidth_limiter::BandwidthLimiter, utils::into_ipv6_socket_address, AsyncBufferReader,
-    ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NetworkObserver, NullNetworkObserver,
-    TrafficType,
+    ChannelDirection, ChannelId, ChannelInfo, DropPolicy, NullNetworkObserver, TrafficType,
 };
 use async_trait::async_trait;
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
@@ -20,7 +19,6 @@ pub struct Channel {
     pub info: Arc<ChannelInfo>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
-    observer: Arc<dyn NetworkObserver>,
 }
 
 impl Channel {
@@ -28,14 +26,12 @@ impl Channel {
         channel_info: Arc<ChannelInfo>,
         stream: Weak<TcpStream>,
         clock: Arc<SteadyClock>,
-        observer: Arc<dyn NetworkObserver>,
     ) -> Self {
         Self {
             channel_id: channel_info.channel_id(),
             info: channel_info,
             stream,
             clock,
-            observer,
         }
     }
 
@@ -58,7 +54,6 @@ impl Channel {
             )),
             Arc::downgrade(&Arc::new(TcpStream::new_null())),
             Arc::new(SteadyClock::new_null()),
-            Arc::new(NullNetworkObserver::new()),
         );
         channel
     }
@@ -67,17 +62,11 @@ impl Channel {
         channel_info: Arc<ChannelInfo>,
         stream: TcpStream,
         clock: Arc<SteadyClock>,
-        observer: Arc<dyn NetworkObserver>,
         handle: &tokio::runtime::Handle,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
         let info = channel_info.clone();
-        let channel = Self::new(
-            channel_info.clone(),
-            Arc::downgrade(&stream),
-            clock.clone(),
-            observer.clone(),
-        );
+        let channel = Self::new(channel_info.clone(), Arc::downgrade(&stream), clock.clone());
 
         // process write queue:
         handle.spawn(async move {
@@ -159,7 +148,6 @@ impl Channel {
         traffic_type: TrafficType,
     ) -> anyhow::Result<()> {
         self.info.send_buffer(buffer, traffic_type).await?;
-        self.info.set_last_activity(self.clock.now());
         Ok(())
     }
 
@@ -224,15 +212,13 @@ impl AsyncBufferReader for Channel {
                 Ok(_) => {
                     match stream.try_read(&mut buffer[read..count]) {
                         Ok(0) => {
-                            self.observer.read_failed();
-                            self.info.close();
+                            self.info.read_failed();
                             return Err(anyhow!("remote side closed the channel"));
                         }
                         Ok(n) => {
                             read += n;
                             if read >= count {
-                                self.observer.read_succeeded(count);
-                                self.info.set_last_activity(self.clock.now());
+                                self.info.read_succeeded(count, self.clock.now());
                                 return Ok(());
                             }
                         }
@@ -240,15 +226,13 @@ impl AsyncBufferReader for Channel {
                             continue;
                         }
                         Err(e) => {
-                            self.observer.read_failed();
-                            self.info.close();
+                            self.info.read_failed();
                             return Err(e.into());
                         }
                     };
                 }
                 Err(e) => {
-                    self.observer.read_failed();
-                    self.info.close();
+                    self.info.read_failed();
                     return Err(e.into());
                 }
             }

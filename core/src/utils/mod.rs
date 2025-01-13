@@ -6,7 +6,6 @@ pub use container_info::*;
 pub use peer::*;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},
-    ops::AddAssign,
     thread::available_parallelism,
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };

@@ -2,7 +2,7 @@ use crate::{
     blocks::open_block::OpenBlockArgs,
     utils::UnixTimestamp,
     work::{WorkPool, STUB_WORK_POOL},
-    Account, Amount, Block, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey,
+    Account, Block, BlockDetails, BlockHash, BlockSideband, Epoch, PrivateKey, PublicKey,
     SavedBlock,
 };
 
@@ -89,7 +89,7 @@ impl TestLegacyOpenBlockBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{work::WORK_THRESHOLDS_STUB, BlockBase, Signature, TestBlockBuilder};
+    use crate::{work::WORK_THRESHOLDS_STUB, Amount, BlockBase, Signature, TestBlockBuilder};
 
     #[test]
     fn create_open_block() {

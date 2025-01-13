@@ -314,6 +314,16 @@ impl ChannelInfo {
         }
         has_timed_out
     }
+
+    pub fn read_succeeded(&self, count: usize, now: Timestamp) {
+        self.observer.read_succeeded(count);
+        self.set_last_activity(now);
+    }
+
+    pub fn read_failed(&self) {
+        self.observer.read_failed();
+        self.close();
+    }
 }
 
 struct ChannelInfoData {

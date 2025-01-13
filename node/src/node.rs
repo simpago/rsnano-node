@@ -283,9 +283,11 @@ impl Node {
 
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
-        let mut network = Network::new(network_info.clone(), steady_clock.clone(), runtime.clone());
-        network.set_observer(network_observer.clone());
-        let network = Arc::new(network);
+        let network = Arc::new(Network::new(
+            network_info.clone(),
+            steady_clock.clone(),
+            runtime.clone(),
+        ));
 
         dead_channel_cleanup.add_step(NetworkCleanup::new(network.clone()));
 

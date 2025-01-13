@@ -166,7 +166,12 @@ impl NetworkInfo {
         planned_mode: ChannelMode,
         now: Timestamp,
     ) -> Result<Arc<ChannelInfo>, NetworkError> {
-        self.validate_new_connection(&peer_addr, direction, planned_mode, now)?;
+        let result = self.validate_new_connection(&peer_addr, direction, planned_mode, now);
+        if let Err(e) = result {
+            self.observer.error(e, &peer_addr, direction);
+        }
+        result?;
+
         let channel_id = self.get_next_channel_id();
         let channel_info = Arc::new(ChannelInfo::new(
             channel_id,
@@ -179,6 +184,7 @@ impl NetworkInfo {
             self.observer.clone(),
         ));
         self.channels.insert(channel_id, channel_info.clone());
+        self.observer.accepted(&peer_addr, direction);
         Ok(channel_info)
     }
 

@@ -4,7 +4,7 @@ use crate::{
 use lmdb::{DatabaseFlags, WriteFlags};
 use rsnano_core::{
     utils::{BufferReader, Deserialize},
-    BlockHash, QualifiedRoot, Root,
+    BlockHash, QualifiedRoot,
 };
 use std::{ops::RangeBounds, sync::Arc};
 
