@@ -90,7 +90,6 @@ impl Channel {
         handle: &tokio::runtime::Handle,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
-        let stream_l = stream.clone();
         let info = channel_info.clone();
         let cancel_token = CancellationToken::new();
         let (channel, mut receiver) = Self::new(
@@ -126,9 +125,9 @@ impl Channel {
                             _ = cancel_token.cancelled() =>{
                                 return;
                             }
-                            res = stream_l.writable() =>{
+                            res = stream.writable() =>{
                             match res {
-                            Ok(()) => match stream_l.try_write(&buffer[written..]) {
+                            Ok(()) => match stream.try_write(&buffer[written..]) {
                                 Ok(n) => {
                                     written += n;
                                     if written >= buffer.len() {
