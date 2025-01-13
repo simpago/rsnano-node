@@ -20,7 +20,7 @@ impl InboundMessageQueue {
     pub fn new(max_queue: usize, stats: Arc<Stats>) -> Self {
         Self {
             state: Mutex::new(State {
-                queue: FairQueue::new(Box::new(move |_| max_queue), Box::new(|_| 1)),
+                queue: FairQueue::new(move |_| max_queue, |_| 1),
                 stopped: false,
             }),
             condition: Condvar::new(),

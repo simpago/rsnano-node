@@ -66,10 +66,7 @@ impl BootstrapServer {
             on_response: Arc::new(Mutex::new(None)),
             condition: Condvar::new(),
             stopped: AtomicBool::new(false),
-            queue: Mutex::new(FairQueue::new(
-                Box::new(move |_| max_queue),
-                Box::new(|_| 1),
-            )),
+            queue: Mutex::new(FairQueue::new(move |_| max_queue, |_| 1)),
             message_publisher: Mutex::new(message_publisher),
         });
 

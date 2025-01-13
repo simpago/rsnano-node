@@ -184,13 +184,13 @@ impl BlockProcessor {
         stats: Arc<Stats>,
     ) -> Self {
         let config_l = config.clone();
-        let max_size_query = Box::new(move |origin: &(BlockSource, ChannelId)| match origin.0 {
+        let max_size_query = move |origin: &(BlockSource, ChannelId)| match origin.0 {
             BlockSource::Live | BlockSource::LiveOriginator => config_l.max_peer_queue,
             _ => config_l.max_system_queue,
-        });
+        };
 
         let config_l = config.clone();
-        let priority_query = Box::new(move |origin: &(BlockSource, ChannelId)| match origin.0 {
+        let priority_query = move |origin: &(BlockSource, ChannelId)| match origin.0 {
             BlockSource::Live | BlockSource::LiveOriginator => config.priority_live,
             BlockSource::Bootstrap | BlockSource::BootstrapLegacy | BlockSource::Unchecked => {
                 config_l.priority_bootstrap
@@ -199,7 +199,7 @@ impl BlockProcessor {
             BlockSource::Election | BlockSource::Forced | BlockSource::Unknown => {
                 config.priority_system
             }
-        });
+        };
 
         Self {
             processor_loop: Arc::new(BlockProcessorLoopImpl {

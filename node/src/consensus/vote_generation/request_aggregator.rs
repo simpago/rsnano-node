@@ -68,7 +68,7 @@ impl RequestAggregator {
             config,
             condition: Arc::new(Condvar::new()),
             state: Arc::new(Mutex::new(RequestAggregatorState {
-                queue: FairQueue::new(Box::new(move |_| max_queue), Box::new(|_| 1)),
+                queue: FairQueue::new(move |_| max_queue, |_| 1),
                 stopped: false,
             })),
             threads: Mutex::new(Vec::new()),

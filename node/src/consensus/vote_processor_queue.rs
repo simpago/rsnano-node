@@ -27,16 +27,16 @@ impl VoteProcessorQueue {
             data: Mutex::new(VoteProcessorQueueData {
                 stopped: false,
                 queue: FairQueue::new(
-                    Box::new(move |(tier, _)| match tier {
+                    move |(tier, _)| match tier {
                         RepTier::Tier1 | RepTier::Tier2 | RepTier::Tier3 => conf.max_pr_queue,
                         RepTier::None => conf.max_non_pr_queue,
-                    }),
-                    Box::new(move |(tier, _)| match tier {
+                    },
+                    move |(tier, _)| match tier {
                         RepTier::Tier3 => conf.pr_priority * conf.pr_priority * conf.pr_priority,
                         RepTier::Tier2 => conf.pr_priority * conf.pr_priority,
                         RepTier::Tier1 => conf.pr_priority,
                         RepTier::None => 1,
-                    }),
+                    },
                 ),
             }),
             condition: Condvar::new(),

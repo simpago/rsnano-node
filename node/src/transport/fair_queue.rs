@@ -24,16 +24,16 @@ where
     S: Ord + Copy,
 {
     pub fn new(
-        max_size_query: Box<dyn Fn(&S) -> usize + Send + Sync>,
-        priority_query: Box<dyn Fn(&S) -> usize + Send + Sync>,
+        max_size_query: impl Fn(&S) -> usize + Send + Sync + 'static,
+        priority_query: impl Fn(&S) -> usize + Send + Sync + 'static,
     ) -> Self {
         Self {
             queues: BTreeMap::new(),
             current_queue_key: None,
             counter: 0,
             total_len: 0,
-            max_size_query,
-            priority_query,
+            max_size_query: Box::new(max_size_query),
+            priority_query: Box::new(priority_query),
         }
     }
 
@@ -297,16 +297,14 @@ mod tests {
 
     #[test]
     fn empty() {
-        let queue: FairQueue<usize, &'static str> =
-            FairQueue::new(Box::new(|_| 999), Box::new(|_| 999));
+        let queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 999, |_| 999);
         assert_eq!(queue.len(), 0);
         assert!(queue.is_empty());
     }
 
     #[test]
     fn process_one() {
-        let mut queue: FairQueue<usize, &'static str> =
-            FairQueue::new(Box::new(|_| 1), Box::new(|_| 1));
+        let mut queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 1, |_| 1);
         queue.push(7, "foo");
 
         assert_eq!(queue.len(), 1);
@@ -322,8 +320,7 @@ mod tests {
 
     #[test]
     fn fifo() {
-        let mut queue: FairQueue<usize, &'static str> =
-            FairQueue::new(Box::new(|_| 999), Box::new(|_| 1));
+        let mut queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 999, |_| 1);
 
         queue.push(7, "a");
         queue.push(7, "b");
@@ -341,8 +338,7 @@ mod tests {
 
     #[test]
     fn process_many() {
-        let mut queue: FairQueue<usize, &'static str> =
-            FairQueue::new(Box::new(|_| 1), Box::new(|_| 1));
+        let mut queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 1, |_| 1);
 
         queue.push(7, "a");
         queue.push(8, "b");
@@ -359,8 +355,7 @@ mod tests {
 
     #[test]
     fn max_queue_size() {
-        let mut queue: FairQueue<usize, &'static str> =
-            FairQueue::new(Box::new(|_| 2), Box::new(|_| 1));
+        let mut queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 2, |_| 1);
 
         queue.push(7, "a");
         queue.push(7, "b");
@@ -376,13 +371,13 @@ mod tests {
     #[test]
     fn round_robin_with_priority() {
         let mut queue: FairQueue<usize, &'static str> = FairQueue::new(
-            Box::new(|_| 999),
-            Box::new(|origin| match origin {
+            |_| 999,
+            |origin| match origin {
                 7 => 1,
                 8 => 2,
                 9 => 3,
                 _ => unreachable!(),
-            }),
+            },
         );
 
         queue.push(7, "7a");
@@ -411,8 +406,7 @@ mod tests {
 
     #[test]
     fn sum_queue_len() {
-        let mut queue: FairQueue<usize, &'static str> =
-            FairQueue::new(Box::new(|_| 999), Box::new(|_| 999));
+        let mut queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 999, |_| 999);
 
         queue.push(3, "x");
         queue.push(4, "x");
