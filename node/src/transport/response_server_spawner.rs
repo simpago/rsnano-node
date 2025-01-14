@@ -1,4 +1,4 @@
-use super::{InboundMessageQueue, LatestKeepalives, ResponseServer, ResponseServerExt, SynCookies};
+use super::{InboundMessageQueue, LatestKeepalives, ResponseServer, SynCookies};
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
 use rsnano_messages::NetworkFilter;
