@@ -85,7 +85,6 @@ impl ResponseServer {
     ) -> Self {
         let network_constants = network_params.network.clone();
         let channel = channel_adapter.channel.clone();
-        let peer_addr = channel.peer_addr();
         Self {
             network,
             inbound_queue,
@@ -99,7 +98,6 @@ impl ResponseServer {
                 node_id.clone(),
                 syn_cookies,
                 stats.clone(),
-                peer_addr,
                 network_constants.protocol_info(),
             ),
             network_params,

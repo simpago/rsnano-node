@@ -30,7 +30,6 @@ pub(crate) struct HandshakeProcess {
     syn_cookies: Arc<SynCookies>,
     stats: Arc<Stats>,
     handshake_received: AtomicBool,
-    peer_addr: SocketAddrV6,
     protocol: ProtocolInfo,
 }
 
@@ -40,7 +39,6 @@ impl HandshakeProcess {
         node_id: PrivateKey,
         syn_cookies: Arc<SynCookies>,
         stats: Arc<Stats>,
-        peer_addr: SocketAddrV6,
         protocol: ProtocolInfo,
     ) -> Self {
         Self {
@@ -49,7 +47,6 @@ impl HandshakeProcess {
             syn_cookies,
             stats,
             handshake_received: AtomicBool::new(false),
-            peer_addr,
             protocol,
         }
     }
@@ -62,19 +59,15 @@ impl HandshakeProcess {
             syn_cookies: Arc::new(SynCookies::new(1)),
             stats: Arc::new(Stats::default()),
             handshake_received: AtomicBool::new(false),
-            peer_addr: TEST_ENDPOINT_1,
             protocol: ProtocolInfo::default(),
         }
     }
 
     pub(crate) fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
-        let endpoint = self.peer_addr;
-        let query = self.prepare_query(&endpoint);
+        let peer = channel.peer_addr();
+        let query = self.prepare_query(&peer);
         if query.is_none() {
-            warn!(
-                "Could not create cookie for {:?}. Closing channel.",
-                endpoint
-            );
+            warn!("Could not create cookie for {:?}. Closing channel.", peer);
             return Err(());
         }
         let message = Message::NodeIdHandshake(NodeIdHandshake {
@@ -83,7 +76,7 @@ impl HandshakeProcess {
             is_v2: true,
         });
 
-        debug!("Initiating handshake query ({})", endpoint);
+        debug!("Initiating handshake query ({})", peer);
 
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
@@ -104,7 +97,7 @@ impl HandshakeProcess {
         } else {
             self.stats
                 .inc(StatType::TcpServer, DetailType::HandshakeNetworkError);
-            debug!(peer = %endpoint, "Could not enqueue handshake query");
+            debug!(peer = %peer, "Could not enqueue handshake query");
             // Stop invalid handshake
             Err(())
         }
@@ -121,7 +114,10 @@ impl HandshakeProcess {
                 DetailType::HandshakeError,
                 Direction::In,
             );
-            debug!("Invalid handshake message received ({})", self.peer_addr);
+            debug!(
+                "Invalid handshake message received ({})",
+                channel.peer_addr()
+            );
             return HandshakeStatus::Abort;
         }
         if message.query.is_some() && self.handshake_received.load(Ordering::SeqCst) {
@@ -131,7 +127,10 @@ impl HandshakeProcess {
                 DetailType::HandshakeError,
                 Direction::In,
             );
-            warn!("Detected multiple handshake queries ({})", self.peer_addr);
+            warn!(
+                "Detected multiple handshake queries ({})",
+                channel.peer_addr()
+            );
             return HandshakeStatus::Abort;
         }
 
@@ -151,7 +150,8 @@ impl HandshakeProcess {
         };
         debug!(
             "Handshake message received: {} ({})",
-            log_type, self.peer_addr
+            log_type,
+            channel.peer_addr()
         );
 
         if let Some(query) = message.query.clone() {
@@ -163,7 +163,7 @@ impl HandshakeProcess {
             // Fall through and continue handshake
         }
         if let Some(response) = &message.response {
-            match self.verify_response(response, &self.peer_addr) {
+            match self.verify_response(response, &channel.peer_addr()) {
                 Ok(()) => {
                     self.stats
                         .inc_dir(StatType::Handshake, DetailType::Ok, Direction::In);
@@ -172,7 +172,7 @@ impl HandshakeProcess {
                 Err(HandshakeResponseError::OwnNodeId) => {
                     warn!(
                         "This node tried to connect to itself. Closing channel ({})",
-                        self.peer_addr
+                        channel.peer_addr()
                     );
                     return HandshakeStatus::AbortOwnNodeId;
                 }
@@ -186,7 +186,8 @@ impl HandshakeProcess {
                     );
                     warn!(
                         "Invalid handshake response received ({}, {:?})",
-                        self.peer_addr, e
+                        channel.peer_addr(),
+                        e
                     );
                     return HandshakeStatus::Abort;
                 }
@@ -202,7 +203,7 @@ impl HandshakeProcess {
         channel: &Channel,
     ) -> anyhow::Result<()> {
         let response = self.prepare_response(query, v2);
-        let own_query = self.prepare_query(&self.peer_addr);
+        let own_query = self.prepare_query(&channel.peer_addr());
 
         let handshake_response = Message::NodeIdHandshake(NodeIdHandshake {
             is_v2: own_query.is_some() || response.v2.is_some(),
@@ -210,7 +211,7 @@ impl HandshakeProcess {
             response: Some(response),
         });
 
-        debug!("Responding to handshake ({})", self.peer_addr);
+        debug!("Responding to handshake ({})", channel.peer_addr());
 
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
@@ -233,7 +234,7 @@ impl HandshakeProcess {
                 DetailType::HandshakeNetworkError,
                 Direction::In,
             );
-            warn!(peer = %self.peer_addr, "Error sending handshake response");
+            warn!(peer = %channel.peer_addr(), "Error sending handshake response");
             Err(anyhow!("Could now enqueue handshake response"))
         }
     }
