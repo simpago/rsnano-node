@@ -7,10 +7,7 @@ use rsnano_core::{NodeId, PrivateKey};
 use rsnano_messages::*;
 use rsnano_network::{Channel, ChannelDirection, ChannelMode, Network, TcpChannelAdapter};
 use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex, RwLock,
-    },
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
 use tracing::debug;
@@ -53,7 +50,6 @@ pub struct ResponseServer {
     channel: Arc<Channel>,
     network_params: Arc<NetworkParams>,
     last_telemetry_req: Mutex<Option<Instant>>,
-    unique_id: usize,
     stats: Arc<Stats>,
     network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
@@ -61,8 +57,6 @@ pub struct ResponseServer {
     network_filter: Arc<NetworkFilter>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
 }
-
-static NEXT_UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
 
 impl ResponseServer {
     pub fn new(
@@ -92,7 +86,6 @@ impl ResponseServer {
                 network_constants.protocol_info(),
             ),
             network_params,
-            unique_id: NEXT_UNIQUE_ID.fetch_add(1, Ordering::Relaxed),
             stats: stats.clone(),
             network_filter,
             latest_keepalives,
@@ -112,18 +105,6 @@ impl ResponseServer {
     fn set_last_telemetry_req(&self) {
         let mut lk = self.last_telemetry_req.lock().unwrap();
         *lk = Some(Instant::now());
-    }
-
-    pub fn unique_id(&self) -> usize {
-        self.unique_id
-    }
-
-    fn is_undefined_connection(&self) -> bool {
-        self.channel.mode() == ChannelMode::Undefined
-    }
-
-    fn is_realtime_connection(&self) -> bool {
-        self.channel.mode() == ChannelMode::Realtime
     }
 
     fn queue_realtime(&self, message: Message) {
@@ -239,7 +220,7 @@ impl ResponseServer {
          * Once that server finishes its task, control is passed back to this server to read and process any subsequent messages.
          * In bootstrap mode any realtime messages are ignored
          */
-        if self.is_undefined_connection() {
+        if self.channel.mode() == ChannelMode::Undefined {
             let result = match &message {
                 Message::BulkPull(_)
                 | Message::BulkPullAccount(_)
@@ -296,7 +277,7 @@ impl ResponseServer {
                     return ProcessResult::Abort;
                 }
             }
-        } else if self.is_realtime_connection() {
+        } else if self.channel.mode() == ChannelMode::Realtime {
             return self.process_realtime(message);
         }
 
