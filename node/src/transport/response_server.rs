@@ -91,12 +91,12 @@ impl ResponseServer {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         let network_constants = network_params.network.clone();
-        let channel_info = channel_adapter.channel.clone();
-        let peer_addr = channel_info.peer_addr();
+        let channel = channel_adapter.channel.clone();
+        let peer_addr = channel.peer_addr();
         Self {
             network,
             inbound_queue,
-            channel: channel_info,
+            channel,
             channel_adapter,
             disable_bootstrap_listener: false,
             connections_max: 64,
