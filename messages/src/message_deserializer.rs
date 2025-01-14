@@ -5,7 +5,7 @@ use crate::{
 use rsnano_core::work::WorkThresholds;
 use std::{collections::VecDeque, io::Read, sync::Arc};
 
-pub struct MessageDeserializerV2 {
+pub struct MessageDeserializer {
     buffer: VecDeque<u8>,
     current_header: Option<MessageHeader>,
     network_filter: Arc<NetworkFilter>,
@@ -13,7 +13,7 @@ pub struct MessageDeserializerV2 {
     protocol: ProtocolInfo,
 }
 
-impl MessageDeserializerV2 {
+impl MessageDeserializer {
     pub fn new(
         protocol: ProtocolInfo,
         network_filter: Arc<NetworkFilter>,
@@ -348,9 +348,9 @@ mod tests {
         data
     }
 
-    fn create_deserializer() -> MessageDeserializerV2 {
+    fn create_deserializer() -> MessageDeserializer {
         let filter = Arc::new(NetworkFilter::default());
-        MessageDeserializerV2::new(
+        MessageDeserializer::new(
             ProtocolInfo::default(),
             filter,
             WorkThresholds::publish_dev().clone(),

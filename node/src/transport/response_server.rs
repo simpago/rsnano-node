@@ -249,7 +249,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
             debug!("Starting response server for peer: {}", *guard);
         }
 
-        let mut message_deserializer = MessageDeserializerV2::new(
+        let mut message_deserializer = MessageDeserializer::new(
             self.network_params.network.protocol_info(),
             self.network_filter.clone(),
             self.network_params.network.work.clone(),
