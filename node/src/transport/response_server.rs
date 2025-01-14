@@ -1,6 +1,6 @@
 use super::{
     HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives, MessageDeserializer,
-    NetworkFilter, SynCookies,
+    SynCookies,
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},

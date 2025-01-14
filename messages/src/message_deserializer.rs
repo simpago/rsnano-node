@@ -1,4 +1,4 @@
-use crate::{DeserializedMessage, Message, MessageHeader, MessageType, ParseMessageError};
+use crate::{DeserializedMessage, Message, MessageHeader, ParseMessageError};
 use std::{collections::VecDeque, io::Read};
 
 pub struct MessageDeserializerV2 {
@@ -159,6 +159,8 @@ mod tests {
     }
 
     mod unhappy_path {
+        use crate::MessageType;
+
         use super::*;
 
         #[test]

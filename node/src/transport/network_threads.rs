@@ -1,12 +1,10 @@
-use super::{
-    keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder, NetworkFilter, SynCookies,
-};
+use super::{keepalive::KeepaliveMessageFactory, LatestKeepalives, MessageFlooder, SynCookies};
 use crate::{
     config::NodeFlags,
     stats::{DetailType, StatType, Stats},
     NetworkParams,
 };
-use rsnano_messages::{Keepalive, Message};
+use rsnano_messages::{Keepalive, Message, NetworkFilter};
 use rsnano_network::{DeadChannelCleanup, DropPolicy, Network, PeerConnector, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use std::{

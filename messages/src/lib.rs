@@ -9,8 +9,11 @@ extern crate static_assertions;
 
 mod message;
 mod message_deserializer;
+mod network_filter;
+
 pub use message::*;
 pub use message_deserializer::*;
+pub use network_filter::*;
 
 mod message_serializer;
 pub use message_serializer::*;

@@ -1,4 +1,3 @@
-use super::NetworkFilter;
 use rsnano_core::{utils::BufferReader, work::WorkThresholds};
 use rsnano_messages::*;
 use rsnano_network::AsyncBufferReader;

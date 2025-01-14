@@ -1,4 +1,3 @@
-use super::NetworkFilter;
 use crate::{
     block_processing::{BlockProcessor, BlockSource},
     bootstrap::{BootstrapServer, BootstrapService},
@@ -9,7 +8,7 @@ use crate::{
     Telemetry,
 };
 use rsnano_core::VoteSource;
-use rsnano_messages::Message;
+use rsnano_messages::{Message, NetworkFilter};
 use rsnano_network::{Channel, Network};
 use std::{
     net::SocketAddrV6,

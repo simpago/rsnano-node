@@ -10,7 +10,7 @@ use crate::{
     consensus::VoteApplierExt,
     representatives::OnlineReps,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::{MessageFlooder, NetworkFilter},
+    transport::MessageFlooder,
     utils::HardenedConstants,
     wallets::Wallets,
     NetworkParams,
@@ -22,7 +22,7 @@ use rsnano_core::{
     VoteWithWeightInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger};
-use rsnano_messages::{Message, Publish};
+use rsnano_messages::{Message, NetworkFilter, Publish};
 use rsnano_network::{DropPolicy, Network};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};

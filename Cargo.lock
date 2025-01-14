@@ -3636,6 +3636,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "siphasher",
  "static_assertions",
 ]
 
@@ -3698,7 +3699,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_variant",
- "siphasher",
  "static_assertions",
  "strum",
  "strum_macros",

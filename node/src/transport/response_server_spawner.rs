@@ -1,9 +1,7 @@
-use super::{
-    InboundMessageQueue, LatestKeepalives, NetworkFilter, ResponseServer, ResponseServerExt,
-    SynCookies,
-};
+use super::{InboundMessageQueue, LatestKeepalives, ResponseServer, ResponseServerExt, SynCookies};
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
+use rsnano_messages::NetworkFilter;
 use rsnano_network::{ChannelDirection, Network, ResponseServerSpawner, TcpChannelAdapter};
 use std::sync::{Arc, Mutex, RwLock};
 

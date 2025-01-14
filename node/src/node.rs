@@ -26,8 +26,7 @@ use crate::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
         InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup,
         MessageFlooder, MessageProcessor, MessagePublisher, NanoResponseServerSpawner,
-        NetworkFilter, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
-        RealtimeMessageHandler, SynCookies,
+        NetworkThreads, PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -44,7 +43,7 @@ use rsnano_core::{
     VoteCode, VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
-use rsnano_messages::{ConfirmAck, Message, Publish};
+use rsnano_messages::{ConfirmAck, Message, NetworkFilter, Publish};
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, DropPolicy, Network, NetworkCleanup, PeerConnector, TcpListener,
     TcpListenerExt, TcpNetworkAdapter, TrafficType,
