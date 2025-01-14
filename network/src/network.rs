@@ -599,12 +599,6 @@ impl Network {
         }
     }
 
-    pub fn set_protocol_version(&self, channel_id: ChannelId, protocol_version: u8) {
-        if let Some(channel) = self.channels.get(&channel_id) {
-            channel.set_protocol_version(protocol_version)
-        }
-    }
-
     pub fn upgrade_to_realtime_connection(
         &self,
         channel_id: ChannelId,

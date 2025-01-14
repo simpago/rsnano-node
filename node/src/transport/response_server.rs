@@ -193,7 +193,7 @@ impl Drop for ResponseServer {
 pub trait ResponseServerExt {
     fn to_realtime_connection(&self, node_id: &NodeId) -> bool;
     async fn run(&self);
-    async fn process_message(&self, message: Message) -> ProcessResult;
+    fn process_message(&self, message: Message) -> ProcessResult;
     fn process_realtime(&self, message: Message) -> ProcessResult;
 }
 
@@ -287,13 +287,11 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     Ok(msg) => {
                         if first_message {
                             // TODO: if version using changes => peer misbehaved!
-                            self.network.read().unwrap().set_protocol_version(
-                                self.channel.channel_id(),
-                                msg.protocol.version_using,
-                            );
+                            self.channel
+                                .set_protocol_version(msg.protocol.version_using);
                             first_message = false;
                         }
-                        self.process_message(msg.message).await
+                        self.process_message(msg.message)
                     }
                     Err(ParseMessageError::DuplicatePublishMessage) => {
                         // Avoid too much noise about `duplicate_publish_message` errors
@@ -341,7 +339,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
         }
     }
 
-    async fn process_message(&self, message: Message) -> ProcessResult {
+    fn process_message(&self, message: Message) -> ProcessResult {
         self.stats.inc_dir(
             StatType::TcpServer,
             DetailType::from(message.message_type()),
@@ -365,11 +363,9 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 | Message::BulkPullAccount(_)
                 | Message::BulkPush
                 | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
-                Message::NodeIdHandshake(payload) => {
-                    self.handshake_process
-                        .process_handshake(payload, &self.channel)
-                        .await
-                }
+                Message::NodeIdHandshake(payload) => self
+                    .handshake_process
+                    .process_handshake(payload, &self.channel),
 
                 _ => HandshakeStatus::Abort,
             };

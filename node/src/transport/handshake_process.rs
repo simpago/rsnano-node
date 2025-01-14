@@ -5,7 +5,7 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
     ProtocolInfo,
 };
-use rsnano_network::{Channel, TrafficType};
+use rsnano_network::{Channel, DropPolicy, TrafficType};
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -111,7 +111,7 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) async fn process_handshake(
+    pub(crate) fn process_handshake(
         &self,
         message: &NodeIdHandshake,
         channel: &Channel,
@@ -157,11 +157,7 @@ impl HandshakeProcess {
 
         if let Some(query) = message.query.clone() {
             // Send response + our own query
-            if self
-                .send_response(&query, message.is_v2, &channel)
-                .await
-                .is_err()
-            {
+            if self.send_response(&query, message.is_v2, &channel).is_err() {
                 // Stop invalid handshake
                 return HandshakeStatus::Abort;
             }
@@ -200,7 +196,7 @@ impl HandshakeProcess {
         HandshakeStatus::Handshake // Handshake is in progress
     }
 
-    pub(crate) async fn send_response(
+    fn send_response(
         &self,
         query: &NodeIdHandshakeQuery,
         v2: bool,
@@ -219,29 +215,27 @@ impl HandshakeProcess {
 
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
-        match channel.send_buffer(buffer, TrafficType::Generic).await {
-            Ok(_) => {
-                self.stats
-                    .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
-                self.stats.inc_dir(
-                    StatType::TcpServer,
-                    DetailType::HandshakeResponse,
-                    Direction::Out,
-                );
-                Ok(())
-            }
-            Err(e) => {
-                self.stats.inc_dir(
-                    StatType::TcpServer,
-                    DetailType::HandshakeNetworkError,
-                    Direction::In,
-                );
-                warn!(
-                    "Error sending handshake response: {} ({:?})",
-                    self.peer_addr, e
-                );
-                Err(e)
-            }
+
+        let enqueued =
+            channel.try_send_buffer(buffer, DropPolicy::ShouldNotDrop, TrafficType::Generic);
+
+        if enqueued {
+            self.stats
+                .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
+            self.stats.inc_dir(
+                StatType::TcpServer,
+                DetailType::HandshakeResponse,
+                Direction::Out,
+            );
+            Ok(())
+        } else {
+            self.stats.inc_dir(
+                StatType::TcpServer,
+                DetailType::HandshakeNetworkError,
+                Direction::In,
+            );
+            warn!(peer = %self.peer_addr, "Error sending handshake response");
+            Err(anyhow!("Could now enqueue handshake response"))
         }
     }
 
