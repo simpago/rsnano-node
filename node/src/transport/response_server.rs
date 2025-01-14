@@ -1,7 +1,4 @@
-use super::{
-    HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives, MessageDeserializer,
-    SynCookies,
-};
+use super::{HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives, SynCookies};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     NetworkParams,
@@ -9,9 +6,7 @@ use crate::{
 use async_trait::async_trait;
 use rsnano_core::{NodeId, PrivateKey};
 use rsnano_messages::*;
-use rsnano_network::{
-    AsyncBufferReader, Channel, ChannelMode, ChannelReader, Network, TcpChannelAdapter,
-};
+use rsnano_network::{Channel, ChannelMode, Network, TcpChannelAdapter};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     net::SocketAddrV6,
