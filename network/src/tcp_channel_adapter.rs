@@ -1,8 +1,6 @@
 use crate::{
-    bandwidth_limiter::BandwidthLimiter, AsyncBufferReader, Channel, ChannelDirection, ChannelId,
-    NullNetworkObserver,
+    bandwidth_limiter::BandwidthLimiter, Channel, ChannelDirection, ChannelId, NullNetworkObserver,
 };
-use async_trait::async_trait;
 use rsnano_core::utils::{TEST_ENDPOINT_1, TEST_ENDPOINT_2};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_nullable_tcp::TcpStream;
@@ -187,75 +185,5 @@ impl Display for TcpChannelAdapter {
 impl Drop for TcpChannelAdapter {
     fn drop(&mut self) {
         self.channel.close();
-    }
-}
-
-#[async_trait]
-impl AsyncBufferReader for TcpChannelAdapter {
-    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
-        if count > buffer.len() {
-            return Err(anyhow!("buffer is too small for read count"));
-        }
-
-        if self.channel.is_closed() {
-            return Err(anyhow!("Tried to read from a closed TcpStream"));
-        }
-
-        let Some(stream) = self.stream.upgrade() else {
-            return Err(anyhow!("TCP stream dropped"));
-        };
-
-        let mut read = 0;
-        loop {
-            let res = select! {
-                _  = self.channel.cancelled() =>{
-                    return Err(anyhow!("cancelled"));
-                },
-                res = stream.readable() => res
-            };
-            match res {
-                Ok(_) => {
-                    match stream.try_read(&mut buffer[read..count]) {
-                        Ok(0) => {
-                            self.channel.read_failed();
-                            return Err(anyhow!("remote side closed the channel"));
-                        }
-                        Ok(n) => {
-                            read += n;
-                            if read >= count {
-                                self.channel.read_succeeded(count, self.clock.now());
-                                return Ok(());
-                            }
-                        }
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            continue;
-                        }
-                        Err(e) => {
-                            self.channel.read_failed();
-                            return Err(e.into());
-                        }
-                    };
-                }
-                Err(e) => {
-                    self.channel.read_failed();
-                    return Err(e.into());
-                }
-            }
-        }
-    }
-}
-
-pub struct ChannelReader(Arc<TcpChannelAdapter>);
-
-impl ChannelReader {
-    pub fn new(channel: Arc<TcpChannelAdapter>) -> Self {
-        Self(channel)
-    }
-}
-
-#[async_trait]
-impl AsyncBufferReader for ChannelReader {
-    async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()> {
-        self.0.read(buffer, count).await
     }
 }

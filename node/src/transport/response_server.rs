@@ -200,7 +200,6 @@ pub trait ResponseServerExt {
 pub enum ProcessResult {
     Abort,
     Progress,
-    Pause,
 }
 
 #[async_trait]
@@ -334,9 +333,6 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         return;
                     }
                     ProcessResult::Progress => {}
-                    ProcessResult::Pause => {
-                        return;
-                    }
                 }
             }
         }
