@@ -279,16 +279,6 @@ impl Node {
         network_filter.age_cutoff = config.network_duplicate_filter_cutoff;
         let network_filter = Arc::new(network_filter);
 
-        // empty `config.peering_port` means the user made no port choice at all;
-        // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
-        let network_adapter = Arc::new(TcpNetworkAdapter::new(
-            network.clone(),
-            steady_clock.clone(),
-            runtime.clone(),
-        ));
-
-        dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
-
         let mut inbound_message_queue =
             InboundMessageQueue::new(config.message_processor.max_queue, stats.clone());
         if let Some(cb) = args.callbacks.on_inbound {
@@ -624,12 +614,20 @@ impl Node {
             network_filter: network_filter.clone(),
         });
 
+        let network_adapter = Arc::new(TcpNetworkAdapter::new(
+            network.clone(),
+            steady_clock.clone(),
+            runtime.clone(),
+            response_server_spawner,
+        ));
+
+        dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
+
         let peer_connector = Arc::new(PeerConnector::new(
             config.tcp.connect_timeout,
             network_adapter.clone(),
             network_observer.clone(),
             runtime.clone(),
-            response_server_spawner.clone(),
         ));
 
         let keepalive_factory = Arc::new(KeepaliveMessageFactory::new(
@@ -671,7 +669,6 @@ impl Node {
             network_adapter.clone(),
             network_observer.clone(),
             runtime.clone(),
-            response_server_spawner.clone(),
         ));
 
         let request_aggregator = Arc::new(RequestAggregator::new(

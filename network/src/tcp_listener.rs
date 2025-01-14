@@ -1,4 +1,4 @@
-use crate::{ChannelDirection, NetworkObserver, ResponseServerSpawner, TcpNetworkAdapter};
+use crate::{ChannelDirection, NetworkObserver, TcpNetworkAdapter};
 use async_trait::async_trait;
 use rsnano_nullable_tcp::TcpStream;
 use std::{
@@ -22,7 +22,6 @@ pub struct TcpListener {
     data: Mutex<TcpListenerData>,
     condition: Condvar,
     cancel_token: CancellationToken,
-    response_server_spawner: Arc<dyn ResponseServerSpawner>,
 }
 
 impl Drop for TcpListener {
@@ -42,7 +41,6 @@ impl TcpListener {
         network_adapter: Arc<TcpNetworkAdapter>,
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
-        response_server_spawner: Arc<dyn ResponseServerSpawner>,
     ) -> Self {
         Self {
             port: AtomicU16::new(port),
@@ -55,7 +53,6 @@ impl TcpListener {
             tokio,
             condition: Condvar::new(),
             cancel_token: CancellationToken::new(),
-            response_server_spawner,
         }
     }
 
@@ -132,9 +129,7 @@ impl TcpListenerExt for Arc<TcpListener> {
                     .network_adapter
                     .add(tcp_stream, ChannelDirection::Inbound)
                 {
-                    Ok(channel) => {
-                        self.response_server_spawner.spawn(channel);
-                    }
+                    Ok(_) => {}
                     Err(e) => {
                         warn!("Could not accept incoming connection: {:?}", e);
                     }

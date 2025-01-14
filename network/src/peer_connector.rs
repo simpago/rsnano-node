@@ -1,7 +1,4 @@
-use crate::{
-    ChannelDirection, NetworkObserver, NullNetworkObserver, NullResponseServerSpawner,
-    ResponseServerSpawner, TcpNetworkAdapter,
-};
+use crate::{ChannelDirection, NetworkObserver, NullNetworkObserver, TcpNetworkAdapter};
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{net::SocketAddrV6, sync::Arc, time::Duration};
@@ -14,7 +11,6 @@ pub struct PeerConnector {
     network_observer: Arc<dyn NetworkObserver>,
     tokio: tokio::runtime::Handle,
     cancel_token: CancellationToken,
-    response_server_spawner: Arc<dyn ResponseServerSpawner>,
     connect_listener: OutputListenerMt<SocketAddrV6>,
 }
 
@@ -26,7 +22,6 @@ impl PeerConnector {
         network_adapter: Arc<TcpNetworkAdapter>,
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
-        response_server_spawner: Arc<dyn ResponseServerSpawner>,
     ) -> Self {
         Self {
             connect_timeout,
@@ -34,7 +29,6 @@ impl PeerConnector {
             network_observer,
             tokio,
             cancel_token: CancellationToken::new(),
-            response_server_spawner,
             connect_listener: OutputListenerMt::new(),
         }
     }
@@ -46,7 +40,6 @@ impl PeerConnector {
             network_observer: Arc::new(NullNetworkObserver::new()),
             tokio: tokio.clone(),
             cancel_token: CancellationToken::new(),
-            response_server_spawner: Arc::new(NullResponseServerSpawner::new()),
             connect_listener: OutputListenerMt::new(),
         }
     }
@@ -70,14 +63,13 @@ impl PeerConnector {
         }
 
         let network_l = self.network_adapter.clone();
-        let response_server_spawner_l = self.response_server_spawner.clone();
         let connect_timeout = self.connect_timeout;
         let cancel_token = self.cancel_token.clone();
         let observer = self.network_observer.clone();
 
         self.tokio.spawn(async move {
             tokio::select! {
-                result =  connect_impl(peer, &network_l, &*response_server_spawner_l) =>{
+                result =  connect_impl(peer, &network_l) =>{
                     if let Err(e) = result {
                         observer.connect_error(peer, e);
                     }
@@ -107,11 +99,9 @@ impl PeerConnector {
 async fn connect_impl(
     peer: SocketAddrV6,
     network_adapter: &TcpNetworkAdapter,
-    response_server_spawner: &dyn ResponseServerSpawner,
 ) -> anyhow::Result<()> {
     let tcp_stream = connect_stream(peer).await?;
-    let channel = network_adapter.add(tcp_stream, ChannelDirection::Outbound)?;
-    response_server_spawner.spawn(channel);
+    network_adapter.add(tcp_stream, ChannelDirection::Outbound)?;
     Ok(())
 }
 
