@@ -120,13 +120,7 @@ async fn connect_impl(
     response_server_spawner: &dyn ResponseServerSpawner,
 ) -> anyhow::Result<()> {
     let tcp_stream = connect_stream(peer).await?;
-
-    let channel = network_adapter.add(
-        tcp_stream,
-        ChannelDirection::Outbound,
-        ChannelMode::Realtime,
-    )?;
-
+    let channel = network_adapter.add(tcp_stream, ChannelDirection::Outbound)?;
     response_server_spawner.spawn(channel);
     Ok(())
 }

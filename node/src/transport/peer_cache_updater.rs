@@ -288,7 +288,6 @@ mod tests {
                     NULL_ENDPOINT,
                     endpoint,
                     ChannelDirection::Outbound,
-                    ChannelMode::Realtime,
                     Timestamp::new_test_instance(),
                 )
                 .unwrap();

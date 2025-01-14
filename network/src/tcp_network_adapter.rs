@@ -55,7 +55,6 @@ impl TcpNetworkAdapter {
         &self,
         stream: TcpStream,
         direction: ChannelDirection,
-        planned_mode: ChannelMode,
     ) -> anyhow::Result<Arc<TcpChannelAdapter>> {
         let peer_addr = stream
             .peer_addr()
@@ -67,13 +66,11 @@ impl TcpNetworkAdapter {
             .map(into_ipv6_socket_address)
             .unwrap_or(NULL_ENDPOINT);
 
-        let channel = self.network.write().unwrap().add(
-            local_addr,
-            peer_addr,
-            direction,
-            planned_mode,
-            self.clock.now(),
-        );
+        let channel =
+            self.network
+                .write()
+                .unwrap()
+                .add(local_addr, peer_addr, direction, self.clock.now());
 
         let channel = channel.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
         let channel_id = channel.channel_id();

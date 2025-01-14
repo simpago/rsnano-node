@@ -139,12 +139,7 @@ impl Network {
     }
 
     pub fn add_outbound_attempt(&mut self, peer: SocketAddrV6, now: Timestamp) -> bool {
-        let result = self.validate_new_connection(
-            &peer,
-            ChannelDirection::Outbound,
-            ChannelMode::Realtime,
-            now,
-        );
+        let result = self.validate_new_connection(&peer, ChannelDirection::Outbound, now);
 
         if let Err(e) = result {
             self.observer.error(e, &peer, ChannelDirection::Outbound);
@@ -153,12 +148,7 @@ impl Network {
 
         self.attempts.insert(peer, ChannelDirection::Outbound, now);
 
-        if let Err(e) = self.validate_new_connection(
-            &peer,
-            ChannelDirection::Outbound,
-            ChannelMode::Realtime,
-            now,
-        ) {
+        if let Err(e) = self.validate_new_connection(&peer, ChannelDirection::Outbound, now) {
             self.remove_attempt(&peer);
             self.observer.error(e, &peer, ChannelDirection::Outbound);
             return false;
@@ -179,10 +169,9 @@ impl Network {
         local_addr: SocketAddrV6,
         peer_addr: SocketAddrV6,
         direction: ChannelDirection,
-        planned_mode: ChannelMode,
         now: Timestamp,
     ) -> Result<Arc<Channel>, NetworkError> {
-        let result = self.validate_new_connection(&peer_addr, direction, planned_mode, now);
+        let result = self.validate_new_connection(&peer_addr, direction, now);
         if let Err(e) = result {
             self.observer.error(e, &peer_addr, direction);
         }
@@ -494,7 +483,6 @@ impl Network {
         &mut self,
         peer: &SocketAddrV6,
         direction: ChannelDirection,
-        planned_mode: ChannelMode,
         now: Timestamp,
     ) -> Result<(), NetworkError> {
         if self.network_config.disable_network {
@@ -533,18 +521,10 @@ impl Network {
 
         if direction == ChannelDirection::Outbound {
             // Don't connect to nodes that already sent us something
-            if self
-                .find_channels_by_remote_addr(peer)
-                .iter()
-                .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
-            {
+            if self.find_channels_by_remote_addr(peer).len() > 0 {
                 return Err(NetworkError::DuplicateConnection);
             }
-            if self
-                .find_channels_by_peering_addr(peer)
-                .iter()
-                .any(|c| c.mode() == planned_mode || c.mode() == ChannelMode::Undefined)
-            {
+            if self.find_channels_by_peering_addr(peer).len() > 0 {
                 return Err(NetworkError::DuplicateConnection);
             }
         }
@@ -747,7 +727,6 @@ mod tests {
                 TEST_ENDPOINT_1,
                 TEST_ENDPOINT_2,
                 ChannelDirection::Inbound,
-                ChannelMode::Realtime,
                 Timestamp::new_test_instance(),
             )
             .unwrap();
@@ -786,7 +765,6 @@ mod tests {
                 TEST_ENDPOINT_1,
                 TEST_ENDPOINT_2,
                 ChannelDirection::Inbound,
-                ChannelMode::Realtime,
                 Timestamp::new_test_instance(),
             )
             .unwrap();
@@ -836,7 +814,6 @@ mod tests {
                 TEST_ENDPOINT_1,
                 peering_addr,
                 ChannelDirection::Inbound,
-                ChannelMode::Realtime,
                 Timestamp::new_test_instance(),
             )
             .unwrap();
@@ -866,7 +843,6 @@ mod tests {
                     TEST_ENDPOINT_1,
                     TEST_ENDPOINT_2,
                     ChannelDirection::Outbound,
-                    ChannelMode::Realtime,
                     now,
                 )
                 .unwrap();
@@ -883,7 +859,6 @@ mod tests {
                     TEST_ENDPOINT_1,
                     TEST_ENDPOINT_2,
                     ChannelDirection::Outbound,
-                    ChannelMode::Realtime,
                     now,
                 )
                 .unwrap();
@@ -901,7 +876,6 @@ mod tests {
                     TEST_ENDPOINT_1,
                     TEST_ENDPOINT_2,
                     ChannelDirection::Outbound,
-                    ChannelMode::Realtime,
                     now,
                 )
                 .unwrap();

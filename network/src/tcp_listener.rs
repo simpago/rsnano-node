@@ -130,11 +130,10 @@ impl TcpListenerExt for Arc<TcpListener> {
                 };
 
                 let tcp_stream = TcpStream::new(stream);
-                match self.network_adapter.add(
-                    tcp_stream,
-                    ChannelDirection::Inbound,
-                    ChannelMode::Undefined,
-                ) {
+                match self
+                    .network_adapter
+                    .add(tcp_stream, ChannelDirection::Inbound)
+                {
                     Ok(channel) => {
                         self.response_server_spawner.spawn(channel);
                     }

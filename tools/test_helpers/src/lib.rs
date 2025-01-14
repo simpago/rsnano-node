@@ -357,7 +357,6 @@ pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
             NULL_ENDPOINT,
             TEST_ENDPOINT_1,
             ChannelDirection::Inbound,
-            ChannelMode::Realtime,
             node.steady_clock.now(),
         )
         .unwrap()
