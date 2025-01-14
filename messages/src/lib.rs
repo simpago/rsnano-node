@@ -8,7 +8,9 @@ extern crate anyhow;
 extern crate static_assertions;
 
 mod message;
+mod message_deserializer;
 pub use message::*;
+pub use message_deserializer::*;
 
 mod message_serializer;
 pub use message_serializer::*;

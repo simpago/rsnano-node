@@ -54,6 +54,7 @@ impl<T: AsyncBufferReader + Send> MessageDeserializer<T> {
                 .read(&mut self.read_buffer, payload_size)
                 .await
                 .map_err(|e| ParseMessageError::Other(e.to_string()))?;
+
             self.parse_message(header, payload_size)
         }
     }
