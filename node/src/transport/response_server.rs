@@ -107,11 +107,6 @@ impl ResponseServer {
         *lk = Some(Instant::now());
     }
 
-    fn queue_realtime(&self, message: Message) {
-        self.inbound_queue.put(message, self.channel.clone());
-        // TODO: Throttle if not added
-    }
-
     fn set_last_keepalive(&self, keepalive: Keepalive) {
         self.latest_keepalives
             .lock()
@@ -129,168 +124,13 @@ impl ResponseServer {
         }
     }
 
-    fn to_realtime_connection(&self, node_id: &NodeId) -> bool {
-        if self.channel.mode() != ChannelMode::Undefined {
-            return false;
-        }
-
-        let result = self
-            .network
-            .read()
-            .unwrap()
-            .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id);
-
-        if let Some((channel, observers)) = result {
-            for observer in observers {
-                observer(channel.clone());
-            }
-
-            self.stats
-                .inc(StatType::TcpChannels, DetailType::ChannelAccepted);
-
-            debug!(
-                "Switched to realtime mode (addr: {}, node_id: {})",
-                self.channel.peer_addr(),
-                node_id
-            );
-            true
-        } else {
-            debug!(
-                channel_id = ?self.channel.channel_id(),
-                peer = %self.channel.peer_addr(),
-                %node_id,
-                "Could not upgrade channel to realtime connection, because another channel for the same node ID was found",
-            );
-            false
-        }
-    }
-
-    fn process_realtime(&self, message: Message) -> ProcessResult {
-        let process = match &message {
-            Message::Keepalive(keepalive) => {
-                self.set_last_keepalive(keepalive.clone());
-                true
-            }
-            Message::Publish(_)
-            | Message::AscPullAck(_)
-            | Message::AscPullReq(_)
-            | Message::ConfirmAck(_)
-            | Message::ConfirmReq(_)
-            | Message::FrontierReq(_)
-            | Message::TelemetryAck(_) => true,
-            Message::TelemetryReq => {
-                // Only handle telemetry requests if they are outside of the cooldown period
-                if self.is_outside_cooldown_period() {
-                    self.set_last_telemetry_req();
-                    true
-                } else {
-                    self.stats.inc_dir(
-                        StatType::Telemetry,
-                        DetailType::RequestWithinProtectionCacheZone,
-                        Direction::In,
-                    );
-                    false
-                }
-            }
-            _ => false,
-        };
-
-        if process {
-            self.queue_realtime(message);
-        }
-
-        ProcessResult::Progress
-    }
-
-    fn process_message(&self, message: Message) -> ProcessResult {
-        self.stats.inc_dir(
-            StatType::TcpServer,
-            DetailType::from(message.message_type()),
-            Direction::In,
-        );
-
-        /*
-         * Server initially starts in undefined state, where it waits for either a handshake or booststrap request message
-         * If the server receives a handshake (and it is successfully validated) it will switch to a realtime mode.
-         * In realtime mode messages are deserialized and queued to `tcp_message_manager` for further processing.
-         * In realtime mode any bootstrap requests are ignored.
-         *
-         * If the server receives a bootstrap request before receiving a handshake, it will switch to a bootstrap mode.
-         * In bootstrap mode once a valid bootstrap request message is received, the server will start a corresponding bootstrap server and pass control to that server.
-         * Once that server finishes its task, control is passed back to this server to read and process any subsequent messages.
-         * In bootstrap mode any realtime messages are ignored
-         */
-        if self.channel.mode() == ChannelMode::Undefined {
-            let result = match &message {
-                Message::BulkPull(_)
-                | Message::BulkPullAccount(_)
-                | Message::BulkPush
-                | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
-                Message::NodeIdHandshake(payload) => self
-                    .handshake_process
-                    .process_handshake(payload, &self.channel),
-
-                _ => HandshakeStatus::Abort,
-            };
-
-            match result {
-                HandshakeStatus::Abort | HandshakeStatus::AbortOwnNodeId => {
-                    self.stats.inc_dir(
-                        StatType::TcpServer,
-                        DetailType::HandshakeAbort,
-                        Direction::In,
-                    );
-                    debug!(
-                        "Aborting handshake: {:?} ({})",
-                        message.message_type(),
-                        self.channel.peer_addr()
-                    );
-                    if matches!(result, HandshakeStatus::AbortOwnNodeId) {
-                        if let Some(peering_addr) = self.channel.peering_addr() {
-                            self.network.write().unwrap().perma_ban(peering_addr);
-                        }
-                    }
-                    return ProcessResult::Abort;
-                }
-                HandshakeStatus::Handshake => {
-                    return ProcessResult::Progress; // Continue handshake
-                }
-                HandshakeStatus::Realtime(node_id) => {
-                    if !self.to_realtime_connection(&node_id) {
-                        self.stats.inc_dir(
-                            StatType::TcpServer,
-                            DetailType::HandshakeError,
-                            Direction::In,
-                        );
-                        debug!(
-                            "Error switching to realtime mode ({})",
-                            self.channel.peer_addr()
-                        );
-                        return ProcessResult::Abort;
-                    }
-                    self.queue_realtime(message);
-                    return ProcessResult::Progress; // Continue receiving new messages
-                }
-                HandshakeStatus::Bootstrap => {
-                    debug!(peer = ?self.channel.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
-                    // Legacy bootstrap is not supported anymore
-                    return ProcessResult::Abort;
-                }
-            }
-        } else if self.channel.mode() == ChannelMode::Realtime {
-            return self.process_realtime(message);
-        }
-
-        debug_assert!(false);
-        ProcessResult::Abort
-    }
-
     pub async fn run(&self) {
-        debug!(peer = %self.channel.peer_addr(), "Starting response server");
-
         if self.channel.direction() == ChannelDirection::Outbound {
             self.initiate_handshake();
         }
+
+        debug!(peer = %self.channel.peer_addr(), "Starting response server");
+        let mut buffer = [0u8; 1024];
 
         let mut message_deserializer = MessageDeserializer::new(
             self.network_params.network.protocol_info(),
@@ -299,7 +139,6 @@ impl ResponseServer {
         );
 
         let mut first_message = true;
-        let mut buffer = [0u8; 1024];
 
         loop {
             if !self.channel.is_alive() {
@@ -392,6 +231,167 @@ impl ResponseServer {
                 }
             }
         }
+    }
+
+    fn process_message(&self, message: Message) -> ProcessResult {
+        self.stats.inc_dir(
+            StatType::TcpServer,
+            DetailType::from(message.message_type()),
+            Direction::In,
+        );
+
+        /*
+         * Server initially starts in undefined state, where it waits for either a handshake or booststrap request message
+         * If the server receives a handshake (and it is successfully validated) it will switch to a realtime mode.
+         * In realtime mode messages are deserialized and queued to `tcp_message_manager` for further processing.
+         * In realtime mode any bootstrap requests are ignored.
+         *
+         * If the server receives a bootstrap request before receiving a handshake, it will switch to a bootstrap mode.
+         * In bootstrap mode once a valid bootstrap request message is received, the server will start a corresponding bootstrap server and pass control to that server.
+         * Once that server finishes its task, control is passed back to this server to read and process any subsequent messages.
+         * In bootstrap mode any realtime messages are ignored
+         */
+        if self.channel.mode() == ChannelMode::Undefined {
+            let result = match &message {
+                Message::BulkPull(_)
+                | Message::BulkPullAccount(_)
+                | Message::BulkPush
+                | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
+                Message::NodeIdHandshake(payload) => self
+                    .handshake_process
+                    .process_handshake(payload, &self.channel),
+
+                _ => HandshakeStatus::Abort,
+            };
+
+            match result {
+                HandshakeStatus::Abort | HandshakeStatus::AbortOwnNodeId => {
+                    self.stats.inc_dir(
+                        StatType::TcpServer,
+                        DetailType::HandshakeAbort,
+                        Direction::In,
+                    );
+                    debug!(
+                        "Aborting handshake: {:?} ({})",
+                        message.message_type(),
+                        self.channel.peer_addr()
+                    );
+                    if matches!(result, HandshakeStatus::AbortOwnNodeId) {
+                        if let Some(peering_addr) = self.channel.peering_addr() {
+                            self.network.write().unwrap().perma_ban(peering_addr);
+                        }
+                    }
+                    return ProcessResult::Abort;
+                }
+                HandshakeStatus::Handshake => {
+                    return ProcessResult::Progress; // Continue handshake
+                }
+                HandshakeStatus::Realtime(node_id) => {
+                    if !self.to_realtime_connection(&node_id) {
+                        self.stats.inc_dir(
+                            StatType::TcpServer,
+                            DetailType::HandshakeError,
+                            Direction::In,
+                        );
+                        debug!(
+                            "Error switching to realtime mode ({})",
+                            self.channel.peer_addr()
+                        );
+                        return ProcessResult::Abort;
+                    }
+                    self.queue_realtime(message);
+                    return ProcessResult::Progress; // Continue receiving new messages
+                }
+                HandshakeStatus::Bootstrap => {
+                    debug!(peer = ?self.channel.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
+                    // Legacy bootstrap is not supported anymore
+                    return ProcessResult::Abort;
+                }
+            }
+        } else if self.channel.mode() == ChannelMode::Realtime {
+            return self.process_realtime(message);
+        }
+
+        debug_assert!(false);
+        ProcessResult::Abort
+    }
+
+    fn to_realtime_connection(&self, node_id: &NodeId) -> bool {
+        if self.channel.mode() != ChannelMode::Undefined {
+            return false;
+        }
+
+        let result = self
+            .network
+            .read()
+            .unwrap()
+            .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id);
+
+        if let Some((channel, observers)) = result {
+            for observer in observers {
+                observer(channel.clone());
+            }
+
+            self.stats
+                .inc(StatType::TcpChannels, DetailType::ChannelAccepted);
+
+            debug!(
+                "Switched to realtime mode (addr: {}, node_id: {})",
+                self.channel.peer_addr(),
+                node_id
+            );
+            true
+        } else {
+            debug!(
+                channel_id = ?self.channel.channel_id(),
+                peer = %self.channel.peer_addr(),
+                %node_id,
+                "Could not upgrade channel to realtime connection, because another channel for the same node ID was found",
+            );
+            false
+        }
+    }
+
+    fn process_realtime(&self, message: Message) -> ProcessResult {
+        let process = match &message {
+            Message::Keepalive(keepalive) => {
+                self.set_last_keepalive(keepalive.clone());
+                true
+            }
+            Message::Publish(_)
+            | Message::AscPullAck(_)
+            | Message::AscPullReq(_)
+            | Message::ConfirmAck(_)
+            | Message::ConfirmReq(_)
+            | Message::FrontierReq(_)
+            | Message::TelemetryAck(_) => true,
+            Message::TelemetryReq => {
+                // Only handle telemetry requests if they are outside of the cooldown period
+                if self.is_outside_cooldown_period() {
+                    self.set_last_telemetry_req();
+                    true
+                } else {
+                    self.stats.inc_dir(
+                        StatType::Telemetry,
+                        DetailType::RequestWithinProtectionCacheZone,
+                        Direction::In,
+                    );
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if process {
+            self.queue_realtime(message);
+        }
+
+        ProcessResult::Progress
+    }
+
+    fn queue_realtime(&self, message: Message) {
+        self.inbound_queue.put(message, self.channel.clone());
+        // TODO: Throttle if not added
     }
 }
 
