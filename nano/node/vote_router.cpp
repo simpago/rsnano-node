@@ -11,16 +11,6 @@
 
 using namespace std::chrono_literals;
 
-nano::stat::detail nano::to_stat_detail (nano::vote_code code)
-{
-	return nano::enum_util::cast<nano::stat::detail> (code);
-}
-
-nano::stat::detail nano::to_stat_detail (nano::vote_source source)
-{
-	return nano::enum_util::cast<nano::stat::detail> (source);
-}
-
 nano::vote_router::vote_router (nano::vote_cache & vote_cache_a, nano::recently_confirmed_cache & recently_confirmed_a) :
 	vote_cache{ vote_cache_a },
 	recently_confirmed{ recently_confirmed_a }
@@ -200,4 +190,28 @@ nano::container_info nano::vote_router::container_info () const
 	nano::container_info info;
 	info.put ("elections", elections);
 	return info;
+}
+
+/*
+ *
+ */
+
+nano::stat::detail nano::to_stat_detail (nano::vote_code code)
+{
+	return nano::enum_util::cast<nano::stat::detail> (code);
+}
+
+std::string_view nano::to_string (nano::vote_code code)
+{
+	return nano::enum_util::name (code);
+}
+
+nano::stat::detail nano::to_stat_detail (nano::vote_source source)
+{
+	return nano::enum_util::cast<nano::stat::detail> (source);
+}
+
+std::string_view nano::to_string (nano::vote_source source)
+{
+	return nano::enum_util::name (source);
 }

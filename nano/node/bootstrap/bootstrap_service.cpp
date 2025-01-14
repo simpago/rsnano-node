@@ -524,33 +524,58 @@ bool nano::bootstrap_service::request (nano::account account, size_t count, std:
 		// Check if the account picked has blocks, if it does, start the pull from the highest block
 		if (auto info = ledger.store.account.get (transaction, account))
 		{
-			tag.type = query_type::blocks_by_hash;
-
 			// Probabilistically choose between requesting blocks from account frontier or confirmed frontier
 			// Optimistic requests start from the (possibly unconfirmed) account frontier and are vulnerable to bootstrap poisoning
 			// Safe requests start from the confirmed frontier and given enough time will eventually resolve forks
 			bool optimistic_reuest = rng.random (100) < config.optimistic_request_percentage;
-			if (!optimistic_reuest)
-			{
-				if (auto conf_info = ledger.store.confirmation_height.get (transaction, account))
-				{
-					stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::safe);
-					tag.start = conf_info->frontier;
-					tag.hash = conf_info->height;
-				}
-			}
-			if (tag.start.is_zero ())
+
+			if (optimistic_reuest) // Optimistic request case
 			{
 				stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::optimistic);
+
+				tag.type = query_type::blocks_by_hash;
 				tag.start = info->head;
 				tag.hash = info->head;
+
+				logger.debug (nano::log::type::bootstrap, "Requesting blocks for {} starting from account frontier: {} (optimistic: {})",
+				account.to_account (), // TODO: Lazy eval
+				tag.start.to_string (), // TODO: Lazy eval
+				optimistic_reuest);
+			}
+			else // Pessimistic (safe) request case
+			{
+				stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::safe);
+
+				if (auto conf_info = ledger.store.confirmation_height.get (transaction, account))
+				{
+					tag.type = query_type::blocks_by_hash;
+					tag.start = conf_info->frontier;
+					tag.hash = conf_info->height;
+
+					logger.debug (nano::log::type::bootstrap, "Requesting blocks for {} starting from confirmation frontier: {} (optimistic: {})",
+					account.to_account (), // TODO: Lazy eval
+					tag.start.to_string (), // TODO: Lazy eval
+					optimistic_reuest);
+				}
+				else
+				{
+					tag.type = query_type::blocks_by_account;
+					tag.start = account;
+
+					logger.debug (nano::log::type::bootstrap, "Requesting blocks for {} starting from account root (optimistic: {})",
+					account.to_account (), // TODO: Lazy eval
+					optimistic_reuest);
+				}
 			}
 		}
 		else
 		{
 			stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::base);
+
 			tag.type = query_type::blocks_by_account;
 			tag.start = account;
+
+			logger.debug (nano::log::type::bootstrap, "Requesting blocks for {}", account.to_account ()); // TODO: Lazy eval
 		}
 	}
 
@@ -1055,6 +1080,8 @@ void nano::bootstrap_service::process_frontiers (std::deque<std::pair<nano::acco
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::prioritized, result.size ());
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::outdated, outdated);
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::pending, pending);
+
+	logger.debug (nano::log::type::bootstrap, "Processed {} frontiers of which outdated: {}, pending: {}", frontiers.size (), outdated, pending);
 
 	nano::lock_guard<nano::mutex> guard{ mutex };
 

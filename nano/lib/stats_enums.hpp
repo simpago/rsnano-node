@@ -288,6 +288,7 @@ enum class detail
 	broadcast_block_repeat,
 	confirm_once,
 	confirm_once_failed,
+	confirmation_request,
 
 	// election types
 	manual,
@@ -462,6 +463,7 @@ enum class detail
 	transition_priority,
 	transition_priority_failed,
 	election_cleanup,
+	activate_immediately,
 
 	// active_elections
 	started,

@@ -392,41 +392,51 @@ nano::block_status nano::block_processor::process_one (secure::write_transaction
 			stats.inc (nano::stat::type::ledger, nano::stat::detail::old);
 			break;
 		}
+		// These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
 		case nano::block_status::bad_signature:
 		{
+			logger.debug (nano::log::type::block_processor, "Block signature is invalid: {}", hash);
 			break;
 		}
 		case nano::block_status::negative_spend:
 		{
+			logger.debug (nano::log::type::block_processor, "Block spends negative amount: {}", hash);
 			break;
 		}
 		case nano::block_status::unreceivable:
 		{
+			logger.debug (nano::log::type::block_processor, "Block is unreceivable: {}", hash);
 			break;
 		}
 		case nano::block_status::fork:
 		{
 			stats.inc (nano::stat::type::ledger, nano::stat::detail::fork);
+			logger.debug (nano::log::type::block_processor, "Block is a fork: {}", hash);
 			break;
 		}
 		case nano::block_status::opened_burn_account:
 		{
+			logger.debug (nano::log::type::block_processor, "Block opens burn account: {}", hash);
 			break;
 		}
 		case nano::block_status::balance_mismatch:
 		{
+			logger.debug (nano::log::type::block_processor, "Block balance mismatch: {}", hash);
 			break;
 		}
 		case nano::block_status::representative_mismatch:
 		{
+			logger.debug (nano::log::type::block_processor, "Block representative mismatch: {}", hash);
 			break;
 		}
 		case nano::block_status::block_position:
 		{
+			logger.debug (nano::log::type::block_processor, "Block is in incorrect position: {}", hash);
 			break;
 		}
 		case nano::block_status::insufficient_work:
 		{
+			logger.debug (nano::log::type::block_processor, "Block has insufficient work: {}", hash);
 			break;
 		}
 	}
