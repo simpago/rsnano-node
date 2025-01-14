@@ -278,6 +278,9 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 }
             };
 
+            // TODO: push read bytes into channel and then call a callback inside channel:
+            //self.channel.receive_data(&buffer[..read_count])
+
             message_deserializer.push(&buffer[..read_count]);
             while let Some(result) = message_deserializer.try_deserialize() {
                 let result = match result {
