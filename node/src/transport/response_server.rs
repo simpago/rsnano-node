@@ -309,7 +309,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                 match result {
                     ProcessResult::Abort => {
                         self.channel.close();
-                        return;
+                        break;
                     }
                     ProcessResult::Progress => {}
                 }

@@ -30,7 +30,7 @@ pub struct Channel {
     channel_id: ChannelId,
     local_addr: SocketAddrV6,
     peer_addr: SocketAddrV6,
-    data: Mutex<ChannelInfoData>,
+    data: Mutex<PeerInfo>,
     protocol_version: AtomicU8,
     direction: ChannelDirection,
 
@@ -83,7 +83,7 @@ impl Channel {
             timed_out: AtomicBool::new(false),
             socket_type: AtomicU8::new(ChannelMode::Undefined as u8),
             closed: AtomicBool::new(false),
-            data: Mutex::new(ChannelInfoData {
+            data: Mutex::new(PeerInfo {
                 node_id: None,
                 peering_addr: if direction == ChannelDirection::Outbound {
                     Some(peer_addr)
@@ -325,7 +325,7 @@ impl Channel {
     }
 }
 
-struct ChannelInfoData {
+struct PeerInfo {
     node_id: Option<NodeId>,
     peering_addr: Option<SocketAddrV6>,
 }
