@@ -2,7 +2,7 @@ use super::{InboundMessageQueue, LatestKeepalives, ResponseServer, ResponseServe
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
 use rsnano_messages::NetworkFilter;
-use rsnano_network::{ChannelDirection, Network, ResponseServerSpawner, TcpChannelAdapter};
+use rsnano_network::{Network, ResponseServerSpawner, TcpChannelAdapter};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct NanoResponseServerSpawner {
@@ -36,16 +36,10 @@ impl NanoResponseServerSpawner {
             network_filter,
         }
     }
+}
 
-    pub(crate) fn spawn_outbound(&self, channel_adapter: Arc<TcpChannelAdapter>) {
-        let response_server = self.spawn_response_server(channel_adapter);
-        response_server.initiate_handshake();
-    }
-
-    fn spawn_response_server(
-        &self,
-        channel_adapter: Arc<TcpChannelAdapter>,
-    ) -> Arc<ResponseServer> {
+impl ResponseServerSpawner for NanoResponseServerSpawner {
+    fn spawn(&self, channel_adapter: Arc<TcpChannelAdapter>) {
         let server = Arc::new(ResponseServer::new(
             self.network.clone(),
             self.inbound_queue.clone(),
@@ -58,20 +52,6 @@ impl NanoResponseServerSpawner {
             self.latest_keepalives.clone(),
         ));
 
-        let server_l = server.clone();
-        self.tokio.spawn(async move { server_l.run().await });
-
-        server
-    }
-}
-
-impl ResponseServerSpawner for NanoResponseServerSpawner {
-    fn spawn(&self, channel_adapter: Arc<TcpChannelAdapter>) {
-        match channel_adapter.channel.direction() {
-            ChannelDirection::Inbound => {
-                self.spawn_response_server(channel_adapter);
-            }
-            ChannelDirection::Outbound => self.spawn_outbound(channel_adapter),
-        }
+        self.tokio.spawn(async move { server.run().await });
     }
 }

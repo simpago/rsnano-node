@@ -6,7 +6,7 @@ use crate::{
 use async_trait::async_trait;
 use rsnano_core::{NodeId, PrivateKey};
 use rsnano_messages::*;
-use rsnano_network::{Channel, ChannelMode, Network, TcpChannelAdapter};
+use rsnano_network::{Channel, ChannelDirection, ChannelMode, Network, TcpChannelAdapter};
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -210,6 +210,10 @@ impl ResponseServerExt for Arc<ResponseServer> {
 
     async fn run(&self) {
         debug!(peer = %self.channel.peer_addr(), "Starting response server");
+
+        if self.channel.direction() == ChannelDirection::Outbound {
+            self.initiate_handshake();
+        }
 
         let mut message_deserializer = MessageDeserializer::new(
             self.network_params.network.protocol_info(),
