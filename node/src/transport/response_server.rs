@@ -9,7 +9,6 @@ use rsnano_messages::*;
 use rsnano_network::{Channel, ChannelMode, Network, TcpChannelAdapter};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
-    net::SocketAddrV6,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex, RwLock,
@@ -57,9 +56,6 @@ pub struct ResponseServer {
     pub disable_bootstrap_listener: bool,
     pub connections_max: usize,
 
-    // Remote endpoint used to remove response channel even after socket closing
-    peer_addr: Mutex<SocketAddrV6>,
-
     network_params: Arc<NetworkParams>,
     last_telemetry_req: Mutex<Option<Instant>>,
     unique_id: usize,
@@ -97,7 +93,6 @@ impl ResponseServer {
             channel_adapter,
             disable_bootstrap_listener: false,
             connections_max: 64,
-            peer_addr: Mutex::new(peer_addr),
             last_telemetry_req: Mutex::new(None),
             handshake_process: HandshakeProcess::new(
                 network_params.ledger.genesis_block.hash(),
@@ -119,14 +114,6 @@ impl ResponseServer {
 
     pub fn track_handshake_initiation(&self) -> Arc<OutputTrackerMt<()>> {
         self.initiate_handshake_listener.track()
-    }
-
-    pub fn is_stopped(&self) -> bool {
-        !self.channel.is_alive()
-    }
-
-    pub fn peer_addr(&self) -> SocketAddrV6 {
-        *self.peer_addr.lock().unwrap()
     }
 
     fn is_outside_cooldown_period(&self) -> bool {
@@ -182,8 +169,7 @@ impl ResponseServer {
 
 impl Drop for ResponseServer {
     fn drop(&mut self) {
-        let peer_addr = { *self.peer_addr.lock().unwrap() };
-        debug!("Exiting server: {}", peer_addr);
+        debug!("Exiting server: {}", self.channel.peer_addr());
         self.channel.close();
     }
 }
@@ -240,13 +226,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
     }
 
     async fn run(&self) {
-        {
-            let mut guard = self.peer_addr.lock().unwrap();
-            if guard.port() == 0 {
-                *guard = self.channel.peer_addr();
-            }
-            debug!("Starting response server for peer: {}", *guard);
-        }
+        debug!(peer = %self.channel.peer_addr(), "Starting response server");
 
         let mut message_deserializer = MessageDeserializer::new(
             self.network_params.network.protocol_info(),
@@ -258,12 +238,16 @@ impl ResponseServerExt for Arc<ResponseServer> {
         let mut buffer = [0u8; 1024];
 
         loop {
-            if self.is_stopped() {
+            if !self.channel.is_alive() {
                 return;
             }
 
             if let Err(e) = self.channel_adapter.readable().await {
-                debug!("Error reading buffer: {:?} ({})", e, self.peer_addr());
+                debug!(
+                    "Error reading buffer: {:?} ({})",
+                    e,
+                    self.channel.peer_addr()
+                );
                 self.channel.close();
                 return;
             }
@@ -271,7 +255,11 @@ impl ResponseServerExt for Arc<ResponseServer> {
             let read_count = match self.channel_adapter.try_read(&mut buffer) {
                 Ok(n) => n,
                 Err(e) => {
-                    debug!("Error reading buffer: {:?} ({})", e, self.peer_addr());
+                    debug!(
+                        "Error reading buffer: {:?} ({})",
+                        e,
+                        self.channel.peer_addr()
+                    );
                     self.channel.close();
                     return;
                 }
@@ -322,7 +310,11 @@ impl ResponseServerExt for Arc<ResponseServer> {
                         // IO error or critical error when deserializing message
                         self.stats
                             .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
-                        debug!("Error reading message: {:?} ({})", e, self.peer_addr());
+                        debug!(
+                            "Error reading message: {:?} ({})",
+                            e,
+                            self.channel.peer_addr()
+                        );
                         ProcessResult::Abort
                     }
                 };
@@ -379,7 +371,7 @@ impl ResponseServerExt for Arc<ResponseServer> {
                     debug!(
                         "Aborting handshake: {:?} ({})",
                         message.message_type(),
-                        self.peer_addr()
+                        self.channel.peer_addr()
                     );
                     if matches!(result, HandshakeStatus::AbortOwnNodeId) {
                         if let Some(peering_addr) = self.channel.peering_addr() {
@@ -398,14 +390,17 @@ impl ResponseServerExt for Arc<ResponseServer> {
                             DetailType::HandshakeError,
                             Direction::In,
                         );
-                        debug!("Error switching to realtime mode ({})", self.peer_addr());
+                        debug!(
+                            "Error switching to realtime mode ({})",
+                            self.channel.peer_addr()
+                        );
                         return ProcessResult::Abort;
                     }
                     self.queue_realtime(message);
                     return ProcessResult::Progress; // Continue receiving new messages
                 }
                 HandshakeStatus::Bootstrap => {
-                    debug!(peer = ?self.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
+                    debug!(peer = ?self.channel.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
                     // Legacy bootstrap is not supported anymore
                     return ProcessResult::Abort;
                 }
