@@ -39,9 +39,7 @@ impl NanoResponseServerSpawner {
 
     pub(crate) fn spawn_outbound(&self, channel_adapter: Arc<TcpChannelAdapter>) {
         let response_server = self.spawn_response_server(channel_adapter);
-        self.tokio.spawn(async move {
-            response_server.initiate_handshake().await;
-        });
+        response_server.initiate_handshake();
     }
 
     fn spawn_response_server(

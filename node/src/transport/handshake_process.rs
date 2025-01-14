@@ -67,7 +67,7 @@ impl HandshakeProcess {
         }
     }
 
-    pub(crate) async fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
+    pub(crate) fn initiate_handshake(&self, channel: &Channel) -> Result<(), ()> {
         let endpoint = self.peer_addr;
         let query = self.prepare_query(&endpoint);
         if query.is_none() {
@@ -88,26 +88,25 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
 
-        match channel.send_buffer(data, TrafficType::Generic).await {
-            Ok(()) => {
-                self.stats
-                    .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
-                self.stats.inc_dir(
-                    StatType::TcpServer,
-                    DetailType::HandshakeInitiate,
-                    Direction::Out,
-                );
+        let enqueued =
+            channel.try_send_buffer(data, DropPolicy::ShouldNotDrop, TrafficType::Generic);
 
-                Ok(())
-            }
-            Err(e) => {
-                self.stats
-                    .inc(StatType::TcpServer, DetailType::HandshakeNetworkError);
-                debug!("Error sending handshake query: {:?} ({})", e, endpoint);
+        if enqueued {
+            self.stats
+                .inc_dir(StatType::TcpServer, DetailType::Handshake, Direction::Out);
+            self.stats.inc_dir(
+                StatType::TcpServer,
+                DetailType::HandshakeInitiate,
+                Direction::Out,
+            );
 
-                // Stop invalid handshake
-                Err(())
-            }
+            Ok(())
+        } else {
+            self.stats
+                .inc(StatType::TcpServer, DetailType::HandshakeNetworkError);
+            debug!(peer = %endpoint, "Could not enqueue handshake query");
+            // Stop invalid handshake
+            Err(())
         }
     }
 

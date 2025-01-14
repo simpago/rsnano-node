@@ -168,12 +168,11 @@ impl ResponseServer {
             .insert(self.channel.channel_id(), keepalive);
     }
 
-    pub async fn initiate_handshake(&self) {
+    pub fn initiate_handshake(&self) {
         self.initiate_handshake_listener.emit(());
         if self
             .handshake_process
             .initiate_handshake(&self.channel)
-            .await
             .is_err()
         {
             self.channel.close();
