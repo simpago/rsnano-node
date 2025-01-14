@@ -1,6 +1,6 @@
 use super::SynCookies;
 use crate::stats::{DetailType, Direction, StatType, Stats};
-use rsnano_core::{utils::TEST_ENDPOINT_1, BlockHash, NodeId, PrivateKey};
+use rsnano_core::{BlockHash, NodeId, PrivateKey};
 use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
     ProtocolInfo,

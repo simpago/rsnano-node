@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use rsnano_core::{NodeId, PrivateKey};
 use rsnano_messages::*;
 use rsnano_network::{Channel, ChannelMode, Network, TcpChannelAdapter};
-use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -53,18 +52,13 @@ impl Default for TcpConfig {
 pub struct ResponseServer {
     channel_adapter: Arc<TcpChannelAdapter>,
     channel: Arc<Channel>,
-    pub disable_bootstrap_listener: bool,
-    pub connections_max: usize,
-
     network_params: Arc<NetworkParams>,
     last_telemetry_req: Mutex<Option<Instant>>,
     unique_id: usize,
     stats: Arc<Stats>,
-    pub disable_bootstrap_bulk_pull_server: bool,
     network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
-    initiate_handshake_listener: OutputListenerMt<()>,
     network_filter: Arc<NetworkFilter>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
 }
@@ -90,8 +84,6 @@ impl ResponseServer {
             inbound_queue,
             channel,
             channel_adapter,
-            disable_bootstrap_listener: false,
-            connections_max: 64,
             last_telemetry_req: Mutex::new(None),
             handshake_process: HandshakeProcess::new(
                 network_params.ledger.genesis_block.hash(),
@@ -103,15 +95,9 @@ impl ResponseServer {
             network_params,
             unique_id: NEXT_UNIQUE_ID.fetch_add(1, Ordering::Relaxed),
             stats: stats.clone(),
-            disable_bootstrap_bulk_pull_server: false,
-            initiate_handshake_listener: OutputListenerMt::new(),
             network_filter,
             latest_keepalives,
         }
-    }
-
-    pub fn track_handshake_initiation(&self) -> Arc<OutputTrackerMt<()>> {
-        self.initiate_handshake_listener.track()
     }
 
     fn is_outside_cooldown_period(&self) -> bool {
@@ -154,7 +140,6 @@ impl ResponseServer {
     }
 
     pub fn initiate_handshake(&self) {
-        self.initiate_handshake_listener.emit(());
         if self
             .handshake_process
             .initiate_handshake(&self.channel)
