@@ -3,7 +3,7 @@ use crate::{
     TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
-use rsnano_nullable_clock::{SteadyClock, Timestamp};
+use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStream;
 use std::{
     collections::HashMap,
@@ -16,7 +16,7 @@ use tracing::{debug, warn};
 /// Connects the Network to TcpStreams
 pub struct TcpNetworkAdapter {
     channel_adapters: Mutex<HashMap<ChannelId, Arc<TcpChannelAdapter>>>,
-    pub network: Arc<RwLock<Network>>,
+    network: Arc<RwLock<Network>>,
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
 }
@@ -93,6 +93,10 @@ impl TcpNetworkAdapter {
             .write()
             .unwrap()
             .add_outbound_attempt(peer, self.clock.now())
+    }
+
+    pub fn remove_attempt(&self, peer: &SocketAddrV6) {
+        self.network.write().unwrap().remove_attempt(peer);
     }
 
     pub fn set_listening_port(&self, port: u16) {

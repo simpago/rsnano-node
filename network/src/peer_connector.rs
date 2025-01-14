@@ -93,7 +93,7 @@ impl PeerConnector {
                 }
             }
 
-            network_l.network.write().unwrap().remove_attempt(&peer);
+            network_l.remove_attempt(&peer);
         });
 
         true
