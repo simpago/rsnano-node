@@ -1,6 +1,4 @@
-use crate::{
-    ChannelDirection, ChannelMode, NetworkObserver, ResponseServerSpawner, TcpNetworkAdapter,
-};
+use crate::{ChannelDirection, NetworkObserver, ResponseServerSpawner, TcpNetworkAdapter};
 use async_trait::async_trait;
 use rsnano_nullable_tcp::TcpStream;
 use std::{

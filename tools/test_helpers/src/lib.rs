@@ -5,7 +5,7 @@ use rsnano_core::{
     StateBlockArgs, WalletId, DEV_GENESIS_KEY,
 };
 use rsnano_ledger::{BlockStatus, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY};
-use rsnano_network::{Channel, ChannelDirection, ChannelMode};
+use rsnano_network::{Channel, ChannelDirection};
 use rsnano_node::{
     block_processing::BacklogScanConfig,
     config::{NodeConfig, NodeFlags},

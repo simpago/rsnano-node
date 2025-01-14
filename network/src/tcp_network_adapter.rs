@@ -1,12 +1,13 @@
 use crate::{
-    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, ChannelMode,
-    DeadChannelCleanupStep, Network, TcpChannelAdapter,
+    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DeadChannelCleanupStep, Network,
+    TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
-use rsnano_nullable_clock::SteadyClock;
+use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use rsnano_nullable_tcp::TcpStream;
 use std::{
     collections::HashMap,
+    net::SocketAddrV6,
     sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
@@ -85,6 +86,13 @@ impl TcpNetworkAdapter {
         debug!(?peer_addr, ?direction, "Accepted connection");
 
         Ok(channel_adapter)
+    }
+
+    pub fn add_outbound_attempt(&self, peer: SocketAddrV6) -> bool {
+        self.network
+            .write()
+            .unwrap()
+            .add_outbound_attempt(peer, self.clock.now())
     }
 
     pub fn set_listening_port(&self, port: u16) {

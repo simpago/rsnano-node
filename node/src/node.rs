@@ -630,7 +630,6 @@ impl Node {
             network_observer.clone(),
             runtime.clone(),
             response_server_spawner.clone(),
-            steady_clock.clone(),
         ));
 
         let keepalive_factory = Arc::new(KeepaliveMessageFactory::new(

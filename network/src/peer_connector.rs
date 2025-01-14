@@ -1,8 +1,7 @@
 use crate::{
-    ChannelDirection, ChannelMode, NetworkObserver, NullNetworkObserver, NullResponseServerSpawner,
+    ChannelDirection, NetworkObserver, NullNetworkObserver, NullResponseServerSpawner,
     ResponseServerSpawner, TcpNetworkAdapter,
 };
-use rsnano_nullable_clock::SteadyClock;
 use rsnano_nullable_tcp::TcpStream;
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{net::SocketAddrV6, sync::Arc, time::Duration};
@@ -17,7 +16,6 @@ pub struct PeerConnector {
     cancel_token: CancellationToken,
     response_server_spawner: Arc<dyn ResponseServerSpawner>,
     connect_listener: OutputListenerMt<SocketAddrV6>,
-    clock: Arc<SteadyClock>,
 }
 
 impl PeerConnector {
@@ -29,7 +27,6 @@ impl PeerConnector {
         network_observer: Arc<dyn NetworkObserver>,
         tokio: tokio::runtime::Handle,
         response_server_spawner: Arc<dyn ResponseServerSpawner>,
-        clock: Arc<SteadyClock>,
     ) -> Self {
         Self {
             connect_timeout,
@@ -39,7 +36,6 @@ impl PeerConnector {
             cancel_token: CancellationToken::new(),
             response_server_spawner,
             connect_listener: OutputListenerMt::new(),
-            clock,
         }
     }
 
@@ -52,7 +48,6 @@ impl PeerConnector {
             cancel_token: CancellationToken::new(),
             response_server_spawner: Arc::new(NullResponseServerSpawner::new()),
             connect_listener: OutputListenerMt::new(),
-            clock: Arc::new(SteadyClock::new_null()),
         }
     }
 
@@ -68,12 +63,7 @@ impl PeerConnector {
             return false;
         }
 
-        let added = self
-            .network_adapter
-            .network
-            .write()
-            .unwrap()
-            .add_outbound_attempt(peer, self.clock.now());
+        let added = self.network_adapter.add_outbound_attempt(peer);
 
         if !added {
             return false;
