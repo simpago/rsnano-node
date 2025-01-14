@@ -15,7 +15,6 @@ use tokio::{select, time::sleep};
 
 /// Connects a Channel with a TcpStream
 pub struct TcpChannelAdapter {
-    channel_id: ChannelId,
     pub channel: Arc<Channel>,
     stream: Weak<TcpStream>,
     clock: Arc<SteadyClock>,
@@ -24,7 +23,6 @@ pub struct TcpChannelAdapter {
 impl TcpChannelAdapter {
     fn new(channel: Arc<Channel>, stream: Weak<TcpStream>, clock: Arc<SteadyClock>) -> Self {
         Self {
-            channel_id: channel.channel_id(),
             channel,
             stream,
             clock,
@@ -119,10 +117,6 @@ impl TcpChannelAdapter {
         let channel_l = channel.clone();
         handle.spawn(async move { channel_l.ongoing_checkup().await });
         channel
-    }
-
-    pub fn channel_id(&self) -> ChannelId {
-        self.channel_id
     }
 
     async fn ongoing_checkup(&self) {

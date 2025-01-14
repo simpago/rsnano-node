@@ -160,7 +160,6 @@ impl Channel {
         self.protocol_version.load(Ordering::Relaxed)
     }
 
-    // TODO make private and set via NetworkInfo
     pub fn set_protocol_version(&self, version: u8) {
         self.protocol_version.store(version, Ordering::Relaxed);
     }

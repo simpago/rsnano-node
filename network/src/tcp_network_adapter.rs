@@ -67,7 +67,7 @@ impl TcpNetworkAdapter {
             .map(into_ipv6_socket_address)
             .unwrap_or(NULL_ENDPOINT);
 
-        let channel_info = self.network.write().unwrap().add(
+        let channel = self.network.write().unwrap().add(
             local_addr,
             peer_addr,
             direction,
@@ -75,14 +75,15 @@ impl TcpNetworkAdapter {
             self.clock.now(),
         );
 
-        let channel_info = channel_info.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
+        let channel = channel.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
+        let channel_id = channel.channel_id();
         let channel_adapter =
-            TcpChannelAdapter::create(channel_info, stream, self.clock.clone(), &self.handle);
+            TcpChannelAdapter::create(channel, stream, self.clock.clone(), &self.handle);
 
         self.channel_adapters
             .lock()
             .unwrap()
-            .insert(channel_adapter.channel_id(), channel_adapter.clone());
+            .insert(channel_id, channel_adapter.clone());
 
         debug!(?peer_addr, ?direction, "Accepted connection");
 
