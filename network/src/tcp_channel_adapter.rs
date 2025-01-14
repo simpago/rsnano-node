@@ -119,6 +119,53 @@ impl TcpChannelAdapter {
         channel
     }
 
+    pub async fn readable(&self) -> anyhow::Result<()> {
+        if self.channel.is_closed() {
+            return Err(anyhow!("Tried to read from a closed TcpStream"));
+        }
+
+        let Some(stream) = self.stream.upgrade() else {
+            return Err(anyhow!("TCP stream dropped"));
+        };
+
+        let res = select! {
+            _  = self.channel.cancelled() =>{
+                return Err(anyhow!("cancelled"));
+            },
+            res = stream.readable() => res
+        };
+
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                self.channel.read_failed();
+                return Err(e.into());
+            }
+        }
+    }
+
+    pub fn try_read(&self, buffer: &mut [u8]) -> anyhow::Result<usize> {
+        let Some(stream) = self.stream.upgrade() else {
+            return Err(anyhow!("TCP stream dropped"));
+        };
+
+        match stream.try_read(buffer) {
+            Ok(0) => {
+                self.channel.read_failed();
+                Err(anyhow!("remote side closed the channel"))
+            }
+            Ok(n) => {
+                self.channel.read_succeeded(n, self.clock.now());
+                Ok(n)
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(0),
+            Err(e) => {
+                self.channel.read_failed();
+                Err(e.into())
+            }
+        }
+    }
+
     async fn ongoing_checkup(&self) {
         loop {
             sleep(Duration::from_secs(2)).await;

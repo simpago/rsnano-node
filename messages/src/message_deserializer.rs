@@ -1,5 +1,6 @@
 use crate::{
-    DeserializedMessage, Message, MessageHeader, MessageType, NetworkFilter, ParseMessageError,
+    validate_header, DeserializedMessage, Message, MessageHeader, MessageType, NetworkFilter,
+    ParseMessageError, ProtocolInfo,
 };
 use rsnano_core::work::WorkThresholds;
 use std::{collections::VecDeque, io::Read, sync::Arc};
@@ -9,15 +10,21 @@ pub struct MessageDeserializerV2 {
     current_header: Option<MessageHeader>,
     network_filter: Arc<NetworkFilter>,
     work_thresholds: WorkThresholds,
+    protocol: ProtocolInfo,
 }
 
 impl MessageDeserializerV2 {
-    pub fn new(network_filter: Arc<NetworkFilter>, work_thresholds: WorkThresholds) -> Self {
+    pub fn new(
+        protocol: ProtocolInfo,
+        network_filter: Arc<NetworkFilter>,
+        work_thresholds: WorkThresholds,
+    ) -> Self {
         Self {
             buffer: VecDeque::with_capacity(Message::MAX_MESSAGE_SIZE),
             current_header: None,
             network_filter,
             work_thresholds,
+            protocol,
         }
     }
 
@@ -43,6 +50,10 @@ impl MessageDeserializerV2 {
             return Some(Err(ParseMessageError::InvalidHeader));
         };
 
+        if let Err(e) = validate_header(&header, &self.protocol) {
+            return Some(Err(e));
+        }
+
         self.current_header = Some(header.clone());
         self.try_deserialize_payload_for(header)
     }
@@ -64,7 +75,8 @@ impl MessageDeserializerV2 {
         &mut self,
         header: MessageHeader,
     ) -> Option<Result<DeserializedMessage, ParseMessageError>> {
-        if self.buffer.len() < header.payload_length() {
+        if header.payload_length() > 0 && self.buffer.len() < header.payload_length() {
+            // We have to wait until more data is received
             return None;
         }
         self.current_header = None;
@@ -75,11 +87,11 @@ impl MessageDeserializerV2 {
         &mut self,
         header: MessageHeader,
     ) -> Result<DeserializedMessage, ParseMessageError> {
-        let digest =
-            self.filter_duplicate_messages(header.message_type, header.payload_length())?;
-
         // TODO: don't copy buffer
         let payload_buffer: Vec<u8> = self.buffer.drain(..header.payload_length()).collect();
+
+        let digest = self.filter_duplicate_messages(header.message_type, &payload_buffer)?;
+
         let Some(message) = Message::deserialize(&payload_buffer, &header, digest) else {
             return Err(ParseMessageError::InvalidMessage(header.message_type));
         };
@@ -109,12 +121,10 @@ impl MessageDeserializerV2 {
     fn filter_duplicate_messages(
         &self,
         message_type: MessageType,
-        payload_len: usize,
+        payload_bytes: &[u8],
     ) -> Result<u128, ParseMessageError> {
         if matches!(message_type, MessageType::Publish | MessageType::ConfirmAck) {
-            // TODO: don't copy payload bytes'
-            let payload_bytes: Vec<u8> = self.buffer.iter().cloned().take(payload_len).collect();
-            let (digest, existed) = self.network_filter.apply(&payload_bytes);
+            let (digest, existed) = self.network_filter.apply(payload_bytes);
             if existed {
                 if message_type == MessageType::ConfirmAck {
                     Err(ParseMessageError::DuplicateConfirmAckMessage)
@@ -203,9 +213,9 @@ mod tests {
     }
 
     mod unhappy_path {
-        use crate::{ConfirmAck, MessageType, Publish};
-
         use super::*;
+        use crate::{ConfirmAck, Publish};
+        use rsnano_core::Networks;
 
         #[test]
         fn push_incomplete_header() {
@@ -222,6 +232,22 @@ mod tests {
             assert_eq!(
                 deserializer.try_deserialize(),
                 Some(Err(ParseMessageError::InvalidHeader))
+            );
+        }
+
+        #[test]
+        fn invalid_network() {
+            let mut deserializer = create_deserializer();
+
+            let mut serializer =
+                MessageSerializer::new(ProtocolInfo::default_for(Networks::NanoBetaNetwork));
+            let message = serializer.serialize(&Message::TelemetryReq);
+
+            deserializer.push(&message);
+
+            assert_eq!(
+                deserializer.try_deserialize(),
+                Some(Err(ParseMessageError::InvalidNetwork))
             );
         }
 
@@ -324,6 +350,10 @@ mod tests {
 
     fn create_deserializer() -> MessageDeserializerV2 {
         let filter = Arc::new(NetworkFilter::default());
-        MessageDeserializerV2::new(filter, WorkThresholds::publish_dev().clone())
+        MessageDeserializerV2::new(
+            ProtocolInfo::default(),
+            filter,
+            WorkThresholds::publish_dev().clone(),
+        )
     }
 }

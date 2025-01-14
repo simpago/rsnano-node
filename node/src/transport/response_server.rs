@@ -9,7 +9,9 @@ use crate::{
 use async_trait::async_trait;
 use rsnano_core::{NodeId, PrivateKey};
 use rsnano_messages::*;
-use rsnano_network::{Channel, ChannelMode, ChannelReader, Network, TcpChannelAdapter};
+use rsnano_network::{
+    AsyncBufferReader, Channel, ChannelMode, ChannelReader, Network, TcpChannelAdapter,
+};
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
     net::SocketAddrV6,
@@ -253,75 +255,93 @@ impl ResponseServerExt for Arc<ResponseServer> {
             debug!("Starting response server for peer: {}", *guard);
         }
 
-        let mut message_deserializer = MessageDeserializer::new(
+        let mut message_deserializer = MessageDeserializerV2::new(
             self.network_params.network.protocol_info(),
-            self.network_params.network.work.clone(),
             self.network_filter.clone(),
-            ChannelReader::new(self.channel_adapter.clone()),
+            self.network_params.network.work.clone(),
         );
 
         let mut first_message = true;
+        let mut buffer = [0u8; 1024];
 
         loop {
             if self.is_stopped() {
-                break;
+                return;
             }
 
-            let result = match message_deserializer.read().await {
-                Ok(msg) => {
-                    if first_message {
-                        // TODO: if version using changes => peer misbehaved!
-                        self.network.read().unwrap().set_protocol_version(
-                            self.channel.channel_id(),
-                            msg.protocol.version_using,
-                        );
-                        first_message = false;
-                    }
-                    self.process_message(msg.message).await
-                }
-                Err(ParseMessageError::DuplicatePublishMessage) => {
-                    // Avoid too much noise about `duplicate_publish_message` errors
-                    self.stats.inc_dir(
-                        StatType::Filter,
-                        DetailType::DuplicatePublishMessage,
-                        Direction::In,
-                    );
-                    ProcessResult::Progress
-                }
-                Err(ParseMessageError::DuplicateConfirmAckMessage) => {
-                    self.stats.inc_dir(
-                        StatType::Filter,
-                        DetailType::DuplicateConfirmAckMessage,
-                        Direction::In,
-                    );
-                    ProcessResult::Progress
-                }
-                Err(ParseMessageError::InsufficientWork) => {
-                    // IO error or critical error when deserializing message
-                    self.stats.inc_dir(
-                        StatType::Error,
-                        DetailType::InsufficientWork,
-                        Direction::In,
-                    );
-                    ProcessResult::Progress
-                }
+            if let Err(e) = self.channel_adapter.readable().await {
+                debug!("Error reading buffer: {:?} ({})", e, self.peer_addr());
+                self.channel.close();
+                return;
+            }
+
+            let read_count = match self.channel_adapter.try_read(&mut buffer) {
+                Ok(n) => n,
                 Err(e) => {
-                    // IO error or critical error when deserializing message
-                    self.stats
-                        .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
-                    debug!("Error reading message: {:?} ({})", e, self.peer_addr());
-                    ProcessResult::Abort
+                    debug!("Error reading buffer: {:?} ({})", e, self.peer_addr());
+                    self.channel.close();
+                    return;
                 }
             };
 
-            match result {
-                ProcessResult::Abort => {
-                    self.channel.close();
-                    break;
-                }
-                ProcessResult::Progress => {}
-                ProcessResult::Pause => {
-                    break;
+            message_deserializer.push(&buffer[..read_count]);
+            while let Some(result) = message_deserializer.try_deserialize() {
+                let result = match result {
+                    Ok(msg) => {
+                        if first_message {
+                            // TODO: if version using changes => peer misbehaved!
+                            self.network.read().unwrap().set_protocol_version(
+                                self.channel.channel_id(),
+                                msg.protocol.version_using,
+                            );
+                            first_message = false;
+                        }
+                        self.process_message(msg.message).await
+                    }
+                    Err(ParseMessageError::DuplicatePublishMessage) => {
+                        // Avoid too much noise about `duplicate_publish_message` errors
+                        self.stats.inc_dir(
+                            StatType::Filter,
+                            DetailType::DuplicatePublishMessage,
+                            Direction::In,
+                        );
+                        ProcessResult::Progress
+                    }
+                    Err(ParseMessageError::DuplicateConfirmAckMessage) => {
+                        self.stats.inc_dir(
+                            StatType::Filter,
+                            DetailType::DuplicateConfirmAckMessage,
+                            Direction::In,
+                        );
+                        ProcessResult::Progress
+                    }
+                    Err(ParseMessageError::InsufficientWork) => {
+                        // IO error or critical error when deserializing message
+                        self.stats.inc_dir(
+                            StatType::Error,
+                            DetailType::InsufficientWork,
+                            Direction::In,
+                        );
+                        ProcessResult::Progress
+                    }
+                    Err(e) => {
+                        // IO error or critical error when deserializing message
+                        self.stats
+                            .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
+                        debug!("Error reading message: {:?} ({})", e, self.peer_addr());
+                        ProcessResult::Abort
+                    }
+                };
+
+                match result {
+                    ProcessResult::Abort => {
+                        self.channel.close();
+                        return;
+                    }
+                    ProcessResult::Progress => {}
+                    ProcessResult::Pause => {
+                        return;
+                    }
                 }
             }
         }
