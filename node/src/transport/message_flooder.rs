@@ -1,17 +1,17 @@
 use super::{try_send_serialized_message, MessagePublisher};
 use crate::{representatives::OnlineReps, stats::Stats};
 use rsnano_messages::{Message, MessageSerializer};
-use rsnano_network::{Channel, DropPolicy, TcpNetworkAdapter, TrafficType};
+use rsnano_network::{Channel, DropPolicy, Network, TrafficType};
 use std::{
     ops::{Deref, DerefMut},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 /// Floods messages to PRs and non PRs
 #[derive(Clone)]
 pub struct MessageFlooder {
     online_reps: Arc<Mutex<OnlineReps>>,
-    network_adapter: Arc<TcpNetworkAdapter>,
+    network: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     publisher: MessagePublisher,
@@ -20,23 +20,23 @@ pub struct MessageFlooder {
 impl MessageFlooder {
     pub fn new(
         online_reps: Arc<Mutex<OnlineReps>>,
-        network_adapter: Arc<TcpNetworkAdapter>,
+        network: Arc<RwLock<Network>>,
         stats: Arc<Stats>,
         publisher: MessagePublisher,
     ) -> Self {
         Self {
             online_reps,
-            network_adapter,
+            network,
             stats,
             message_serializer: publisher.get_serializer(),
             publisher,
         }
     }
 
-    pub(crate) fn new_null(handle: tokio::runtime::Handle) -> Self {
+    pub(crate) fn new_null() -> Self {
         Self::new(
             Arc::new(Mutex::new(OnlineReps::default())),
-            Arc::new(TcpNetworkAdapter::new_null(handle.clone())),
+            Arc::new(RwLock::new(Network::new_test_instance())),
             Arc::new(Stats::default()),
             MessagePublisher::new_null(),
         )
@@ -58,7 +58,7 @@ impl MessageFlooder {
         let mut channels;
         let fanout;
         {
-            let network = self.network_adapter.network.read().unwrap();
+            let network = self.network.read().unwrap();
             fanout = network.fanout(scale);
             channels = network.random_list_realtime(usize::MAX, 0)
         }
@@ -80,14 +80,9 @@ impl MessageFlooder {
 
     pub fn flood(&mut self, message: &Message, drop_policy: DropPolicy, scale: f32) {
         let buffer = self.message_serializer.serialize(message);
-        let channels = self
-            .network_adapter
-            .network
-            .read()
-            .unwrap()
-            .random_fanout_realtime(scale);
+        let channels = self.network.read().unwrap().random_fanout_realtime(scale);
 
-        let network_info = self.network_adapter.network.read().unwrap();
+        let network_info = self.network.read().unwrap();
         for channel in channels {
             try_send_serialized_message(
                 &network_info,

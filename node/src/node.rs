@@ -267,12 +267,11 @@ impl Node {
         let network_observer = Arc::new(NetworkStats::new(stats.clone()));
         let mut network = Network::new(global_config.into());
         network.set_observer(network_observer.clone());
-
-        let network_info = Arc::new(RwLock::new(network));
+        let network = Arc::new(RwLock::new(network));
 
         let mut dead_channel_cleanup = DeadChannelCleanup::new(
             steady_clock.clone(),
-            network_info.clone(),
+            network.clone(),
             network_params.network.cleanup_cutoff(),
         );
 
@@ -283,7 +282,7 @@ impl Node {
         // empty `config.peering_port` means the user made no port choice at all;
         // otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
         let network_adapter = Arc::new(TcpNetworkAdapter::new(
-            network_info.clone(),
+            network.clone(),
             steady_clock.clone(),
             runtime.clone(),
         ));
@@ -331,7 +330,7 @@ impl Node {
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let mut message_publisher = MessagePublisher::new(
-            network_info.clone(),
+            network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
         );
@@ -342,7 +341,7 @@ impl Node {
 
         let message_flooder = MessageFlooder::new(
             online_reps.clone(),
-            network_adapter.clone(),
+            network.clone(),
             stats.clone(),
             message_publisher.clone(),
         );
@@ -354,7 +353,7 @@ impl Node {
             ledger.clone(),
             unchecked.clone(),
             network_params.clone(),
-            network_info.clone(),
+            network.clone(),
             message_publisher.clone(),
             node_id.clone(),
             steady_clock.clone(),
@@ -524,7 +523,7 @@ impl Node {
             block_processor.clone(),
             vote_generators.clone(),
             network_filter.clone(),
-            network_info.clone(),
+            network.clone(),
             vote_cache.clone(),
             stats.clone(),
             online_reps.clone(),
@@ -600,7 +599,7 @@ impl Node {
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new());
 
         let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
-            network_adapter.clone(),
+            network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
             512,
@@ -617,7 +616,7 @@ impl Node {
             tokio: runtime.clone(),
             stats: stats.clone(),
             node_id: node_id.clone(),
-            network: network_info.clone(),
+            network: network.clone(),
             inbound_queue: inbound_message_queue.clone(),
             network_params: network_params.clone(),
             syn_cookies: syn_cookies.clone(),
@@ -635,12 +634,12 @@ impl Node {
         ));
 
         let keepalive_factory = Arc::new(KeepaliveMessageFactory::new(
-            network_info.clone(),
+            network.clone(),
             Peer::new(config.external_address.clone(), config.external_port),
         ));
 
         let keepalive_publisher = Arc::new(KeepalivePublisher::new(
-            network_info.clone(),
+            network.clone(),
             peer_connector.clone(),
             message_publisher.clone(),
             keepalive_factory.clone(),
@@ -652,7 +651,7 @@ impl Node {
             config.rep_crawler_query_timeout,
             config.clone(),
             network_params.clone(),
-            network_info.clone(),
+            network.clone(),
             ledger.clone(),
             active_elections.clone(),
             steady_clock.clone(),
@@ -669,7 +668,7 @@ impl Node {
         //         the latter would inherit the port from the former (if TCP is active, otherwise `network` picks first)
         //
         let tcp_listener = Arc::new(TcpListener::new(
-            network_info.read().unwrap().listening_port(),
+            network.read().unwrap().listening_port(),
             network_adapter.clone(),
             network_observer.clone(),
             runtime.clone(),
@@ -681,7 +680,7 @@ impl Node {
             stats.clone(),
             vote_generators.clone(),
             ledger.clone(),
-            network_info.clone(),
+            network.clone(),
         ));
         dead_channel_cleanup.add_step(RequestAggregatorCleanup::new(
             request_aggregator.state.clone(),
@@ -762,7 +761,7 @@ impl Node {
             block_processor.clone(),
             ledger.clone(),
             stats.clone(),
-            network_info.clone(),
+            network.clone(),
             message_publisher.clone(),
             global_config.node_config.bootstrap.clone(),
             steady_clock.clone(),
@@ -826,7 +825,7 @@ impl Node {
 
         let realtime_message_handler = Arc::new(RealtimeMessageHandler::new(
             stats.clone(),
-            network_info.clone(),
+            network.clone(),
             network_filter.clone(),
             block_processor.clone(),
             config.clone(),
@@ -839,7 +838,7 @@ impl Node {
         ));
 
         let network_threads = Arc::new(Mutex::new(NetworkThreads::new(
-            network_info.clone(),
+            network.clone(),
             peer_connector.clone(),
             flags.clone(),
             network_params.clone(),
@@ -871,7 +870,7 @@ impl Node {
 
         let rep_crawler_w = Arc::downgrade(&rep_crawler);
         if !flags.disable_rep_crawler {
-            network_info
+            network
                 .write()
                 .unwrap()
                 .on_new_realtime_channel(Arc::new(move |channel| {
@@ -949,7 +948,7 @@ impl Node {
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
         let message_publisher_l = Arc::new(Mutex::new(message_publisher.clone()));
         let message_publisher_w = Arc::downgrade(&message_publisher_l);
-        network_info
+        network
             .write()
             .unwrap()
             .on_new_realtime_channel(Arc::new(move |channel| {
@@ -1139,7 +1138,7 @@ impl Node {
         let time_factory = SystemTimeFactory::default();
 
         let peer_cache_updater = PeerCacheUpdater::new(
-            network_info.clone(),
+            network.clone(),
             ledger.clone(),
             time_factory,
             stats.clone(),
@@ -1168,7 +1167,7 @@ impl Node {
             "Monitor",
             Monitor::new(
                 ledger.clone(),
-                network_info.clone(),
+                network.clone(),
                 online_reps.clone(),
                 active_elections.clone(),
             ),
@@ -1191,7 +1190,7 @@ impl Node {
             unchecked,
             telemetry,
             syn_cookies,
-            network: network_info,
+            network,
             ledger,
             store,
             stats,

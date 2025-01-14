@@ -107,14 +107,9 @@ impl TcpListenerExt for Arc<TcpListener> {
                     _ => unreachable!(), // We only use V6 addresses
                 })
                 .unwrap_or(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, 0, 0));
-            debug!("Listening for incoming connections on: {}", addr);
 
-            self_l
-                .network_adapter
-                .network
-                .write()
-                .unwrap()
-                .set_listening_port(addr.port());
+            debug!("Listening for incoming connections on: {}", addr);
+            self_l.network_adapter.set_listening_port(addr.port());
 
             self_l.data.lock().unwrap().local_addr =
                 SocketAddrV6::new(Ipv6Addr::LOCALHOST, addr.port(), 0, 0);

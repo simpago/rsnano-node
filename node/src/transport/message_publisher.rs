@@ -1,6 +1,6 @@
 use crate::stats::{Direction, StatType, Stats};
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
-use rsnano_network::{ChannelId, DropPolicy, Network, TcpNetworkAdapter, TrafficType};
+use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
 use std::sync::{Arc, RwLock};
 use tracing::trace;
 
@@ -30,13 +30,13 @@ impl MessagePublisher {
     }
 
     pub fn new_with_buffer_size(
-        network_adapter: Arc<TcpNetworkAdapter>,
+        network: Arc<RwLock<Network>>,
         stats: Arc<Stats>,
         protocol_info: ProtocolInfo,
         buffer_size: usize,
     ) -> Self {
         Self {
-            network: network_adapter.network.clone(),
+            network,
             stats,
             message_serializer: MessageSerializer::new_with_buffer_size(protocol_info, buffer_size),
             published_callback: None,

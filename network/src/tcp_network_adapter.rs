@@ -47,8 +47,8 @@ impl TcpNetworkAdapter {
     }
 
     fn should_wait_for_inbound_slot(&self) -> bool {
-        let info = self.network.read().unwrap();
-        !info.is_inbound_slot_available() && !info.is_stopped()
+        let network = self.network.read().unwrap();
+        !network.is_inbound_slot_available() && !network.is_stopped()
     }
 
     pub fn add(
@@ -88,6 +88,10 @@ impl TcpNetworkAdapter {
         debug!(?peer_addr, ?direction, "Accepted connection");
 
         Ok(channel_adapter)
+    }
+
+    pub fn set_listening_port(&self, port: u16) {
+        self.network.write().unwrap().set_listening_port(port);
     }
 
     pub fn new_null(handle: tokio::runtime::Handle) -> Self {

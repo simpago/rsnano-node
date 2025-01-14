@@ -124,7 +124,7 @@ impl Wallets {
                 Arc::new(Ledger::new_null()),
                 Arc::new(Stats::default()),
             )),
-            MessageFlooder::new_null(tokio_handle.clone()),
+            MessageFlooder::new_null(),
         )
     }
 

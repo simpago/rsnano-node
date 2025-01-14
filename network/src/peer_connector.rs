@@ -68,35 +68,16 @@ impl PeerConnector {
             return false;
         }
 
-        {
-            let mut network = self.network_adapter.network.write().unwrap();
+        let added = self
+            .network_adapter
+            .network
+            .write()
+            .unwrap()
+            .add_outbound_attempt(peer, self.clock.now());
 
-            if let Err(e) =
-                network.add_outbound_attempt(peer, ChannelMode::Realtime, self.clock.now())
-            {
-                drop(network);
-                self.network_observer
-                    .error(e, &peer, ChannelDirection::Outbound);
-
-                return false;
-            }
-
-            if let Err(e) = network.validate_new_connection(
-                &peer,
-                ChannelDirection::Outbound,
-                ChannelMode::Realtime,
-                self.clock.now(),
-            ) {
-                network.remove_attempt(&peer);
-                drop(network);
-                self.network_observer
-                    .error(e, &peer, ChannelDirection::Outbound);
-                return false;
-            }
+        if !added {
+            return false;
         }
-
-        self.network_observer.connection_attempt(&peer);
-        self.network_observer.merge_peer();
 
         let network_l = self.network_adapter.clone();
         let response_server_spawner_l = self.response_server_spawner.clone();
