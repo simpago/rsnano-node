@@ -57,7 +57,6 @@ impl NanoResponseServerSpawner {
             self.network_filter.clone(),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),
-            true,
             self.syn_cookies.clone(),
             self.node_id.clone(),
             self.latest_keepalives.clone(),

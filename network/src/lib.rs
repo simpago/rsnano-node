@@ -80,8 +80,6 @@ pub enum TrafficType {
 pub enum ChannelMode {
     /// No messages have been exchanged yet, so the mode is undefined
     Undefined,
-    /// Only serve bootstrap requests
-    Bootstrap,
     /// serve realtime traffic (votes, new blocks,...)
     Realtime,
 }
@@ -90,7 +88,6 @@ impl ChannelMode {
     pub fn as_str(&self) -> &'static str {
         match self {
             ChannelMode::Undefined => "undefined",
-            ChannelMode::Bootstrap => "bootstrap",
             ChannelMode::Realtime => "realtime",
         }
     }

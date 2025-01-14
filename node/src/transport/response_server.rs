@@ -68,7 +68,6 @@ pub struct ResponseServer {
     unique_id: usize,
     stats: Arc<Stats>,
     pub disable_bootstrap_bulk_pull_server: bool,
-    allow_bootstrap: bool,
     network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
     handshake_process: HandshakeProcess,
@@ -87,7 +86,6 @@ impl ResponseServer {
         network_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
         stats: Arc<Stats>,
-        allow_bootstrap: bool,
         syn_cookies: Arc<SynCookies>,
         node_id: PrivateKey,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
@@ -116,7 +114,6 @@ impl ResponseServer {
             unique_id: NEXT_UNIQUE_ID.fetch_add(1, Ordering::Relaxed),
             stats: stats.clone(),
             disable_bootstrap_bulk_pull_server: false,
-            allow_bootstrap,
             initiate_handshake_listener: OutputListenerMt::new(),
             network_filter,
             latest_keepalives,
@@ -156,10 +153,6 @@ impl ResponseServer {
 
     fn is_undefined_connection(&self) -> bool {
         self.channel.mode() == ChannelMode::Undefined
-    }
-
-    fn is_bootstrap_connection(&self) -> bool {
-        self.channel.mode() == ChannelMode::Bootstrap
     }
 
     fn is_realtime_connection(&self) -> bool {
@@ -339,12 +332,6 @@ impl ResponseServerExt for Arc<ResponseServer> {
             StatType::TcpServer,
             DetailType::from(message.message_type()),
             Direction::In,
-        );
-
-        debug_assert!(
-            self.is_undefined_connection()
-                || self.is_realtime_connection()
-                || self.is_bootstrap_connection()
         );
 
         /*

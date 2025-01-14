@@ -58,8 +58,10 @@ impl Monitor {
         );
 
         let channels = self.network.read().unwrap().channels_info();
-        info!("Peers: {} (realtime: {} | bootstrap: {} | inbound connections: {} | outbound connections: {})",
-            channels.total, channels.realtime, channels.bootstrap, channels.inbound, channels.outbound);
+        info!(
+            "Peers: {} (realtime: {} | inbound connections: {} | outbound connections: {})",
+            channels.total, channels.realtime, channels.inbound, channels.outbound
+        );
 
         {
             let (delta, online, peered) = {

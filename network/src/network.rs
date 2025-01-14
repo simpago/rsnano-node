@@ -651,7 +651,6 @@ impl Network {
         for channel in self.channels.values() {
             info.total += 1;
             match channel.mode() {
-                ChannelMode::Bootstrap => info.bootstrap += 1,
                 ChannelMode::Realtime => info.realtime += 1,
                 _ => {}
             }
@@ -710,7 +709,6 @@ impl Drop for Network {
 pub struct ChannelsInfo {
     pub total: usize,
     pub realtime: usize,
-    pub bootstrap: usize,
     pub inbound: usize,
     pub outbound: usize,
 }
