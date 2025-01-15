@@ -65,6 +65,13 @@ where
             .unwrap_or_default()
     }
 
+    pub fn free_capacity(&self, source: &S) -> usize {
+        self.queues
+            .get(source)
+            .map(|q| q.max_size - q.len())
+            .unwrap_or_else(|| (self.max_size_query)(source))
+    }
+
     pub fn len(&self) -> usize {
         self.total_len
     }
@@ -99,6 +106,10 @@ where
     }
 
     pub fn next(&mut self) -> Option<(S, T)> {
+        if self.total_len == 0 {
+            return None;
+        }
+
         if self.should_seek() {
             self.seek_next();
         }
@@ -301,6 +312,8 @@ mod tests {
         let queue: FairQueue<usize, &'static str> = FairQueue::new(|_| 999, |_| 999);
         assert_eq!(queue.len(), 0);
         assert!(queue.is_empty());
+        assert_eq!(queue.free_capacity(&1), 999);
+        assert_eq!(queue.free_capacity(&2), 999);
     }
 
     #[test]
@@ -312,6 +325,8 @@ mod tests {
         assert_eq!(queue.queues_len(), 1);
         assert_eq!(queue.queue_len(&7), 1);
         assert_eq!(queue.queue_len(&8), 0);
+        assert_eq!(queue.free_capacity(&7), 0);
+        assert_eq!(queue.free_capacity(&8), 1);
 
         let (source, item) = queue.next().unwrap();
         assert_eq!(source, 7);
@@ -335,6 +350,7 @@ mod tests {
         assert_eq!(queue.next(), Some((7, "b")));
         assert_eq!(queue.next(), Some((7, "c")));
         assert!(queue.is_empty());
+        assert_eq!(queue.free_capacity(&7), 999);
     }
 
     #[test]

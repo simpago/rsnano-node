@@ -57,14 +57,13 @@ impl TcpChannelAdapter {
         handle: &tokio::runtime::Handle,
     ) -> Arc<Self> {
         let stream = Arc::new(stream);
-        let info = channel.clone();
         let channel_adapter = Self::new(channel.clone(), Arc::downgrade(&stream), clock.clone());
 
         // process write queue:
         handle.spawn(async move {
             loop {
                 let res = select! {
-                    _ = info.cancelled() =>{
+                    _ = channel.cancelled() =>{
                         return;
                     },
                   res = channel.pop() => res
@@ -75,7 +74,7 @@ impl TcpChannelAdapter {
                     let buffer = &entry.buffer;
                     loop {
                         select! {
-                            _ = info.cancelled() =>{
+                            _ = channel.cancelled() =>{
                                 return;
                             }
                             res = stream.writable() =>{
@@ -84,7 +83,7 @@ impl TcpChannelAdapter {
                                 Ok(n) => {
                                     written += n;
                                     if written >= buffer.len() {
-                                        info.set_last_activity(clock.now());
+                                        channel.set_last_activity(clock.now());
                                         break;
                                     }
                                 }
@@ -92,12 +91,12 @@ impl TcpChannelAdapter {
                                     continue;
                                 }
                                 Err(_) => {
-                                    info.close();
+                                    channel.close();
                                     return;
                                 }
                             },
                             Err(_) => {
-                                info.close();
+                                channel.close();
                                 return;
                             }
                         }
@@ -108,7 +107,7 @@ impl TcpChannelAdapter {
                     break;
                 }
             }
-            info.close();
+            channel.close();
         });
 
         let channel = Arc::new(channel_adapter);

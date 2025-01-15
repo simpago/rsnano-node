@@ -198,9 +198,13 @@ impl Channel {
     }
 
     pub fn close(&self) {
-        self.closed.store(true, Ordering::Relaxed);
+        let already_closed = self.closed.swap(true, Ordering::Relaxed);
+        if already_closed {
+            return;
+        }
         self.set_timeout(Duration::ZERO);
         self.write_queue.close();
+        self.cancel_token.cancel();
     }
 
     pub fn set_node_id(&self, node_id: NodeId) {
@@ -229,7 +233,7 @@ impl Channel {
     }
 
     pub fn is_queue_full(&self, traffic_type: TrafficType) -> bool {
-        self.write_queue.capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
+        self.write_queue.free_capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
     }
 
     pub fn try_send_buffer(

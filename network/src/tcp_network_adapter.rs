@@ -86,12 +86,17 @@ impl TcpNetworkAdapter {
             let mut buffer = [0u8; 1024];
 
             loop {
-                // TODO: abort readable waiting if channel closed
-
-                if let Err(e) = channel_adapter.readable().await {
-                    debug!("Error reading buffer: {:?} ({})", e, channel.peer_addr());
-                    channel.close();
-                    return;
+                tokio::select! {
+                    result = channel_adapter.readable() => {
+                        if let Err(e) = result {
+                            debug!("Error reading buffer: {:?} ({})", e, channel.peer_addr());
+                            channel.close();
+                            return;
+                        }
+                    },
+                    _ = channel.cancelled() => {
+                        return;
+                    }
                 }
 
                 let read_count = match channel_adapter.try_read(&mut buffer) {

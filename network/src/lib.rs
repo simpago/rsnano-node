@@ -70,7 +70,7 @@ pub enum ChannelDirection {
     Outbound,
 }
 
-#[derive(FromPrimitive, Copy, Clone, Debug)]
+#[derive(FromPrimitive, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TrafficType {
     Generic,
     /// Ascending bootstrap (asc_pull_ack, asc_pull_req) traffic
