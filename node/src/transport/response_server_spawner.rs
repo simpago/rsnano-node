@@ -1,4 +1,7 @@
-use super::{InboundMessageQueue, LatestKeepalives, ResponseServer, SynCookies};
+use super::{
+    nano_data_receiver_factory::NanoDataReceiverFactory, InboundMessageQueue, LatestKeepalives,
+    ResponseServer, SynCookies,
+};
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::{Networks, PrivateKey};
 use rsnano_messages::NetworkFilter;
@@ -40,17 +43,18 @@ impl NanoResponseServerSpawner {
 
 impl ResponseServerSpawner for NanoResponseServerSpawner {
     fn spawn(&self, channel_adapter: Arc<TcpChannelAdapter>) {
-        let server = Arc::new(ResponseServer::new(
+        let data_receiver_factory = NanoDataReceiverFactory::new(
             self.network.clone(),
             self.inbound_queue.clone(),
-            channel_adapter,
             self.network_filter.clone(),
             Arc::new(self.network_params.clone()),
             Arc::clone(&self.stats),
             self.syn_cookies.clone(),
             self.node_id.clone(),
             self.latest_keepalives.clone(),
-        ));
+        );
+
+        let server = Arc::new(ResponseServer::new(channel_adapter, data_receiver_factory));
 
         self.tokio.spawn(async move { server.run().await });
     }

@@ -8,6 +8,7 @@ mod message_flooder;
 mod message_processor;
 mod message_publisher;
 mod nano_data_receiver;
+mod nano_data_receiver_factory;
 mod network_threads;
 mod peer_cache_connector;
 mod peer_cache_updater;

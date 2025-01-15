@@ -1,6 +1,6 @@
 use super::{
-    nano_data_receiver::NanoDataReceiver, HandshakeProcess, InboundMessageQueue, LatestKeepalives,
-    SynCookies,
+    nano_data_receiver::NanoDataReceiver, nano_data_receiver_factory::NanoDataReceiverFactory,
+    HandshakeProcess, InboundMessageQueue, LatestKeepalives, SynCookies,
 };
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::PrivateKey;
@@ -45,75 +45,29 @@ impl Default for TcpConfig {
     }
 }
 
-pub struct ResponseServer {
+pub(crate) struct ResponseServer {
     channel_adapter: Arc<TcpChannelAdapter>,
     channel: Arc<Channel>,
-    network_params: Arc<NetworkParams>,
-    stats: Arc<Stats>,
-    network: Arc<RwLock<Network>>,
-    inbound_queue: Arc<InboundMessageQueue>,
-    network_filter: Arc<NetworkFilter>,
-    syn_cookies: Arc<SynCookies>,
-    node_id: PrivateKey,
-    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+    data_receiver_factory: NanoDataReceiverFactory,
 }
 
 impl ResponseServer {
     pub fn new(
-        network: Arc<RwLock<Network>>,
-        inbound_queue: Arc<InboundMessageQueue>,
         channel_adapter: Arc<TcpChannelAdapter>,
-        network_filter: Arc<NetworkFilter>,
-        network_params: Arc<NetworkParams>,
-        stats: Arc<Stats>,
-        syn_cookies: Arc<SynCookies>,
-        node_id: PrivateKey,
-        latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+        data_receiver_factory: NanoDataReceiverFactory,
     ) -> Self {
         let channel = channel_adapter.channel.clone();
         Self {
-            network,
-            inbound_queue,
             channel,
             channel_adapter,
-            syn_cookies: syn_cookies.clone(),
-            node_id: node_id.clone(),
-            network_params,
-            stats: stats.clone(),
-            network_filter,
-            latest_keepalives,
+            data_receiver_factory,
         }
     }
 
-    fn create_data_receiver(&self) -> Box<dyn DataReceiver + Send> {
-        let handshake_process = HandshakeProcess::new(
-            self.network_params.ledger.genesis_block.hash(),
-            self.node_id.clone(),
-            self.syn_cookies.clone(),
-            self.stats.clone(),
-            self.network_params.network.protocol_info(),
-        );
-
-        let message_deserializer = MessageDeserializer::new(
-            self.network_params.network.protocol_info(),
-            self.network_filter.clone(),
-            self.network_params.network.work.clone(),
-        );
-
-        Box::new(NanoDataReceiver::new(
-            self.channel.clone(),
-            self.network_params.clone(),
-            handshake_process,
-            message_deserializer,
-            self.inbound_queue.clone(),
-            self.latest_keepalives.clone(),
-            self.stats.clone(),
-            self.network.clone(),
-        ))
-    }
-
     pub async fn run(&self) {
-        let mut receiver = self.create_data_receiver();
+        let mut receiver = self
+            .data_receiver_factory
+            .create_data_receiver(self.channel.clone());
         receiver.initialize();
 
         let mut buffer = [0u8; 1024];
