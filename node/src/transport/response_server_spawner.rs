@@ -1,20 +1,18 @@
-use rsnano_network::{DataReceiverFactory, ResponseServerSpawner, TcpChannelAdapter};
+use rsnano_network::{DataReceiver, ResponseServerSpawner, TcpChannelAdapter};
 use std::sync::Arc;
 use tracing::debug;
 
 pub struct NanoResponseServerSpawner {
     pub(crate) tokio: tokio::runtime::Handle,
-    pub(crate) data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
 }
 
 impl ResponseServerSpawner for NanoResponseServerSpawner {
-    fn spawn(&self, channel_adapter: Arc<TcpChannelAdapter>) {
+    fn spawn(
+        &self,
+        channel_adapter: Arc<TcpChannelAdapter>,
+        mut receiver: Box<dyn DataReceiver + Send>,
+    ) {
         let channel = channel_adapter.channel.clone();
-        //let server = Arc::new(ResponseServer::new(channel_adapter));
-        let mut receiver = self
-            .data_receiver_factory
-            .create_receiver_for(channel.clone());
-        receiver.initialize();
 
         self.tokio.spawn(async move {
             let mut buffer = [0u8; 1024];

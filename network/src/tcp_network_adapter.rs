@@ -1,6 +1,7 @@
 use crate::{
-    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DeadChannelCleanupStep, Network,
-    NullResponseServerSpawner, ResponseServerSpawner, TcpChannelAdapter,
+    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DataReceiverFactory,
+    DeadChannelCleanupStep, Network, NullDataReceiverFactory, NullResponseServerSpawner,
+    ResponseServerSpawner, TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -20,6 +21,7 @@ pub struct TcpNetworkAdapter {
     clock: Arc<SteadyClock>,
     handle: tokio::runtime::Handle,
     response_server_spawner: Arc<dyn ResponseServerSpawner>,
+    data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
 }
 
 impl TcpNetworkAdapter {
@@ -28,6 +30,7 @@ impl TcpNetworkAdapter {
         clock: Arc<SteadyClock>,
         handle: tokio::runtime::Handle,
         response_server_spawner: Arc<dyn ResponseServerSpawner>,
+        data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
     ) -> Self {
         Self {
             channel_adapters: Mutex::new(HashMap::new()),
@@ -35,6 +38,7 @@ impl TcpNetworkAdapter {
             network: network_info,
             handle,
             response_server_spawner,
+            data_receiver_factory,
         }
     }
 
@@ -88,7 +92,13 @@ impl TcpNetworkAdapter {
 
         debug!(?peer_addr, ?direction, "Accepted connection");
 
-        self.response_server_spawner.spawn(channel_adapter.clone());
+        let mut receiver = self
+            .data_receiver_factory
+            .create_receiver_for(channel_adapter.channel.clone());
+        receiver.initialize();
+
+        self.response_server_spawner
+            .spawn(channel_adapter.clone(), receiver);
 
         Ok(channel_adapter)
     }
@@ -114,6 +124,7 @@ impl TcpNetworkAdapter {
             Arc::new(SteadyClock::new_null()),
             handle,
             Arc::new(NullResponseServerSpawner::new()),
+            Box::new(NullDataReceiverFactory::new()),
         )
     }
 }

@@ -615,7 +615,6 @@ impl Node {
 
         let response_server_spawner = Arc::new(NanoResponseServerSpawner {
             tokio: runtime.clone(),
-            data_receiver_factory,
         });
 
         let network_adapter = Arc::new(TcpNetworkAdapter::new(
@@ -623,6 +622,7 @@ impl Node {
             steady_clock.clone(),
             runtime.clone(),
             response_server_spawner,
+            data_receiver_factory,
         ));
 
         dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));
