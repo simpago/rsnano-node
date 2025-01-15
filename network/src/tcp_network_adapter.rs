@@ -1,6 +1,6 @@
 use crate::{
-    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DataReceiverFactory,
-    DeadChannelCleanupStep, Network, NullDataReceiverFactory, TcpChannelAdapter,
+    utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DeadChannelCleanupStep, Network,
+    TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -19,7 +19,6 @@ pub struct TcpNetworkAdapter {
     network: Arc<RwLock<Network>>,
     clock: Arc<SteadyClock>,
     tokio: tokio::runtime::Handle,
-    data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
 }
 
 impl TcpNetworkAdapter {
@@ -27,14 +26,12 @@ impl TcpNetworkAdapter {
         network_info: Arc<RwLock<Network>>,
         clock: Arc<SteadyClock>,
         handle: tokio::runtime::Handle,
-        data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
     ) -> Self {
         Self {
             channel_adapters: Mutex::new(HashMap::new()),
             clock,
             network: network_info,
             tokio: handle,
-            data_receiver_factory,
         }
     }
 
@@ -66,7 +63,7 @@ impl TcpNetworkAdapter {
             .map(into_ipv6_socket_address)
             .unwrap_or(NULL_ENDPOINT);
 
-        let (channel, _receiver) = self
+        let (channel, mut receiver) = self
             .network
             .write()
             .unwrap()
@@ -83,11 +80,6 @@ impl TcpNetworkAdapter {
             .insert(channel_id, channel_adapter.clone());
 
         debug!(?peer_addr, ?direction, "Accepted connection");
-
-        let mut receiver = self
-            .data_receiver_factory
-            .create_receiver_for(channel_adapter.channel.clone());
-        receiver.initialize();
 
         self.tokio.spawn(async move {
             let channel = channel_adapter.channel.clone();
@@ -142,7 +134,6 @@ impl TcpNetworkAdapter {
             Arc::new(RwLock::new(Network::new_test_instance())),
             Arc::new(SteadyClock::new_null()),
             handle,
-            Box::new(NullDataReceiverFactory::new()),
         )
     }
 }

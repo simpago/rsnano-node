@@ -612,11 +612,15 @@ impl Node {
             latest_keepalives.clone(),
         ));
 
+        network
+            .write()
+            .unwrap()
+            .set_data_receiver_factory(data_receiver_factory);
+
         let network_adapter = Arc::new(TcpNetworkAdapter::new(
             network.clone(),
             steady_clock.clone(),
             runtime.clone(),
-            data_receiver_factory,
         ));
 
         dead_channel_cleanup.add_step(NetworkCleanup::new(network_adapter.clone()));

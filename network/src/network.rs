@@ -200,9 +200,10 @@ impl Network {
         ));
         self.channels.insert(channel_id, channel.clone());
         self.observer.accepted(&peer_addr, direction);
-        let receiver = self
+        let mut receiver = self
             .data_receiver_factory
             .create_receiver_for(channel.clone());
+        receiver.initialize();
 
         Ok((channel, receiver))
     }
