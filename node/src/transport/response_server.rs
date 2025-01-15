@@ -1,39 +1,7 @@
+use super::nano_data_receiver_factory::DataReceiver;
 use rsnano_network::{Channel, TcpChannelAdapter};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tracing::debug;
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TcpConfig {
-    pub max_inbound_connections: usize,
-    pub max_outbound_connections: usize,
-    pub max_attempts: usize,
-    pub max_attempts_per_ip: usize,
-    pub connect_timeout: Duration,
-}
-
-impl TcpConfig {
-    pub fn for_dev_network() -> Self {
-        Self {
-            max_inbound_connections: 128,
-            max_outbound_connections: 128,
-            max_attempts: 128,
-            max_attempts_per_ip: 128,
-            connect_timeout: Duration::from_secs(5),
-        }
-    }
-}
-
-impl Default for TcpConfig {
-    fn default() -> Self {
-        Self {
-            max_inbound_connections: 2048,
-            max_outbound_connections: 2048,
-            max_attempts: 60,
-            max_attempts_per_ip: 1,
-            connect_timeout: Duration::from_secs(60),
-        }
-    }
-}
 
 pub(crate) struct ResponseServer {
     channel_adapter: Arc<TcpChannelAdapter>,
@@ -85,9 +53,4 @@ impl ResponseServer {
             }
         }
     }
-}
-
-pub trait DataReceiver {
-    fn initialize(&mut self);
-    fn receive(&mut self, data: &[u8]) -> bool;
 }

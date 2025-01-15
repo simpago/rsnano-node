@@ -10,7 +10,7 @@ use crate::{
         PriorityBucketConfig, RequestAggregatorConfig, VoteCacheConfig, VoteProcessorConfig,
     },
     stats::StatsConfig,
-    transport::{MessageProcessorConfig, TcpConfig},
+    transport::MessageProcessorConfig,
     IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
 };
 use once_cell::sync::Lazy;
@@ -354,6 +354,39 @@ impl Default for MonitorConfig {
     fn default() -> Self {
         Self {
             interval: Duration::from_secs(60),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TcpConfig {
+    pub max_inbound_connections: usize,
+    pub max_outbound_connections: usize,
+    pub max_attempts: usize,
+    pub max_attempts_per_ip: usize,
+    pub connect_timeout: Duration,
+}
+
+impl TcpConfig {
+    pub fn for_dev_network() -> Self {
+        Self {
+            max_inbound_connections: 128,
+            max_outbound_connections: 128,
+            max_attempts: 128,
+            max_attempts_per_ip: 128,
+            connect_timeout: Duration::from_secs(5),
+        }
+    }
+}
+
+impl Default for TcpConfig {
+    fn default() -> Self {
+        Self {
+            max_inbound_connections: 2048,
+            max_outbound_connections: 2048,
+            max_attempts: 60,
+            max_attempts_per_ip: 1,
+            connect_timeout: Duration::from_secs(60),
         }
     }
 }

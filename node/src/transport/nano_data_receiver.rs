@@ -1,5 +1,6 @@
 use super::{
-    DataReceiver, HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives,
+    nano_data_receiver_factory::DataReceiver, HandshakeProcess, HandshakeStatus,
+    InboundMessageQueue, LatestKeepalives,
 };
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},

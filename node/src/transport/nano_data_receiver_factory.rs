@@ -1,12 +1,21 @@
 use super::{
-    nano_data_receiver::NanoDataReceiver, DataReceiver, HandshakeProcess, InboundMessageQueue,
-    LatestKeepalives, SynCookies,
+    nano_data_receiver::NanoDataReceiver, HandshakeProcess, InboundMessageQueue, LatestKeepalives,
+    SynCookies,
 };
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::PrivateKey;
 use rsnano_messages::*;
 use rsnano_network::{Channel, Network};
 use std::sync::{Arc, Mutex, RwLock};
+
+pub trait DataReceiverFactory {
+    fn create_receiver_for(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send>;
+}
+
+pub trait DataReceiver {
+    fn initialize(&mut self);
+    fn receive(&mut self, data: &[u8]) -> bool;
+}
 
 pub(crate) struct NanoDataReceiverFactory {
     network_params: Arc<NetworkParams>,
@@ -41,8 +50,10 @@ impl NanoDataReceiverFactory {
             latest_keepalives,
         }
     }
+}
 
-    pub fn create_data_receiver(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send> {
+impl DataReceiverFactory for NanoDataReceiverFactory {
+    fn create_receiver_for(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send> {
         let handshake_process = HandshakeProcess::new(
             self.network_params.ledger.genesis_block.hash(),
             self.node_id.clone(),
