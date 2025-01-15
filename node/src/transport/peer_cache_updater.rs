@@ -283,7 +283,7 @@ mod tests {
     ) {
         let mut network = Network::new_test_instance();
         for endpoint in open_channels {
-            let channel = network
+            let (channel, _) = network
                 .add(
                     NULL_ENDPOINT,
                     endpoint,

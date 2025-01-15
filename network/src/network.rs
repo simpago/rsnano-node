@@ -4,7 +4,8 @@ use crate::{
     bandwidth_limiter::{BandwidthLimiter, BandwidthLimiterConfig},
     peer_exclusion::PeerExclusion,
     utils::{is_ipv4_mapped, map_address_to_subnetwork, reserved_address},
-    Channel, ChannelId, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver, TrafficType,
+    Channel, ChannelId, ChannelMode, DataReceiver, DataReceiverFactory, DropPolicy,
+    NetworkObserver, NullDataReceiverFactory, NullNetworkObserver, TrafficType,
 };
 use rand::{seq::SliceRandom, thread_rng};
 use rsnano_core::{utils::ContainerInfo, Networks, NodeId};
@@ -90,6 +91,7 @@ pub struct Network {
     excluded_peers: PeerExclusion,
     bandwidth_limiter: Arc<BandwidthLimiter>,
     observer: Arc<dyn NetworkObserver>,
+    data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
 }
 
 impl Network {
@@ -104,6 +106,7 @@ impl Network {
             bandwidth_limiter: Arc::new(BandwidthLimiter::new(network_config.limiter.clone())),
             observer: Arc::new(NullNetworkObserver::new()),
             network_config,
+            data_receiver_factory: Box::new(NullDataReceiverFactory::new()),
         }
     }
 
@@ -114,6 +117,13 @@ impl Network {
 
     pub fn set_observer(&mut self, observer: Arc<dyn NetworkObserver>) {
         self.observer = observer;
+    }
+
+    pub fn set_data_receiver_factory(
+        &mut self,
+        factory: Box<dyn DataReceiverFactory + Send + Sync>,
+    ) {
+        self.data_receiver_factory = factory;
     }
 
     pub fn on_new_realtime_channel(&mut self, callback: Arc<dyn Fn(Arc<Channel>) + Send + Sync>) {
@@ -170,7 +180,7 @@ impl Network {
         peer_addr: SocketAddrV6,
         direction: ChannelDirection,
         now: Timestamp,
-    ) -> Result<Arc<Channel>, NetworkError> {
+    ) -> Result<(Arc<Channel>, Box<dyn DataReceiver + Send>), NetworkError> {
         let result = self.validate_new_connection(&peer_addr, direction, now);
         if let Err(e) = result {
             self.observer.error(e, &peer_addr, direction);
@@ -190,7 +200,11 @@ impl Network {
         ));
         self.channels.insert(channel_id, channel.clone());
         self.observer.accepted(&peer_addr, direction);
-        Ok(channel)
+        let receiver = self
+            .data_receiver_factory
+            .create_receiver_for(channel.clone());
+
+        Ok((channel, receiver))
     }
 
     fn get_next_channel_id(&mut self) -> ChannelId {
@@ -754,7 +768,7 @@ mod tests {
     #[test]
     fn upgrade_channel_to_realtime_channel() {
         let mut network = Network::new_test_instance();
-        let channel = network
+        let (channel, _receiver) = network
             .add(
                 TEST_ENDPOINT_1,
                 TEST_ENDPOINT_2,
@@ -803,7 +817,7 @@ mod tests {
     }
 
     fn add_realtime_channel_with_peering_addr(network: &mut Network, peering_addr: SocketAddrV6) {
-        let channel = network
+        let (channel, _receiver) = network
             .add(
                 TEST_ENDPOINT_1,
                 peering_addr,
@@ -848,7 +862,7 @@ mod tests {
         fn purge_if_last_activitiy_is_above_timeout() {
             let mut network = Network::new_test_instance();
             let now = Timestamp::new_test_instance();
-            let channel = network
+            let (channel, _) = network
                 .add(
                     TEST_ENDPOINT_1,
                     TEST_ENDPOINT_2,
@@ -865,7 +879,7 @@ mod tests {
         fn dont_purge_if_packet_sent_within_timeout() {
             let mut network = Network::new_test_instance();
             let now = Timestamp::new_test_instance();
-            let channel = network
+            let (channel, _) = network
                 .add(
                     TEST_ENDPOINT_1,
                     TEST_ENDPOINT_2,

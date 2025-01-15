@@ -360,6 +360,7 @@ pub fn make_fake_channel(node: &Node) -> Arc<Channel> {
             node.steady_clock.now(),
         )
         .unwrap()
+        .0
 }
 
 pub fn start_election(node: &Node, hash: &BlockHash) -> Arc<Election> {
