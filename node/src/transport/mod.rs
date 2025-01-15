@@ -13,7 +13,6 @@ mod network_threads;
 mod peer_cache_connector;
 mod peer_cache_updater;
 mod realtime_message_handler;
-mod response_server;
 mod response_server_spawner;
 mod syn_cookies;
 mod vec_buffer_reader;
