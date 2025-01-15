@@ -53,9 +53,9 @@ pub struct ResponseServer {
     network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
     network_filter: Arc<NetworkFilter>,
-    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     syn_cookies: Arc<SynCookies>,
     node_id: PrivateKey,
+    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
 }
 
 impl ResponseServer {
@@ -85,13 +85,6 @@ impl ResponseServer {
         }
     }
 
-    fn set_last_keepalive(&self, keepalive: Keepalive) {
-        self.latest_keepalives
-            .lock()
-            .unwrap()
-            .insert(self.channel.channel_id(), keepalive);
-    }
-
     fn create_data_receiver(&self) -> Box<NanoDataReceiver> {
         let handshake_process = HandshakeProcess::new(
             self.network_params.ledger.genesis_block.hash(),
@@ -113,6 +106,8 @@ impl ResponseServer {
             handshake_process,
             message_deserializer,
             self.inbound_queue.clone(),
+            self.latest_keepalives.clone(),
+            self.stats.clone(),
         ))
     }
 
@@ -293,7 +288,7 @@ impl ResponseServer {
                 }
             }
         } else if self.channel.mode() == ChannelMode::Realtime {
-            return self.process_realtime(message, receiver);
+            return receiver.process_realtime(message);
         }
 
         debug_assert!(false);
@@ -335,43 +330,6 @@ impl ResponseServer {
             false
         }
     }
-
-    fn process_realtime(&self, message: Message, receiver: &NanoDataReceiver) -> ProcessResult {
-        let process = match &message {
-            Message::Keepalive(keepalive) => {
-                self.set_last_keepalive(keepalive.clone());
-                true
-            }
-            Message::Publish(_)
-            | Message::AscPullAck(_)
-            | Message::AscPullReq(_)
-            | Message::ConfirmAck(_)
-            | Message::ConfirmReq(_)
-            | Message::FrontierReq(_)
-            | Message::TelemetryAck(_) => true,
-            Message::TelemetryReq => {
-                // Only handle telemetry requests if they are outside of the cooldown period
-                if receiver.is_outside_cooldown_period() {
-                    receiver.set_last_telemetry_req();
-                    true
-                } else {
-                    self.stats.inc_dir(
-                        StatType::Telemetry,
-                        DetailType::RequestWithinProtectionCacheZone,
-                        Direction::In,
-                    );
-                    false
-                }
-            }
-            _ => false,
-        };
-
-        if process {
-            receiver.queue_realtime(message);
-        }
-
-        ProcessResult::Progress
-    }
 }
 
 impl Drop for ResponseServer {
@@ -398,6 +356,8 @@ struct NanoDataReceiver {
     inbound_queue: Arc<InboundMessageQueue>,
     last_telemetry_req: Mutex<Option<Instant>>,
     network_params: Arc<NetworkParams>,
+    latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+    stats: Arc<Stats>,
 }
 
 impl NanoDataReceiver {
@@ -407,6 +367,8 @@ impl NanoDataReceiver {
         handshake_process: HandshakeProcess,
         message_deserializer: MessageDeserializer,
         inbound_queue: Arc<InboundMessageQueue>,
+        latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+        stats: Arc<Stats>,
     ) -> Self {
         Self {
             channel,
@@ -415,6 +377,8 @@ impl NanoDataReceiver {
             inbound_queue,
             last_telemetry_req: Mutex::new(None),
             network_params,
+            latest_keepalives,
+            stats,
         }
     }
 
@@ -446,6 +410,50 @@ impl NanoDataReceiver {
     fn set_last_telemetry_req(&self) {
         let mut lk = self.last_telemetry_req.lock().unwrap();
         *lk = Some(Instant::now());
+    }
+
+    fn set_last_keepalive(&self, keepalive: Keepalive) {
+        self.latest_keepalives
+            .lock()
+            .unwrap()
+            .insert(self.channel.channel_id(), keepalive);
+    }
+
+    fn process_realtime(&self, message: Message) -> ProcessResult {
+        let process = match &message {
+            Message::Keepalive(keepalive) => {
+                self.set_last_keepalive(keepalive.clone());
+                true
+            }
+            Message::Publish(_)
+            | Message::AscPullAck(_)
+            | Message::AscPullReq(_)
+            | Message::ConfirmAck(_)
+            | Message::ConfirmReq(_)
+            | Message::FrontierReq(_)
+            | Message::TelemetryAck(_) => true,
+            Message::TelemetryReq => {
+                // Only handle telemetry requests if they are outside of the cooldown period
+                if self.is_outside_cooldown_period() {
+                    self.set_last_telemetry_req();
+                    true
+                } else {
+                    self.stats.inc_dir(
+                        StatType::Telemetry,
+                        DetailType::RequestWithinProtectionCacheZone,
+                        Direction::In,
+                    );
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if process {
+            self.queue_realtime(message);
+        }
+
+        ProcessResult::Progress
     }
 }
 
