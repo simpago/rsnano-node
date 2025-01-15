@@ -23,6 +23,7 @@ pub(crate) struct NanoDataReceiver {
     network_params: Arc<NetworkParams>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     stats: Arc<Stats>,
+    // TODO hold weak pointer
     network: Arc<RwLock<Network>>,
     first_message: bool,
 }
@@ -318,7 +319,13 @@ impl DataReceiver for NanoDataReceiver {
     }
 }
 
-pub enum ProcessResult {
+impl Drop for NanoDataReceiver {
+    fn drop(&mut self) {
+        self.channel.close();
+    }
+}
+
+enum ProcessResult {
     Abort,
     Progress,
 }

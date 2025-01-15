@@ -1,15 +1,5 @@
-use super::{
-    nano_data_receiver::NanoDataReceiver, nano_data_receiver_factory::NanoDataReceiverFactory,
-    HandshakeProcess, InboundMessageQueue, LatestKeepalives, SynCookies,
-};
-use crate::{stats::Stats, NetworkParams};
-use rsnano_core::PrivateKey;
-use rsnano_messages::*;
-use rsnano_network::{Channel, Network, TcpChannelAdapter};
-use std::{
-    sync::{Arc, Mutex, RwLock},
-    time::Duration,
-};
+use rsnano_network::{Channel, TcpChannelAdapter};
+use std::{sync::Arc, time::Duration};
 use tracing::debug;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,28 +38,18 @@ impl Default for TcpConfig {
 pub(crate) struct ResponseServer {
     channel_adapter: Arc<TcpChannelAdapter>,
     channel: Arc<Channel>,
-    data_receiver_factory: NanoDataReceiverFactory,
 }
 
 impl ResponseServer {
-    pub fn new(
-        channel_adapter: Arc<TcpChannelAdapter>,
-        data_receiver_factory: NanoDataReceiverFactory,
-    ) -> Self {
+    pub fn new(channel_adapter: Arc<TcpChannelAdapter>) -> Self {
         let channel = channel_adapter.channel.clone();
         Self {
             channel,
             channel_adapter,
-            data_receiver_factory,
         }
     }
 
-    pub async fn run(&self) {
-        let mut receiver = self
-            .data_receiver_factory
-            .create_data_receiver(self.channel.clone());
-        receiver.initialize();
-
+    pub async fn run(&self, mut receiver: Box<dyn DataReceiver + Send>) {
         let mut buffer = [0u8; 1024];
 
         loop {
@@ -104,13 +84,6 @@ impl ResponseServer {
                 break;
             }
         }
-    }
-}
-
-impl Drop for ResponseServer {
-    fn drop(&mut self) {
-        debug!("Exiting server: {}", self.channel.peer_addr());
-        self.channel.close();
     }
 }
 

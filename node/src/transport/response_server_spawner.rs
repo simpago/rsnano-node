@@ -54,8 +54,10 @@ impl ResponseServerSpawner for NanoResponseServerSpawner {
             self.latest_keepalives.clone(),
         );
 
-        let server = Arc::new(ResponseServer::new(channel_adapter, data_receiver_factory));
-
-        self.tokio.spawn(async move { server.run().await });
+        let channel = channel_adapter.channel.clone();
+        let server = Arc::new(ResponseServer::new(channel_adapter));
+        let mut receiver = data_receiver_factory.create_data_receiver(channel);
+        receiver.initialize();
+        self.tokio.spawn(async move { server.run(receiver).await });
     }
 }
