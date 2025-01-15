@@ -4,6 +4,7 @@
 #include <nano/lib/timer.hpp>
 #include <nano/node/fwd.hpp>
 #include <nano/node/transport/fwd.hpp>
+#include <nano/node/transport/test_channel.hpp>
 #include <nano/secure/account_info.hpp>
 #include <nano/store/fwd.hpp>
 
@@ -385,6 +386,10 @@ namespace test
 	 * Creates a new fake channel associated with `node`
 	 */
 	std::shared_ptr<nano::transport::fake::channel> fake_channel (nano::node & node, nano::account node_id = { 0 });
+	/*
+	 * Creates a new test channel associated with `node`
+	 */
+	std::shared_ptr<nano::transport::test_channel> test_channel (nano::node & node, nano::account node_id = { 0 });
 	/*
 	 * Start an election on system system_a, node node_a and hash hash_a by reading the block
 	 * out of the ledger and adding it to the manual election scheduler queue.

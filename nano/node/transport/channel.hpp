@@ -120,7 +120,7 @@ public:
 	std::shared_ptr<nano::node> owner () const;
 
 protected:
-	virtual bool send_buffer (nano::shared_const_buffer const &, nano::transport::traffic_type, callback_t) = 0;
+	virtual bool send_impl (nano::message const &, nano::transport::traffic_type, callback_t) = 0;
 
 protected:
 	nano::node & node;
