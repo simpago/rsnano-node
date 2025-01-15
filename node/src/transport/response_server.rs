@@ -49,7 +49,6 @@ pub struct ResponseServer {
     channel_adapter: Arc<TcpChannelAdapter>,
     channel: Arc<Channel>,
     network_params: Arc<NetworkParams>,
-    last_telemetry_req: Mutex<Option<Instant>>,
     stats: Arc<Stats>,
     network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
@@ -77,7 +76,6 @@ impl ResponseServer {
             inbound_queue,
             channel,
             channel_adapter,
-            last_telemetry_req: Mutex::new(None),
             syn_cookies: syn_cookies.clone(),
             node_id: node_id.clone(),
             network_params,
@@ -87,21 +85,6 @@ impl ResponseServer {
         }
     }
 
-    fn is_outside_cooldown_period(&self) -> bool {
-        let lock = self.last_telemetry_req.lock().unwrap();
-        match *lock {
-            Some(last_req) => {
-                last_req.elapsed() >= self.network_params.network.telemetry_request_cooldown
-            }
-            None => true,
-        }
-    }
-
-    fn set_last_telemetry_req(&self) {
-        let mut lk = self.last_telemetry_req.lock().unwrap();
-        *lk = Some(Instant::now());
-    }
-
     fn set_last_keepalive(&self, keepalive: Keepalive) {
         self.latest_keepalives
             .lock()
@@ -109,7 +92,7 @@ impl ResponseServer {
             .insert(self.channel.channel_id(), keepalive);
     }
 
-    pub async fn run(&self) {
+    fn create_data_receiver(&self) -> Box<NanoDataReceiver> {
         let handshake_process = HandshakeProcess::new(
             self.network_params.ledger.genesis_block.hash(),
             self.node_id.clone(),
@@ -118,17 +101,26 @@ impl ResponseServer {
             self.network_params.network.protocol_info(),
         );
 
-        let mut receiver = NanoDataReceiver::new(self.channel.clone(), handshake_process);
-        receiver.initialize();
-
-        debug!(peer = %self.channel.peer_addr(), "Starting response server");
-        let mut buffer = [0u8; 1024];
-
-        let mut message_deserializer = MessageDeserializer::new(
+        let message_deserializer = MessageDeserializer::new(
             self.network_params.network.protocol_info(),
             self.network_filter.clone(),
             self.network_params.network.work.clone(),
         );
+
+        Box::new(NanoDataReceiver::new(
+            self.channel.clone(),
+            self.network_params.clone(),
+            handshake_process,
+            message_deserializer,
+            self.inbound_queue.clone(),
+        ))
+    }
+
+    pub async fn run(&self) {
+        let mut receiver = self.create_data_receiver();
+        receiver.initialize();
+
+        let mut buffer = [0u8; 1024];
 
         let mut first_message = true;
 
@@ -163,8 +155,8 @@ impl ResponseServer {
             // TODO: push read bytes into channel and then call a callback inside channel:
             //self.channel.receive_data(&buffer[..read_count])
 
-            message_deserializer.push(&buffer[..read_count]);
-            while let Some(result) = message_deserializer.try_deserialize() {
+            receiver.message_deserializer.push(&buffer[..read_count]);
+            while let Some(result) = receiver.message_deserializer.try_deserialize() {
                 let result = match result {
                     Ok(msg) => {
                         if first_message {
@@ -291,7 +283,7 @@ impl ResponseServer {
                         );
                         return ProcessResult::Abort;
                     }
-                    self.queue_realtime(message);
+                    receiver.queue_realtime(message);
                     return ProcessResult::Progress; // Continue receiving new messages
                 }
                 HandshakeStatus::Bootstrap => {
@@ -301,7 +293,7 @@ impl ResponseServer {
                 }
             }
         } else if self.channel.mode() == ChannelMode::Realtime {
-            return self.process_realtime(message);
+            return self.process_realtime(message, receiver);
         }
 
         debug_assert!(false);
@@ -344,7 +336,7 @@ impl ResponseServer {
         }
     }
 
-    fn process_realtime(&self, message: Message) -> ProcessResult {
+    fn process_realtime(&self, message: Message, receiver: &NanoDataReceiver) -> ProcessResult {
         let process = match &message {
             Message::Keepalive(keepalive) => {
                 self.set_last_keepalive(keepalive.clone());
@@ -359,8 +351,8 @@ impl ResponseServer {
             | Message::TelemetryAck(_) => true,
             Message::TelemetryReq => {
                 // Only handle telemetry requests if they are outside of the cooldown period
-                if self.is_outside_cooldown_period() {
-                    self.set_last_telemetry_req();
+                if receiver.is_outside_cooldown_period() {
+                    receiver.set_last_telemetry_req();
                     true
                 } else {
                     self.stats.inc_dir(
@@ -375,15 +367,10 @@ impl ResponseServer {
         };
 
         if process {
-            self.queue_realtime(message);
+            receiver.queue_realtime(message);
         }
 
         ProcessResult::Progress
-    }
-
-    fn queue_realtime(&self, message: Message) {
-        self.inbound_queue.put(message, self.channel.clone());
-        // TODO: Throttle if not added
     }
 }
 
@@ -399,23 +386,35 @@ pub enum ProcessResult {
     Progress,
 }
 
+pub trait DataReceiver {
+    fn initialize(&mut self);
+}
+
 /// Receives raw data (from a TCP stream) and processes it
 struct NanoDataReceiver {
     channel: Arc<Channel>,
     handshake_process: HandshakeProcess,
+    message_deserializer: MessageDeserializer,
+    inbound_queue: Arc<InboundMessageQueue>,
+    last_telemetry_req: Mutex<Option<Instant>>,
+    network_params: Arc<NetworkParams>,
 }
 
 impl NanoDataReceiver {
-    fn new(channel: Arc<Channel>, handshake_process: HandshakeProcess) -> Self {
+    fn new(
+        channel: Arc<Channel>,
+        network_params: Arc<NetworkParams>,
+        handshake_process: HandshakeProcess,
+        message_deserializer: MessageDeserializer,
+        inbound_queue: Arc<InboundMessageQueue>,
+    ) -> Self {
         Self {
             channel,
             handshake_process,
-        }
-    }
-
-    pub fn initialize(&mut self) {
-        if self.channel.direction() == ChannelDirection::Outbound {
-            self.initiate_handshake();
+            message_deserializer,
+            inbound_queue,
+            last_telemetry_req: Mutex::new(None),
+            network_params,
         }
     }
 
@@ -426,6 +425,34 @@ impl NanoDataReceiver {
             .is_err()
         {
             self.channel.close();
+        }
+    }
+
+    fn queue_realtime(&self, message: Message) {
+        self.inbound_queue.put(message, self.channel.clone());
+        // TODO: Throttle if not added
+    }
+
+    fn is_outside_cooldown_period(&self) -> bool {
+        let lock = self.last_telemetry_req.lock().unwrap();
+        match *lock {
+            Some(last_req) => {
+                last_req.elapsed() >= self.network_params.network.telemetry_request_cooldown
+            }
+            None => true,
+        }
+    }
+
+    fn set_last_telemetry_req(&self) {
+        let mut lk = self.last_telemetry_req.lock().unwrap();
+        *lk = Some(Instant::now());
+    }
+}
+
+impl DataReceiver for NanoDataReceiver {
+    fn initialize(&mut self) {
+        if self.channel.direction() == ChannelDirection::Outbound {
+            self.initiate_handshake();
         }
     }
 }
