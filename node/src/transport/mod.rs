@@ -1,5 +1,4 @@
 mod block_deserializer;
-mod fair_queue;
 mod handshake_process;
 mod inbound_message_queue;
 pub mod keepalive;
@@ -17,7 +16,6 @@ mod syn_cookies;
 mod vec_buffer_reader;
 
 pub use block_deserializer::read_block;
-pub use fair_queue::*;
 pub(crate) use handshake_process::*;
 pub use inbound_message_queue::*;
 pub use latest_keepalives::*;

@@ -7,11 +7,11 @@ use crate::{
     message_recorder::MessageRecorder, node_runner::NodeRunner, nullable_runtime::NullableRuntime,
     view_models::QueueViewModel,
 };
+use rsnano_core::utils::FairQueueInfo;
 use rsnano_node::{
     block_processing::BlockSource,
     cementation::ConfirmingSetInfo,
     consensus::{ActiveElectionsInfo, RepTier},
-    transport::FairQueueInfo,
 };
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{

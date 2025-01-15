@@ -1,9 +1,9 @@
 use super::{RepTier, RepTiers, VoteProcessorConfig};
-use crate::{
-    stats::{DetailType, StatType, Stats},
-    transport::{FairQueue, FairQueueInfo},
+use crate::stats::{DetailType, StatType, Stats};
+use rsnano_core::{
+    utils::{ContainerInfo, FairQueue, FairQueueInfo},
+    Vote, VoteSource,
 };
-use rsnano_core::{utils::ContainerInfo, Vote, VoteSource};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
 use std::{
     collections::VecDeque,

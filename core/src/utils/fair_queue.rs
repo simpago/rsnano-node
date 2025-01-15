@@ -1,4 +1,3 @@
-use rsnano_core::utils::ContainerInfo;
 use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, VecDeque},
@@ -6,8 +5,10 @@ use std::{
     ops::RangeBounds,
 };
 
+use super::ContainerInfo;
+
 /// Queue items of type T from source S
-pub(crate) struct FairQueue<S, T>
+pub struct FairQueue<S, T>
 where
     S: Ord + Copy,
 {

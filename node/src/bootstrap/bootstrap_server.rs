@@ -1,8 +1,8 @@
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::{FairQueue, MessagePublisher},
+    transport::MessagePublisher,
 };
-use rsnano_core::{Block, BlockHash, Frontier};
+use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,

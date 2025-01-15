@@ -1,8 +1,10 @@
 mod container_info;
+mod fair_queue;
 mod peer;
 mod stream;
 
 pub use container_info::*;
+pub use fair_queue::*;
 pub use peer::*;
 use std::{
     net::{Ipv6Addr, SocketAddrV6},

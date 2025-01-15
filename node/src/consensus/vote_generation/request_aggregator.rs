@@ -2,11 +2,11 @@ use super::{
     request_aggregator_impl::{AggregateResult, RequestAggregatorImpl},
     VoteGenerators,
 };
-use crate::{
-    stats::{DetailType, Direction, StatType, Stats},
-    transport::FairQueue,
+use crate::stats::{DetailType, Direction, StatType, Stats};
+use rsnano_core::{
+    utils::{ContainerInfo, FairQueue},
+    BlockHash, Root,
 };
-use rsnano_core::{utils::ContainerInfo, BlockHash, Root};
 use rsnano_ledger::Ledger;
 use rsnano_network::{ChannelId, DeadChannelCleanupStep, Network, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};

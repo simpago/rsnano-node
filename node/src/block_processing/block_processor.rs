@@ -1,12 +1,12 @@
 use super::UncheckedMap;
 use crate::{
     stats::{DetailType, StatType, Stats},
-    transport::{FairQueue, FairQueueInfo},
     utils::{ThreadPool, ThreadPoolImpl},
 };
 use rsnano_core::{
-    utils::ContainerInfo, work::WorkThresholds, Block, BlockType, Epoch, Networks, QualifiedRoot,
-    SavedBlock, UncheckedInfo,
+    utils::{ContainerInfo, FairQueue, FairQueueInfo},
+    work::WorkThresholds,
+    Block, BlockType, Epoch, Networks, QualifiedRoot, SavedBlock, UncheckedInfo,
 };
 use rsnano_ledger::{BlockStatus, Ledger, Writer};
 use rsnano_network::{ChannelId, DeadChannelCleanupStep};
