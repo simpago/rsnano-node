@@ -25,8 +25,9 @@ use crate::{
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
         InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup,
-        MessageFlooder, MessageProcessor, MessagePublisher, NanoResponseServerSpawner,
-        NetworkThreads, PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
+        MessageFlooder, MessageProcessor, MessagePublisher, NanoDataReceiverFactory,
+        NanoResponseServerSpawner, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
+        RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -601,16 +602,20 @@ impl Node {
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
 
+        let data_receiver_factory = Box::new(NanoDataReceiverFactory::new(
+            network.clone(),
+            inbound_message_queue.clone(),
+            network_filter.clone(),
+            Arc::new(network_params.clone()),
+            stats.clone(),
+            syn_cookies.clone(),
+            node_id.clone(),
+            latest_keepalives.clone(),
+        ));
+
         let response_server_spawner = Arc::new(NanoResponseServerSpawner {
             tokio: runtime.clone(),
-            stats: stats.clone(),
-            node_id: node_id.clone(),
-            network: network.clone(),
-            inbound_queue: inbound_message_queue.clone(),
-            network_params: network_params.clone(),
-            syn_cookies: syn_cookies.clone(),
-            latest_keepalives: latest_keepalives.clone(),
-            network_filter: network_filter.clone(),
+            data_receiver_factory,
         });
 
         let network_adapter = Arc::new(TcpNetworkAdapter::new(

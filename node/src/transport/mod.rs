@@ -26,6 +26,7 @@ pub use latest_keepalives::*;
 pub use message_flooder::*;
 pub use message_processor::*;
 pub use message_publisher::*;
+pub(crate) use nano_data_receiver_factory::*;
 pub(crate) use network_threads::*;
 pub use peer_cache_connector::*;
 pub use peer_cache_updater::*;
