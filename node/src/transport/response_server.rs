@@ -118,12 +118,8 @@ impl ResponseServer {
 
         let mut buffer = [0u8; 1024];
 
-        let mut first_message = true;
-
         loop {
-            if !self.channel.is_alive() {
-                return;
-            }
+            // TODO: abort readable waiting if channel closed
 
             if let Err(e) = self.channel_adapter.readable().await {
                 debug!(
@@ -148,67 +144,10 @@ impl ResponseServer {
                 }
             };
 
-            // TODO: push read bytes into channel and then call a callback inside channel:
-            //self.channel.receive_data(&buffer[..read_count])
+            let new_data = &buffer[..read_count];
 
-            receiver.message_deserializer.push(&buffer[..read_count]);
-            while let Some(result) = receiver.message_deserializer.try_deserialize() {
-                let result = match result {
-                    Ok(msg) => {
-                        if first_message {
-                            // TODO: if version using changes => peer misbehaved!
-                            self.channel
-                                .set_protocol_version(msg.protocol.version_using);
-                            first_message = false;
-                        }
-                        receiver.process_message(msg.message)
-                    }
-                    Err(ParseMessageError::DuplicatePublishMessage) => {
-                        // Avoid too much noise about `duplicate_publish_message` errors
-                        self.stats.inc_dir(
-                            StatType::Filter,
-                            DetailType::DuplicatePublishMessage,
-                            Direction::In,
-                        );
-                        ProcessResult::Progress
-                    }
-                    Err(ParseMessageError::DuplicateConfirmAckMessage) => {
-                        self.stats.inc_dir(
-                            StatType::Filter,
-                            DetailType::DuplicateConfirmAckMessage,
-                            Direction::In,
-                        );
-                        ProcessResult::Progress
-                    }
-                    Err(ParseMessageError::InsufficientWork) => {
-                        // IO error or critical error when deserializing message
-                        self.stats.inc_dir(
-                            StatType::Error,
-                            DetailType::InsufficientWork,
-                            Direction::In,
-                        );
-                        ProcessResult::Progress
-                    }
-                    Err(e) => {
-                        // IO error or critical error when deserializing message
-                        self.stats
-                            .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
-                        debug!(
-                            "Error reading message: {:?} ({})",
-                            e,
-                            self.channel.peer_addr()
-                        );
-                        ProcessResult::Abort
-                    }
-                };
-
-                match result {
-                    ProcessResult::Abort => {
-                        self.channel.close();
-                        break;
-                    }
-                    ProcessResult::Progress => {}
-                }
+            if !receiver.receive(new_data) {
+                break;
             }
         }
     }
@@ -228,6 +167,7 @@ pub enum ProcessResult {
 
 pub trait DataReceiver {
     fn initialize(&mut self);
+    fn receive(&mut self, data: &[u8]) -> bool;
 }
 
 /// Receives raw data (from a TCP stream) and processes it
@@ -241,6 +181,7 @@ struct NanoDataReceiver {
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     stats: Arc<Stats>,
     network: Arc<RwLock<Network>>,
+    first_message: bool,
 }
 
 impl NanoDataReceiver {
@@ -264,6 +205,7 @@ impl NanoDataReceiver {
             latest_keepalives,
             stats,
             network,
+            first_message: true,
         }
     }
 
@@ -466,5 +408,69 @@ impl DataReceiver for NanoDataReceiver {
         if self.channel.direction() == ChannelDirection::Outbound {
             self.initiate_handshake();
         }
+    }
+
+    fn receive(&mut self, data: &[u8]) -> bool {
+        self.message_deserializer.push(data);
+        while let Some(result) = self.message_deserializer.try_deserialize() {
+            let result = match result {
+                Ok(msg) => {
+                    if self.first_message {
+                        // TODO: if version using changes => peer misbehaved!
+                        self.channel
+                            .set_protocol_version(msg.protocol.version_using);
+                        self.first_message = false;
+                    }
+                    self.process_message(msg.message)
+                }
+                Err(ParseMessageError::DuplicatePublishMessage) => {
+                    // Avoid too much noise about `duplicate_publish_message` errors
+                    self.stats.inc_dir(
+                        StatType::Filter,
+                        DetailType::DuplicatePublishMessage,
+                        Direction::In,
+                    );
+                    ProcessResult::Progress
+                }
+                Err(ParseMessageError::DuplicateConfirmAckMessage) => {
+                    self.stats.inc_dir(
+                        StatType::Filter,
+                        DetailType::DuplicateConfirmAckMessage,
+                        Direction::In,
+                    );
+                    ProcessResult::Progress
+                }
+                Err(ParseMessageError::InsufficientWork) => {
+                    // IO error or critical error when deserializing message
+                    self.stats.inc_dir(
+                        StatType::Error,
+                        DetailType::InsufficientWork,
+                        Direction::In,
+                    );
+                    ProcessResult::Progress
+                }
+                Err(e) => {
+                    // IO error or critical error when deserializing message
+                    self.stats
+                        .inc_dir(StatType::Error, DetailType::from(&e), Direction::In);
+                    debug!(
+                        "Error reading message: {:?} ({})",
+                        e,
+                        self.channel.peer_addr()
+                    );
+                    ProcessResult::Abort
+                }
+            };
+
+            match result {
+                ProcessResult::Abort => {
+                    self.channel.close();
+                    return false;
+                }
+                ProcessResult::Progress => {}
+            }
+        }
+
+        true
     }
 }
