@@ -6,7 +6,6 @@ mod network;
 mod network_observer;
 mod peer_connector;
 pub mod peer_exclusion;
-mod response_server_spawner;
 mod tcp_channel_adapter;
 mod tcp_listener;
 mod tcp_network_adapter;
@@ -21,7 +20,6 @@ pub use network::*;
 pub use network_observer::*;
 use num_derive::FromPrimitive;
 pub use peer_connector::*;
-pub use response_server_spawner::*;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,

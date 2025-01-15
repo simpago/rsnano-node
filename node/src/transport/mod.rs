@@ -13,7 +13,6 @@ mod network_threads;
 mod peer_cache_connector;
 mod peer_cache_updater;
 mod realtime_message_handler;
-mod response_server_spawner;
 mod syn_cookies;
 mod vec_buffer_reader;
 
@@ -30,6 +29,5 @@ pub(crate) use network_threads::*;
 pub use peer_cache_connector::*;
 pub use peer_cache_updater::*;
 pub use realtime_message_handler::RealtimeMessageHandler;
-pub use response_server_spawner::*;
 pub use syn_cookies::SynCookies;
 pub use vec_buffer_reader::VecBufferReader;

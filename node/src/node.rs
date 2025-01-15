@@ -26,8 +26,7 @@ use crate::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
         InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup,
         MessageFlooder, MessageProcessor, MessagePublisher, NanoDataReceiverFactory,
-        NanoResponseServerSpawner, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
-        RealtimeMessageHandler, SynCookies,
+        NetworkThreads, PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -613,15 +612,10 @@ impl Node {
             latest_keepalives.clone(),
         ));
 
-        let response_server_spawner = Arc::new(NanoResponseServerSpawner {
-            tokio: runtime.clone(),
-        });
-
         let network_adapter = Arc::new(TcpNetworkAdapter::new(
             network.clone(),
             steady_clock.clone(),
             runtime.clone(),
-            response_server_spawner,
             data_receiver_factory,
         ));
 

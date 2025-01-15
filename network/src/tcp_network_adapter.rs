@@ -1,7 +1,6 @@
 use crate::{
     utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DataReceiverFactory,
-    DeadChannelCleanupStep, Network, NullDataReceiverFactory, NullResponseServerSpawner,
-    ResponseServerSpawner, TcpChannelAdapter,
+    DeadChannelCleanupStep, Network, NullDataReceiverFactory, TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -19,8 +18,7 @@ pub struct TcpNetworkAdapter {
     channel_adapters: Mutex<HashMap<ChannelId, Arc<TcpChannelAdapter>>>,
     network: Arc<RwLock<Network>>,
     clock: Arc<SteadyClock>,
-    handle: tokio::runtime::Handle,
-    response_server_spawner: Arc<dyn ResponseServerSpawner>,
+    tokio: tokio::runtime::Handle,
     data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
 }
 
@@ -29,15 +27,13 @@ impl TcpNetworkAdapter {
         network_info: Arc<RwLock<Network>>,
         clock: Arc<SteadyClock>,
         handle: tokio::runtime::Handle,
-        response_server_spawner: Arc<dyn ResponseServerSpawner>,
         data_receiver_factory: Box<dyn DataReceiverFactory + Send + Sync>,
     ) -> Self {
         Self {
             channel_adapters: Mutex::new(HashMap::new()),
             clock,
             network: network_info,
-            handle,
-            response_server_spawner,
+            tokio: handle,
             data_receiver_factory,
         }
     }
@@ -83,7 +79,7 @@ impl TcpNetworkAdapter {
         let channel = channel.map_err(|e| anyhow!("Could not add channel: {:?}", e))?;
         let channel_id = channel.channel_id();
         let channel_adapter =
-            TcpChannelAdapter::create(channel, stream, self.clock.clone(), &self.handle);
+            TcpChannelAdapter::create(channel, stream, self.clock.clone(), &self.tokio);
 
         self.channel_adapters
             .lock()
@@ -97,10 +93,38 @@ impl TcpNetworkAdapter {
             .create_receiver_for(channel_adapter.channel.clone());
         receiver.initialize();
 
-        self.response_server_spawner
-            .spawn(channel_adapter.clone(), receiver);
+        let result = channel_adapter.clone();
+        self.tokio.spawn(async move {
+            let channel = channel_adapter.channel.clone();
+            let mut buffer = [0u8; 1024];
 
-        Ok(channel_adapter)
+            loop {
+                // TODO: abort readable waiting if channel closed
+
+                if let Err(e) = channel_adapter.readable().await {
+                    debug!("Error reading buffer: {:?} ({})", e, channel.peer_addr());
+                    channel.close();
+                    return;
+                }
+
+                let read_count = match channel_adapter.try_read(&mut buffer) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        debug!("Error reading buffer: {:?} ({})", e, channel.peer_addr());
+                        channel.close();
+                        return;
+                    }
+                };
+
+                let new_data = &buffer[..read_count];
+
+                if !receiver.receive(new_data) {
+                    break;
+                }
+            }
+        });
+
+        Ok(result)
     }
 
     pub fn add_outbound_attempt(&self, peer: SocketAddrV6) -> bool {
@@ -123,7 +147,6 @@ impl TcpNetworkAdapter {
             Arc::new(RwLock::new(Network::new_test_instance())),
             Arc::new(SteadyClock::new_null()),
             handle,
-            Arc::new(NullResponseServerSpawner::new()),
             Box::new(NullDataReceiverFactory::new()),
         )
     }
