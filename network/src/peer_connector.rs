@@ -101,8 +101,7 @@ async fn connect_impl(
     network_adapter: &TcpNetworkAdapter,
 ) -> anyhow::Result<()> {
     let tcp_stream = connect_stream(peer).await?;
-    network_adapter.add(tcp_stream, ChannelDirection::Outbound)?;
-    Ok(())
+    network_adapter.add(tcp_stream, ChannelDirection::Outbound)
 }
 
 async fn connect_stream(peer: SocketAddrV6) -> tokio::io::Result<TcpStream> {

@@ -7,7 +7,7 @@ use rsnano_core::NodeId;
 use rsnano_messages::*;
 use rsnano_network::{Channel, ChannelDirection, ChannelMode, DataReceiver, Network};
 use std::{
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, Weak},
     time::Instant,
 };
 use tracing::debug;
@@ -21,8 +21,7 @@ pub(crate) struct NanoDataReceiver {
     network_params: Arc<NetworkParams>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     stats: Arc<Stats>,
-    // TODO hold weak pointer
-    network: Arc<RwLock<Network>>,
+    network: Weak<RwLock<Network>>,
     first_message: bool,
 }
 
@@ -35,7 +34,7 @@ impl NanoDataReceiver {
         inbound_queue: Arc<InboundMessageQueue>,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
         stats: Arc<Stats>,
-        network: Arc<RwLock<Network>>,
+        network: Weak<RwLock<Network>>,
     ) -> Self {
         Self {
             channel,
@@ -130,8 +129,11 @@ impl NanoDataReceiver {
             return false;
         }
 
-        let result = self
-            .network
+        let Some(network) = self.network.upgrade() else {
+            return false;
+        };
+
+        let result = network
             .read()
             .unwrap()
             .upgrade_to_realtime_connection(self.channel.channel_id(), *node_id);
@@ -206,7 +208,9 @@ impl NanoDataReceiver {
                     );
                     if matches!(result, HandshakeStatus::AbortOwnNodeId) {
                         if let Some(peering_addr) = self.channel.peering_addr() {
-                            self.network.write().unwrap().perma_ban(peering_addr);
+                            if let Some(network) = self.network.upgrade() {
+                                network.write().unwrap().perma_ban(peering_addr);
+                            }
                         }
                     }
                     return ProcessResult::Abort;

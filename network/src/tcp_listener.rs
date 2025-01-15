@@ -129,7 +129,7 @@ impl TcpListenerExt for Arc<TcpListener> {
                     .network_adapter
                     .add(tcp_stream, ChannelDirection::Inbound)
                 {
-                    Ok(_) => {}
+                    Ok(()) => {}
                     Err(e) => {
                         warn!("Could not accept incoming connection: {:?}", e);
                     }

@@ -6,12 +6,12 @@ use crate::{stats::Stats, NetworkParams};
 use rsnano_core::PrivateKey;
 use rsnano_messages::*;
 use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 
 pub(crate) struct NanoDataReceiverFactory {
     network_params: Arc<NetworkParams>,
     stats: Arc<Stats>,
-    network: Arc<RwLock<Network>>,
+    network: Weak<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
     network_filter: Arc<NetworkFilter>,
     syn_cookies: Arc<SynCookies>,
@@ -21,7 +21,7 @@ pub(crate) struct NanoDataReceiverFactory {
 
 impl NanoDataReceiverFactory {
     pub fn new(
-        network: Arc<RwLock<Network>>,
+        network: &Arc<RwLock<Network>>,
         inbound_queue: Arc<InboundMessageQueue>,
         network_filter: Arc<NetworkFilter>,
         network_params: Arc<NetworkParams>,
@@ -31,7 +31,7 @@ impl NanoDataReceiverFactory {
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
         Self {
-            network,
+            network: Arc::downgrade(network),
             inbound_queue,
             syn_cookies: syn_cookies.clone(),
             node_id: node_id.clone(),

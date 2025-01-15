@@ -55,11 +55,7 @@ impl TcpNetworkAdapter {
         !network.is_inbound_slot_available() && !network.is_stopped()
     }
 
-    pub fn add(
-        &self,
-        stream: TcpStream,
-        direction: ChannelDirection,
-    ) -> anyhow::Result<Arc<TcpChannelAdapter>> {
+    pub fn add(&self, stream: TcpStream, direction: ChannelDirection) -> anyhow::Result<()> {
         let peer_addr = stream
             .peer_addr()
             .map(into_ipv6_socket_address)
@@ -93,7 +89,6 @@ impl TcpNetworkAdapter {
             .create_receiver_for(channel_adapter.channel.clone());
         receiver.initialize();
 
-        let result = channel_adapter.clone();
         self.tokio.spawn(async move {
             let channel = channel_adapter.channel.clone();
             let mut buffer = [0u8; 1024];
@@ -124,7 +119,7 @@ impl TcpNetworkAdapter {
             }
         });
 
-        Ok(result)
+        Ok(())
     }
 
     pub fn add_outbound_attempt(&self, peer: SocketAddrV6) -> bool {

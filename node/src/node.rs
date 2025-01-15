@@ -602,7 +602,7 @@ impl Node {
         dead_channel_cleanup.add_step(LatestKeepalivesCleanup::new(latest_keepalives.clone()));
 
         let data_receiver_factory = Box::new(NanoDataReceiverFactory::new(
-            network.clone(),
+            &network,
             inbound_message_queue.clone(),
             network_filter.clone(),
             Arc::new(network_params.clone()),
