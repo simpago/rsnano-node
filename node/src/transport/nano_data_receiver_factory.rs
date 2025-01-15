@@ -58,8 +58,7 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             self.network_filter.clone(),
             self.network_params.network.work.clone(),
         );
-
-        Box::new(NanoDataReceiver::new(
+        let mut receiver = NanoDataReceiver::new(
             channel,
             self.network_params.clone(),
             handshake_process,
@@ -68,6 +67,10 @@ impl DataReceiverFactory for NanoDataReceiverFactory {
             self.latest_keepalives.clone(),
             self.stats.clone(),
             self.network.clone(),
-        ))
+        );
+
+        receiver.ensure_handshake();
+
+        Box::new(receiver)
     }
 }

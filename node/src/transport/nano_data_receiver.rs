@@ -50,6 +50,12 @@ impl NanoDataReceiver {
         }
     }
 
+    pub fn ensure_handshake(&mut self) {
+        if self.channel.direction() == ChannelDirection::Outbound {
+            self.initiate_handshake();
+        }
+    }
+
     fn initiate_handshake(&self) {
         if self
             .handshake_process
@@ -250,12 +256,6 @@ impl NanoDataReceiver {
 }
 
 impl DataReceiver for NanoDataReceiver {
-    fn initialize(&mut self) {
-        if self.channel.direction() == ChannelDirection::Outbound {
-            self.initiate_handshake();
-        }
-    }
-
     fn receive(&mut self, data: &[u8]) -> bool {
         self.message_deserializer.push(data);
         while let Some(result) = self.message_deserializer.try_deserialize() {

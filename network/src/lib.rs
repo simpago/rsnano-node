@@ -114,7 +114,6 @@ pub trait DataReceiverFactory {
 }
 
 pub trait DataReceiver {
-    fn initialize(&mut self);
     fn receive(&mut self, data: &[u8]) -> bool;
 }
 
@@ -141,8 +140,6 @@ impl NullDataReceiver {
 }
 
 impl DataReceiver for NullDataReceiver {
-    fn initialize(&mut self) {}
-
     fn receive(&mut self, _: &[u8]) -> bool {
         true
     }
