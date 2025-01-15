@@ -22,7 +22,10 @@ pub use network_observer::*;
 use num_derive::FromPrimitive;
 pub use peer_connector::*;
 pub use response_server_spawner::*;
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 pub use tcp_channel_adapter::*;
 pub use tcp_listener::*;
 pub use tcp_network_adapter::*;
@@ -106,4 +109,43 @@ pub enum DropPolicy {
 #[async_trait]
 pub trait AsyncBufferReader {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()>;
+}
+
+pub trait DataReceiverFactory {
+    fn create_receiver_for(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send>;
+}
+
+pub trait DataReceiver {
+    fn initialize(&mut self);
+    fn receive(&mut self, data: &[u8]) -> bool;
+}
+
+pub struct NullDataReceiverFactory;
+
+impl NullDataReceiverFactory {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl DataReceiverFactory for NullDataReceiverFactory {
+    fn create_receiver_for(&self, _channel: Arc<Channel>) -> Box<dyn DataReceiver + Send> {
+        Box::new(NullDataReceiver::new())
+    }
+}
+
+pub struct NullDataReceiver;
+
+impl NullDataReceiver {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl DataReceiver for NullDataReceiver {
+    fn initialize(&mut self) {}
+
+    fn receive(&mut self, _: &[u8]) -> bool {
+        true
+    }
 }

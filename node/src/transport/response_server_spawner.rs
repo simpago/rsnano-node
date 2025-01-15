@@ -1,5 +1,5 @@
-use super::{nano_data_receiver_factory::DataReceiverFactory, response_server::ResponseServer};
-use rsnano_network::{ResponseServerSpawner, TcpChannelAdapter};
+use super::response_server::ResponseServer;
+use rsnano_network::{DataReceiverFactory, ResponseServerSpawner, TcpChannelAdapter};
 use std::sync::Arc;
 
 pub struct NanoResponseServerSpawner {

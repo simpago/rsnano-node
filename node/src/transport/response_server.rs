@@ -1,5 +1,4 @@
-use super::nano_data_receiver_factory::DataReceiver;
-use rsnano_network::{Channel, TcpChannelAdapter};
+use rsnano_network::{Channel, DataReceiver, TcpChannelAdapter};
 use std::sync::Arc;
 use tracing::debug;
 

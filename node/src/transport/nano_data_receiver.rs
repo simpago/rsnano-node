@@ -1,14 +1,11 @@
-use super::{
-    nano_data_receiver_factory::DataReceiver, HandshakeProcess, HandshakeStatus,
-    InboundMessageQueue, LatestKeepalives,
-};
+use super::{HandshakeProcess, HandshakeStatus, InboundMessageQueue, LatestKeepalives};
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
     NetworkParams,
 };
 use rsnano_core::NodeId;
 use rsnano_messages::*;
-use rsnano_network::{Channel, ChannelDirection, ChannelMode, Network};
+use rsnano_network::{Channel, ChannelDirection, ChannelMode, DataReceiver, Network};
 use std::{
     sync::{Arc, Mutex, RwLock},
     time::Instant,

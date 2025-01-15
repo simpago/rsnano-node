@@ -5,17 +5,8 @@ use super::{
 use crate::{stats::Stats, NetworkParams};
 use rsnano_core::PrivateKey;
 use rsnano_messages::*;
-use rsnano_network::{Channel, Network};
+use rsnano_network::{Channel, DataReceiver, DataReceiverFactory, Network};
 use std::sync::{Arc, Mutex, RwLock};
-
-pub trait DataReceiverFactory {
-    fn create_receiver_for(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send>;
-}
-
-pub trait DataReceiver {
-    fn initialize(&mut self);
-    fn receive(&mut self, data: &[u8]) -> bool;
-}
 
 pub(crate) struct NanoDataReceiverFactory {
     network_params: Arc<NetworkParams>,
