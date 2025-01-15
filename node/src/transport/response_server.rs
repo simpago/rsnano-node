@@ -53,9 +53,10 @@ pub struct ResponseServer {
     stats: Arc<Stats>,
     network: Arc<RwLock<Network>>,
     inbound_queue: Arc<InboundMessageQueue>,
-    handshake_process: HandshakeProcess,
     network_filter: Arc<NetworkFilter>,
     latest_keepalives: Arc<Mutex<LatestKeepalives>>,
+    syn_cookies: Arc<SynCookies>,
+    node_id: PrivateKey,
 }
 
 impl ResponseServer {
@@ -70,7 +71,6 @@ impl ResponseServer {
         node_id: PrivateKey,
         latest_keepalives: Arc<Mutex<LatestKeepalives>>,
     ) -> Self {
-        let network_constants = network_params.network.clone();
         let channel = channel_adapter.channel.clone();
         Self {
             network,
@@ -78,13 +78,8 @@ impl ResponseServer {
             channel,
             channel_adapter,
             last_telemetry_req: Mutex::new(None),
-            handshake_process: HandshakeProcess::new(
-                network_params.ledger.genesis_block.hash(),
-                node_id.clone(),
-                syn_cookies,
-                stats.clone(),
-                network_constants.protocol_info(),
-            ),
+            syn_cookies: syn_cookies.clone(),
+            node_id: node_id.clone(),
             network_params,
             stats: stats.clone(),
             network_filter,
@@ -114,20 +109,17 @@ impl ResponseServer {
             .insert(self.channel.channel_id(), keepalive);
     }
 
-    pub fn initiate_handshake(&self) {
-        if self
-            .handshake_process
-            .initiate_handshake(&self.channel)
-            .is_err()
-        {
-            self.channel.close();
-        }
-    }
-
     pub async fn run(&self) {
-        if self.channel.direction() == ChannelDirection::Outbound {
-            self.initiate_handshake();
-        }
+        let handshake_process = HandshakeProcess::new(
+            self.network_params.ledger.genesis_block.hash(),
+            self.node_id.clone(),
+            self.syn_cookies.clone(),
+            self.stats.clone(),
+            self.network_params.network.protocol_info(),
+        );
+
+        let mut receiver = NanoDataReceiver::new(self.channel.clone(), handshake_process);
+        receiver.initialize();
 
         debug!(peer = %self.channel.peer_addr(), "Starting response server");
         let mut buffer = [0u8; 1024];
@@ -181,7 +173,7 @@ impl ResponseServer {
                                 .set_protocol_version(msg.protocol.version_using);
                             first_message = false;
                         }
-                        self.process_message(msg.message)
+                        self.process_message(msg.message, &receiver)
                     }
                     Err(ParseMessageError::DuplicatePublishMessage) => {
                         // Avoid too much noise about `duplicate_publish_message` errors
@@ -233,7 +225,7 @@ impl ResponseServer {
         }
     }
 
-    fn process_message(&self, message: Message) -> ProcessResult {
+    fn process_message(&self, message: Message, receiver: &NanoDataReceiver) -> ProcessResult {
         self.stats.inc_dir(
             StatType::TcpServer,
             DetailType::from(message.message_type()),
@@ -257,7 +249,7 @@ impl ResponseServer {
                 | Message::BulkPullAccount(_)
                 | Message::BulkPush
                 | Message::FrontierReq(_) => HandshakeStatus::Bootstrap,
-                Message::NodeIdHandshake(payload) => self
+                Message::NodeIdHandshake(payload) => receiver
                     .handshake_process
                     .process_handshake(payload, &self.channel),
 
@@ -405,4 +397,35 @@ impl Drop for ResponseServer {
 pub enum ProcessResult {
     Abort,
     Progress,
+}
+
+/// Receives raw data (from a TCP stream) and processes it
+struct NanoDataReceiver {
+    channel: Arc<Channel>,
+    handshake_process: HandshakeProcess,
+}
+
+impl NanoDataReceiver {
+    fn new(channel: Arc<Channel>, handshake_process: HandshakeProcess) -> Self {
+        Self {
+            channel,
+            handshake_process,
+        }
+    }
+
+    pub fn initialize(&mut self) {
+        if self.channel.direction() == ChannelDirection::Outbound {
+            self.initiate_handshake();
+        }
+    }
+
+    fn initiate_handshake(&self) {
+        if self
+            .handshake_process
+            .initiate_handshake(&self.channel)
+            .is_err()
+        {
+            self.channel.close();
+        }
+    }
 }
