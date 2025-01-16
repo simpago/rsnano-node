@@ -302,6 +302,8 @@ pub enum DetailType {
     Generic,
     BootstrapServer,
     BootstrapRequests,
+    BlockBroadcast,
+    ConfirmationRequests,
 
     // tcp
     TcpWriteDrop,

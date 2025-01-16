@@ -5,7 +5,7 @@ use rsnano_messages::{ConfirmReq, Message, Publish};
 use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
 use std::{
     cmp::max,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{atomic::Ordering, MutexGuard, RwLock},
 };
 
@@ -21,7 +21,6 @@ pub struct ConfirmationSolicitor<'a> {
     representative_requests: Vec<PeeredRep>,
     representative_broadcasts: Vec<PeeredRep>,
     requests: HashMap<ChannelId, Vec<(BlockHash, Root)>>,
-    channels: HashSet<ChannelId>,
     prepared: bool,
     rebroadcasted: usize,
     message_flooder: MessageFlooder,
@@ -47,7 +46,6 @@ impl<'a> ConfirmationSolicitor<'a> {
             representative_requests: Vec::new(),
             representative_broadcasts: Vec::new(),
             requests: HashMap::new(),
-            channels: HashSet::new(),
             rebroadcasted: 0,
             message_flooder,
         }
@@ -91,14 +89,18 @@ impl<'a> ConfirmationSolicitor<'a> {
                     i.channel_id,
                     &winner,
                     DropPolicy::CanDrop,
-                    TrafficType::Generic,
+                    TrafficType::BlockBroadcast,
                 );
             }
         }
         // Random flood for block propagation
         // TODO: Avoid broadcasting to the same peers that were already broadcasted to
-        self.message_flooder
-            .flood(&winner, TrafficType::Generic, DropPolicy::CanDrop, 0.5);
+        self.message_flooder.flood(
+            &winner,
+            TrafficType::BlockBroadcast,
+            DropPolicy::CanDrop,
+            0.5,
+        );
         Ok(())
     }
 
@@ -128,15 +130,14 @@ impl<'a> ConfirmationSolicitor<'a> {
                 false
             };
             if !exists || !is_final || different {
-                let request_queue = self.requests.entry(rep.channel_id).or_default();
-                self.channels.insert(rep.channel_id);
-                let queue_full = self
+                let should_drop = self
                     .network
                     .read()
                     .unwrap()
-                    .should_drop(rep.channel_id, TrafficType::Generic);
+                    .should_drop(rep.channel_id, TrafficType::ConfirmationRequests);
 
-                if !queue_full {
+                if !should_drop {
+                    let request_queue = self.requests.entry(rep.channel_id).or_default();
                     request_queue.push((winner.hash(), winner.root()));
                     if !different {
                         count += 1;
@@ -162,21 +163,19 @@ impl<'a> ConfirmationSolicitor<'a> {
     /// Dispatch bundled requests to each channel
     pub fn flush(&mut self) {
         debug_assert!(self.prepared);
-        for channel_id in &self.channels {
+        for (channel_id, requests) in &self.requests {
             let mut roots_hashes = Vec::new();
-            if let Some(requests) = self.requests.get(channel_id) {
-                for root_hash in requests {
-                    roots_hashes.push(root_hash.clone());
-                    if roots_hashes.len() == ConfirmReq::HASHES_MAX {
-                        let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
-                        self.message_flooder.try_send(
-                            *channel_id,
-                            &req,
-                            DropPolicy::CanDrop,
-                            TrafficType::Generic,
-                        );
-                        roots_hashes = Vec::new();
-                    }
+            for root_hash in requests {
+                roots_hashes.push(root_hash.clone());
+                if roots_hashes.len() == ConfirmReq::HASHES_MAX {
+                    let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
+                    self.message_flooder.try_send(
+                        *channel_id,
+                        &req,
+                        DropPolicy::CanDrop,
+                        TrafficType::ConfirmationRequests,
+                    );
+                    roots_hashes = Vec::new();
                 }
             }
             if !roots_hashes.is_empty() {
@@ -185,7 +184,7 @@ impl<'a> ConfirmationSolicitor<'a> {
                     *channel_id,
                     &req,
                     DropPolicy::CanDrop,
-                    TrafficType::Generic,
+                    TrafficType::ConfirmationRequests,
                 );
             }
         }

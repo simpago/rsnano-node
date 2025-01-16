@@ -237,6 +237,8 @@ impl From<TrafficType> for DetailType {
             TrafficType::Generic => DetailType::Generic,
             TrafficType::BootstrapServer => DetailType::BootstrapServer,
             TrafficType::BootstrapRequests => DetailType::BootstrapRequests,
+            TrafficType::BlockBroadcast => DetailType::BlockBroadcast,
+            TrafficType::ConfirmationRequests => DetailType::ConfirmationRequests,
         }
     }
 }
