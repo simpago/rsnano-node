@@ -231,7 +231,7 @@ impl Channel {
     }
 
     pub fn should_drop(&self, traffic_type: TrafficType) -> bool {
-        self.write_queue.free_capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
+        self.write_queue.free_capacity(traffic_type) == 0
     }
 
     pub fn send(&self, buffer: &[u8], traffic_type: TrafficType) -> bool {

@@ -49,7 +49,6 @@ where
         self.queues.get(source).map(|q| q.len()).unwrap_or_default()
     }
 
-    #[allow(dead_code)]
     pub fn max_len(&self, source: &S) -> usize {
         self.queues
             .get(source)
@@ -57,7 +56,6 @@ where
             .unwrap_or_default()
     }
 
-    #[allow(dead_code)]
     pub fn priority(&self, source: &S) -> usize {
         self.queues
             .get(source)
@@ -80,7 +78,6 @@ where
         self.len() == 0
     }
 
-    #[allow(dead_code)]
     pub fn queues_len(&self) -> usize {
         self.queues.len()
     }

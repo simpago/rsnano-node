@@ -17,7 +17,13 @@ pub struct WriteQueue {
 impl WriteQueue {
     pub fn new(max_size: usize, observer: Arc<dyn NetworkObserver>) -> Self {
         Self {
-            queue: Mutex::new(FairQueue::new(move |_| max_size * 2, |_| 1)),
+            queue: Mutex::new(FairQueue::new(
+                move |_| max_size,
+                |traffic_type| match traffic_type {
+                    TrafficType::BlockBroadcast | TrafficType::VoteRebroadcast => 1,
+                    _ => 4,
+                },
+            )),
             notify_enqueued: Notify::new(),
             notify_dequeued: Notify::new(),
             closed: AtomicBool::new(false),
