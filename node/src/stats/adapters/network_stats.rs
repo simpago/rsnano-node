@@ -244,6 +244,7 @@ impl From<TrafficType> for DetailType {
             TrafficType::Keepalive => DetailType::Keepalive,
             TrafficType::Vote => DetailType::Vote,
             TrafficType::VoteRebroadcast => DetailType::VoteRebroadcast,
+            TrafficType::RepCrawler => DetailType::RepCrawler,
         }
     }
 }

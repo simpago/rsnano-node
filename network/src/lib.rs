@@ -83,6 +83,7 @@ pub enum TrafficType {
     Keepalive,
     Vote,
     VoteRebroadcast,
+    RepCrawler,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]

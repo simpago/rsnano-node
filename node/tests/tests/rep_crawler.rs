@@ -52,7 +52,7 @@ fn ignore_rebroadcast() {
             channel2to1,
             &msg,
             DropPolicy::ShouldNotDrop,
-            TrafficType::Generic,
+            TrafficType::RepCrawler,
         );
         false
     };

@@ -307,6 +307,7 @@ pub enum DetailType {
     BlockBroadcastInitial,
     ConfirmationRequests,
     VoteRebroadcast,
+    RepCrawler,
 
     // tcp
     TcpWriteDrop,
