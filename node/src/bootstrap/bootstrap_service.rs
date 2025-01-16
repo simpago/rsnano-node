@@ -135,43 +135,34 @@ impl BootstrapService {
     }
 
     fn send(&self, channel_id: ChannelId, request: &Message, id: u64) -> bool {
-        self.stats.inc(StatType::Bootstrap, DetailType::Request);
-
-        let query_type = QueryType::from(request);
-        self.stats
-            .inc(StatType::BootstrapRequest, query_type.into());
-
-        let enqueued = self.message_sender.lock().unwrap().try_send(
+        let sent = self.message_sender.lock().unwrap().try_send(
             channel_id,
             &request,
             DropPolicy::CanDrop,
-            TrafficType::Bootstrap,
+            TrafficType::BootstrapRequests,
         );
 
-        // TODO: nano_node does execute the following logic only after the message
-        // was actually sent
+        if sent {
+            self.stats.inc(StatType::Bootstrap, DetailType::Request);
+            let query_type = QueryType::from(request);
+            self.stats
+                .inc(StatType::BootstrapRequest, query_type.into());
+        } else {
+            self.stats
+                .inc(StatType::Bootstrap, DetailType::RequestFailed);
+        }
+
         let mut guard = self.mutex.lock().unwrap();
         if let Some(tag) = guard.tags.get_mut(id) {
-            if enqueued {
-                self.stats.inc_dir(
-                    StatType::Bootstrap,
-                    DetailType::RequestSuccess,
-                    Direction::Out,
-                );
+            if sent {
                 // After the request has been sent, the peer has a limited time to respond
                 tag.cutoff = self.clock.now() + self.config.request_timeout;
             } else {
-                self.stats.inc_dir(
-                    StatType::Bootstrap,
-                    DetailType::RequestFailed,
-                    Direction::Out,
-                );
                 guard.tags.remove(id);
             }
         }
 
-        // TODO: Return channel send result
-        true
+        sent
     }
 
     fn create_asc_pull_request(&self, tag: &AsyncTag) -> Message {

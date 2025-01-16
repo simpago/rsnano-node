@@ -35,7 +35,7 @@ impl PeerScoring {
         self.channels
             .iter()
             .find(|c| {
-                if !c.is_queue_full(TrafficType::Bootstrap) {
+                if !c.is_queue_full(TrafficType::BootstrapRequests) {
                     if !Self::try_send_message(&mut self.scoring, c, &self.config) {
                         true
                     } else {

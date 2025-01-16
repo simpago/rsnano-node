@@ -76,6 +76,7 @@ pub enum TrafficType {
     /// Ascending bootstrap (asc_pull_ack, asc_pull_req) traffic
     Bootstrap, // TODO remove
     BootstrapServer,
+    BootstrapRequests,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]
