@@ -303,6 +303,7 @@ pub enum DetailType {
     BootstrapServer,
     BootstrapRequests,
     BlockBroadcast,
+    BlockBroadcastRpc,
     ConfirmationRequests,
 
     // tcp

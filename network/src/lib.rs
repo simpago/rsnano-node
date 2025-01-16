@@ -77,6 +77,7 @@ pub enum TrafficType {
     BootstrapServer,
     BootstrapRequests,
     BlockBroadcast,
+    BlockBroadcastRpc,
     ConfirmationRequests,
 }
 

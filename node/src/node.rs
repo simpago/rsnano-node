@@ -1669,7 +1669,7 @@ impl NodeExt for Arc<Node> {
             let publish = Message::Publish(Publish::new_forward(block));
             self.message_flooder.lock().unwrap().flood(
                 &publish,
-                TrafficType::Generic,
+                TrafficType::BlockBroadcastRpc,
                 DropPolicy::CanDrop,
                 1.0,
             );

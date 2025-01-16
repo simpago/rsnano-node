@@ -531,8 +531,8 @@ impl ActiveElections {
                     let mut publisher = self.message_flooder.lock().unwrap();
                     publisher.flood(
                         &message,
-                        TrafficType::Generic,
-                        DropPolicy::ShouldNotDrop,
+                        TrafficType::BlockBroadcast,
+                        DropPolicy::CanDrop,
                         1.0,
                     );
                 }
