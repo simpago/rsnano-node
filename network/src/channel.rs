@@ -56,7 +56,7 @@ pub struct Channel {
 }
 
 impl Channel {
-    const MAX_QUEUE_SIZE: usize = 128;
+    const MAX_QUEUE_SIZE: usize = 64;
 
     pub fn new(
         channel_id: ChannelId,
