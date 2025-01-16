@@ -5,7 +5,9 @@ use crate::{
 };
 use rsnano_core::NodeId;
 use rsnano_messages::*;
-use rsnano_network::{Channel, ChannelDirection, ChannelMode, DataReceiver, Network};
+use rsnano_network::{
+    Channel, ChannelDirection, ChannelMode, DataReceiver, Network, ReceiveResult,
+};
 use std::{
     sync::{Arc, Mutex, RwLock, Weak},
     time::Instant,
@@ -23,6 +25,7 @@ pub(crate) struct NanoDataReceiver {
     stats: Arc<Stats>,
     network: Weak<RwLock<Network>>,
     first_message: bool,
+    node_id: NodeId,
 }
 
 impl NanoDataReceiver {
@@ -47,6 +50,7 @@ impl NanoDataReceiver {
             stats,
             network,
             first_message: true,
+            node_id: NodeId::ZERO,
         }
     }
 
@@ -93,7 +97,7 @@ impl NanoDataReceiver {
             .insert(self.channel.channel_id(), keepalive);
     }
 
-    fn process_realtime(&self, message: Message) -> ProcessResult {
+    fn process_realtime(&self, message: Message) -> ReceiveResult {
         let process = match &message {
             Message::Keepalive(keepalive) => {
                 self.set_last_keepalive(keepalive.clone());
@@ -127,7 +131,7 @@ impl NanoDataReceiver {
             self.queue_realtime(message);
         }
 
-        ProcessResult::Progress
+        ReceiveResult::Continue
     }
 
     fn to_realtime_connection(&self, node_id: &NodeId) -> bool {
@@ -169,7 +173,7 @@ impl NanoDataReceiver {
         }
     }
 
-    fn process_message(&self, message: Message) -> ProcessResult {
+    fn process_message(&mut self, message: Message) -> ReceiveResult {
         self.stats.inc_dir(
             StatType::TcpServer,
             DetailType::from(message.message_type()),
@@ -219,31 +223,20 @@ impl NanoDataReceiver {
                             }
                         }
                     }
-                    return ProcessResult::Abort;
+                    return ReceiveResult::Abort;
                 }
                 HandshakeStatus::Handshake => {
-                    return ProcessResult::Progress; // Continue handshake
+                    return ReceiveResult::Continue; // Continue handshake
                 }
                 HandshakeStatus::Realtime(node_id) => {
-                    if !self.to_realtime_connection(&node_id) {
-                        self.stats.inc_dir(
-                            StatType::TcpServer,
-                            DetailType::HandshakeError,
-                            Direction::In,
-                        );
-                        debug!(
-                            "Error switching to realtime mode ({})",
-                            self.channel.peer_addr()
-                        );
-                        return ProcessResult::Abort;
-                    }
-                    self.queue_realtime(message);
-                    return ProcessResult::Progress; // Continue receiving new messages
+                    self.node_id = node_id;
+                    // Wait until send queue is empty for the handshake to complete
+                    return ReceiveResult::Pause;
                 }
                 HandshakeStatus::Bootstrap => {
                     debug!(peer = ?self.channel.peer_addr(), "Legacy bootstrap isn't supported. Closing connection");
                     // Legacy bootstrap is not supported anymore
-                    return ProcessResult::Abort;
+                    return ReceiveResult::Abort;
                 }
             }
         } else if self.channel.mode() == ChannelMode::Realtime {
@@ -251,12 +244,12 @@ impl NanoDataReceiver {
         }
 
         debug_assert!(false);
-        ProcessResult::Abort
+        ReceiveResult::Abort
     }
 }
 
 impl DataReceiver for NanoDataReceiver {
-    fn receive(&mut self, data: &[u8]) -> bool {
+    fn receive(&mut self, data: &[u8]) -> ReceiveResult {
         self.message_deserializer.push(data);
         while let Some(result) = self.message_deserializer.try_deserialize() {
             let result = match result {
@@ -276,7 +269,7 @@ impl DataReceiver for NanoDataReceiver {
                         DetailType::DuplicatePublishMessage,
                         Direction::In,
                     );
-                    ProcessResult::Progress
+                    ReceiveResult::Continue
                 }
                 Err(ParseMessageError::DuplicateConfirmAckMessage) => {
                     self.stats.inc_dir(
@@ -284,7 +277,7 @@ impl DataReceiver for NanoDataReceiver {
                         DetailType::DuplicateConfirmAckMessage,
                         Direction::In,
                     );
-                    ProcessResult::Progress
+                    ReceiveResult::Continue
                 }
                 Err(ParseMessageError::InsufficientWork) => {
                     // IO error or critical error when deserializing message
@@ -293,7 +286,7 @@ impl DataReceiver for NanoDataReceiver {
                         DetailType::InsufficientWork,
                         Direction::In,
                     );
-                    ProcessResult::Progress
+                    ReceiveResult::Continue
                 }
                 Err(e) => {
                     // IO error or critical error when deserializing message
@@ -304,20 +297,45 @@ impl DataReceiver for NanoDataReceiver {
                         e,
                         self.channel.peer_addr()
                     );
-                    ProcessResult::Abort
+                    ReceiveResult::Abort
                 }
             };
 
-            match result {
-                ProcessResult::Abort => {
-                    self.channel.close();
-                    return false;
-                }
-                ProcessResult::Progress => {}
+            if !matches!(result, ReceiveResult::Continue) {
+                return result;
             }
         }
 
-        true
+        ReceiveResult::Continue
+    }
+
+    fn try_unpause(&self) -> ReceiveResult {
+        if self.channel.mode() != ChannelMode::Undefined {
+            // Pausing is currently only needed during handshake
+            return ReceiveResult::Continue;
+        }
+
+        // Wait until all outbound messages are processed.
+        // This is needed for the handshake because the channel can't be upgraded to
+        // a realtime channel unless the handshake response is actually sent out
+        if self.channel.queue_len() > 0 {
+            return ReceiveResult::Pause;
+        }
+
+        if !self.to_realtime_connection(&self.node_id) {
+            self.stats.inc_dir(
+                StatType::TcpServer,
+                DetailType::HandshakeError,
+                Direction::In,
+            );
+            debug!(
+                "Error switching to realtime mode ({})",
+                self.channel.peer_addr()
+            );
+            return ReceiveResult::Abort;
+        }
+
+        ReceiveResult::Continue
     }
 }
 
@@ -325,9 +343,4 @@ impl Drop for NanoDataReceiver {
     fn drop(&mut self) {
         self.channel.close();
     }
-}
-
-enum ProcessResult {
-    Abort,
-    Progress,
 }

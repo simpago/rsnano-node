@@ -117,8 +117,16 @@ pub trait DataReceiverFactory {
     fn create_receiver_for(&self, channel: Arc<Channel>) -> Box<dyn DataReceiver + Send>;
 }
 
+pub enum ReceiveResult {
+    Continue,
+    Abort,
+    Pause,
+}
+
 pub trait DataReceiver {
-    fn receive(&mut self, data: &[u8]) -> bool;
+    fn receive(&mut self, data: &[u8]) -> ReceiveResult;
+    /// after receive returns Pause this has to be called until it returns true
+    fn try_unpause(&self) -> ReceiveResult;
 }
 
 pub struct NullDataReceiverFactory;
@@ -144,7 +152,11 @@ impl NullDataReceiver {
 }
 
 impl DataReceiver for NullDataReceiver {
-    fn receive(&mut self, _: &[u8]) -> bool {
-        true
+    fn receive(&mut self, _: &[u8]) -> ReceiveResult {
+        ReceiveResult::Continue
+    }
+
+    fn try_unpause(&self) -> ReceiveResult {
+        ReceiveResult::Continue
     }
 }

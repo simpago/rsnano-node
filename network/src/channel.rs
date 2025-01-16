@@ -294,6 +294,10 @@ impl Channel {
         Ok(())
     }
 
+    pub fn queue_len(&self) -> usize {
+        self.write_queue.len()
+    }
+
     pub async fn pop(&self) -> Option<Entry> {
         self.write_queue.pop().await
     }

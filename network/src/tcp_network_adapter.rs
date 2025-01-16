@@ -1,6 +1,6 @@
 use crate::{
     utils::into_ipv6_socket_address, ChannelDirection, ChannelId, DeadChannelCleanupStep, Network,
-    TcpChannelAdapter,
+    ReceiveResult, TcpChannelAdapter,
 };
 use rsnano_core::utils::NULL_ENDPOINT;
 use rsnano_nullable_clock::SteadyClock;
@@ -11,6 +11,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
+use tokio::time::sleep;
 use tracing::{debug, warn};
 
 /// Connects the Network to TcpStreams
@@ -86,11 +87,14 @@ impl TcpNetworkAdapter {
             let mut buffer = [0u8; 1024];
 
             loop {
+                if channel.is_closed() {
+                    return;
+                }
+
                 tokio::select! {
                     result = channel_adapter.readable() => {
                         if let Err(e) = result {
                             debug!("Error reading buffer: {:?} ({})", e, channel.peer_addr());
-                            channel.close();
                             return;
                         }
                     },
@@ -103,15 +107,29 @@ impl TcpNetworkAdapter {
                     Ok(n) => n,
                     Err(e) => {
                         debug!("Error reading buffer: {:?} ({})", e, channel.peer_addr());
-                        channel.close();
                         return;
                     }
                 };
 
                 let new_data = &buffer[..read_count];
 
-                if !receiver.receive(new_data) {
-                    break;
+                match receiver.receive(new_data) {
+                    ReceiveResult::Continue => {}
+                    ReceiveResult::Abort => break,
+                    ReceiveResult::Pause => {
+                        loop {
+                            // TODO find better solution than sleep and polling
+                            tokio::select! {
+                                _ = sleep(Duration::from_millis(50)) => {},
+                                _ = channel.cancelled() => { break;}
+                            }
+                            match receiver.try_unpause() {
+                                ReceiveResult::Continue => break,
+                                ReceiveResult::Abort => return,
+                                ReceiveResult::Pause => {}
+                            }
+                        }
+                    }
                 }
             }
         });

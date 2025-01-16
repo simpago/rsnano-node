@@ -65,6 +65,10 @@ impl WriteQueue {
         self.queue.lock().unwrap().free_capacity(&traffic_type)
     }
 
+    pub fn len(&self) -> usize {
+        self.queue.lock().unwrap().len()
+    }
+
     pub async fn pop(&self) -> Option<Entry> {
         let entry;
         let traffic_type;
