@@ -7,7 +7,7 @@ use crate::{
 use rsnano_core::{utils::ContainerInfo, Block, BlockHash, Networks};
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, Publish};
-use rsnano_network::{bandwidth_limiter::RateLimiter, DropPolicy, TrafficType};
+use rsnano_network::{bandwidth_limiter::RateLimiter, TrafficType};
 use std::{
     cmp::min,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -261,12 +261,7 @@ impl LocalBlockBroadcaster {
     pub fn flood_block_initial(&self, block: Block) {
         let message = Message::Publish(Publish::new_from_originator(block));
         let mut publisher = self.message_flooder.lock().unwrap();
-        publisher.flood_prs_and_some_non_prs(
-            &message,
-            DropPolicy::ShouldNotDrop,
-            TrafficType::Generic,
-            1.0,
-        );
+        publisher.flood_prs_and_some_non_prs(&message, TrafficType::Generic, 1.0);
     }
 }
 

@@ -23,7 +23,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{BlockStatus, Ledger};
 use rsnano_messages::{Message, NetworkFilter, Publish};
-use rsnano_network::{DropPolicy, Network, TrafficType};
+use rsnano_network::{Network, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
@@ -529,12 +529,7 @@ impl ActiveElections {
                     election_guard.status.winner = Some(MaybeSavedBlock::Unsaved(block.clone()));
                     let message = Message::Publish(Publish::new_forward(block.clone()));
                     let mut publisher = self.message_flooder.lock().unwrap();
-                    publisher.flood(
-                        &message,
-                        TrafficType::BlockBroadcast,
-                        DropPolicy::CanDrop,
-                        1.0,
-                    );
+                    publisher.flood(&message, TrafficType::BlockBroadcast, 1.0);
                 }
             } else {
                 election_guard

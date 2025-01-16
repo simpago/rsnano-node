@@ -95,12 +95,8 @@ impl<'a> ConfirmationSolicitor<'a> {
         }
         // Random flood for block propagation
         // TODO: Avoid broadcasting to the same peers that were already broadcasted to
-        self.message_flooder.flood(
-            &winner,
-            TrafficType::BlockBroadcast,
-            DropPolicy::CanDrop,
-            0.5,
-        );
+        self.message_flooder
+            .flood(&winner, TrafficType::BlockBroadcast, 0.5);
         Ok(())
     }
 

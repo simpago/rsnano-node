@@ -19,7 +19,6 @@ use rsnano_core::{
 };
 use rsnano_ledger::{Ledger, RepWeightCache};
 use rsnano_messages::{Message, Publish};
-use rsnano_network::DropPolicy;
 use rsnano_nullable_lmdb::{DatabaseFlags, LmdbDatabase, WriteFlags};
 use rsnano_store_lmdb::{
     create_backup_file, KeyType, LmdbEnv, LmdbIterator, LmdbWalletStore, LmdbWriteTransaction,
@@ -664,7 +663,6 @@ impl Wallets {
             self.message_flooder.lock().unwrap().flood(
                 &msg,
                 rsnano_network::TrafficType::Generic,
-                DropPolicy::ShouldNotDrop,
                 1.0,
             );
             Ok(PreparedSend::Cached(block))

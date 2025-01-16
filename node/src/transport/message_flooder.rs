@@ -45,14 +45,13 @@ impl MessageFlooder {
     pub(crate) fn flood_prs_and_some_non_prs(
         &mut self,
         message: &Message,
-        drop_policy: DropPolicy,
         traffic_type: TrafficType,
         scale: f32,
     ) {
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
         for rep in peered_prs {
             self.sender
-                .try_send(rep.channel_id, &message, drop_policy, traffic_type);
+                .try_send(rep.channel_id, &message, DropPolicy::CanDrop, traffic_type);
         }
 
         let mut channels;
@@ -65,8 +64,12 @@ impl MessageFlooder {
 
         self.remove_no_pr(&mut channels, fanout);
         for peer in channels {
-            self.sender
-                .try_send(peer.channel_id(), &message, drop_policy, traffic_type);
+            self.sender.try_send(
+                peer.channel_id(),
+                &message,
+                DropPolicy::CanDrop,
+                traffic_type,
+            );
         }
     }
 
@@ -78,13 +81,7 @@ impl MessageFlooder {
         channels.truncate(count);
     }
 
-    pub fn flood(
-        &mut self,
-        message: &Message,
-        traffic_type: TrafficType,
-        drop_policy: DropPolicy,
-        scale: f32,
-    ) {
+    pub fn flood(&mut self, message: &Message, traffic_type: TrafficType, scale: f32) {
         let buffer = self.message_serializer.serialize(message);
         let channels = self.network.read().unwrap().random_fanout_realtime(scale);
 
@@ -96,7 +93,7 @@ impl MessageFlooder {
                 channel.channel_id(),
                 buffer,
                 message,
-                drop_policy,
+                DropPolicy::CanDrop,
                 traffic_type,
             );
         }

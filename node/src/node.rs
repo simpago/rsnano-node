@@ -935,12 +935,10 @@ impl Node {
                     let ack = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(
                         vote.as_ref().clone(),
                     ));
-                    flooder_l.lock().unwrap().flood(
-                        &ack,
-                        TrafficType::Generic,
-                        DropPolicy::CanDrop,
-                        0.5,
-                    );
+                    flooder_l
+                        .lock()
+                        .unwrap()
+                        .flood(&ack, TrafficType::Generic, 0.5);
                 }
             }
         }));
@@ -1670,7 +1668,6 @@ impl NodeExt for Arc<Node> {
             self.message_flooder.lock().unwrap().flood(
                 &publish,
                 TrafficType::BlockBroadcastRpc,
-                DropPolicy::CanDrop,
                 1.0,
             );
             if blocks.is_empty() {
