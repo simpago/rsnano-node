@@ -305,14 +305,16 @@ impl Node {
 
         let online_weight_sampler = Arc::new(OnlineWeightSampler::new(
             ledger.clone(),
-            network_params.node.max_weight_samples as usize,
+            network_params.network.current_network,
         ));
 
         let online_reps = Arc::new(Mutex::new(
             OnlineReps::builder()
                 .rep_weights(rep_weights.clone())
-                .weight_period(Duration::from_secs(network_params.node.weight_period))
                 .online_weight_minimum(config.online_weight_minimum)
+                .weight_interval(OnlineReps::default_interval_for(
+                    network_params.network.current_network,
+                ))
                 .trended(online_weight_sampler.calculate_trend())
                 .finish(),
         ));
@@ -1606,7 +1608,7 @@ impl NodeExt for Arc<Node> {
     fn ongoing_online_weight_calculation_queue(&self) {
         let node_w = Arc::downgrade(self);
         self.workers.post_delayed(
-            Duration::from_secs(self.network_params.node.weight_period),
+            OnlineReps::default_interval_for(self.network_params.network.current_network),
             Box::new(move || {
                 if let Some(node) = node_w.upgrade() {
                     node.ongoing_online_weight_calculation();

@@ -32,10 +32,8 @@ impl TrendedOnlineWeightArgs {
             Arc::new(RepWeightCache::new()),
         )?);
 
-        let sampler = OnlineWeightSampler::new(
-            ledger.clone(),
-            network_params.node.max_weight_samples as usize,
-        );
+        let sampler =
+            OnlineWeightSampler::new(ledger.clone(), network_params.network.current_network);
 
         let current = sampler.calculate_trend().number();
 

@@ -4,12 +4,12 @@ mod online_container;
 mod peered_container;
 mod peered_rep;
 
-pub use builder::{OnlineRepsBuilder, DEFAULT_ONLINE_WEIGHT_MINIMUM};
+pub use builder::OnlineRepsBuilder;
 pub use cleanup::*;
 pub use peered_container::InsertResult;
 pub use peered_rep::PeeredRep;
 use primitive_types::U256;
-use rsnano_core::{utils::ContainerInfo, Amount, PublicKey};
+use rsnano_core::{utils::ContainerInfo, Amount, Networks, PublicKey};
 use rsnano_ledger::RepWeightCache;
 use rsnano_network::ChannelId;
 use rsnano_nullable_clock::Timestamp;
@@ -26,14 +26,23 @@ pub struct OnlineReps {
     peered_reps: PeeredContainer,
     trended_weight: Amount,
     online_weight: Amount,
-    weight_period: Duration,
+    /// Time between collecting online representative samples
+    weight_interval: Duration,
     online_weight_minimum: Amount,
 }
 
 impl OnlineReps {
+    pub const DEFAULT_ONLINE_WEIGHT_MINIMUM: Amount = Amount::nano(60_000_000);
+
+    pub const fn default_interval_for(network: Networks) -> Duration {
+        match network {
+            _ => Duration::from_secs(5 * 60),
+        }
+    }
+
     pub(crate) fn new(
         rep_weights: Arc<RepWeightCache>,
-        weight_period: Duration,
+        weight_interval: Duration,
         online_weight_minimum: Amount,
     ) -> Self {
         Self {
@@ -42,7 +51,7 @@ impl OnlineReps {
             peered_reps: PeeredContainer::new(),
             trended_weight: Amount::zero(),
             online_weight: Amount::zero(),
-            weight_period,
+            weight_interval,
             online_weight_minimum,
         }
     }
@@ -176,7 +185,7 @@ impl OnlineReps {
             let new_insert = self.online_reps.insert(rep_account, now);
             let trimmed = self
                 .online_reps
-                .trim(now.checked_sub(self.weight_period).unwrap_or_default());
+                .trim(now.checked_sub(self.weight_interval).unwrap_or_default());
 
             if new_insert || trimmed {
                 self.calculate_online_weight();
@@ -370,7 +379,7 @@ mod tests {
         weights.set(rep_c, Amount::nano(400_000));
         let mut online_reps = OnlineReps::builder()
             .rep_weights(weights)
-            .weight_period(Duration::from_secs(30))
+            .weight_interval(Duration::from_secs(30))
             .finish();
 
         let now = SteadyClock::new_null().now();

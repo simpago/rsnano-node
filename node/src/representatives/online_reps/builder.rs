@@ -1,13 +1,11 @@
 use super::OnlineReps;
-use rsnano_core::Amount;
+use rsnano_core::{Amount, Networks};
 use rsnano_ledger::RepWeightCache;
 use std::{sync::Arc, time::Duration};
 
-pub const DEFAULT_ONLINE_WEIGHT_MINIMUM: Amount = Amount::nano(60_000_000);
-
 pub struct OnlineRepsBuilder {
     rep_weights: Option<Arc<RepWeightCache>>,
-    weight_period: Duration,
+    weight_interval: Duration,
     online_weight_minimum: Amount,
     trended: Option<Amount>,
 }
@@ -16,8 +14,8 @@ impl OnlineRepsBuilder {
     pub(super) fn new() -> Self {
         Self {
             rep_weights: None,
-            weight_period: Duration::from_secs(5 * 60),
-            online_weight_minimum: DEFAULT_ONLINE_WEIGHT_MINIMUM,
+            weight_interval: OnlineReps::default_interval_for(Networks::NanoLiveNetwork),
+            online_weight_minimum: OnlineReps::DEFAULT_ONLINE_WEIGHT_MINIMUM,
             trended: None,
         }
     }
@@ -26,8 +24,8 @@ impl OnlineRepsBuilder {
         self
     }
 
-    pub fn weight_period(mut self, period: Duration) -> Self {
-        self.weight_period = period;
+    pub fn weight_interval(mut self, period: Duration) -> Self {
+        self.weight_interval = period;
         self
     }
 
@@ -46,8 +44,11 @@ impl OnlineRepsBuilder {
             .rep_weights
             .unwrap_or_else(|| Arc::new(RepWeightCache::new()));
 
-        let mut online_reps =
-            OnlineReps::new(rep_weights, self.weight_period, self.online_weight_minimum);
+        let mut online_reps = OnlineReps::new(
+            rep_weights,
+            self.weight_interval,
+            self.online_weight_minimum,
+        );
         if let Some(trended) = self.trended {
             online_reps.set_trended(trended);
         }

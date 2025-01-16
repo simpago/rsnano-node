@@ -1,16 +1,22 @@
 use rsnano_core::utils::nano_seconds_since_epoch;
-use rsnano_core::Amount;
+use rsnano_core::{Amount, Networks};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::Arc;
 
 pub struct OnlineWeightSampler {
     ledger: Arc<Ledger>,
+
+    /// The maximum amount of samples for a 2 week period on live or 1 day on beta
     max_samples: usize,
 }
 
 impl OnlineWeightSampler {
-    pub fn new(ledger: Arc<Ledger>, max_samples: usize) -> Self {
+    pub fn new(ledger: Arc<Ledger>, network: Networks) -> Self {
+        let max_samples = match network {
+            Networks::NanoTestNetwork => 288, // one day
+            _ => 4032,                        // two weeks
+        };
         Self {
             ledger,
             max_samples,
