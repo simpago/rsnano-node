@@ -16,7 +16,7 @@ use crate::{
     block_processing::UncheckedMap,
     config::NodeConfig,
     stats::{DetailType, StatType, Stats},
-    transport::MessagePublisher,
+    transport::MessageSender,
     NetworkParams,
 };
 use rsnano_network::{
@@ -42,7 +42,7 @@ pub struct Telemetry {
     mutex: Mutex<TelemetryImpl>,
     network_params: NetworkParams,
     network: Arc<RwLock<Network>>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_publisher: Mutex<MessageSender>,
     node_id: PrivateKey,
     pub startup_time: Instant,
     telemetry_processed_callbacks:
@@ -61,7 +61,7 @@ impl Telemetry {
         unchecked: Arc<UncheckedMap>,
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
         node_id: PrivateKey,
         clock: Arc<SteadyClock>,
     ) -> Self {

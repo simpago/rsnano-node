@@ -2,7 +2,7 @@ use super::{LocalVoteHistory, VoteSpacing};
 use crate::{
     consensus::VoteBroadcaster,
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::MessagePublisher,
+    transport::MessageSender,
     utils::ProcessingQueue,
     wallets::Wallets,
 };
@@ -43,7 +43,7 @@ impl VoteGenerator {
         history: Arc<LocalVoteHistory>,
         is_final: bool,
         stats: Arc<Stats>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
         voting_delay: Duration,
         vote_generator_delay: Duration,
         vote_broadcaster: Arc<VoteBroadcaster>,
@@ -182,7 +182,7 @@ struct SharedState {
     ledger: Arc<Ledger>,
     wallets: Arc<Wallets>,
     history: Arc<LocalVoteHistory>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_publisher: Mutex<MessageSender>,
     is_final: bool,
     condition: Condvar,
     stopped: AtomicBool,

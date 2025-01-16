@@ -1,6 +1,6 @@
 use crate::{
     stats::{DetailType, Direction, StatType, Stats},
-    transport::MessagePublisher,
+    transport::MessageSender,
 };
 use rsnano_core::{utils::FairQueue, Block, BlockHash, Frontier};
 use rsnano_ledger::Ledger;
@@ -56,7 +56,7 @@ impl BootstrapServer {
         config: BootstrapServerConfig,
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
     ) -> Self {
         let max_queue = config.max_queue;
         let server_impl = Arc::new(BootstrapServerImpl {
@@ -171,7 +171,7 @@ pub(crate) struct BootstrapServerImpl {
     condition: Condvar,
     queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
-    message_publisher: Mutex<MessagePublisher>,
+    message_publisher: Mutex<MessageSender>,
 }
 
 impl BootstrapServerImpl {

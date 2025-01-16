@@ -20,7 +20,7 @@ use self::{
 use crate::{
     block_processing::{BlockProcessor, BlockProcessorContext, BlockSource},
     stats::{DetailType, Direction, Sample, StatType, Stats},
-    transport::MessagePublisher,
+    transport::MessageSender,
     utils::{ThreadPool, ThreadPoolImpl},
 };
 pub use account_sets::AccountSetsConfig;
@@ -61,7 +61,7 @@ pub struct BootstrapService {
     block_processor: Arc<BlockProcessor>,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_publisher: Mutex<MessageSender>,
     threads: Mutex<Option<Threads>>,
     mutex: Arc<Mutex<BootstrapLogic>>,
     condition: Arc<Condvar>,
@@ -89,7 +89,7 @@ impl BootstrapService {
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         network: Arc<RwLock<Network>>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
         config: BootstrapConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {

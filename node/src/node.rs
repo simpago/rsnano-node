@@ -25,8 +25,8 @@ use crate::{
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
         InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup,
-        MessageFlooder, MessageProcessor, MessagePublisher, NanoDataReceiverFactory,
-        NetworkThreads, PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
+        MessageFlooder, MessageProcessor, MessageSender, NanoDataReceiverFactory, NetworkThreads,
+        PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -122,8 +122,8 @@ pub struct Node {
     monitor: TimerThread<Monitor>,
     stopped: AtomicBool,
     pub network_filter: Arc<NetworkFilter>,
-    pub message_publisher: Arc<Mutex<MessagePublisher>>, // TODO remove this. It is needed right now
-    pub message_flooder: Arc<Mutex<MessageFlooder>>,     // TODO remove this. It is needed right now
+    pub message_publisher: Arc<Mutex<MessageSender>>, // TODO remove this. It is needed right now
+    pub message_flooder: Arc<Mutex<MessageFlooder>>,  // TODO remove this. It is needed right now
     pub keepalive_publisher: Arc<KeepalivePublisher>,
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
@@ -318,7 +318,7 @@ impl Node {
         ));
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
-        let mut message_publisher = MessagePublisher::new(
+        let mut message_publisher = MessageSender::new(
             network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
@@ -587,7 +587,7 @@ impl Node {
 
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new());
 
-        let mut bootstrap_publisher = MessagePublisher::new_with_buffer_size(
+        let mut bootstrap_publisher = MessageSender::new_with_buffer_size(
             network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),

@@ -5,7 +5,7 @@ use crate::{
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::{
         keepalive::{KeepalivePublisher, PreconfiguredPeersKeepalive},
-        MessagePublisher,
+        MessageSender,
     },
     NetworkParams,
 };
@@ -39,7 +39,7 @@ pub struct RepCrawler {
     active: Arc<ActiveElections>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_publisher: Mutex<MessageSender>,
     preconfigured_peers: Arc<PreconfiguredPeersKeepalive>,
     tokio: tokio::runtime::Handle,
 }
@@ -57,7 +57,7 @@ impl RepCrawler {
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
         steady_clock: Arc<SteadyClock>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
         keepalive_publisher: Arc<KeepalivePublisher>,
         tokio: tokio::runtime::Handle,
     ) -> Self {

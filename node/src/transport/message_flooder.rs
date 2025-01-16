@@ -1,4 +1,4 @@
-use super::{try_send_serialized_message, MessagePublisher};
+use super::{try_send_serialized_message, MessageSender};
 use crate::{representatives::OnlineReps, stats::Stats};
 use rsnano_messages::{Message, MessageSerializer};
 use rsnano_network::{Channel, DropPolicy, Network, TrafficType};
@@ -14,7 +14,7 @@ pub struct MessageFlooder {
     network: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
-    publisher: MessagePublisher,
+    publisher: MessageSender,
 }
 
 impl MessageFlooder {
@@ -22,7 +22,7 @@ impl MessageFlooder {
         online_reps: Arc<Mutex<OnlineReps>>,
         network: Arc<RwLock<Network>>,
         stats: Arc<Stats>,
-        publisher: MessagePublisher,
+        publisher: MessageSender,
     ) -> Self {
         Self {
             online_reps,
@@ -38,7 +38,7 @@ impl MessageFlooder {
             Arc::new(Mutex::new(OnlineReps::default())),
             Arc::new(RwLock::new(Network::new_test_instance())),
             Arc::new(Stats::default()),
-            MessagePublisher::new_null(),
+            MessageSender::new_null(),
         )
     }
 
@@ -98,7 +98,7 @@ impl MessageFlooder {
 }
 
 impl Deref for MessageFlooder {
-    type Target = MessagePublisher;
+    type Target = MessageSender;
 
     fn deref(&self) -> &Self::Target {
         &self.publisher

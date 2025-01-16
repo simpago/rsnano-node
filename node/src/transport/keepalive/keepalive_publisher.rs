@@ -1,5 +1,5 @@
 use super::KeepaliveMessageFactory;
-use crate::transport::MessagePublisher;
+use crate::transport::MessageSender;
 use rsnano_core::utils::Peer;
 use rsnano_network::{
     utils::into_ipv6_socket_address, ChannelId, DropPolicy, Network, PeerConnector, TrafficType,
@@ -17,7 +17,7 @@ pub struct KeepalivePublisher {
     keepalive_listener: OutputListenerMt<Peer>,
     network: Arc<RwLock<Network>>,
     peer_connector: Arc<PeerConnector>,
-    message_publisher: Mutex<MessagePublisher>,
+    message_publisher: Mutex<MessageSender>,
     message_factory: Arc<KeepaliveMessageFactory>,
 }
 
@@ -25,7 +25,7 @@ impl KeepalivePublisher {
     pub fn new(
         network: Arc<RwLock<Network>>,
         peer_connector: Arc<PeerConnector>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
         message_factory: Arc<KeepaliveMessageFactory>,
     ) -> Self {
         Self {

@@ -6,16 +6,16 @@ use tracing::trace;
 
 pub type MessageCallback = Arc<dyn Fn(ChannelId, &Message) + Send + Sync>;
 
-/// Publishes messages to peered nodes
+/// Sends messages via a given channel to a peered node
 #[derive(Clone)]
-pub struct MessagePublisher {
+pub struct MessageSender {
     network: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
     published_callback: Option<MessageCallback>,
 }
 
-impl MessagePublisher {
+impl MessageSender {
     pub fn new(
         network: Arc<RwLock<Network>>,
         stats: Arc<Stats>,

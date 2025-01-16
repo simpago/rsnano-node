@@ -1,6 +1,6 @@
 use super::{vote_generator::VoteGenerator, LocalVoteHistory};
 use crate::{
-    config::NodeConfig, consensus::VoteBroadcaster, stats::Stats, transport::MessagePublisher,
+    config::NodeConfig, consensus::VoteBroadcaster, stats::Stats, transport::MessageSender,
     wallets::Wallets, NetworkParams,
 };
 use rsnano_core::{utils::ContainerInfo, BlockHash, Root, SavedBlock};
@@ -22,7 +22,7 @@ impl VoteGenerators {
         config: &NodeConfig,
         network_params: &NetworkParams,
         vote_broadcaster: Arc<VoteBroadcaster>,
-        message_publisher: MessagePublisher,
+        message_publisher: MessageSender,
     ) -> Self {
         let non_final_vote_generator = VoteGenerator::new(
             ledger.clone(),
