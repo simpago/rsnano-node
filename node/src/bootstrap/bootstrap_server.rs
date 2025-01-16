@@ -117,8 +117,7 @@ impl BootstrapServer {
         }
 
         // If channel is full our response will be dropped anyway, so filter that early
-        // TODO: Add per channel limits (this ideally should be done on the channel message processing side)
-        if channel.is_queue_full(TrafficType::Bootstrap) {
+        if channel.is_queue_full(TrafficType::BootstrapServer) {
             self.stats.inc_dir(
                 StatType::BootstrapServer,
                 DetailType::ChannelFull,
@@ -203,7 +202,7 @@ impl BootstrapServerImpl {
         for (_, (request, channel)) in batch {
             tx.refresh_if_needed();
 
-            if !channel.is_queue_full(TrafficType::Bootstrap) {
+            if !channel.is_queue_full(TrafficType::BootstrapServer) {
                 let response = self.process(&tx, request);
                 self.respond(response, channel.channel_id());
             } else {
@@ -410,7 +409,7 @@ impl BootstrapServerImpl {
             channel_id,
             &msg,
             DropPolicy::CanDrop,
-            TrafficType::Bootstrap,
+            TrafficType::BootstrapServer,
         );
     }
 }

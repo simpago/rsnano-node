@@ -74,7 +74,8 @@ pub enum ChannelDirection {
 pub enum TrafficType {
     Generic,
     /// Ascending bootstrap (asc_pull_ack, asc_pull_req) traffic
-    Bootstrap,
+    Bootstrap, // TODO remove
+    BootstrapServer,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]

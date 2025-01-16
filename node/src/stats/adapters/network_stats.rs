@@ -236,6 +236,7 @@ impl From<TrafficType> for DetailType {
         match value {
             TrafficType::Generic => DetailType::Generic,
             TrafficType::Bootstrap => DetailType::Bootstrap,
+            TrafficType::BootstrapServer => DetailType::BootstrapServer,
         }
     }
 }
