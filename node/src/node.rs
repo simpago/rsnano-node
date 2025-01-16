@@ -17,7 +17,9 @@ use crate::{
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
-    representatives::{OnlineReps, OnlineRepsCleanup, RepCrawler, RepCrawlerExt},
+    representatives::{
+        OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
+    },
     stats::{
         adapters::{LedgerStats, NetworkStats},
         DetailType, Direction, StatType, Stats,
@@ -89,7 +91,7 @@ pub struct Node {
     pub network: Arc<RwLock<Network>>,
     pub telemetry: Arc<Telemetry>,
     pub bootstrap_server: Arc<BootstrapServer>,
-    online_weight_sampler: Arc<OnlineWeightSampler>,
+    online_weight_calculation: TimerThread<OnlineWeightCalculation>,
     pub online_reps: Arc<Mutex<OnlineReps>>,
     pub rep_tiers: Arc<RepTiers>,
     pub vote_processor_queue: Arc<VoteProcessorQueue>,
@@ -303,10 +305,8 @@ impl Node {
             flags.disable_block_processor_unchecked_deletion,
         ));
 
-        let online_weight_sampler = Arc::new(OnlineWeightSampler::new(
-            ledger.clone(),
-            network_params.network.current_network,
-        ));
+        let online_weight_sampler =
+            OnlineWeightSampler::new(ledger.clone(), network_params.network.current_network);
 
         let online_reps = Arc::new(Mutex::new(
             OnlineReps::builder()
@@ -1200,7 +1200,10 @@ impl Node {
             work,
             runtime,
             bootstrap_server,
-            online_weight_sampler,
+            online_weight_calculation: TimerThread::new(
+                "Online reps",
+                OnlineWeightCalculation::new(online_weight_sampler, online_reps.clone()),
+            ),
             online_reps,
             rep_tiers,
             vote_router,
@@ -1450,8 +1453,6 @@ impl Node {
 pub trait NodeExt {
     fn start(&self);
     fn stop(&self);
-    fn ongoing_online_weight_calculation_queue(&self);
-    fn ongoing_online_weight_calculation(&self);
     fn backup_wallet(&self);
     fn search_receivable_all(&self);
     fn flood_block_many(
@@ -1493,7 +1494,11 @@ impl NodeExt for Arc<Node> {
         if !self.flags.disable_rep_crawler {
             self.rep_crawler.start();
         }
-        self.ongoing_online_weight_calculation_queue();
+
+        self.online_weight_calculation
+            .start(OnlineReps::default_interval_for(
+                self.network_params.network.current_network,
+            ));
 
         if self.config.tcp_incoming_connections_max > 0
             && !(self.flags.disable_bootstrap_listener && self.flags.disable_tcp_realtime)
@@ -1567,6 +1572,7 @@ impl NodeExt for Arc<Node> {
         info!("Node stopping...");
 
         self.tcp_listener.stop();
+        self.online_weight_calculation.stop();
         self.vote_router.stop();
         self.peer_connector.stop();
         self.ledger_pruning.stop();
@@ -1603,25 +1609,6 @@ impl NodeExt for Arc<Node> {
         self.workers.stop();
 
         // work pool is not stopped on purpose due to testing setup
-    }
-
-    fn ongoing_online_weight_calculation_queue(&self) {
-        let node_w = Arc::downgrade(self);
-        self.workers.post_delayed(
-            OnlineReps::default_interval_for(self.network_params.network.current_network),
-            Box::new(move || {
-                if let Some(node) = node_w.upgrade() {
-                    node.ongoing_online_weight_calculation();
-                }
-            }),
-        )
-    }
-
-    fn ongoing_online_weight_calculation(&self) {
-        let online = self.online_reps.lock().unwrap().online_weight();
-        self.online_weight_sampler.sample(online);
-        let trend = self.online_weight_sampler.calculate_trend();
-        self.online_reps.lock().unwrap().set_trended(trend);
     }
 
     fn backup_wallet(&self) {
