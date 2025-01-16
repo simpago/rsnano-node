@@ -83,32 +83,6 @@ impl MessageSender {
         sent
     }
 
-    pub async fn send(
-        &mut self,
-        channel_id: ChannelId,
-        message: &Message,
-        traffic_type: TrafficType,
-    ) -> anyhow::Result<()> {
-        let buffer = self.message_serializer.serialize(message);
-        let channel = self.network.read().unwrap().get(channel_id).cloned();
-        if let Some(channel) = channel {
-            channel.send_buffer(&buffer, traffic_type).await?;
-        } else {
-            bail!("Channel not found");
-        }
-
-        self.stats
-            .inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);
-
-        trace!(%channel_id, message = ?message, "Message sent");
-
-        if let Some(callback) = &self.published_callback {
-            callback(channel_id, message);
-        }
-
-        Ok(())
-    }
-
     pub fn get_serializer(&self) -> MessageSerializer {
         self.message_serializer.clone()
     }
