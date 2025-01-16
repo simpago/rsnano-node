@@ -246,6 +246,7 @@ impl From<TrafficType> for DetailType {
             TrafficType::VoteRebroadcast => DetailType::VoteRebroadcast,
             TrafficType::RepCrawler => DetailType::RepCrawler,
             TrafficType::VoteReply => DetailType::VoteReply,
+            TrafficType::Telemetry => DetailType::Telemetry,
         }
     }
 }

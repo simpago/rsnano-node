@@ -309,6 +309,7 @@ pub enum DetailType {
     VoteRebroadcast,
     RepCrawler,
     VoteReply,
+    Telemetry,
 
     // tcp
     TcpWriteDrop,

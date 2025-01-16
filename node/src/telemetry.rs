@@ -269,7 +269,7 @@ impl Telemetry {
             channel_id,
             &Message::TelemetryReq,
             DropPolicy::CanDrop,
-            TrafficType::Generic,
+            TrafficType::Telemetry,
         );
     }
 
@@ -288,7 +288,7 @@ impl Telemetry {
             channel_id,
             message,
             DropPolicy::CanDrop,
-            TrafficType::Generic,
+            TrafficType::Telemetry,
         );
     }
 
