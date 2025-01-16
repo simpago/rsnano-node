@@ -238,8 +238,11 @@ impl KeepaliveLoop {
             .read()
             .unwrap()
             .random_fill_realtime(&mut keepalive.peers);
-        self.message_flooder
-            .flood(&Message::Keepalive(keepalive), TrafficType::Generic, scale);
+        self.message_flooder.flood(
+            &Message::Keepalive(keepalive),
+            TrafficType::Keepalive,
+            scale,
+        );
     }
 
     fn flood_keepalive_self(&mut self, scale: f32) {

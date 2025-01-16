@@ -179,7 +179,7 @@ impl RepCrawler {
             self.message_sender.lock().unwrap().try_send(
                 channel.channel_id(),
                 &req,
-                TrafficType::Generic,
+                TrafficType::RepCrawler,
             );
         }
     }
