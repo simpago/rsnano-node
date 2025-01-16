@@ -90,7 +90,7 @@ impl BandwidthLimiter {
 
     fn select_limiter(&self, limit_type: TrafficType) -> &RateLimiter {
         match limit_type {
-            TrafficType::Bootstrap => &self.limiter_bootstrap,
+            TrafficType::BootstrapServer => &self.limiter_bootstrap,
             _ => &self.limiter_generic,
         }
     }

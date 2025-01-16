@@ -91,7 +91,7 @@ impl<'a> ConfirmationSolicitor<'a> {
                     i.channel_id,
                     &winner,
                     DropPolicy::CanDrop,
-                    TrafficType::Generic,
+                    TrafficType::BlockBroadcast,
                 );
             }
         }

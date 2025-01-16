@@ -235,7 +235,6 @@ impl From<TrafficType> for DetailType {
     fn from(value: TrafficType) -> Self {
         match value {
             TrafficType::Generic => DetailType::Generic,
-            TrafficType::Bootstrap => DetailType::Bootstrap,
             TrafficType::BootstrapServer => DetailType::BootstrapServer,
             TrafficType::BootstrapRequests => DetailType::BootstrapRequests,
         }
