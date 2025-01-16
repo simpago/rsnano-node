@@ -12,7 +12,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{Ledger, Writer};
 use rsnano_messages::{ConfirmAck, Message};
-use rsnano_network::{ChannelId, DropPolicy, TrafficType};
+use rsnano_network::{ChannelId, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, LmdbWriteTransaction, Transaction};
 use std::{
     collections::VecDeque,
@@ -341,7 +341,6 @@ impl SharedState {
                     self.message_sender.lock().unwrap().try_send(
                         *channel_id,
                         &confirm,
-                        DropPolicy::CanDrop,
                         TrafficType::Vote,
                     );
                     self.stats.inc_dir(

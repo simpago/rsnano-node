@@ -2,7 +2,7 @@ use super::KeepaliveMessageFactory;
 use crate::transport::MessageSender;
 use rsnano_core::utils::Peer;
 use rsnano_network::{
-    utils::into_ipv6_socket_address, ChannelId, DropPolicy, Network, PeerConnector, TrafficType,
+    utils::into_ipv6_socket_address, ChannelId, Network, PeerConnector, TrafficType,
 };
 use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{
@@ -84,7 +84,6 @@ impl KeepalivePublisher {
         self.message_sender.lock().unwrap().try_send(
             channel_id,
             &keepalive,
-            DropPolicy::CanDrop,
             TrafficType::Keepalive,
         );
     }

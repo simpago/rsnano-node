@@ -6,7 +6,7 @@ use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::{
     ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer, ProtocolInfo,
 };
-use rsnano_network::{ChannelMode, DropPolicy, TrafficType};
+use rsnano_network::{ChannelMode, TrafficType};
 use rsnano_node::{
     config::NodeConfig,
     consensus::VoteProcessorConfig,
@@ -77,24 +77,9 @@ fn last_contacted() {
     // it is possible that there could be multiple keepalives in flight but we assume here that there will be no more than one in flight for the purposes of this test
     let keepalive = Message::Keepalive(Keepalive::default());
     let mut publisher = node0.message_sender.lock().unwrap();
-    publisher.try_send(
-        channel1.channel_id(),
-        &keepalive,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
-    publisher.try_send(
-        channel1.channel_id(),
-        &keepalive,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
-    publisher.try_send(
-        channel1.channel_id(),
-        &keepalive,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
+    publisher.try_send(channel1.channel_id(), &keepalive, TrafficType::Generic);
+    publisher.try_send(channel1.channel_id(), &keepalive, TrafficType::Generic);
+    publisher.try_send(channel1.channel_id(), &keepalive, TrafficType::Generic);
 
     assert_timely_msg(
         Duration::from_secs(3),
@@ -333,12 +318,11 @@ fn duplicate_vote_detection() {
         .unwrap()
         .channel_id();
 
-    node0.message_sender.lock().unwrap().try_send(
-        channel_id,
-        &message,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
+    node0
+        .message_sender
+        .lock()
+        .unwrap()
+        .try_send(channel_id, &message, TrafficType::Generic);
     assert_always_eq(
         Duration::from_millis(100),
         || {
@@ -350,12 +334,11 @@ fn duplicate_vote_detection() {
         },
         0,
     );
-    node0.message_sender.lock().unwrap().try_send(
-        channel_id,
-        &message,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
+    node0
+        .message_sender
+        .lock()
+        .unwrap()
+        .try_send(channel_id, &message, TrafficType::Generic);
     assert_timely_eq(
         Duration::from_secs(2),
         || {
@@ -414,12 +397,11 @@ fn duplicate_revert_vote() {
         .channel_id();
 
     // First vote should be processed
-    node0.message_sender.lock().unwrap().try_send(
-        channel_id,
-        &message1,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Vote,
-    );
+    node0
+        .message_sender
+        .lock()
+        .unwrap()
+        .try_send(channel_id, &message1, TrafficType::Vote);
     assert_always_eq(
         Duration::from_millis(100),
         || {
@@ -433,12 +415,11 @@ fn duplicate_revert_vote() {
     );
 
     // Second vote should get dropped from processor queue
-    node0.message_sender.lock().unwrap().try_send(
-        channel_id,
-        &message2,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Vote,
-    );
+    node0
+        .message_sender
+        .lock()
+        .unwrap()
+        .try_send(channel_id, &message2, TrafficType::Vote);
     assert_always_eq(
         Duration::from_millis(100),
         || {
@@ -491,12 +472,11 @@ fn expire_duplicate_filter() {
         .channel_id();
 
     // Send a vote
-    node0.message_sender.lock().unwrap().try_send(
-        channel_id,
-        &message,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
+    node0
+        .message_sender
+        .lock()
+        .unwrap()
+        .try_send(channel_id, &message, TrafficType::Generic);
 
     assert_always_eq(
         Duration::from_millis(100),
@@ -510,12 +490,11 @@ fn expire_duplicate_filter() {
         0,
     );
 
-    node0.message_sender.lock().unwrap().try_send(
-        channel_id,
-        &message,
-        DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
-    );
+    node0
+        .message_sender
+        .lock()
+        .unwrap()
+        .try_send(channel_id, &message, TrafficType::Generic);
 
     assert_timely_eq(
         Duration::from_secs(2),

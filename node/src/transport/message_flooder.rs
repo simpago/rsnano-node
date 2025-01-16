@@ -1,7 +1,7 @@
 use super::{try_send_serialized_message, MessageSender};
 use crate::{representatives::OnlineReps, stats::Stats};
 use rsnano_messages::{Message, MessageSerializer};
-use rsnano_network::{Channel, DropPolicy, Network, TrafficType};
+use rsnano_network::{Channel, Network, TrafficType};
 use std::{
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, RwLock},
@@ -50,8 +50,7 @@ impl MessageFlooder {
     ) {
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
         for rep in peered_prs {
-            self.sender
-                .try_send(rep.channel_id, &message, DropPolicy::CanDrop, traffic_type);
+            self.sender.try_send(rep.channel_id, &message, traffic_type);
         }
 
         let mut channels;
@@ -64,12 +63,8 @@ impl MessageFlooder {
 
         self.remove_no_pr(&mut channels, fanout);
         for peer in channels {
-            self.sender.try_send(
-                peer.channel_id(),
-                &message,
-                DropPolicy::CanDrop,
-                traffic_type,
-            );
+            self.sender
+                .try_send(peer.channel_id(), &message, traffic_type);
         }
     }
 
@@ -93,7 +88,6 @@ impl MessageFlooder {
                 channel.channel_id(),
                 buffer,
                 message,
-                DropPolicy::CanDrop,
                 traffic_type,
             );
         }

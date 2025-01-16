@@ -8,7 +8,7 @@ use rsnano_ledger::{
     BlockStatus, Writer, DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message, Publish};
-use rsnano_network::{ChannelId, DropPolicy, TrafficType};
+use rsnano_network::{ChannelId, TrafficType};
 use rsnano_node::{
     block_processing::{BacklogScanConfig, BlockSource, BoundedBacklogConfig},
     config::{NodeConfig, NodeFlags},
@@ -1793,7 +1793,6 @@ fn fork_no_vote_quorum() {
     node2.message_sender.lock().unwrap().try_send(
         channel.channel_id(),
         &confirm,
-        DropPolicy::ShouldNotDrop,
         TrafficType::Generic,
     );
 

@@ -5,7 +5,7 @@ use rsnano_messages::{
     Message, MessageSerializer, NodeIdHandshake, NodeIdHandshakeQuery, NodeIdHandshakeResponse,
     ProtocolInfo,
 };
-use rsnano_network::{Channel, DropPolicy, TrafficType};
+use rsnano_network::{Channel, TrafficType};
 use std::{
     net::SocketAddrV6,
     sync::{
@@ -81,7 +81,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
 
-        let enqueued = channel.send(data, DropPolicy::ShouldNotDrop, TrafficType::Generic);
+        let enqueued = channel.send(data, TrafficType::Generic);
 
         if enqueued {
             self.stats
@@ -215,7 +215,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
 
-        let enqueued = channel.send(buffer, DropPolicy::ShouldNotDrop, TrafficType::Generic);
+        let enqueued = channel.send(buffer, TrafficType::Generic);
 
         if enqueued {
             self.stats

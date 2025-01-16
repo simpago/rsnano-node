@@ -45,7 +45,7 @@ use rsnano_core::{
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
 use rsnano_messages::{ConfirmAck, Message, NetworkFilter, Publish};
 use rsnano_network::{
-    ChannelId, DeadChannelCleanup, DropPolicy, Network, NetworkCleanup, PeerConnector, TcpListener,
+    ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
     TcpListenerExt, TcpNetworkAdapter, TrafficType,
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
@@ -961,7 +961,6 @@ impl Node {
                 publisher.lock().unwrap().try_send(
                     channel.channel_id(),
                     &keepalive,
-                    DropPolicy::CanDrop,
                     TrafficType::Keepalive,
                 );
             }));

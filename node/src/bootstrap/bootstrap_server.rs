@@ -8,7 +8,7 @@ use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, DropPolicy, TrafficType};
+use rsnano_network::{Channel, ChannelId, DeadChannelCleanupStep, TrafficType};
 use rsnano_store_lmdb::{LmdbReadTransaction, Transaction};
 use std::{
     cmp::min,
@@ -408,7 +408,6 @@ impl BootstrapServerImpl {
         self.message_sender.lock().unwrap().try_send(
             channel_id,
             &msg,
-            DropPolicy::CanDrop,
             TrafficType::BootstrapServer,
         );
     }

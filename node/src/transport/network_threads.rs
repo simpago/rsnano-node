@@ -5,7 +5,7 @@ use crate::{
     NetworkParams,
 };
 use rsnano_messages::{Keepalive, Message, NetworkFilter};
-use rsnano_network::{DeadChannelCleanup, DropPolicy, Network, PeerConnector, TrafficType};
+use rsnano_network::{DeadChannelCleanup, Network, PeerConnector, TrafficType};
 use rsnano_nullable_clock::SteadyClock;
 use std::{
     sync::{Arc, Condvar, Mutex, RwLock},
@@ -227,12 +227,8 @@ impl KeepaliveLoop {
         };
 
         for channel_id in keepalive_list {
-            self.message_flooder.try_send(
-                channel_id,
-                &message,
-                DropPolicy::CanDrop,
-                TrafficType::Keepalive,
-            );
+            self.message_flooder
+                .try_send(channel_id, &message, TrafficType::Keepalive);
         }
     }
 

@@ -2,7 +2,7 @@ use super::{Election, ElectionData};
 use crate::{representatives::PeeredRep, transport::MessageFlooder, NetworkParams};
 use rsnano_core::{BlockHash, Root};
 use rsnano_messages::{ConfirmReq, Message, Publish};
-use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
+use rsnano_network::{ChannelId, Network, TrafficType};
 use std::{
     cmp::max,
     collections::HashMap,
@@ -85,12 +85,8 @@ impl<'a> ConfirmationSolicitor<'a> {
                 true
             };
             if should_broadcast {
-                self.message_flooder.try_send(
-                    i.channel_id,
-                    &winner,
-                    DropPolicy::CanDrop,
-                    TrafficType::BlockBroadcast,
-                );
+                self.message_flooder
+                    .try_send(i.channel_id, &winner, TrafficType::BlockBroadcast);
             }
         }
         // Random flood for block propagation
@@ -168,7 +164,6 @@ impl<'a> ConfirmationSolicitor<'a> {
                     self.message_flooder.try_send(
                         *channel_id,
                         &req,
-                        DropPolicy::CanDrop,
                         TrafficType::ConfirmationRequests,
                     );
                     roots_hashes = Vec::new();
@@ -176,12 +171,8 @@ impl<'a> ConfirmationSolicitor<'a> {
             }
             if !roots_hashes.is_empty() {
                 let req = Message::ConfirmReq(ConfirmReq::new(roots_hashes));
-                self.message_flooder.try_send(
-                    *channel_id,
-                    &req,
-                    DropPolicy::CanDrop,
-                    TrafficType::ConfirmationRequests,
-                );
+                self.message_flooder
+                    .try_send(*channel_id, &req, TrafficType::ConfirmationRequests);
             }
         }
         self.prepared = false;

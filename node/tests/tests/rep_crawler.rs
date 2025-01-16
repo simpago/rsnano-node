@@ -3,7 +3,7 @@ use rsnano_ledger::{
     DEV_GENESIS_ACCOUNT, DEV_GENESIS_BLOCK, DEV_GENESIS_HASH, DEV_GENESIS_PUB_KEY,
 };
 use rsnano_messages::{ConfirmAck, Message};
-use rsnano_network::{ChannelId, ChannelMode, DropPolicy, TrafficType};
+use rsnano_network::{ChannelId, ChannelMode, TrafficType};
 use rsnano_node::NodeExt;
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, System};
@@ -48,12 +48,11 @@ fn ignore_rebroadcast() {
 
     let tick = || {
         let msg = Message::ConfirmAck(ConfirmAck::new_with_rebroadcasted_vote(vote.clone()));
-        node2.message_sender.lock().unwrap().try_send(
-            channel2to1,
-            &msg,
-            DropPolicy::ShouldNotDrop,
-            TrafficType::RepCrawler,
-        );
+        node2
+            .message_sender
+            .lock()
+            .unwrap()
+            .try_send(channel2to1, &msg, TrafficType::RepCrawler);
         false
     };
 

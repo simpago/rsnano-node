@@ -105,16 +105,6 @@ impl ChannelMode {
     }
 }
 
-/// Policy to affect at which stage a buffer can be dropped
-#[derive(PartialEq, Eq, FromPrimitive, Debug, Clone, Copy)]
-pub enum DropPolicy {
-    /// Can be dropped by bandwidth limiter (default)
-    CanDrop,
-    /// Should not be dropped by bandwidth limiter,
-    /// but it can still be dropped if the write queue is full
-    ShouldNotDrop,
-}
-
 #[async_trait]
 pub trait AsyncBufferReader {
     async fn read(&self, buffer: &mut [u8], count: usize) -> anyhow::Result<()>;

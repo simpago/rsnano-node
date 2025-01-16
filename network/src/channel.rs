@@ -18,8 +18,7 @@ use crate::{
     bandwidth_limiter::BandwidthLimiter,
     utils::{ipv4_address_or_ipv6_subnet, map_address_to_subnetwork},
     write_queue::{Entry, WriteQueue},
-    ChannelDirection, ChannelId, ChannelMode, DropPolicy, NetworkObserver, NullNetworkObserver,
-    TrafficType,
+    ChannelDirection, ChannelId, ChannelMode, NetworkObserver, NullNetworkObserver, TrafficType,
 };
 
 /// Default timeout in seconds
@@ -235,20 +234,18 @@ impl Channel {
         self.write_queue.free_capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
     }
 
-    pub fn send(&self, buffer: &[u8], drop_policy: DropPolicy, traffic_type: TrafficType) -> bool {
+    pub fn send(&self, buffer: &[u8], traffic_type: TrafficType) -> bool {
         if self.is_closed() {
             return false;
         }
 
-        if drop_policy == DropPolicy::CanDrop && self.should_drop(traffic_type) {
+        if self.should_drop(traffic_type) {
             return false;
         }
 
         let should_pass = self.limiter.should_pass(buffer.len(), traffic_type);
-        if !should_pass && drop_policy == DropPolicy::CanDrop {
+        if !should_pass {
             return false;
-        } else {
-            // TODO notify bandwidth limiter that we are sending it anyway
         }
 
         let inserted = self

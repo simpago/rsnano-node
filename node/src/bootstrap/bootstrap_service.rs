@@ -26,7 +26,7 @@ use rsnano_messages::{
     AccountInfoAckPayload, AccountInfoReqPayload, AscPullAck, AscPullAckType, AscPullReq,
     AscPullReqType, BlocksAckPayload, BlocksReqPayload, FrontiersReqPayload, HashType, Message,
 };
-use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, DropPolicy, Network, TrafficType};
+use rsnano_network::{bandwidth_limiter::RateLimiter, ChannelId, Network, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     cmp::{max, min},
@@ -138,7 +138,6 @@ impl BootstrapService {
         let sent = self.message_sender.lock().unwrap().try_send(
             channel_id,
             &request,
-            DropPolicy::CanDrop,
             TrafficType::BootstrapRequests,
         );
 

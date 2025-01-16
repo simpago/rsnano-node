@@ -13,7 +13,7 @@ use bounded_vec_deque::BoundedVecDeque;
 use rsnano_core::{utils::ContainerInfo, Account, BlockHash, Root, Vote};
 use rsnano_ledger::Ledger;
 use rsnano_messages::{ConfirmReq, Message};
-use rsnano_network::{Channel, ChannelId, DropPolicy, Network, TrafficType};
+use rsnano_network::{Channel, ChannelId, Network, TrafficType};
 use rsnano_nullable_clock::{SteadyClock, Timestamp};
 use std::{
     collections::HashMap,
@@ -179,7 +179,6 @@ impl RepCrawler {
             self.message_sender.lock().unwrap().try_send(
                 channel.channel_id(),
                 &req,
-                DropPolicy::ShouldNotDrop,
                 TrafficType::Generic,
             );
         }

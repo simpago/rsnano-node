@@ -1,6 +1,6 @@
 use crate::stats::{Direction, StatType, Stats};
 use rsnano_messages::{Message, MessageSerializer, ProtocolInfo};
-use rsnano_network::{ChannelId, DropPolicy, Network, TrafficType};
+use rsnano_network::{ChannelId, Network, TrafficType};
 use std::sync::{Arc, RwLock};
 use tracing::trace;
 
@@ -59,7 +59,6 @@ impl MessageSender {
         &mut self,
         channel_id: ChannelId,
         message: &Message,
-        drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
         let buffer = self.message_serializer.serialize(message);
@@ -71,7 +70,6 @@ impl MessageSender {
                 channel_id,
                 buffer,
                 message,
-                drop_policy,
                 traffic_type,
             )
         };
@@ -92,15 +90,13 @@ impl MessageSender {
         channel_id: ChannelId,
         buffer: &[u8],
         message: &Message,
-        drop_policy: DropPolicy,
         traffic_type: TrafficType,
     ) -> bool {
-        let sent = self.network.read().unwrap().try_send_buffer(
-            channel_id,
-            buffer,
-            drop_policy,
-            traffic_type,
-        );
+        let sent = self
+            .network
+            .read()
+            .unwrap()
+            .try_send_buffer(channel_id, buffer, traffic_type);
 
         if sent {
             self.stats
@@ -123,10 +119,9 @@ pub(crate) fn try_send_serialized_message(
     channel_id: ChannelId,
     buffer: &[u8],
     message: &Message,
-    drop_policy: DropPolicy,
     traffic_type: TrafficType,
 ) -> bool {
-    let sent = network.try_send_buffer(channel_id, buffer, drop_policy, traffic_type);
+    let sent = network.try_send_buffer(channel_id, buffer, traffic_type);
 
     if sent {
         stats.inc_dir_aggregate(StatType::Message, message.into(), Direction::Out);

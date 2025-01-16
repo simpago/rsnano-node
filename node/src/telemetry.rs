@@ -20,7 +20,7 @@ use crate::{
     NetworkParams,
 };
 use rsnano_network::{
-    Channel, ChannelId, ChannelMode, DeadChannelCleanupStep, DropPolicy, Network, TrafficType,
+    Channel, ChannelId, ChannelMode, DeadChannelCleanupStep, Network, TrafficType,
 };
 
 /**
@@ -268,7 +268,6 @@ impl Telemetry {
         self.message_sender.lock().unwrap().try_send(
             channel_id,
             &Message::TelemetryReq,
-            DropPolicy::CanDrop,
             TrafficType::Telemetry,
         );
     }
@@ -284,12 +283,10 @@ impl Telemetry {
 
     fn broadcast(&self, channel_id: ChannelId, message: &Message) {
         self.stats.inc(StatType::Telemetry, DetailType::Broadcast);
-        self.message_sender.lock().unwrap().try_send(
-            channel_id,
-            message,
-            DropPolicy::CanDrop,
-            TrafficType::Telemetry,
-        );
+        self.message_sender
+            .lock()
+            .unwrap()
+            .try_send(channel_id, message, TrafficType::Telemetry);
     }
 
     fn cleanup(&self, data: &mut TelemetryImpl) {
