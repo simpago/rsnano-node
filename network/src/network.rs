@@ -371,10 +371,10 @@ impl Network {
         dead_channels
     }
 
-    pub fn is_queue_full(&self, channel_id: ChannelId, traffic_type: TrafficType) -> bool {
+    pub fn should_drop(&self, channel_id: ChannelId, traffic_type: TrafficType) -> bool {
         self.channels
             .get(&channel_id)
-            .map(|c| c.is_queue_full(traffic_type))
+            .map(|c| c.should_drop(traffic_type))
             .unwrap_or(true)
     }
 

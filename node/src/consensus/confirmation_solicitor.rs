@@ -91,11 +91,12 @@ impl<'a> ConfirmationSolicitor<'a> {
                     i.channel_id,
                     &winner,
                     DropPolicy::CanDrop,
-                    TrafficType::BlockBroadcast,
+                    TrafficType::Generic,
                 );
             }
         }
         // Random flood for block propagation
+        // TODO: Avoid broadcasting to the same peers that were already broadcasted to
         self.message_flooder
             .flood(&winner, TrafficType::Generic, DropPolicy::CanDrop, 0.5);
         Ok(())
@@ -133,7 +134,7 @@ impl<'a> ConfirmationSolicitor<'a> {
                     .network
                     .read()
                     .unwrap()
-                    .is_queue_full(rep.channel_id, TrafficType::Generic);
+                    .should_drop(rep.channel_id, TrafficType::Generic);
 
                 if !queue_full {
                     request_queue.push((winner.hash(), winner.root()));

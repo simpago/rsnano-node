@@ -223,7 +223,7 @@ impl RequestAggregatorLoop {
                 .network
                 .read()
                 .unwrap()
-                .is_queue_full(*channel_id, TrafficType::Generic);
+                .should_drop(*channel_id, TrafficType::Generic);
 
             if !queue_full {
                 self.process(&tx, request, *channel_id);

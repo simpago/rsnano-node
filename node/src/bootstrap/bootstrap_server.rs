@@ -117,7 +117,7 @@ impl BootstrapServer {
         }
 
         // If channel is full our response will be dropped anyway, so filter that early
-        if channel.is_queue_full(TrafficType::BootstrapServer) {
+        if channel.should_drop(TrafficType::BootstrapServer) {
             self.stats.inc_dir(
                 StatType::BootstrapServer,
                 DetailType::ChannelFull,
@@ -202,7 +202,7 @@ impl BootstrapServerImpl {
         for (_, (request, channel)) in batch {
             tx.refresh_if_needed();
 
-            if !channel.is_queue_full(TrafficType::BootstrapServer) {
+            if !channel.should_drop(TrafficType::BootstrapServer) {
                 let response = self.process(&tx, request);
                 self.respond(response, channel.channel_id());
             } else {

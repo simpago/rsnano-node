@@ -232,7 +232,7 @@ impl Channel {
             .store(now.into(), Ordering::Relaxed);
     }
 
-    pub fn is_queue_full(&self, traffic_type: TrafficType) -> bool {
+    pub fn should_drop(&self, traffic_type: TrafficType) -> bool {
         self.write_queue.free_capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
     }
 
@@ -246,7 +246,7 @@ impl Channel {
             return false;
         }
 
-        if drop_policy == DropPolicy::CanDrop && self.is_queue_full(traffic_type) {
+        if drop_policy == DropPolicy::CanDrop && self.should_drop(traffic_type) {
             return false;
         }
 
@@ -272,7 +272,7 @@ impl Channel {
             bail!("socket closed");
         }
 
-        while self.is_queue_full(traffic_type) {
+        while self.should_drop(traffic_type) {
             // TODO: better implementation
             sleep(Duration::from_millis(20)).await;
         }
