@@ -386,7 +386,13 @@ impl BootstrapServerImpl {
                     blocks.blocks().len() as u64,
                 );
             }
-            AscPullAckType::AccountInfo(_) => {}
+            AscPullAckType::AccountInfo(_) => {
+                self.stats.inc_dir(
+                    StatType::BootstrapServer,
+                    DetailType::AccountInfo,
+                    Direction::Out,
+                );
+            }
             AscPullAckType::Frontiers(frontiers) => {
                 self.stats.add_dir(
                     StatType::BootstrapServer,
