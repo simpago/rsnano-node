@@ -134,11 +134,9 @@ fn fork_replacement_tally() {
         .config(System::default_config_without_backlog_scan())
         .finish();
     node1.network_filter.clear_all();
-    node2.message_flooder.lock().unwrap().flood(
-        &Message::Publish(Publish::new_from_originator(send_last.clone())),
-        DropPolicy::ShouldNotDrop,
-        1.0,
-    );
+    node2
+        .local_block_broadcaster
+        .flood_block_initial(send_last.clone());
     assert_timely2(|| {
         node1
             .stats
@@ -172,11 +170,9 @@ fn fork_replacement_tally() {
         1,
     );
     node1.network_filter.clear_all();
-    node2.message_flooder.lock().unwrap().flood(
-        &Message::Publish(Publish::new_from_originator(send_last.clone())),
-        DropPolicy::ShouldNotDrop,
-        1.0,
-    );
+    node2
+        .local_block_broadcaster
+        .flood_block_initial(send_last.clone());
     assert_timely2(|| {
         node1
             .stats

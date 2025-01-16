@@ -4,7 +4,7 @@ use rsnano_core::{
 };
 use rsnano_ledger::{DEV_GENESIS_ACCOUNT, DEV_GENESIS_HASH};
 use rsnano_messages::{
-    ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer, ProtocolInfo, Publish,
+    ConfirmAck, Keepalive, Message, MessageHeader, MessageSerializer, ProtocolInfo,
 };
 use rsnano_network::{ChannelMode, DropPolicy, TrafficType};
 use rsnano_node::{
@@ -15,8 +15,8 @@ use rsnano_node::{
 };
 use std::{ops::Deref, sync::Arc, thread::sleep, time::Duration};
 use test_helpers::{
-    assert_always_eq, assert_timely, assert_timely_eq, assert_timely_msg, establish_tcp,
-    make_fake_channel, start_election, System,
+    assert_always_eq, assert_timely, assert_timely2, assert_timely_eq, assert_timely_eq2,
+    assert_timely_msg, establish_tcp, make_fake_channel, start_election, System,
 };
 
 #[test]
@@ -134,24 +134,16 @@ fn send_discarded_publish() {
     }
     .into();
 
-    node1.message_flooder.lock().unwrap().flood(
-        &Message::Publish(Publish::new_forward(block)),
-        DropPolicy::ShouldNotDrop,
-        1.0,
-    );
+    node1.local_block_broadcaster.flood_block_initial(block);
 
     assert_eq!(node1.latest(&DEV_GENESIS_ACCOUNT), *DEV_GENESIS_HASH);
     assert_eq!(node2.latest(&DEV_GENESIS_ACCOUNT), *DEV_GENESIS_HASH);
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || {
-            node2
-                .stats
-                .count(StatType::Message, DetailType::Publish, Direction::In)
-                != 0
-        },
-        "no publish received",
-    );
+    assert_timely2(|| {
+        node2
+            .stats
+            .count(StatType::Message, DetailType::Publish, Direction::In)
+            != 0
+    });
     assert_eq!(node1.latest(&DEV_GENESIS_ACCOUNT), *DEV_GENESIS_HASH);
     assert_eq!(node2.latest(&DEV_GENESIS_ACCOUNT), *DEV_GENESIS_HASH);
 }
@@ -176,7 +168,7 @@ fn receivable_processor_confirm_insufficient_pos() {
 
     node1.inbound_message_queue.put(con1, channel);
 
-    assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
+    assert_timely_eq2(|| election.vote_count(), 2);
 }
 
 #[test]
@@ -198,7 +190,7 @@ fn receivable_processor_confirm_sufficient_pos() {
 
     node1.inbound_message_queue.put(con1, channel);
 
-    assert_timely_eq(Duration::from_secs(5), || election.vote_count(), 2);
+    assert_timely_eq2(|| election.vote_count(), 2);
 }
 
 #[test]

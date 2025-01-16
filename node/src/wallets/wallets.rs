@@ -661,10 +661,12 @@ impl Wallets {
 
         if let Some(block) = block {
             let msg = Message::Publish(Publish::new_forward(block.clone().into()));
-            self.message_flooder
-                .lock()
-                .unwrap()
-                .flood(&msg, DropPolicy::ShouldNotDrop, 1.0);
+            self.message_flooder.lock().unwrap().flood(
+                &msg,
+                rsnano_network::TrafficType::Generic,
+                DropPolicy::ShouldNotDrop,
+                1.0,
+            );
             Ok(PreparedSend::Cached(block))
         } else {
             if !wallet.store.valid_password(tx) {

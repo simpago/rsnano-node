@@ -78,7 +78,13 @@ impl MessageFlooder {
         channels.truncate(count);
     }
 
-    pub fn flood(&mut self, message: &Message, drop_policy: DropPolicy, scale: f32) {
+    pub fn flood(
+        &mut self,
+        message: &Message,
+        traffic_type: TrafficType,
+        drop_policy: DropPolicy,
+        scale: f32,
+    ) {
         let buffer = self.message_serializer.serialize(message);
         let channels = self.network.read().unwrap().random_fanout_realtime(scale);
 
@@ -91,7 +97,7 @@ impl MessageFlooder {
                 buffer,
                 message,
                 drop_policy,
-                TrafficType::Generic,
+                traffic_type,
             );
         }
     }

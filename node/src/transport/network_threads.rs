@@ -242,14 +242,18 @@ impl KeepaliveLoop {
             .read()
             .unwrap()
             .random_fill_realtime(&mut keepalive.peers);
-        self.message_flooder
-            .flood(&Message::Keepalive(keepalive), DropPolicy::CanDrop, scale);
+        self.message_flooder.flood(
+            &Message::Keepalive(keepalive),
+            TrafficType::Generic,
+            DropPolicy::CanDrop,
+            scale,
+        );
     }
 
     fn flood_keepalive_self(&mut self, scale: f32) {
         let keepalive = self.keepalive_factory.create_keepalive_self();
         self.message_flooder
-            .flood(&keepalive, DropPolicy::CanDrop, scale);
+            .flood(&keepalive, TrafficType::Generic, DropPolicy::CanDrop, scale);
     }
 }
 

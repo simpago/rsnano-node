@@ -258,7 +258,7 @@ impl LocalBlockBroadcaster {
     }
 
     /// Flood block to all PRs and a random selection of non-PRs
-    fn flood_block_initial(&self, block: Block) {
+    pub fn flood_block_initial(&self, block: Block) {
         let message = Message::Publish(Publish::new_from_originator(block));
         let mut publisher = self.message_flooder.lock().unwrap();
         publisher.flood_prs_and_some_non_prs(
