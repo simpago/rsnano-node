@@ -85,7 +85,7 @@ impl KeepalivePublisher {
             channel_id,
             &keepalive,
             DropPolicy::CanDrop,
-            TrafficType::Generic,
+            TrafficType::Keepalive,
         );
     }
 }

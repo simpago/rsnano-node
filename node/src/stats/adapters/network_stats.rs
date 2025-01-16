@@ -240,6 +240,7 @@ impl From<TrafficType> for DetailType {
             TrafficType::BlockBroadcast => DetailType::BlockBroadcast,
             TrafficType::BlockBroadcastRpc => DetailType::BlockBroadcastRpc,
             TrafficType::ConfirmationRequests => DetailType::ConfirmationRequests,
+            TrafficType::Keepalive => DetailType::Keepalive,
         }
     }
 }

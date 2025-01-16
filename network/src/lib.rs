@@ -79,6 +79,7 @@ pub enum TrafficType {
     BlockBroadcast,
     BlockBroadcastRpc,
     ConfirmationRequests,
+    Keepalive,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]

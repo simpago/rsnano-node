@@ -231,7 +231,7 @@ impl KeepaliveLoop {
                 channel_id,
                 &message,
                 DropPolicy::CanDrop,
-                TrafficType::Generic,
+                TrafficType::Keepalive,
             );
         }
     }
@@ -252,8 +252,12 @@ impl KeepaliveLoop {
 
     fn flood_keepalive_self(&mut self, scale: f32) {
         let keepalive = self.keepalive_factory.create_keepalive_self();
-        self.message_flooder
-            .flood(&keepalive, TrafficType::Generic, DropPolicy::CanDrop, scale);
+        self.message_flooder.flood(
+            &keepalive,
+            TrafficType::Keepalive,
+            DropPolicy::CanDrop,
+            scale,
+        );
     }
 }
 
