@@ -22,7 +22,7 @@ impl VoteGenerators {
         config: &NodeConfig,
         network_params: &NetworkParams,
         vote_broadcaster: Arc<VoteBroadcaster>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
     ) -> Self {
         let non_final_vote_generator = VoteGenerator::new(
             ledger.clone(),
@@ -30,7 +30,7 @@ impl VoteGenerators {
             history.clone(),
             false, //none-final
             stats.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
             Duration::from_secs(network_params.voting.delay_s as u64),
             Duration::from_millis(config.vote_generator_delay_ms as u64),
             vote_broadcaster.clone(),
@@ -42,7 +42,7 @@ impl VoteGenerators {
             history,
             true, //final
             stats,
-            message_publisher.clone(),
+            message_sender.clone(),
             Duration::from_secs(network_params.voting.delay_s as u64),
             Duration::from_millis(config.vote_generator_delay_ms as u64),
             vote_broadcaster,

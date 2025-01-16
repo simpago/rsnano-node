@@ -76,7 +76,7 @@ fn last_contacted() {
     // and we need one more keepalive to handle the possibility that there is a keepalive already in flight when we start the crucial part of the test
     // it is possible that there could be multiple keepalives in flight but we assume here that there will be no more than one in flight for the purposes of this test
     let keepalive = Message::Keepalive(Keepalive::default());
-    let mut publisher = node0.message_publisher.lock().unwrap();
+    let mut publisher = node0.message_sender.lock().unwrap();
     publisher.try_send(
         channel1.channel_id(),
         &keepalive,
@@ -341,7 +341,7 @@ fn duplicate_vote_detection() {
         .unwrap()
         .channel_id();
 
-    node0.message_publisher.lock().unwrap().try_send(
+    node0.message_sender.lock().unwrap().try_send(
         channel_id,
         &message,
         DropPolicy::ShouldNotDrop,
@@ -358,7 +358,7 @@ fn duplicate_vote_detection() {
         },
         0,
     );
-    node0.message_publisher.lock().unwrap().try_send(
+    node0.message_sender.lock().unwrap().try_send(
         channel_id,
         &message,
         DropPolicy::ShouldNotDrop,
@@ -422,7 +422,7 @@ fn duplicate_revert_vote() {
         .channel_id();
 
     // First vote should be processed
-    node0.message_publisher.lock().unwrap().try_send(
+    node0.message_sender.lock().unwrap().try_send(
         channel_id,
         &message1,
         DropPolicy::ShouldNotDrop,
@@ -441,7 +441,7 @@ fn duplicate_revert_vote() {
     );
 
     // Second vote should get dropped from processor queue
-    node0.message_publisher.lock().unwrap().try_send(
+    node0.message_sender.lock().unwrap().try_send(
         channel_id,
         &message2,
         DropPolicy::ShouldNotDrop,
@@ -499,7 +499,7 @@ fn expire_duplicate_filter() {
         .channel_id();
 
     // Send a vote
-    node0.message_publisher.lock().unwrap().try_send(
+    node0.message_sender.lock().unwrap().try_send(
         channel_id,
         &message,
         DropPolicy::ShouldNotDrop,
@@ -518,7 +518,7 @@ fn expire_duplicate_filter() {
         0,
     );
 
-    node0.message_publisher.lock().unwrap().try_send(
+    node0.message_sender.lock().unwrap().try_send(
         channel_id,
         &message,
         DropPolicy::ShouldNotDrop,

@@ -122,8 +122,8 @@ pub struct Node {
     monitor: TimerThread<Monitor>,
     stopped: AtomicBool,
     pub network_filter: Arc<NetworkFilter>,
-    pub message_publisher: Arc<Mutex<MessageSender>>, // TODO remove this. It is needed right now
-    pub message_flooder: Arc<Mutex<MessageFlooder>>,  // TODO remove this. It is needed right now
+    pub message_sender: Arc<Mutex<MessageSender>>, // TODO remove this. It is needed right now
+    pub message_flooder: Arc<Mutex<MessageFlooder>>, // TODO remove this. It is needed right now
     pub keepalive_publisher: Arc<KeepalivePublisher>,
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
@@ -318,21 +318,21 @@ impl Node {
         ));
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
-        let mut message_publisher = MessageSender::new(
+        let mut message_sender = MessageSender::new(
             network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
         );
 
         if let Some(callback) = &args.callbacks.on_publish {
-            message_publisher.set_published_callback(callback.clone());
+            message_sender.set_published_callback(callback.clone());
         }
 
         let message_flooder = MessageFlooder::new(
             online_reps.clone(),
             network.clone(),
             stats.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
         );
 
         let telemetry = Arc::new(Telemetry::new(
@@ -343,7 +343,7 @@ impl Node {
             unchecked.clone(),
             network_params.clone(),
             network.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
             node_id.clone(),
             steady_clock.clone(),
         ));
@@ -352,7 +352,7 @@ impl Node {
             config.bootstrap_server.clone(),
             stats.clone(),
             ledger.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
         ));
         dead_channel_cleanup.add_step(BootstrapServerCleanup::new(
             bootstrap_server.server_impl.clone(),
@@ -459,7 +459,7 @@ impl Node {
             &config,
             &network_params,
             vote_broadcaster,
-            message_publisher.clone(),
+            message_sender.clone(),
         ));
 
         let vote_applier = Arc::new(VoteApplier::new(
@@ -587,7 +587,7 @@ impl Node {
 
         let process_live_dispatcher = Arc::new(ProcessLiveDispatcher::new());
 
-        let mut bootstrap_publisher = MessageSender::new_with_buffer_size(
+        let mut bootstrap_sender = MessageSender::new_with_buffer_size(
             network.clone(),
             stats.clone(),
             network_params.network.protocol_info(),
@@ -595,7 +595,7 @@ impl Node {
         );
 
         if let Some(callback) = &args.callbacks.on_publish {
-            bootstrap_publisher.set_published_callback(callback.clone());
+            bootstrap_sender.set_published_callback(callback.clone());
         }
 
         let latest_keepalives = Arc::new(Mutex::new(LatestKeepalives::default()));
@@ -640,7 +640,7 @@ impl Node {
         let keepalive_publisher = Arc::new(KeepalivePublisher::new(
             network.clone(),
             peer_connector.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
             keepalive_factory.clone(),
         ));
 
@@ -654,7 +654,7 @@ impl Node {
             ledger.clone(),
             active_elections.clone(),
             steady_clock.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
             keepalive_publisher.clone(),
             runtime.clone(),
         ));
@@ -760,7 +760,7 @@ impl Node {
             ledger.clone(),
             stats.clone(),
             network.clone(),
-            message_publisher.clone(),
+            message_sender.clone(),
             global_config.node_config.bootstrap.clone(),
             steady_clock.clone(),
         ));
@@ -944,7 +944,7 @@ impl Node {
         }));
 
         let keepalive_factory_w = Arc::downgrade(&keepalive_factory);
-        let message_publisher_l = Arc::new(Mutex::new(message_publisher.clone()));
+        let message_publisher_l = Arc::new(Mutex::new(message_sender.clone()));
         let message_publisher_w = Arc::downgrade(&message_publisher_l);
         network
             .write()
@@ -1227,7 +1227,7 @@ impl Node {
             message_processor,
             inbound_message_queue,
             monitor,
-            message_publisher: message_publisher_l,
+            message_sender: message_publisher_l,
             message_flooder: Arc::new(Mutex::new(message_flooder.clone())),
             network_filter,
             keepalive_publisher,

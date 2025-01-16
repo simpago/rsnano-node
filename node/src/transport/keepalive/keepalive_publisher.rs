@@ -17,7 +17,7 @@ pub struct KeepalivePublisher {
     keepalive_listener: OutputListenerMt<Peer>,
     network: Arc<RwLock<Network>>,
     peer_connector: Arc<PeerConnector>,
-    message_publisher: Mutex<MessageSender>,
+    message_sender: Mutex<MessageSender>,
     message_factory: Arc<KeepaliveMessageFactory>,
 }
 
@@ -25,14 +25,14 @@ impl KeepalivePublisher {
     pub fn new(
         network: Arc<RwLock<Network>>,
         peer_connector: Arc<PeerConnector>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
         message_factory: Arc<KeepaliveMessageFactory>,
     ) -> Self {
         Self {
             keepalive_listener: OutputListenerMt::new(),
             network,
             peer_connector,
-            message_publisher: Mutex::new(message_publisher),
+            message_sender: Mutex::new(message_sender),
             message_factory,
         }
     }
@@ -81,7 +81,7 @@ impl KeepalivePublisher {
     fn try_send_keepalive(&self, channel_id: ChannelId) {
         let keepalive = self.message_factory.create_keepalive();
 
-        self.message_publisher.lock().unwrap().try_send(
+        self.message_sender.lock().unwrap().try_send(
             channel_id,
             &keepalive,
             DropPolicy::CanDrop,

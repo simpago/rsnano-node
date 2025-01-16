@@ -43,14 +43,14 @@ impl VoteGenerator {
         history: Arc<LocalVoteHistory>,
         is_final: bool,
         stats: Arc<Stats>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
         voting_delay: Duration,
         vote_generator_delay: Duration,
         vote_broadcaster: Arc<VoteBroadcaster>,
     ) -> Self {
         let shared_state = Arc::new(SharedState {
             ledger: Arc::clone(&ledger),
-            message_publisher: Mutex::new(message_publisher),
+            message_sender: Mutex::new(message_sender),
             history,
             wallets,
             condition: Condvar::new(),
@@ -182,7 +182,7 @@ struct SharedState {
     ledger: Arc<Ledger>,
     wallets: Arc<Wallets>,
     history: Arc<LocalVoteHistory>,
-    message_publisher: Mutex<MessageSender>,
+    message_sender: Mutex<MessageSender>,
     is_final: bool,
     condition: Condvar,
     stopped: AtomicBool,
@@ -338,7 +338,7 @@ impl SharedState {
                     let channel_id = &request.1;
                     let confirm =
                         Message::ConfirmAck(ConfirmAck::new_with_own_vote((*vote).clone()));
-                    self.message_publisher.lock().unwrap().try_send(
+                    self.message_sender.lock().unwrap().try_send(
                         *channel_id,
                         &confirm,
                         DropPolicy::CanDrop,

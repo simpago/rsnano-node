@@ -56,7 +56,7 @@ impl BootstrapServer {
         config: BootstrapServerConfig,
         stats: Arc<Stats>,
         ledger: Arc<Ledger>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
     ) -> Self {
         let max_queue = config.max_queue;
         let server_impl = Arc::new(BootstrapServerImpl {
@@ -67,7 +67,7 @@ impl BootstrapServer {
             condition: Condvar::new(),
             stopped: AtomicBool::new(false),
             queue: Mutex::new(FairQueue::new(move |_| max_queue, |_| 1)),
-            message_publisher: Mutex::new(message_publisher),
+            message_sender: Mutex::new(message_sender),
         });
 
         Self {
@@ -171,7 +171,7 @@ pub(crate) struct BootstrapServerImpl {
     condition: Condvar,
     queue: Mutex<FairQueue<ChannelId, (AscPullReq, Arc<Channel>)>>,
     batch_size: usize,
-    message_publisher: Mutex<MessageSender>,
+    message_sender: Mutex<MessageSender>,
 }
 
 impl BootstrapServerImpl {
@@ -406,7 +406,7 @@ impl BootstrapServerImpl {
         }
 
         let msg = Message::AscPullAck(response);
-        self.message_publisher.lock().unwrap().try_send(
+        self.message_sender.lock().unwrap().try_send(
             channel_id,
             &msg,
             DropPolicy::CanDrop,

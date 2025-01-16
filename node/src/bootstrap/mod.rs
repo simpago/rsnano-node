@@ -61,7 +61,7 @@ pub struct BootstrapService {
     block_processor: Arc<BlockProcessor>,
     ledger: Arc<Ledger>,
     stats: Arc<Stats>,
-    message_publisher: Mutex<MessageSender>,
+    message_sender: Mutex<MessageSender>,
     threads: Mutex<Option<Threads>>,
     mutex: Arc<Mutex<BootstrapLogic>>,
     condition: Arc<Condvar>,
@@ -89,7 +89,7 @@ impl BootstrapService {
         ledger: Arc<Ledger>,
         stats: Arc<Stats>,
         network: Arc<RwLock<Network>>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
         config: BootstrapConfig,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -122,7 +122,7 @@ impl BootstrapService {
             config,
             stats,
             ledger,
-            message_publisher: Mutex::new(message_publisher),
+            message_sender: Mutex::new(message_sender),
             clock,
             workers: ThreadPoolImpl::create(1, "Bootstrap work"),
         }
@@ -156,7 +156,7 @@ impl BootstrapService {
         self.stats
             .inc(StatType::BootstrapRequest, query_type.into());
 
-        let enqueued = self.message_publisher.lock().unwrap().try_send(
+        let enqueued = self.message_sender.lock().unwrap().try_send(
             channel_id,
             &request,
             DropPolicy::CanDrop,

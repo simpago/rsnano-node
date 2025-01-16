@@ -14,7 +14,7 @@ pub struct MessageFlooder {
     network: Arc<RwLock<Network>>,
     stats: Arc<Stats>,
     message_serializer: MessageSerializer,
-    publisher: MessageSender,
+    sender: MessageSender,
 }
 
 impl MessageFlooder {
@@ -22,14 +22,14 @@ impl MessageFlooder {
         online_reps: Arc<Mutex<OnlineReps>>,
         network: Arc<RwLock<Network>>,
         stats: Arc<Stats>,
-        publisher: MessageSender,
+        sender: MessageSender,
     ) -> Self {
         Self {
             online_reps,
             network,
             stats,
-            message_serializer: publisher.get_serializer(),
-            publisher,
+            message_serializer: sender.get_serializer(),
+            sender,
         }
     }
 
@@ -51,7 +51,7 @@ impl MessageFlooder {
     ) {
         let peered_prs = self.online_reps.lock().unwrap().peered_principal_reps();
         for rep in peered_prs {
-            self.publisher
+            self.sender
                 .try_send(rep.channel_id, &message, drop_policy, traffic_type);
         }
 
@@ -65,7 +65,7 @@ impl MessageFlooder {
 
         self.remove_no_pr(&mut channels, fanout);
         for peer in channels {
-            self.publisher
+            self.sender
                 .try_send(peer.channel_id(), &message, drop_policy, traffic_type);
         }
     }
@@ -101,12 +101,12 @@ impl Deref for MessageFlooder {
     type Target = MessageSender;
 
     fn deref(&self) -> &Self::Target {
-        &self.publisher
+        &self.sender
     }
 }
 
 impl DerefMut for MessageFlooder {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.publisher
+        &mut self.sender
     }
 }

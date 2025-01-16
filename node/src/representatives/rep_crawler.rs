@@ -39,7 +39,7 @@ pub struct RepCrawler {
     active: Arc<ActiveElections>,
     thread: Mutex<Option<JoinHandle<()>>>,
     steady_clock: Arc<SteadyClock>,
-    message_publisher: Mutex<MessageSender>,
+    message_sender: Mutex<MessageSender>,
     preconfigured_peers: Arc<PreconfiguredPeersKeepalive>,
     tokio: tokio::runtime::Handle,
 }
@@ -57,7 +57,7 @@ impl RepCrawler {
         ledger: Arc<Ledger>,
         active: Arc<ActiveElections>,
         steady_clock: Arc<SteadyClock>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
         keepalive_publisher: Arc<KeepalivePublisher>,
         tokio: tokio::runtime::Handle,
     ) -> Self {
@@ -73,7 +73,7 @@ impl RepCrawler {
             active,
             thread: Mutex::new(None),
             steady_clock,
-            message_publisher: Mutex::new(message_publisher),
+            message_sender: Mutex::new(message_sender),
             preconfigured_peers: Arc::new(PreconfiguredPeersKeepalive::new(
                 config.preconfigured_peers,
                 keepalive_publisher,
@@ -176,7 +176,7 @@ impl RepCrawler {
 
             let req = Message::ConfirmReq(ConfirmReq::new(vec![hash_root]));
 
-            self.message_publisher.lock().unwrap().try_send(
+            self.message_sender.lock().unwrap().try_send(
                 channel.channel_id(),
                 &req,
                 DropPolicy::ShouldNotDrop,

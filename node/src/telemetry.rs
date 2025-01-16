@@ -42,7 +42,7 @@ pub struct Telemetry {
     mutex: Mutex<TelemetryImpl>,
     network_params: NetworkParams,
     network: Arc<RwLock<Network>>,
-    message_publisher: Mutex<MessageSender>,
+    message_sender: Mutex<MessageSender>,
     node_id: PrivateKey,
     pub startup_time: Instant,
     telemetry_processed_callbacks:
@@ -61,7 +61,7 @@ impl Telemetry {
         unchecked: Arc<UncheckedMap>,
         network_params: NetworkParams,
         network: Arc<RwLock<Network>>,
-        message_publisher: MessageSender,
+        message_sender: MessageSender,
         node_id: PrivateKey,
         clock: Arc<SteadyClock>,
     ) -> Self {
@@ -73,7 +73,7 @@ impl Telemetry {
             unchecked,
             network_params,
             network,
-            message_publisher: Mutex::new(message_publisher),
+            message_sender: Mutex::new(message_sender),
             thread: Mutex::new(None),
             condition: Condvar::new(),
             mutex: Mutex::new(TelemetryImpl {
@@ -265,7 +265,7 @@ impl Telemetry {
 
     fn request(&self, channel_id: ChannelId) {
         self.stats.inc(StatType::Telemetry, DetailType::Request);
-        self.message_publisher.lock().unwrap().try_send(
+        self.message_sender.lock().unwrap().try_send(
             channel_id,
             &Message::TelemetryReq,
             DropPolicy::CanDrop,
@@ -284,7 +284,7 @@ impl Telemetry {
 
     fn broadcast(&self, channel_id: ChannelId, message: &Message) {
         self.stats.inc(StatType::Telemetry, DetailType::Broadcast);
-        self.message_publisher.lock().unwrap().try_send(
+        self.message_sender.lock().unwrap().try_send(
             channel_id,
             message,
             DropPolicy::CanDrop,
