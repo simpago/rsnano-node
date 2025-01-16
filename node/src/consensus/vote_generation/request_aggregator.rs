@@ -219,13 +219,13 @@ impl RequestAggregatorLoop {
         for (channel_id, request) in &batch {
             tx.refresh_if_needed();
 
-            let queue_full = self
+            let should_drop = self
                 .network
                 .read()
                 .unwrap()
-                .should_drop(*channel_id, TrafficType::Generic);
+                .should_drop(*channel_id, TrafficType::VoteReply);
 
-            if !queue_full {
+            if !should_drop {
                 self.process(&tx, request, *channel_id);
             } else {
                 self.stats.inc_dir(
