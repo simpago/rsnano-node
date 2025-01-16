@@ -81,8 +81,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let data = serializer.serialize(&message);
 
-        let enqueued =
-            channel.try_send_buffer(data, DropPolicy::ShouldNotDrop, TrafficType::Generic);
+        let enqueued = channel.send(data, DropPolicy::ShouldNotDrop, TrafficType::Generic);
 
         if enqueued {
             self.stats
@@ -216,8 +215,7 @@ impl HandshakeProcess {
         let mut serializer = MessageSerializer::new(self.protocol);
         let buffer = serializer.serialize(&handshake_response);
 
-        let enqueued =
-            channel.try_send_buffer(buffer, DropPolicy::ShouldNotDrop, TrafficType::Generic);
+        let enqueued = channel.send(buffer, DropPolicy::ShouldNotDrop, TrafficType::Generic);
 
         if enqueued {
             self.stats

@@ -235,12 +235,7 @@ impl Channel {
         self.write_queue.free_capacity(traffic_type) <= Self::MAX_QUEUE_SIZE
     }
 
-    pub fn try_send_buffer(
-        &self,
-        buffer: &[u8],
-        drop_policy: DropPolicy,
-        traffic_type: TrafficType,
-    ) -> bool {
+    pub fn send(&self, buffer: &[u8], drop_policy: DropPolicy, traffic_type: TrafficType) -> bool {
         if self.is_closed() {
             return false;
         }

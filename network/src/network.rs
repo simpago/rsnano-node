@@ -680,7 +680,7 @@ impl Network {
     ) -> bool {
         let channel = self.channels.get(&channel_id);
         if let Some(channel) = channel {
-            channel.try_send_buffer(buffer, drop_policy, traffic_type)
+            channel.send(buffer, drop_policy, traffic_type)
         } else {
             false
         }
