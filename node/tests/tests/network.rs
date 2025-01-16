@@ -418,7 +418,7 @@ fn duplicate_revert_vote() {
         channel_id,
         &message1,
         DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
+        TrafficType::Vote,
     );
     assert_always_eq(
         Duration::from_millis(100),
@@ -437,7 +437,7 @@ fn duplicate_revert_vote() {
         channel_id,
         &message2,
         DropPolicy::ShouldNotDrop,
-        TrafficType::Generic,
+        TrafficType::Vote,
     );
     assert_always_eq(
         Duration::from_millis(100),

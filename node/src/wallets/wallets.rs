@@ -662,7 +662,7 @@ impl Wallets {
             let msg = Message::Publish(Publish::new_forward(block.clone().into()));
             self.message_flooder.lock().unwrap().flood(
                 &msg,
-                rsnano_network::TrafficType::Generic,
+                rsnano_network::TrafficType::BlockBroadcastInitial,
                 1.0,
             );
             Ok(PreparedSend::Cached(block))

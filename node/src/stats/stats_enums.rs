@@ -304,7 +304,9 @@ pub enum DetailType {
     BootstrapRequests,
     BlockBroadcast,
     BlockBroadcastRpc,
+    BlockBroadcastInitial,
     ConfirmationRequests,
+    VoteRebroadcast,
 
     // tcp
     TcpWriteDrop,

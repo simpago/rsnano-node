@@ -342,7 +342,7 @@ impl SharedState {
                         *channel_id,
                         &confirm,
                         DropPolicy::CanDrop,
-                        TrafficType::Generic,
+                        TrafficType::Vote,
                     );
                     self.stats.inc_dir(
                         StatType::Requests,

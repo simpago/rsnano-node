@@ -32,7 +32,7 @@ impl VoteBroadcaster {
         self.message_flooder
             .lock()
             .unwrap()
-            .flood_prs_and_some_non_prs(&ack, TrafficType::Generic, 2.0);
+            .flood_prs_and_some_non_prs(&ack, TrafficType::Vote, 2.0);
 
         self.vote_processor_queue
             .vote(vote, ChannelId::LOOPBACK, VoteSource::Live);

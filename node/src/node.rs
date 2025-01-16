@@ -938,7 +938,7 @@ impl Node {
                     flooder_l
                         .lock()
                         .unwrap()
-                        .flood(&ack, TrafficType::Generic, 0.5);
+                        .flood(&ack, TrafficType::VoteRebroadcast, 0.5);
                 }
             }
         }));

@@ -77,9 +77,12 @@ pub enum TrafficType {
     BootstrapServer,
     BootstrapRequests,
     BlockBroadcast,
+    BlockBroadcastInitial,
     BlockBroadcastRpc,
     ConfirmationRequests,
     Keepalive,
+    Vote,
+    VoteRebroadcast,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, FromPrimitive)]

@@ -238,9 +238,12 @@ impl From<TrafficType> for DetailType {
             TrafficType::BootstrapServer => DetailType::BootstrapServer,
             TrafficType::BootstrapRequests => DetailType::BootstrapRequests,
             TrafficType::BlockBroadcast => DetailType::BlockBroadcast,
+            TrafficType::BlockBroadcastInitial => DetailType::BlockBroadcastInitial,
             TrafficType::BlockBroadcastRpc => DetailType::BlockBroadcastRpc,
             TrafficType::ConfirmationRequests => DetailType::ConfirmationRequests,
             TrafficType::Keepalive => DetailType::Keepalive,
+            TrafficType::Vote => DetailType::Vote,
+            TrafficType::VoteRebroadcast => DetailType::VoteRebroadcast,
         }
     }
 }
