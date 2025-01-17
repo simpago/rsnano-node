@@ -309,6 +309,7 @@ impl Node {
             OnlineReps::builder()
                 .rep_weights(rep_weights.clone())
                 .online_weight_minimum(config.online_weight_minimum)
+                .representative_weight_minimum(config.representative_vote_weight_minimum)
                 .weight_interval(OnlineReps::default_interval_for(
                     network_params.network.current_network,
                 ))

@@ -29,6 +29,7 @@ pub struct OnlineReps {
     /// Time between collecting online representative samples
     weight_interval: Duration,
     online_weight_minimum: Amount,
+    representative_weight_minimum: Amount,
 }
 
 impl OnlineReps {
@@ -44,6 +45,7 @@ impl OnlineReps {
         rep_weights: Arc<RepWeightCache>,
         weight_interval: Duration,
         online_weight_minimum: Amount,
+        representative_weight_minimum: Amount,
     ) -> Self {
         Self {
             rep_weights,
@@ -53,6 +55,7 @@ impl OnlineReps {
             online_weight: Amount::zero(),
             weight_interval,
             online_weight_minimum,
+            representative_weight_minimum,
         }
     }
 
@@ -178,19 +181,23 @@ impl OnlineReps {
         reps_with_weight.drain(..).map(|(rep, _)| rep).collect()
     }
 
-    /// Add voting account rep_account to the set of online representatives
-    /// This can happen for directly connected or indirectly connected reps
-    pub fn vote_observed(&mut self, rep_account: PublicKey, now: Timestamp) {
-        if self.rep_weights.weight(&rep_account) > Amount::zero() {
-            let new_insert = self.online_reps.insert(rep_account, now);
-            let trimmed = self
-                .online_reps
-                .trim(now.checked_sub(self.weight_interval).unwrap_or_default());
-
-            if new_insert || trimmed {
-                self.calculate_online_weight();
-            }
+    /// Add voting account rep_account to the set of online representatives.
+    /// This can happen for directly connected or indirectly connected reps.
+    /// Returns whether it is a rep which has more than min weight
+    pub fn vote_observed(&mut self, rep_account: PublicKey, now: Timestamp) -> bool {
+        if self.rep_weights.weight(&rep_account) < self.representative_weight_minimum {
+            return false;
         }
+
+        let new_insert = self.online_reps.insert(rep_account, now);
+        let trimmed = self
+            .online_reps
+            .trim(now.checked_sub(self.weight_interval).unwrap_or_default());
+
+        if new_insert || trimmed {
+            self.calculate_online_weight();
+        }
+        true
     }
 
     fn calculate_online_weight(&mut self) {
@@ -208,9 +215,13 @@ impl OnlineReps {
         channel_id: ChannelId,
         now: Timestamp,
     ) -> InsertResult {
-        self.vote_observed(rep_account, now);
-        self.peered_reps
-            .update_or_insert(rep_account, channel_id, now)
+        let is_rep = self.vote_observed(rep_account, now);
+        if is_rep {
+            self.peered_reps
+                .update_or_insert(rep_account, channel_id, now)
+        } else {
+            InsertResult::Updated
+        }
     }
 
     pub fn remove_peer(&mut self, channel_id: ChannelId) -> Vec<PublicKey> {
