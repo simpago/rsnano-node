@@ -2368,6 +2368,7 @@ fn rep_crawler_rep_remove() {
     searching_node
         .rep_crawler
         .force_process(vote_genesis_rep, channel_genesis_rep.channel_id());
+
     assert_timely_eq(
         Duration::from_secs(10),
         || {
@@ -2385,6 +2386,7 @@ fn rep_crawler_rep_remove() {
     searching_node
         .peer_connector
         .connect_to(node_rep2.tcp_listener.local_address());
+
     assert_timely_msg(
         Duration::from_secs(10),
         || {
@@ -2410,6 +2412,7 @@ fn rep_crawler_rep_remove() {
     searching_node
         .rep_crawler
         .force_process(vote_rep2, channel_rep2.channel_id());
+
     assert_timely_eq(
         Duration::from_secs(10),
         || {

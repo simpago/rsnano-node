@@ -37,6 +37,7 @@ impl OnlineReps {
 
     pub const fn default_interval_for(network: Networks) -> Duration {
         match network {
+            Networks::NanoDevNetwork => Duration::from_secs(1),
             _ => Duration::from_secs(5 * 60),
         }
     }

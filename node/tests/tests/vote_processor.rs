@@ -14,7 +14,9 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use test_helpers::{assert_timely, assert_timely_eq, setup_chain, start_election, System};
+use test_helpers::{
+    assert_timely, assert_timely_eq, assert_timely_eq2, setup_chain, start_election, System,
+};
 
 #[test]
 fn codes() {
@@ -192,8 +194,7 @@ fn weights() {
     let node3 = system.make_node();
 
     // Create representatives of different weight levels
-    // FIXME: Using `online_weight_minimum` because calculation of trended and online weight is broken when running tests
-    let stake = node1.config.online_weight_minimum;
+    let stake = Amount::MAX;
     let level0 = stake / 5000; // 0.02%
     let level1 = stake / 500; // 0.2%
     let level2 = stake / 50; // 2%
@@ -268,10 +269,13 @@ fn weights() {
             >= 2
     });
 
-    assert_eq!(node0.rep_tiers.tier(&key0.public_key()), RepTier::None);
-    assert_eq!(node0.rep_tiers.tier(&key1.public_key()), RepTier::Tier1);
-    assert_eq!(node0.rep_tiers.tier(&key2.public_key()), RepTier::Tier2);
-    assert_eq!(node0.rep_tiers.tier(&DEV_GENESIS_PUB_KEY), RepTier::Tier3);
+    assert_timely_eq2(|| node0.rep_tiers.tier(&key0.public_key()), RepTier::None);
+    assert_timely_eq2(|| node0.rep_tiers.tier(&key1.public_key()), RepTier::Tier1);
+    assert_timely_eq2(|| node0.rep_tiers.tier(&key2.public_key()), RepTier::Tier2);
+    assert_timely_eq2(
+        || node0.rep_tiers.tier(&DEV_GENESIS_PUB_KEY),
+        RepTier::Tier3,
+    );
 }
 
 // Issue that tracks last changes on this test: https://github.com/nanocurrency/nano-node/issues/3485

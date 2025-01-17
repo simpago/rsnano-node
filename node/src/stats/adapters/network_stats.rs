@@ -2,7 +2,7 @@ use crate::stats::{DetailType, Direction, StatType, Stats};
 use anyhow::Error;
 use rsnano_network::{Channel, ChannelDirection, NetworkError, NetworkObserver, TrafficType};
 use std::{net::SocketAddrV6, sync::Arc};
-use tracing::debug;
+use tracing::{debug, trace};
 
 #[derive(Clone)]
 pub struct NetworkStats(Arc<Stats>);
@@ -182,7 +182,7 @@ impl NetworkObserver for NetworkStats {
                     DetailType::Duplicate,
                     direction.into(),
                 );
-                debug!(
+                trace!(
                     %peer,
                     ?direction,
                     "Already connected to that peer, unable to open new connection");
