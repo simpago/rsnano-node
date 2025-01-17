@@ -1167,8 +1167,16 @@ impl BootstrapLogic {
                     }
                 }
             }
+            BlockStatus::GapEpochOpenPending => {
+                // Epoch open blocks for accounts that don't have any pending blocks yet
+                if self.accounts.priority_erase(account) {
+                    stats.inc(StatType::BootstrapAccountSets, DetailType::PriorityErase);
+                }
+            }
             _ => {
                 // No need to handle other cases
+                // TODO: If we receive blocks that are invalid (bad signature, fork, etc.),
+                // we should penalize the peer that sent them
             }
         }
     }

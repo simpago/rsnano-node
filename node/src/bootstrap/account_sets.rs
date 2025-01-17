@@ -66,10 +66,6 @@ impl AccountSets {
         }
     }
 
-    /**
-     * If an account is not blocked, increase its priority.
-     * If the account does not exist in priority set and is not blocked, inserts a new entry.
-     */
     pub fn priority_up(&mut self, account: &Account) -> PriorityUpResult {
         if account.is_zero() {
             return PriorityUpResult::InvalidAccount;
@@ -103,7 +99,6 @@ impl AccountSets {
         min(priority + Self::PRIORITY_INCREASE, Self::PRIORITY_MAX)
     }
 
-    /// Decreases account priority
     pub fn priority_down(&mut self, account: &Account) -> PriorityDownResult {
         if account.is_zero() {
             return PriorityDownResult::InvalidAccount;
@@ -157,6 +152,14 @@ impl AccountSets {
         } else {
             false
         }
+    }
+
+    pub fn priority_erase(&mut self, account: &Account) -> bool {
+        if account.is_zero() {
+            return false;
+        }
+
+        self.priorities.remove(account).is_some()
     }
 
     pub fn block(&mut self, account: Account, dependency: BlockHash) -> bool {

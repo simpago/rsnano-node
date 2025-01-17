@@ -500,6 +500,7 @@ pub enum DetailType {
     BlockingOverflow,
     PriorityInsert,
     PrioritySet,
+    PriorityErase,
     PriorityUnblocked,
     EraseByThreshold,
     EraseByBlocking,
