@@ -46,10 +46,10 @@ pub enum StatType {
     VoteCache,
     VoteCacheProcessor,
     Hinting,
-    Blockprocessor,
-    BlockprocessorSource,
-    BlockprocessorResult,
-    BlockprocessorOverfill,
+    BlockProcessor,
+    BlockProcessorSource,
+    BlockProcessorResult,
+    BlockProcessorOverfill,
     Bootstrap,
     BootstrapVerify,
     BootstrapVerifyBlocks,
@@ -187,7 +187,7 @@ pub enum DetailType {
     RepresentativeMismatch,
     BlockPosition,
 
-    // blockprocessor
+    // block processor
     ProcessBlocking,
     ProcessBlockingTimeout,
     Force,
