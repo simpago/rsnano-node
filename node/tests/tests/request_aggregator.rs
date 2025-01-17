@@ -2,14 +2,18 @@ use rsnano_core::{Amount, PrivateKey, UnsavedBlockLatticeBuilder, DEV_GENESIS_KE
 use rsnano_messages::ConfirmAck;
 use rsnano_node::{
     config::NodeFlags,
+    consensus::VoteGenerationEvent,
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
+use rsnano_output_tracker::OutputTrackerMt;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use test_helpers::{assert_timely_eq, assert_timely_msg, make_fake_channel, System};
+use test_helpers::{
+    assert_timely2, assert_timely_eq, assert_timely_msg, make_fake_channel, System,
+};
 
 #[test]
 fn one() {
@@ -723,13 +727,83 @@ fn forked_open() {
     node.request_aggregator
         .request(request, channel.channel_id());
 
-    let vote_event;
+    let vote_event = wait_vote_event(&vote_tracker);
+
+    assert_eq!(vote_event.blocks.len(), 1);
+    // Vote for the correct fork alternative
+    assert_eq!(vote_event.blocks[0].hash(), open0.hash());
+}
+
+/// Request for a conflicting epoch block should return vote for the correct alternative
+#[test]
+fn epoch_conflict() {
+    let mut system = System::new();
+    let node = system.make_node();
+
+    // Voting needs a rep key set up on the node
+    node.insert_into_wallet(&DEV_GENESIS_KEY);
+
+    // Setup the initial chain and the conflicting blocks
+    let key = PrivateKey::new();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let send = lattice.genesis().send(&key, 1);
+    let open = lattice.account(&key).receive(&send);
+
+    // Change block root is the open block hash, qualified root: {open, open}
+    let change = lattice.account(&key).change(&key);
+
+    // Pending entry is needed first to process the epoch open block
+    let pending = lattice.genesis().send(change.root(), 1);
+
+    // Create conflicting epoch block with the same root as the change block, qualified root: {open, 0}
+    // This block is intentionally not processed immediately so the node doesn't know about it
+    let epoch_open = lattice.epoch_open(change.root());
+
+    // Process and confirm the initial chain with the change block
+    node.process_multi(&[send, open, change.clone()]);
+    node.confirm(change.hash());
+    assert_timely2(|| node.block_confirmed(&change.hash()));
+
+    let vote_tracker = node.vote_generators.track();
+    let channel = make_fake_channel(&node);
+
+    // Request vote for conflicting epoch block
+    let request = vec![(epoch_open.hash(), epoch_open.root())];
+    node.request_aggregator
+        .request(request.clone(), channel.channel_id());
+
+    let vote_event = wait_vote_event(&vote_tracker);
+
+    assert_eq!(vote_event.blocks.len(), 1);
+    // Vote for the correct alternative (change block)
+    assert_eq!(vote_event.blocks[0].hash(), change.hash());
+    vote_tracker.clear();
+
+    // Process the conflicting epoch block
+    node.process_multi(&[pending.clone(), epoch_open.clone()]);
+    node.confirm_multi(&[pending.clone(), epoch_open.clone()]);
+
+    // Workaround for vote spacing dropping requests with the same root
+    // FIXME: Vote spacing should use full qualified root
+    std::thread::sleep(Duration::from_secs(1));
+    let channel = make_fake_channel(&node);
+
+    // Request vote for the conflicting epoch block again
+    node.request_aggregator
+        .request(request, channel.channel_id());
+
+    let vote_event = wait_vote_event(&vote_tracker);
+    assert_eq!(vote_event.blocks.len(), 1);
+    // Vote for epoch block
+    assert_eq!(vote_event.blocks[0].hash(), epoch_open.hash());
+}
+
+fn wait_vote_event(tracker: &OutputTrackerMt<VoteGenerationEvent>) -> VoteGenerationEvent {
     let start = Instant::now();
     loop {
-        let output = vote_tracker.output();
+        let output = tracker.output();
         if output.len() > 0 {
-            vote_event = output[0].clone();
-            break;
+            return output[0].clone();
         }
 
         if start.elapsed() > Duration::from_secs(5) {
@@ -738,8 +812,4 @@ fn forked_open() {
 
         std::thread::yield_now();
     }
-
-    assert_eq!(vote_event.blocks.len(), 1);
-    // Vote for the correct fork alternative
-    assert_eq!(vote_event.blocks[0].hash(), open0.hash());
 }
