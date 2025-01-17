@@ -80,7 +80,7 @@ impl LedgerPruning {
             // Pruning write operation
             transaction_write_count = 0;
             if !pruning_targets.is_empty() && !self.stopped.load(Ordering::SeqCst) {
-                let _scoped_write_guard = self.ledger.write_queue.wait(Writer::Pruning);
+                let _write_guard = self.ledger.write_queue.wait(Writer::Pruning);
                 let mut tx = self.ledger.rw_txn();
                 while !pruning_targets.is_empty()
                     && transaction_write_count < batch_size_a

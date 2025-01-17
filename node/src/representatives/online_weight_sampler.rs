@@ -1,6 +1,6 @@
 use rsnano_core::utils::system_time_as_seconds;
 use rsnano_core::{Amount, Networks};
-use rsnano_ledger::Ledger;
+use rsnano_ledger::{Ledger, Writer};
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -71,6 +71,7 @@ impl OnlineWeightSampler {
     /// Called periodically to sample online weight
     pub fn add_sample(&self, current_online_weight: Amount) {
         let now = SystemTime::now();
+        let _guard = self.ledger.write_queue.wait(Writer::OnlineReps);
         let mut txn = self.ledger.rw_txn();
         self.sanitize_samples(&mut txn, now);
         self.insert_new_sample(&mut txn, current_online_weight, now);
@@ -78,6 +79,7 @@ impl OnlineWeightSampler {
 
     pub fn sanitize(&self) {
         let now = SystemTime::now();
+        let _guard = self.ledger.write_queue.wait(Writer::OnlineReps);
         let mut txn = self.ledger.rw_txn();
         self.sanitize_samples(&mut txn, now);
     }

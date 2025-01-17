@@ -11,6 +11,7 @@ pub enum Writer {
     Pruning,
     VotingFinal,
     BoundedBacklog,
+    OnlineReps,
     Testing, // Used in tests to emulate a write lock
 }
 

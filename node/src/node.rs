@@ -44,7 +44,7 @@ use rsnano_core::{
     Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, Root, SavedBlock,
     VoteCode, VoteSource,
 };
-use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache};
+use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache, Writer};
 use rsnano_messages::{ConfirmAck, Message, NetworkFilter, Publish};
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
@@ -1292,6 +1292,7 @@ impl Node {
 
     fn long_inactivity_cleanup(&self) {
         let mut perform_cleanup = false;
+        // TODO get write guard!
         let mut tx = self.ledger.rw_txn();
         if self.ledger.store.online_weight.count(&tx) > 0 {
             let (sample_time, _) = self
@@ -1331,11 +1332,13 @@ impl Node {
     }
 
     pub fn process(&self, block: Block) -> Result<SavedBlock, BlockStatus> {
+        let _guard = self.ledger.write_queue.wait(Writer::Testing);
         let mut tx = self.ledger.rw_txn();
         self.ledger.process(&mut tx, &block)
     }
 
     pub fn process_multi(&self, blocks: &[Block]) {
+        let _guard = self.ledger.write_queue.wait(Writer::Testing);
         let mut tx = self.ledger.rw_txn();
         for (i, block) in blocks.iter().enumerate() {
             self.ledger
@@ -1422,6 +1425,7 @@ impl Node {
     }
 
     pub fn confirm(&self, hash: BlockHash) {
+        let _guard = self.ledger.write_queue.wait(Writer::Testing);
         let mut tx = self.ledger.rw_txn();
         self.ledger.confirm(&mut tx, hash);
     }
