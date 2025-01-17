@@ -34,7 +34,7 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
-use tracing::warn;
+use tracing::{debug, warn};
 
 enum VerifyResult {
     Ok,
@@ -1511,6 +1511,13 @@ fn process_frontiers(
     );
     stats.add(StatType::BootstrapFrontiers, DetailType::Outdated, outdated);
     stats.add(StatType::BootstrapFrontiers, DetailType::Pending, pending);
+
+    debug!(
+        "Processed {} frontiers of which outdated: {}, pending: {}",
+        frontiers.len(),
+        outdated,
+        pending
+    );
 
     let mut guard = mutex.lock().unwrap();
     for account in result {
