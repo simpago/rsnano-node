@@ -1,5 +1,5 @@
 use crate::stats::{DetailType, StatType, Stats};
-use rsnano_core::{Block, BlockHash, Root, SavedBlock};
+use rsnano_core::{Account, Block, BlockHash, Root, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbReadTransaction;
 
@@ -23,19 +23,35 @@ impl<'a> RequestAggregatorImpl<'a> {
         }
     }
 
+    fn search_for_block(&self, hash: &BlockHash, root: &Root) -> Option<SavedBlock> {
+        // Ledger by hash
+        let block = self.ledger.any().get_block(self.tx, hash);
+        if block.is_some() {
+            return block;
+        }
+
+        if !root.is_zero() {
+            // Search for successor of root
+            if let Some(successor) = self.ledger.any().block_successor(self.tx, &(*root).into()) {
+                return self.ledger.any().get_block(self.tx, &successor);
+            }
+
+            // If that fails treat root as account
+            if let Some(info) = self
+                .ledger
+                .any()
+                .get_account(self.tx, &Account::from(*root))
+            {
+                return self.ledger.any().get_block(self.tx, &info.open_block);
+            }
+        }
+
+        None
+    }
+
     pub fn add_votes(&mut self, requests: &[(BlockHash, Root)]) {
         for (hash, root) in requests {
-            // Ledger by hash
-            let mut block = self.ledger.any().get_block(self.tx, hash);
-
-            // Ledger by root
-            if block.is_none() && !root.is_zero() {
-                // Search for block root
-                if let Some(successor) = self.ledger.any().block_successor(self.tx, &(*root).into())
-                {
-                    block = self.ledger.any().get_block(self.tx, &successor);
-                }
-            }
+            let block = self.search_for_block(hash, root);
 
             let should_generate_final_vote = |block: &Block| {
                 // Check if final vote is set for this block

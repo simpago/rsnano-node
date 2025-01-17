@@ -575,12 +575,20 @@ fn bootstrap_confirm_frontiers() {
     });
 }
 
+// Bootstrapping a forked open block should succeed.
 #[test]
 fn bootstrap_fork_open() {
     let mut system = System::new();
     let mut node_config = System::default_config();
+    // Reduce cooldown to speed up fork resolution
+    node_config.bootstrap.account_sets.cooldown = Duration::from_millis(100);
+    // Disable automatic election activation
+    node_config.backlog_scan.enabled = false;
+    node_config.enable_priority_scheduler = false;
+    node_config.enable_hinted_scheduler = false;
+    node_config.enable_optimistic_scheduler = false;
+
     let node0 = system.build_node().config(node_config.clone()).finish();
-    let wallet_id0 = node0.wallets.wallet_ids()[0];
     node_config.peering_port = Some(get_available_port());
     let node1 = system.build_node().config(node_config).finish();
 
@@ -599,68 +607,32 @@ fn bootstrap_fork_open() {
         .receive_and_change(&send0, PublicKey::from_bytes([2; 32]));
 
     // Both know about send0
-    assert_eq!(
-        BlockStatus::Progress,
-        node0.process_local(send0.clone()).unwrap()
-    );
-    assert_eq!(
-        BlockStatus::Progress,
-        node1.process_local(send0.clone()).unwrap()
-    );
+    node0.process(send0.clone()).unwrap();
+    node1.process(send0.clone()).unwrap();
 
     // Confirm send0 to allow starting and voting on the following blocks
-    for node in [&node0, &node1] {
-        start_election(&node, &node.latest(&*DEV_GENESIS_ACCOUNT));
-        assert_timely_msg(
-            Duration::from_secs(1),
-            || node.active.election(&send0.qualified_root()).is_some(),
-            "Election for send0 not found",
-        );
-        let election = node.active.election(&send0.qualified_root()).unwrap();
-        node.active.force_confirm(&election);
-        assert_timely_msg(
-            Duration::from_secs(2),
-            || node.active.len() == 0,
-            "Active elections not empty",
-        );
-    }
+    node0.confirm(send0.hash());
+    node1.confirm(send0.hash());
 
-    assert_timely_msg(
-        Duration::from_secs(3),
-        || node0.block_confirmed(&send0.hash()),
-        "send0 not confirmed on node0",
-    );
+    assert_timely2(|| node0.block_confirmed(&send0.hash()));
 
     // They disagree about open0/open1
-    assert_eq!(
-        BlockStatus::Progress,
-        node0.process_local(open0.clone()).unwrap()
-    );
-    assert_eq!(
-        BlockStatus::Progress,
-        node1.process_local(open1.clone()).unwrap()
-    );
+    node0.process(open0.clone()).unwrap();
+    node0.confirming_set.add(open0.hash());
+    assert_timely2(|| node0.block_confirmed(&open0.hash()));
 
-    node0
-        .wallets
-        .insert_adhoc2(&wallet_id0, &DEV_GENESIS_KEY.raw_key(), true)
-        .unwrap();
-    assert!(!node1
-        .ledger
-        .any()
-        .block_exists_or_pruned(&node1.ledger.read_txn(), &open0.hash()));
+    node1.process(open1.clone()).unwrap();
+    // Start election for open block which is necessary to resolve the fork
+    start_election(&node1, &open1.hash());
+    assert_timely2(|| node1.active.active(&open1));
 
-    assert_timely_msg(
-        Duration::from_secs(1),
-        || node1.active.len() == 0,
-        "Active elections not empty on node1",
-    );
+    // Allow node0 to vote on its fork
 
-    assert_timely_msg(
-        Duration::from_secs(10),
-        || !node1.block_exists(&open1.hash()) && node1.block_exists(&open0.hash()),
-        "Incorrect blocks exist on node1",
-    );
+    node0.insert_into_wallet(&DEV_GENESIS_KEY);
+
+    assert_timely(Duration::from_secs(10), || {
+        !node1.block_exists(&open1.hash()) && node1.block_exists(&open0.hash())
+    });
 }
 
 #[test]
