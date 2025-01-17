@@ -194,7 +194,7 @@ fn weights() {
     let node3 = system.make_node();
 
     // Create representatives of different weight levels
-    let stake = Amount::MAX;
+    let stake = node0.config.online_weight_minimum;
     let level0 = stake / 5000; // 0.02%
     let level1 = stake / 500; // 0.2%
     let level2 = stake / 50; // 2%

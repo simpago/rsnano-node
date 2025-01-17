@@ -2280,22 +2280,18 @@ fn rep_crawler_rep_remove() {
     let searching_node = system.make_node(); // will be used to find principal representatives
     let key_rep1 = PrivateKey::new(); // Principal representative 1
     let key_rep2 = PrivateKey::new(); // Principal representative 2
-
-    let min_pr_weight = searching_node
-        .online_reps
-        .lock()
-        .unwrap()
-        .minimum_principal_weight();
+                                      //
+    let rep_weight = (Amount::MAX / 1000) * 2;
 
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     // Send enough nanos to Rep1 to make it a principal representative
-    let send_to_rep1 = lattice.genesis().send(&key_rep1, min_pr_weight * 2);
+    let send_to_rep1 = lattice.genesis().send(&key_rep1, rep_weight);
 
     // Receive by Rep1
     let receive_rep1 = lattice.account(&key_rep1).receive(&send_to_rep1);
 
     // Send enough nanos to Rep2 to make it a principal representative
-    let send_to_rep2 = lattice.genesis().send(&key_rep2, min_pr_weight * 4);
+    let send_to_rep2 = lattice.genesis().send(&key_rep2, rep_weight);
 
     // Receive by Rep2
     let receive_rep2 = lattice.account(&key_rep2).receive(&send_to_rep2);
@@ -2327,10 +2323,7 @@ fn rep_crawler_rep_remove() {
 
     let reps = searching_node.online_reps.lock().unwrap().peered_reps();
     assert_eq!(1, reps.len());
-    assert_eq!(
-        min_pr_weight * 2,
-        searching_node.ledger.weight(&reps[0].account)
-    );
+    assert_eq!(rep_weight, searching_node.ledger.weight(&reps[0].account));
     assert_eq!(key_rep1.public_key(), reps[0].account);
     assert_eq!(channel_rep1.channel_id(), reps[0].channel_id);
 
