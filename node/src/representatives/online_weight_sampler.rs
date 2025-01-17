@@ -5,6 +5,11 @@ use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+pub struct TrendResult {
+    pub trended: Amount,
+    pub sample_count: usize,
+}
+
 pub struct OnlineWeightSampler {
     ledger: Arc<Ledger>,
 
@@ -33,8 +38,14 @@ impl OnlineWeightSampler {
         }
     }
 
-    pub fn calculate_trend(&self) -> Amount {
-        self.medium_weight(self.load_samples())
+    pub fn calculate_trend(&self) -> TrendResult {
+        let samples = self.load_samples();
+        let sample_count = samples.len();
+        let trended = self.medium_weight(samples);
+        TrendResult {
+            trended,
+            sample_count,
+        }
     }
 
     fn load_samples(&self) -> Vec<Amount> {

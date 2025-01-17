@@ -29,8 +29,12 @@ impl Runnable for OnlineWeightCalculation {
             let online_weight = self.online_reps.lock().unwrap().online_weight();
             self.sampler.add_sample(online_weight);
         }
-        let trend = self.sampler.calculate_trend();
-        info!("Trended weight updated: {}", trend.format_balance(0));
-        self.online_reps.lock().unwrap().set_trended(trend);
+        let result = self.sampler.calculate_trend();
+        info!(
+            "Trended weight updated: {}, samples: {}",
+            result.trended.format_balance(0),
+            result.sample_count
+        );
+        self.online_reps.lock().unwrap().set_trended(result.trended);
     }
 }
