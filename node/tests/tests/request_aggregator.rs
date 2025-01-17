@@ -798,6 +798,48 @@ fn epoch_conflict() {
     assert_eq!(vote_event.blocks[0].hash(), epoch_open.hash());
 }
 
+// Request for multiple cemented blocks in a chain should generate votes regardless of vote spacing
+#[test]
+fn cemented_no_spacing() {
+    let mut system = System::new();
+    let node = system.make_node();
+
+    // Voting needs a rep key set up on the node
+    node.insert_into_wallet(&DEV_GENESIS_KEY);
+
+    // Create a chain of 3 blocks: send1 -> send2 -> send3
+    let key = PrivateKey::new();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let send1 = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
+    let send2 = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
+    let send3 = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
+
+    // Process and confirm all blocks in the chain
+    node.process_multi(&[send1.clone(), send2.clone(), send3.clone()]);
+    node.confirm_multi(&[send1.clone(), send2.clone(), send3.clone()]);
+
+    let vote_tracker = node.vote_generators.track();
+    let channel = make_fake_channel(&node);
+
+    // Request votes for blocks at different positions in the chain
+    let request = vec![
+        (send1.hash(), send1.root()),
+        (send2.hash(), send2.root()),
+        (send3.hash(), send3.root()),
+    ];
+
+    // Request votes for all blocks
+    node.request_aggregator
+        .request(request, channel.channel_id());
+
+    let vote_event = wait_vote_event(&vote_tracker);
+
+    assert_eq!(vote_event.blocks.len(), 3);
+    assert!(vote_event.blocks.iter().any(|b| b.hash() == send1.hash()));
+    assert!(vote_event.blocks.iter().any(|b| b.hash() == send2.hash()));
+    assert!(vote_event.blocks.iter().any(|b| b.hash() == send3.hash()));
+}
+
 fn wait_vote_event(tracker: &OutputTrackerMt<VoteGenerationEvent>) -> VoteGenerationEvent {
     let start = Instant::now();
     loop {
