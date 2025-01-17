@@ -690,17 +690,35 @@ impl BlockProcessorLoopImpl {
             BlockStatus::Old => {
                 self.stats.inc(StatType::Ledger, DetailType::Old);
             }
-            BlockStatus::BadSignature => {}
-            BlockStatus::NegativeSpend => {}
-            BlockStatus::Unreceivable => {}
+            // These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
+            BlockStatus::BadSignature => {
+                debug!("Block signature is invalid: {}", hash)
+            }
+            BlockStatus::NegativeSpend => {
+                debug!("Block spends negative amount: {}", hash)
+            }
+            BlockStatus::Unreceivable => {
+                debug!("Block is unreceivable: {}", hash)
+            }
             BlockStatus::Fork => {
                 self.stats.inc(StatType::Ledger, DetailType::Fork);
+                debug!("Block is a fork: {}", hash)
             }
-            BlockStatus::OpenedBurnAccount => {}
-            BlockStatus::BalanceMismatch => {}
-            BlockStatus::RepresentativeMismatch => {}
-            BlockStatus::BlockPosition => {}
-            BlockStatus::InsufficientWork => {}
+            BlockStatus::OpenedBurnAccount => {
+                debug!("Block opens burn account: {}", hash)
+            }
+            BlockStatus::BalanceMismatch => {
+                debug!("Block balance mismatch: {}", hash)
+            }
+            BlockStatus::RepresentativeMismatch => {
+                debug!("Block representative mismatch: {}", hash)
+            }
+            BlockStatus::BlockPosition => {
+                debug!("Block is in incorrect position: {}", hash)
+            }
+            BlockStatus::InsufficientWork => {
+                debug!("Block has insufficient work: {}", hash)
+            }
         }
 
         result
