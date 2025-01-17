@@ -50,7 +50,14 @@ impl Monitor {
         let elapsed_secs = last.elapsed().as_secs() as f64;
         let blocks_confirmed_rate =
             (blocks_cemented - self.last_blocks_cemented) as f64 / elapsed_secs;
-        let blocks_checked_rate = (blocks_total - self.last_blocks_total) as f64 / elapsed_secs;
+
+        // Block rollback can cause the block count to go down!
+        let blocks_checked_rate =
+            if let Some(diff) = blocks_total.checked_sub(self.last_blocks_total) {
+                diff as f64 / elapsed_secs
+            } else {
+                0.0
+            };
 
         info!(
             "Blocks rate (average over last {}s: confirmed: {:.2}/s | total {:.2}/s)",
