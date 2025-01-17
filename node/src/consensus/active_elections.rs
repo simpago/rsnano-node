@@ -561,6 +561,10 @@ impl ActiveElections {
         if self.broadcast_block_predicate(election, election_guard) {
             if solicitor.broadcast(election_guard).is_ok() {
                 let last_block_hash = election_guard.last_block_hash;
+                election.set_last_block();
+                election_guard.last_block_hash =
+                    election_guard.status.winner.as_ref().unwrap().hash();
+
                 self.stats.inc(
                     StatType::Election,
                     if last_block_hash.is_zero() {
@@ -569,9 +573,6 @@ impl ActiveElections {
                         DetailType::BroadcastBlockRepeat
                     },
                 );
-                election.set_last_block();
-                election_guard.last_block_hash =
-                    election_guard.status.winner.as_ref().unwrap().hash();
             }
         }
     }
@@ -921,6 +922,9 @@ impl ActiveElections {
                 election
                     .confirmation_request_count
                     .fetch_add(1, Ordering::SeqCst);
+
+                self.stats
+                    .inc(StatType::Election, DetailType::ConfirmationRequest);
             }
         }
     }

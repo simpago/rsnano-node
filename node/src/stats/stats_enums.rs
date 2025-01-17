@@ -265,6 +265,7 @@ pub enum DetailType {
     BroadcastBlockRepeat,
     ConfirmOnce,
     ConfirmOnceFailed,
+    ConfirmationRequest,
 
     // election types
     Manual,
