@@ -32,6 +32,10 @@ impl HttpCallbacks {
         {
             let url = self.callback_url.clone();
             let stats = self.stats.clone();
+
+            // TODO use a mpsc queue and a single async task for processing the queue
+            // to avoid overload and out of order delivery
+            // TODO warn if backlog is large (see nano_node)
             self.runtime.spawn(async move {
                 let message = RpcCallbackMessage {
                     account: account.encode_account(),
