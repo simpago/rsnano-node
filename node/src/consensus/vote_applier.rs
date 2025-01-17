@@ -78,12 +78,7 @@ impl VoteApplier {
 
     /// Calculates minimum time delay between subsequent votes when processing non-final votes
     pub fn cooldown_time(&self, weight: Amount) -> Duration {
-        let online_stake = {
-            self.online_reps
-                .lock()
-                .unwrap()
-                .trended_weight_or_minimum_online_weight()
-        };
+        let online_stake = { self.online_reps.lock().unwrap().trended_or_minimum_weight() };
         if weight > online_stake / 20 {
             // Reps with more than 5% weight
             Duration::from_secs(1)

@@ -69,12 +69,12 @@ impl OnlineReps {
         self.online_weight = amount;
     }
 
-    /** Returns the trended online stake */
-    pub fn trended_weight(&self) -> Amount {
+    #[allow(dead_code)]
+    fn trended_weight(&self) -> Amount {
         self.trended_weight
     }
 
-    pub fn trended_weight_or_minimum_online_weight(&self) -> Amount {
+    pub fn trended_or_minimum_weight(&self) -> Amount {
         max(self.trended_weight, self.online_weight_minimum)
     }
 
@@ -89,7 +89,7 @@ impl OnlineReps {
     }
 
     pub fn minimum_principal_weight(&self) -> Amount {
-        self.trended_weight_or_minimum_online_weight() / 1000 // 0.1% of trended online weight
+        self.trended_or_minimum_weight() / 1000 // 0.1% of trended online weight
     }
 
     /// Query if a peer manages a principle representative
@@ -255,7 +255,7 @@ mod tests {
         );
         assert_eq!(online_reps.trended_weight(), Amount::zero(), "trended");
         assert_eq!(
-            online_reps.trended_weight_or_minimum_online_weight(),
+            online_reps.trended_or_minimum_weight(),
             Amount::nano(60_000_000),
             "trended"
         );
@@ -308,14 +308,14 @@ mod tests {
         online_reps.set_trended(Amount::nano(10_000));
         assert_eq!(online_reps.trended_weight(), Amount::nano(10_000));
         assert_eq!(
-            online_reps.trended_weight_or_minimum_online_weight(),
+            online_reps.trended_or_minimum_weight(),
             Amount::nano(60_000_000)
         );
 
         online_reps.set_trended(Amount::nano(100_000_000));
         assert_eq!(online_reps.trended_weight(), Amount::nano(100_000_000));
         assert_eq!(
-            online_reps.trended_weight_or_minimum_online_weight(),
+            online_reps.trended_or_minimum_weight(),
             Amount::nano(100_000_000)
         );
     }

@@ -451,12 +451,7 @@ fn inactive_votes_cache_election_start() {
     let key2 = PrivateKey::new();
 
     // Enough weight to trigger election hinting but not enough to confirm block on its own
-    let amount = ((node
-        .online_reps
-        .lock()
-        .unwrap()
-        .trended_weight_or_minimum_online_weight()
-        / 100)
+    let amount = ((node.online_reps.lock().unwrap().trended_or_minimum_weight() / 100)
         * node.config.hinted_scheduler.hinting_threshold_percent as u128)
         / 2
         + Amount::nano(1_000_000);

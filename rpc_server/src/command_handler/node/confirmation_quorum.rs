@@ -14,7 +14,7 @@ impl RpcCommandHandler {
             online_weight_quorum_percent: quorum.quorum_percent().into(),
             online_weight_minimum: quorum.online_weight_minimum(),
             online_stake_total: quorum.online_weight(),
-            trended_stake_total: quorum.trended_weight_or_minimum_online_weight(),
+            trended_stake_total: quorum.trended_or_minimum_weight(),
             peers_stake_total: quorum.peered_weight(),
             peers: None,
         };

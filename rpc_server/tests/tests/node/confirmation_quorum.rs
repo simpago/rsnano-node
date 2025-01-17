@@ -23,10 +23,7 @@ fn confirmation_quorum() {
     assert_eq!(result.online_weight_minimum, reps.online_weight_minimum());
     assert_eq!(result.online_stake_total, reps.online_weight());
     assert_eq!(result.peers_stake_total, reps.peered_weight());
-    assert_eq!(
-        result.trended_stake_total,
-        reps.trended_weight_or_minimum_online_weight()
-    );
+    assert_eq!(result.trended_stake_total, reps.trended_or_minimum_weight());
     assert_eq!(result.peers, None);
 }
 
@@ -75,10 +72,7 @@ fn confirmation_quorum_peer_details() {
     assert_eq!(result.online_weight_minimum, reps.online_weight_minimum());
     assert_eq!(result.online_stake_total, reps.online_weight());
     assert_eq!(result.peers_stake_total, reps.peered_weight());
-    assert_eq!(
-        result.trended_stake_total,
-        reps.trended_weight_or_minimum_online_weight()
-    );
+    assert_eq!(result.trended_stake_total, reps.trended_or_minimum_weight());
 
     let peer_details = result.peers.unwrap();
     println!("{:?}", peer_details);
