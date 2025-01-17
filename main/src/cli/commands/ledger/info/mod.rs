@@ -6,7 +6,6 @@ use cemented_block_count::CementedBlockCountArgs;
 use clap::{CommandFactory, Parser, Subcommand};
 use peers::PeersArgs;
 use representatives::RepresentativesArgs;
-use trended_online_weight::TrendedOnlineWeightArgs;
 
 pub(crate) mod account_count;
 pub(crate) mod block_count;
@@ -14,7 +13,6 @@ pub(crate) mod blocks;
 pub(crate) mod cemented_block_count;
 pub(crate) mod peers;
 pub(crate) mod representatives;
-pub(crate) mod trended_online_weight;
 
 #[derive(Subcommand)]
 pub(crate) enum InfoSubcommands {
@@ -30,8 +28,6 @@ pub(crate) enum InfoSubcommands {
     CementedBlockCount(CementedBlockCountArgs),
     /// Displays representatives and their weights
     Representatives(RepresentativesArgs),
-    /// Displays trended online weight over time
-    TrendedOnlineWeight(TrendedOnlineWeightArgs),
 }
 
 #[derive(Parser)]
@@ -48,7 +44,6 @@ impl InfoCommand {
             Some(InfoSubcommands::Blocks(args)) => args.blocks()?,
             Some(InfoSubcommands::CementedBlockCount(args)) => args.cemented_block_count()?,
             Some(InfoSubcommands::Peers(args)) => args.peers()?,
-            Some(InfoSubcommands::TrendedOnlineWeight(args)) => args.trended_online_weight()?,
             Some(InfoSubcommands::Representatives(args)) => args.dump_representatives()?,
             None => InfoCommand::command().print_long_help()?,
         }
