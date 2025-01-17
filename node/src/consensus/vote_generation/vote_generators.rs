@@ -6,11 +6,20 @@ use crate::{
 use rsnano_core::{utils::ContainerInfo, BlockHash, Root, SavedBlock};
 use rsnano_ledger::Ledger;
 use rsnano_network::ChannelId;
+use rsnano_output_tracker::{OutputListenerMt, OutputTrackerMt};
 use std::{sync::Arc, time::Duration};
+
+#[derive(Clone)]
+pub struct VoteGenerationEvent {
+    pub channel_id: ChannelId,
+    pub blocks: Vec<SavedBlock>,
+    pub final_vote: bool,
+}
 
 pub struct VoteGenerators {
     non_final_vote_generator: VoteGenerator,
     final_vote_generator: VoteGenerator,
+    vote_listener: OutputListenerMt<VoteGenerationEvent>,
 }
 
 impl VoteGenerators {
@@ -51,6 +60,7 @@ impl VoteGenerators {
         Self {
             non_final_vote_generator,
             final_vote_generator,
+            vote_listener: OutputListenerMt::new(),
         }
     }
 
@@ -64,6 +74,10 @@ impl VoteGenerators {
         self.final_vote_generator.stop();
     }
 
+    pub fn track(&self) -> Arc<OutputTrackerMt<VoteGenerationEvent>> {
+        self.vote_listener.track()
+    }
+
     pub(crate) fn generate_final_vote(&self, root: &Root, hash: &BlockHash) {
         self.final_vote_generator.add(root, hash);
     }
@@ -73,6 +87,13 @@ impl VoteGenerators {
         blocks: &[SavedBlock],
         channel_id: ChannelId,
     ) -> usize {
+        if self.vote_listener.is_tracked() {
+            self.vote_listener.emit(VoteGenerationEvent {
+                channel_id,
+                blocks: blocks.to_vec(),
+                final_vote: true,
+            });
+        }
         self.final_vote_generator.generate(blocks, channel_id)
     }
 
@@ -81,6 +102,13 @@ impl VoteGenerators {
     }
 
     pub fn generate_non_final_votes(&self, blocks: &[SavedBlock], channel_id: ChannelId) -> usize {
+        if self.vote_listener.is_tracked() {
+            self.vote_listener.emit(VoteGenerationEvent {
+                channel_id,
+                blocks: blocks.to_vec(),
+                final_vote: false,
+            });
+        }
         self.non_final_vote_generator.generate(blocks, channel_id)
     }
 

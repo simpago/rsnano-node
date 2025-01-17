@@ -5,7 +5,10 @@ use rsnano_node::{
     stats::{DetailType, Direction, StatType},
     wallets::WalletsExt,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use test_helpers::{assert_timely_eq, assert_timely_msg, make_fake_channel, System};
 
 #[test]
@@ -688,4 +691,55 @@ fn cannot_vote() {
         },
         1,
     );
+}
+
+/// Request for a forked open block should return vote for the correct fork alternative
+#[test]
+fn forked_open() {
+    let mut system = System::new();
+    let node = system.make_node();
+
+    // Voting needs a rep key set up on the node
+    node.insert_into_wallet(&DEV_GENESIS_KEY);
+
+    // Setup two forks of the open block
+    let key = PrivateKey::new();
+    let mut lattice = UnsavedBlockLatticeBuilder::new();
+    let send0 = lattice.genesis().send(&key, 500);
+    let mut fork_lattice = lattice.clone();
+    let open0 = lattice.account(&key).receive_and_change(&send0, 1);
+    let open1 = fork_lattice.account(&key).receive_and_change(&send0, 2);
+
+    node.process(send0).unwrap();
+    node.process(open0.clone()).unwrap();
+    node.confirm(open0.hash());
+
+    let vote_tracker = node.vote_generators.track();
+
+    let channel = make_fake_channel(&node);
+
+    // Request vote for the wrong fork
+    let request = vec![(open1.hash(), open1.root())];
+    node.request_aggregator
+        .request(request, channel.channel_id());
+
+    let vote_event;
+    let start = Instant::now();
+    loop {
+        let output = vote_tracker.output();
+        if output.len() > 0 {
+            vote_event = output[0].clone();
+            break;
+        }
+
+        if start.elapsed() > Duration::from_secs(5) {
+            panic!("timeout!");
+        }
+
+        std::thread::yield_now();
+    }
+
+    assert_eq!(vote_event.blocks.len(), 1);
+    // Vote for the correct fork alternative
+    assert_eq!(vote_event.blocks[0].hash(), open0.hash());
 }
