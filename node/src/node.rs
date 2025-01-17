@@ -305,9 +305,6 @@ impl Node {
             flags.disable_block_processor_unchecked_deletion,
         ));
 
-        let online_weight_sampler =
-            OnlineWeightSampler::new(ledger.clone(), network_params.network.current_network);
-
         let online_reps = Arc::new(Mutex::new(
             OnlineReps::builder()
                 .rep_weights(rep_weights.clone())
@@ -315,9 +312,14 @@ impl Node {
                 .weight_interval(OnlineReps::default_interval_for(
                     network_params.network.current_network,
                 ))
-                .trended(online_weight_sampler.calculate_trend())
                 .finish(),
         ));
+
+        let online_weight_sampler =
+            OnlineWeightSampler::new(ledger.clone(), network_params.network.current_network);
+
+        let online_weight_calculation =
+            OnlineWeightCalculation::new(online_weight_sampler, online_reps.clone());
         dead_channel_cleanup.add_step(OnlineRepsCleanup::new(online_reps.clone()));
 
         let mut message_sender = MessageSender::new(
@@ -1176,10 +1178,7 @@ impl Node {
             is_nulled,
             steady_clock,
             peer_cache_updater: TimerThread::new("Peer history", peer_cache_updater),
-            peer_cache_connector: TimerThread::new_run_immedately(
-                "Net reachout",
-                peer_cache_connector,
-            ),
+            peer_cache_connector: TimerThread::new("Net reachout", peer_cache_connector),
             peer_connector,
             node_id,
             workers,
@@ -1200,10 +1199,7 @@ impl Node {
             work,
             runtime,
             bootstrap_server,
-            online_weight_calculation: TimerThread::new(
-                "Online reps",
-                OnlineWeightCalculation::new(online_weight_sampler, online_reps.clone()),
-            ),
+            online_weight_calculation: TimerThread::new("Online reps", online_weight_calculation),
             online_reps,
             rep_tiers,
             vote_router,
@@ -1484,6 +1480,11 @@ impl NodeExt for Arc<Node> {
         }
 
         self.long_inactivity_cleanup();
+        self.online_weight_calculation
+            .run_once_then_start(OnlineReps::default_interval_for(
+                self.network_params.network.current_network,
+            ));
+
         self.network_threads.lock().unwrap().start();
         self.message_processor.lock().unwrap().start();
 
@@ -1494,11 +1495,6 @@ impl NodeExt for Arc<Node> {
         if !self.flags.disable_rep_crawler {
             self.rep_crawler.start();
         }
-
-        self.online_weight_calculation
-            .start(OnlineReps::default_interval_for(
-                self.network_params.network.current_network,
-            ));
 
         if self.config.tcp_incoming_connections_max > 0
             && !(self.flags.disable_bootstrap_listener && self.flags.disable_tcp_realtime)
@@ -1546,7 +1542,8 @@ impl NodeExt for Arc<Node> {
         } else {
             Duration::from_secs(15)
         };
-        self.peer_cache_updater.start(peer_cache_update_interval);
+        self.peer_cache_updater
+            .start_delayed(peer_cache_update_interval);
 
         if !self.network_params.network.merge_period.is_zero() {
             self.peer_cache_connector
@@ -1555,7 +1552,7 @@ impl NodeExt for Arc<Node> {
         self.vote_router.start();
 
         if self.config.enable_monitor {
-            self.monitor.start(self.config.monitor.interval);
+            self.monitor.start_delayed(self.config.monitor.interval);
         }
     }
 
@@ -1725,7 +1722,10 @@ struct RpcCallbackMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::TimerStartEvent, NodeBuilder};
+    use crate::{
+        utils::{TimerStartEvent, TimerStartType},
+        NodeBuilder,
+    };
     use rsnano_core::Networks;
     use std::ops::Deref;
     use uuid::Uuid;
@@ -1742,7 +1742,7 @@ mod tests {
             vec![TimerStartEvent {
                 thread_name: "Peer history".to_string(),
                 interval: Duration::from_secs(1),
-                run_immediately: false
+                start_type: TimerStartType::StartDelayed
             }]
         );
     }
@@ -1759,7 +1759,7 @@ mod tests {
             vec![TimerStartEvent {
                 thread_name: "Net reachout".to_string(),
                 interval: node.network_params.network.merge_period,
-                run_immediately: true
+                start_type: TimerStartType::Start
             }]
         );
     }

@@ -5,10 +5,12 @@ use rsnano_core::{Amount, Networks};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbWriteTransaction;
 use std::sync::{Arc, Mutex};
+use tracing::info;
 
 pub struct OnlineWeightCalculation {
     sampler: OnlineWeightSampler,
     online_reps: Arc<Mutex<OnlineReps>>,
+    first_run: bool,
 }
 
 impl OnlineWeightCalculation {
@@ -16,6 +18,7 @@ impl OnlineWeightCalculation {
         Self {
             sampler,
             online_reps,
+            first_run: true,
         }
     }
 }
@@ -25,6 +28,10 @@ impl Runnable for OnlineWeightCalculation {
         let online_weight = self.online_reps.lock().unwrap().online_weight();
         self.sampler.add_sample(online_weight);
         let trend = self.sampler.calculate_trend();
+        if self.first_run {
+            info!("Initial trended weight: {}", trend.format_balance(0));
+            self.first_run = false;
+        }
         self.online_reps.lock().unwrap().set_trended(trend);
     }
 }

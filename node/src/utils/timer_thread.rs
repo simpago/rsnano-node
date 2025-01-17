@@ -15,15 +15,21 @@ pub struct TimerThread<T: Runnable + 'static> {
     task: Mutex<Option<T>>,
     thread: Mutex<Option<JoinHandle<()>>>,
     cancel_token: CancellationToken,
-    run_immediately: bool,
     start_listener: OutputListenerMt<TimerStartEvent>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimerStartEvent {
     pub thread_name: String,
-    pub run_immediately: bool,
+    pub start_type: TimerStartType,
     pub interval: Duration,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TimerStartType {
+    Start,
+    StartDelayed,
+    RunOnceThenStart,
 }
 
 impl<T: Runnable> TimerThread<T> {
@@ -33,18 +39,6 @@ impl<T: Runnable> TimerThread<T> {
             task: Mutex::new(Some(task)),
             thread: Mutex::new(None),
             cancel_token: CancellationToken::new(),
-            run_immediately: false,
-            start_listener: OutputListenerMt::new(),
-        }
-    }
-
-    pub fn new_run_immedately(name: impl Into<String>, task: T) -> Self {
-        Self {
-            thread_name: name.into(),
-            task: Mutex::new(Some(task)),
-            thread: Mutex::new(None),
-            cancel_token: CancellationToken::new(),
-            run_immediately: true,
             start_listener: OutputListenerMt::new(),
         }
     }
@@ -57,11 +51,26 @@ impl<T: Runnable> TimerThread<T> {
         self.start_listener.track()
     }
 
+    /// Start the thread which periodically runs the task
     pub fn start(&self, interval: Duration) {
+        self.start_impl(interval, TimerStartType::Start);
+    }
+
+    /// Starts the thread and waits for the given interval before the first run
+    pub fn start_delayed(&self, interval: Duration) {
+        self.start_impl(interval, TimerStartType::StartDelayed);
+    }
+
+    /// Runs the task in the current thread once before the thread is started
+    pub fn run_once_then_start(&self, interval: Duration) {
+        self.start_impl(interval, TimerStartType::RunOnceThenStart);
+    }
+
+    fn start_impl(&self, interval: Duration, start_type: TimerStartType) {
         self.start_listener.emit(TimerStartEvent {
             thread_name: self.thread_name.clone(),
             interval,
-            run_immediately: self.run_immediately,
+            start_type,
         });
 
         let mut task = self
@@ -72,11 +81,15 @@ impl<T: Runnable> TimerThread<T> {
             .expect("task already taken");
 
         let cancel_token = self.cancel_token.clone();
-        let run_immediately = self.run_immediately;
+
+        if start_type == TimerStartType::RunOnceThenStart {
+            task.run(&cancel_token);
+        }
+
         let handle = std::thread::Builder::new()
             .name(self.thread_name.clone())
             .spawn(move || {
-                if run_immediately {
+                if start_type == TimerStartType::Start {
                     task.run(&cancel_token);
                 }
 
