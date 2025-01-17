@@ -11,12 +11,12 @@ use crate::{
     },
     stats::StatsConfig,
     transport::MessageProcessorConfig,
-    IpcConfig, NetworkParams, DEV_NETWORK_PARAMS,
+    NetworkParams, DEV_NETWORK_PARAMS,
 };
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
 use rsnano_core::{
-    utils::{get_env_or_default_string, is_sanitizer_build, Peer},
+    utils::{get_env_or_default_string, Peer},
     Account, Amount, PublicKey,
 };
 use rsnano_store_lmdb::LmdbConfig;
@@ -55,11 +55,9 @@ pub struct NodeConfig {
     pub vote_minimum: Amount,
     pub vote_generator_delay_ms: i64,
     pub unchecked_cutoff_time_s: i64,
-    pub tcp_io_timeout_s: i64,
     pub pow_sleep_interval_ns: i64,
     pub external_address: String,
     pub external_port: u16,
-    pub tcp_incoming_connections_max: u32,
     pub use_memory_pools: bool,
     pub bandwidth_limit: usize,
     pub bandwidth_limit_burst_ratio: f64,
@@ -86,7 +84,6 @@ pub struct NodeConfig {
     pub callback_port: u16,
     pub callback_target: String,
     pub websocket_config: WebsocketConfig,
-    pub ipc_config: IpcConfig,
     pub diagnostics_config: DiagnosticsConfig,
     pub stat_config: StatsConfig,
     pub lmdb_config: LmdbConfig,
@@ -252,16 +249,9 @@ impl NodeConfig {
             vote_minimum: Amount::nano(1000),
             vote_generator_delay_ms: 100,
             unchecked_cutoff_time_s: 4 * 60 * 60, // 4 hours
-            tcp_io_timeout_s: if network_params.network.is_dev_network() && !is_sanitizer_build() {
-                5
-            } else {
-                15
-            },
             pow_sleep_interval_ns: 0,
             external_address: Ipv6Addr::UNSPECIFIED.to_string(),
             external_port: 0,
-            // Default maximum incoming TCP connections, including realtime network & bootstrap
-            tcp_incoming_connections_max: 2048,
             use_memory_pools: true,
             // Default outbound traffic shaping is 10MB/s
             bandwidth_limit: 10 * 1024 * 1024,
@@ -297,7 +287,6 @@ impl NodeConfig {
             callback_port: 0,
             callback_target: String::new(),
             websocket_config: WebsocketConfig::new(&network_params.network),
-            ipc_config: IpcConfig::new(&network_params.network),
             diagnostics_config: DiagnosticsConfig::new(),
             stat_config: StatsConfig::new(),
             lmdb_config: LmdbConfig::new(),

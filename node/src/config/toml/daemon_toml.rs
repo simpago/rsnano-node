@@ -98,7 +98,6 @@ mod tests {
         preconfigured_representatives = ["nano_3arg3asgtigae3xckabaaewkx3bzsh7nwz7jkmjos79ihyaxwphhm6qgjps4"]
         receive_minimum = "999"
         signature_checker_threads = 999
-        tcp_incoming_connections_max = 999
         tcp_io_timeout = 999
         unchecked_cutoff_time = 999
         use_memory_pools = false
@@ -159,23 +158,6 @@ mod tests {
         [node.monitor]
         enable = false
         interval = 999
-
-        [node.ipc.local]
-        allow_unsafe = true
-        enable = true
-        io_timeout = 999
-        io_threads = 999
-        path = "/tmp/dev"
-
-        [node.ipc.tcp]
-        enable = true
-        io_timeout = 999
-        io_threads = 999
-        port = 999
-
-        [node.ipc.flatbuffers]
-        skip_unexpected_fields_in_json = false
-        verify_buffers = false
 
         [node.statistics]
         max_samples = 999
@@ -260,6 +242,15 @@ mod tests {
         [node.message_processor]
         threads = 999
         max_queue = 999
+
+        [node.tcp]
+        max_inbound_connections = 999
+	    max_outbound_connections = 999
+	    max_attempts = 999
+	    max_attempts_per_ip = 999
+	    connect_timeout = 999
+	    handshake_timeout = 999
+	    io_timeout = 999
 
         [opencl]
         device = 999
@@ -394,14 +385,6 @@ mod tests {
         assert_ne!(
             deserialized.node.signature_checker_threads,
             default_cfg.node.signature_checker_threads
-        );
-        assert_ne!(
-            deserialized.node.tcp_incoming_connections_max,
-            default_cfg.node.tcp_incoming_connections_max
-        );
-        assert_ne!(
-            deserialized.node.tcp_io_timeout_s,
-            default_cfg.node.tcp_io_timeout_s
         );
         assert_ne!(
             deserialized.node.unchecked_cutoff_time_s,
@@ -579,124 +562,6 @@ mod tests {
         assert_ne!(
             deserialized.node.monitor.interval,
             default_cfg.node.monitor.interval
-        );
-
-        // IPC Local section
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .allow_unsafe,
-            default_cfg
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .allow_unsafe
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .enabled,
-            default_cfg
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .enabled
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .io_timeout,
-            default_cfg
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .io_timeout
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .io_threads,
-            default_cfg
-                .node
-                .ipc_config
-                .transport_domain
-                .transport
-                .io_threads
-        );
-        assert_ne!(
-            deserialized.node.ipc_config.transport_domain.path,
-            default_cfg.node.ipc_config.transport_domain.path
-        );
-
-        // IPC TCP section
-        assert_ne!(
-            deserialized.node.ipc_config.transport_tcp.transport.enabled,
-            default_cfg.node.ipc_config.transport_tcp.transport.enabled,
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .transport_tcp
-                .transport
-                .io_timeout,
-            default_cfg
-                .node
-                .ipc_config
-                .transport_tcp
-                .transport
-                .io_timeout
-        );
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .transport_tcp
-                .transport
-                .io_threads,
-            default_cfg
-                .node
-                .ipc_config
-                .transport_tcp
-                .transport
-                .io_threads
-        );
-        assert_ne!(
-            deserialized.node.ipc_config.transport_tcp.port,
-            default_cfg.node.ipc_config.transport_tcp.port
-        );
-
-        // IPC Flatbuffers section
-        assert_ne!(
-            deserialized
-                .node
-                .ipc_config
-                .flatbuffers
-                .skip_unexpected_fields_in_json,
-            default_cfg
-                .node
-                .ipc_config
-                .flatbuffers
-                .skip_unexpected_fields_in_json
-        );
-        assert_ne!(
-            deserialized.node.ipc_config.flatbuffers.verify_buffers,
-            default_cfg.node.ipc_config.flatbuffers.verify_buffers
         );
 
         // Statistics section
@@ -962,6 +827,28 @@ mod tests {
         assert_ne!(
             deserialized.node.bounded_backlog.scan_rate,
             default_cfg.node.bounded_backlog.scan_rate
+        );
+
+        // TCP
+        assert_ne!(
+            deserialized.node.tcp.max_inbound_connections,
+            default_cfg.node.tcp.max_inbound_connections
+        );
+        assert_ne!(
+            deserialized.node.tcp.max_outbound_connections,
+            default_cfg.node.tcp.max_outbound_connections
+        );
+        assert_ne!(
+            deserialized.node.tcp.max_attempts,
+            default_cfg.node.tcp.max_attempts
+        );
+        assert_ne!(
+            deserialized.node.tcp.max_attempts_per_ip,
+            default_cfg.node.tcp.max_attempts_per_ip
+        );
+        assert_ne!(
+            deserialized.node.tcp.connect_timeout,
+            default_cfg.node.tcp.connect_timeout
         );
     }
 

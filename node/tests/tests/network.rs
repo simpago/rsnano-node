@@ -26,7 +26,7 @@ fn last_contacted() {
     let node0 = system.make_node();
 
     let mut node1_config = System::default_config();
-    node1_config.tcp_incoming_connections_max = 0; // Prevent ephemeral node1->node0 channel repacement with incoming connection
+    node1_config.tcp.max_inbound_connections = 0; // Prevent ephemeral node1->node0 channel repacement with incoming connection
     let node1 = system
         .build_node()
         .config(node1_config)

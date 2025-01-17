@@ -1478,7 +1478,7 @@ impl NodeExt for Arc<Node> {
             self.rep_crawler.start();
         }
 
-        if self.config.tcp_incoming_connections_max > 0
+        if self.config.tcp.max_inbound_connections > 0
             && !(self.flags.disable_bootstrap_listener && self.flags.disable_tcp_realtime)
         {
             self.tcp_listener.start();

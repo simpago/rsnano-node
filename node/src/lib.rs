@@ -12,7 +12,6 @@ pub mod bootstrap;
 pub mod cementation;
 pub mod config;
 pub mod consensus;
-mod ipc;
 mod monitor;
 mod node;
 mod node_builder;
@@ -27,7 +26,6 @@ pub mod utils;
 pub mod wallets;
 pub mod work;
 
-pub use ipc::*;
 pub use node::*;
 pub use node_builder::*;
 pub use representatives::OnlineWeightSampler;

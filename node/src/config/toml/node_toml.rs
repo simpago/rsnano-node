@@ -4,6 +4,7 @@ use bounded_backlog_toml::BoundedBacklogToml;
 use rsnano_core::{utils::Peer, Account, Amount};
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, time::Duration};
+use tcp_toml::TcpToml;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct NodeToml {
@@ -41,8 +42,6 @@ pub struct NodeToml {
     pub representative_vote_weight_minimum: Option<String>,
     pub request_aggregator_threads: Option<u32>,
     pub signature_checker_threads: Option<u32>,
-    pub tcp_incoming_connections_max: Option<u32>,
-    pub tcp_io_timeout: Option<i64>,
     pub unchecked_cutoff_time: Option<i64>,
     pub use_memory_pools: Option<bool>,
     pub vote_generator_delay: Option<i64>,
@@ -56,7 +55,6 @@ pub struct NodeToml {
     pub diagnostics: Option<DiagnosticsToml>,
     pub experimental: Option<ExperimentalToml>,
     pub httpcallback: Option<HttpcallbackToml>,
-    pub ipc: Option<IpcToml>,
     pub lmdb: Option<LmdbToml>,
     pub message_processor: Option<MessageProcessorToml>,
     pub monitor: Option<MonitorToml>,
@@ -71,6 +69,7 @@ pub struct NodeToml {
     pub websocket: Option<WebsocketToml>,
     pub backlog_scan: Option<BacklogScanToml>,
     pub bounded_backlog: Option<BoundedBacklogToml>,
+    pub tcp: Option<TcpToml>,
 }
 
 impl NodeConfig {
@@ -196,12 +195,6 @@ impl NodeConfig {
         if let Some(signature_checker_threads) = toml.signature_checker_threads {
             self.signature_checker_threads = signature_checker_threads;
         }
-        if let Some(tcp_incoming_connections_max) = toml.tcp_incoming_connections_max {
-            self.tcp_incoming_connections_max = tcp_incoming_connections_max;
-        }
-        if let Some(tcp_io_timeout_s) = toml.tcp_io_timeout {
-            self.tcp_io_timeout_s = tcp_io_timeout_s;
-        }
         if let Some(unchecked_cutoff_time_s) = toml.unchecked_cutoff_time {
             self.unchecked_cutoff_time_s = unchecked_cutoff_time_s;
         }
@@ -295,9 +288,6 @@ impl NodeConfig {
         if let Some(websocket_config_toml) = &toml.websocket {
             self.websocket_config.merge_toml(&websocket_config_toml);
         }
-        if let Some(ipc_config_toml) = &toml.ipc {
-            self.ipc_config.merge_toml(ipc_config_toml);
-        }
         if let Some(diagnostics_config_toml) = &toml.diagnostics {
             self.diagnostics_config = diagnostics_config_toml.into();
         }
@@ -357,6 +347,10 @@ impl NodeConfig {
                 self.enable_bounded_backlog = enable;
             }
         }
+
+        if let Some(toml) = &toml.tcp {
+            self.tcp.merge_toml(toml);
+        }
     }
 }
 
@@ -411,8 +405,6 @@ impl From<&NodeConfig> for NodeToml {
             ),
             request_aggregator_threads: Some(config.request_aggregator_threads),
             signature_checker_threads: Some(config.signature_checker_threads),
-            tcp_incoming_connections_max: Some(config.tcp_incoming_connections_max),
-            tcp_io_timeout: Some(config.tcp_io_timeout_s),
             unchecked_cutoff_time: Some(config.unchecked_cutoff_time_s),
             use_memory_pools: Some(config.use_memory_pools),
             vote_generator_delay: Some(config.vote_generator_delay_ms),
@@ -441,7 +433,6 @@ impl From<&NodeConfig> for NodeToml {
             bootstrap: Some((&config.bootstrap).into()),
             bootstrap_server: Some((&config.bootstrap_server).into()),
             websocket: Some((&config.websocket_config).into()),
-            ipc: Some((&config.ipc_config).into()),
             diagnostics: Some((&config.diagnostics_config).into()),
             statistics: Some((&config.stat_config).into()),
             lmdb: Some((&config.lmdb_config).into()),
@@ -460,6 +451,7 @@ impl From<&NodeConfig> for NodeToml {
             experimental: Some(config.into()),
             backlog_scan: Some((&config.backlog_scan).into()),
             bounded_backlog: Some(config.into()),
+            tcp: Some((&config.tcp).into()),
         }
     }
 }

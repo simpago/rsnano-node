@@ -371,7 +371,7 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
                 // notifications can be processed by other components, cooldown here
                 if self.workers.num_queued_tasks() >= self.config.max_queued_notifications {
                     self.stats
-                        .inc(StatType::Blockprocessor, DetailType::Cooldown);
+                        .inc(StatType::BlockProcessor, DetailType::Cooldown);
                     guard = self
                         .condition
                         .wait_timeout_while(guard, Duration::from_millis(100), |i| !i.stopped)
@@ -396,7 +396,7 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
                 let stats = self.stats.clone();
                 let self_l = Arc::clone(self);
                 self.workers.post(Box::new(move || {
-                    stats.inc(StatType::Blockprocessor, DetailType::Notify);
+                    stats.inc(StatType::BlockProcessor, DetailType::Notify);
                     // Set results for futures when not holding the lock
                     for (result, context) in processed.iter_mut() {
                         if let Some(cb) = &context.callback {
@@ -471,12 +471,12 @@ impl BlockProcessorLoopImpl {
     ) -> bool {
         if !self.config.work_thresholds.validate_entry_block(&block) {
             self.stats
-                .inc(StatType::Blockprocessor, DetailType::InsufficientWork);
+                .inc(StatType::BlockProcessor, DetailType::InsufficientWork);
             return false; // Not added
         }
 
         self.stats
-            .inc(StatType::Blockprocessor, DetailType::Process);
+            .inc(StatType::BlockProcessor, DetailType::Process);
         debug!(
             "Processing block (async): {} (source: {:?} channel id: {})",
             block.hash(),
@@ -496,7 +496,7 @@ impl BlockProcessorLoopImpl {
         source: BlockSource,
     ) -> anyhow::Result<Result<SavedBlock, BlockStatus>> {
         self.stats
-            .inc(StatType::Blockprocessor, DetailType::ProcessBlocking);
+            .inc(StatType::BlockProcessor, DetailType::ProcessBlocking);
         debug!(
             "Processing block (blocking): {} (source: {:?})",
             block.hash(),
@@ -517,7 +517,7 @@ impl BlockProcessorLoopImpl {
             Some(status) => Ok(Err(status)),
             None => {
                 self.stats
-                    .inc(StatType::Blockprocessor, DetailType::ProcessBlockingTimeout);
+                    .inc(StatType::BlockProcessor, DetailType::ProcessBlockingTimeout);
                 error!("Block dropped when processing: {}", hash);
                 Err(anyhow!("Block dropped when processing"))
             }
@@ -525,7 +525,7 @@ impl BlockProcessorLoopImpl {
     }
 
     pub fn force(&self, block: Block) {
-        self.stats.inc(StatType::Blockprocessor, DetailType::Force);
+        self.stats.inc(StatType::BlockProcessor, DetailType::Force);
         debug!("Forcing block: {}", block.hash());
         let ctx = Arc::new(BlockProcessorContext::new(block, BlockSource::Forced, None));
         self.add_impl(ctx, ChannelId::LOOPBACK);
@@ -555,9 +555,9 @@ impl BlockProcessorLoopImpl {
             self.condition.notify_all();
         } else {
             self.stats
-                .inc(StatType::Blockprocessor, DetailType::Overfill);
+                .inc(StatType::BlockProcessor, DetailType::Overfill);
             self.stats
-                .inc(StatType::BlockprocessorOverfill, source.into());
+                .inc(StatType::BlockProcessorOverfill, source.into());
         }
         added
     }
@@ -641,9 +641,9 @@ impl BlockProcessorLoopImpl {
         *context.block.lock().unwrap() = block.clone();
 
         self.stats
-            .inc(StatType::BlockprocessorResult, result.into());
+            .inc(StatType::BlockProcessorResult, result.into());
         self.stats
-            .inc(StatType::BlockprocessorSource, context.source.into());
+            .inc(StatType::BlockProcessorSource, context.source.into());
         trace!(?result, block = %block.hash(), source = ?context.source, "Block processed");
 
         match result {
@@ -840,7 +840,7 @@ mod tests {
 
         assert_eq!(
             stats.count(
-                StatType::Blockprocessor,
+                StatType::BlockProcessor,
                 DetailType::InsufficientWork,
                 Direction::In
             ),
