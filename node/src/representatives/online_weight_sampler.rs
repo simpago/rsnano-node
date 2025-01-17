@@ -1,40 +1,8 @@
-use super::OnlineReps;
-use crate::utils::{CancellationToken, Runnable};
 use rsnano_core::utils::nano_seconds_since_epoch;
 use rsnano_core::{Amount, Networks};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbWriteTransaction;
-use std::sync::{Arc, Mutex};
-use tracing::info;
-
-pub struct OnlineWeightCalculation {
-    sampler: OnlineWeightSampler,
-    online_reps: Arc<Mutex<OnlineReps>>,
-    first_run: bool,
-}
-
-impl OnlineWeightCalculation {
-    pub fn new(sampler: OnlineWeightSampler, online_reps: Arc<Mutex<OnlineReps>>) -> Self {
-        Self {
-            sampler,
-            online_reps,
-            first_run: true,
-        }
-    }
-}
-
-impl Runnable for OnlineWeightCalculation {
-    fn run(&mut self, _cancel_token: &CancellationToken) {
-        let online_weight = self.online_reps.lock().unwrap().online_weight();
-        self.sampler.add_sample(online_weight);
-        let trend = self.sampler.calculate_trend();
-        if self.first_run {
-            info!("Initial trended weight: {}", trend.format_balance(0));
-            self.first_run = false;
-        }
-        self.online_reps.lock().unwrap().set_trended(trend);
-    }
-}
+use std::sync::Arc;
 
 pub struct OnlineWeightSampler {
     ledger: Arc<Ledger>,
@@ -78,7 +46,7 @@ impl OnlineWeightSampler {
         }
     }
 
-    /** Called periodically to sample online weight */
+    /// Called periodically to sample online weight
     pub fn add_sample(&self, current_online_weight: Amount) {
         let mut txn = self.ledger.rw_txn();
         self.delete_old_samples(&mut txn);
