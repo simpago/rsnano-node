@@ -342,22 +342,8 @@ impl BootstrapService {
                 // Safe requests start from the confirmed frontier and given enough time will eventually resolve forks
                 let optimistic_request =
                     thread_rng().gen_range(0..100) < self.config.optimistic_request_percentage;
-                if !optimistic_request {
-                    let conf_info = self.ledger.store.confirmation_height.get(&tx, &account);
-                    if let Some(conf_info) = conf_info {
-                        self.stats
-                            .inc(StatType::BootstrapRequestBlocks, DetailType::Safe);
-                        (
-                            QueryType::BlocksByHash,
-                            HashOrAccount::from(conf_info.frontier),
-                            BlockHash::from(conf_info.height),
-                        )
-                    } else {
-                        self.stats
-                            .inc(StatType::BootstrapRequestBlocks, DetailType::Optimistic);
-                        (QueryType::BlocksByHash, info.head.into(), info.head)
-                    }
-                } else {
+
+                if optimistic_request {
                     self.stats
                         .inc(StatType::BootstrapRequestBlocks, DetailType::Optimistic);
                     (
@@ -365,6 +351,25 @@ impl BootstrapService {
                         HashOrAccount::from(info.head),
                         info.head,
                     )
+                } else {
+                    // Pessimistic (safe) request case
+                    self.stats
+                        .inc(StatType::BootstrapRequestBlocks, DetailType::Safe);
+
+                    let conf_info = self.ledger.store.confirmation_height.get(&tx, &account);
+                    if let Some(conf_info) = conf_info {
+                        (
+                            QueryType::BlocksByHash,
+                            HashOrAccount::from(conf_info.frontier),
+                            BlockHash::from(conf_info.height),
+                        )
+                    } else {
+                        (
+                            QueryType::BlocksByAccount,
+                            account.into(),
+                            BlockHash::zero(),
+                        )
+                    }
                 }
             }
             None => {
