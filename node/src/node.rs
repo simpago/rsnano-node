@@ -14,13 +14,13 @@ use crate::{
         VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRouter,
     },
+    http_callbacks::HttpCallbacks,
     monitor::Monitor,
     node_id_key_file::NodeIdKeyFile,
     pruning::{LedgerPruning, LedgerPruningExt},
     representatives::{
         OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
     },
-    rpc_callbacks::RpcCallbacks,
     stats::{
         adapters::{LedgerStats, NetworkStats},
         Stats,
@@ -1053,15 +1053,15 @@ impl Node {
         }));
 
         if let Some(callback_url) = config.rpc_callback_url() {
-            info!("RPC callbacks enabled on {:?}", callback_url);
-            let rpc_callbacks = RpcCallbacks {
+            info!("HTTP callbacks enabled on {:?}", callback_url);
+            let http_callbacks = HttpCallbacks {
                 runtime: runtime.clone(),
                 stats: stats.clone(),
                 callback_url,
             };
             active_elections.on_election_ended(Box::new(
                 move |status, _weights, account, block, amount, is_state_send, is_state_epoch| {
-                    rpc_callbacks.execute(
+                    http_callbacks.execute(
                         status,
                         account,
                         block,

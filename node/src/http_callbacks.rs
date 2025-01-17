@@ -10,13 +10,13 @@ use tracing::error;
 
 /// Performs an HTTP callback to a configured endpoint
 /// if a block is confirmed
-pub(crate) struct RpcCallbacks {
+pub(crate) struct HttpCallbacks {
     pub runtime: tokio::runtime::Handle,
     pub stats: Arc<Stats>,
     pub callback_url: Url,
 }
 
-impl RpcCallbacks {
+impl HttpCallbacks {
     pub fn execute(
         &self,
         status: &ElectionStatus,
@@ -59,7 +59,7 @@ impl RpcCallbacks {
                     Ok(response) => {
                         if response.status().is_success() {
                             stats.inc_dir(
-                                StatType::HttpCallback,
+                                StatType::HttpCallbacks,
                                 DetailType::Initiate,
                                 Direction::Out,
                             );

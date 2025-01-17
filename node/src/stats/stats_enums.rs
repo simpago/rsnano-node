@@ -19,7 +19,7 @@ pub enum StatType {
     Election,
     ElectionCleanup,
     ElectionVote,
-    HttpCallback,
+    HttpCallbacks,
     Ipc,
     Tcp,
     TcpServer,
