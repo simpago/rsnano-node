@@ -12,7 +12,9 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use test_helpers::{assert_timely, make_fake_channel, start_election, upgrade_epoch, System};
+use test_helpers::{
+    assert_timely, assert_timely2, make_fake_channel, start_election, upgrade_epoch, System,
+};
 
 #[test]
 fn check_signature() {
@@ -435,7 +437,7 @@ fn vote_spacing_rapid() {
     node.vote_generators
         .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send1.hash().into());
 
-    assert_timely(Duration::from_secs(3), || {
+    assert_timely2(|| {
         node.stats.count(
             StatType::VoteGenerator,
             DetailType::GeneratorBroadcasts,
@@ -452,7 +454,7 @@ fn vote_spacing_rapid() {
     node.vote_generators
         .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
 
-    assert_timely(Duration::from_secs(3), || {
+    assert_timely2(|| {
         node.stats.count(
             StatType::VoteGenerator,
             DetailType::GeneratorSpacing,
@@ -467,7 +469,7 @@ fn vote_spacing_rapid() {
     node.vote_generators
         .generate_non_final_vote(&(*DEV_GENESIS_HASH).into(), &send2.hash().into());
 
-    assert_timely(Duration::from_secs(3), || {
+    assert_timely2(|| {
         node.stats.count(
             StatType::VoteGenerator,
             DetailType::GeneratorBroadcasts,
