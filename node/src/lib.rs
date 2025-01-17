@@ -18,6 +18,7 @@ mod node_builder;
 mod node_id_key_file;
 pub mod pruning;
 pub mod representatives;
+pub mod rpc_callbacks;
 mod secure;
 pub mod stats;
 mod telemetry;

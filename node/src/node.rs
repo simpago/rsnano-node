@@ -8,10 +8,10 @@ use crate::{
     config::{GlobalConfig, NodeConfig, NodeFlags},
     consensus::{
         election_schedulers::ElectionSchedulers, get_bootstrap_weights, log_bootstrap_weights,
-        ActiveElections, ActiveElectionsExt, ElectionStatusType, LocalVoteHistory,
-        ProcessLiveDispatcher, ProcessLiveDispatcherExt, RecentlyConfirmedCache, RepTiers,
-        RequestAggregator, RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache,
-        VoteCacheProcessor, VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
+        ActiveElections, ActiveElectionsExt, LocalVoteHistory, ProcessLiveDispatcher,
+        ProcessLiveDispatcherExt, RecentlyConfirmedCache, RepTiers, RequestAggregator,
+        RequestAggregatorCleanup, VoteApplier, VoteBroadcaster, VoteCache, VoteCacheProcessor,
+        VoteGenerators, VoteProcessor, VoteProcessorExt, VoteProcessorQueue,
         VoteProcessorQueueCleanup, VoteRouter,
     },
     monitor::Monitor,
@@ -20,9 +20,10 @@ use crate::{
     representatives::{
         OnlineReps, OnlineRepsCleanup, OnlineWeightCalculation, RepCrawler, RepCrawlerExt,
     },
+    rpc_callbacks::RpcCallbacks,
     stats::{
         adapters::{LedgerStats, NetworkStats},
-        DetailType, Direction, StatType, Stats,
+        Stats,
     },
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
@@ -41,8 +42,8 @@ use crate::{
 use rsnano_core::{
     utils::{ContainerInfo, Peer},
     work::{WorkPool, WorkPoolImpl},
-    Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, Root, SavedBlock,
-    VoteCode, VoteSource,
+    Account, Amount, Block, BlockHash, Networks, NodeId, PrivateKey, Root, SavedBlock, VoteCode,
+    VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache, Writer};
 use rsnano_messages::{ConfirmAck, Message, NetworkFilter, Publish};
@@ -51,13 +52,11 @@ use rsnano_network::{
     TcpListenerExt, TcpNetworkAdapter, TrafficType,
 };
 use rsnano_nullable_clock::{SteadyClock, SystemTimeFactory};
-use rsnano_nullable_http_client::{HttpClient, Url};
 use rsnano_output_tracker::OutputListenerMt;
 use rsnano_store_lmdb::{
     EnvOptions, LmdbConfig, LmdbEnv, LmdbStore, NullTransactionTracker, SyncStrategy,
     TransactionTracker,
 };
-use serde::Serialize;
 use std::{
     collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
@@ -1054,78 +1053,21 @@ impl Node {
         }));
 
         if !config.callback_address.is_empty() {
-            let tokio = runtime.clone();
-            let stats = stats.clone();
-            let url: Url = format!(
-                "http://{}:{}{}",
-                config.callback_address, config.callback_port, config.callback_target
-            )
-            .parse()
-            .unwrap();
+            let rpc_callbacks = RpcCallbacks {
+                runtime: runtime.clone(),
+                stats: stats.clone(),
+                config: config.clone(),
+            };
             active_elections.on_election_ended(Box::new(
                 move |status, _weights, account, block, amount, is_state_send, is_state_epoch| {
-                    let block = block.clone();
-                    if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
-                        || status.election_status_type
-                            == ElectionStatusType::ActiveConfirmationHeight
-                    {
-                        let url = url.clone();
-                        let stats = stats.clone();
-                        tokio.spawn(async move {
-                            let message = RpcCallbackMessage {
-                                account: account.encode_account(),
-                                hash: block.hash().encode_hex(),
-                                block: (*block).clone().into(),
-                                amount: amount.to_string_dec(),
-                                sub_type: if is_state_send {
-                                    Some("send")
-                                } else if block.block_type() == BlockType::State {
-                                    if block.is_change() {
-                                        Some("change")
-                                    } else if is_state_epoch {
-                                        Some("epoch")
-                                    } else {
-                                        Some("receive")
-                                    }
-                                } else {
-                                    None
-                                },
-                                is_send: if is_state_send { Some("true") } else { None },
-                            };
-
-                            let http_client = HttpClient::new();
-                            match http_client.post_json(url.clone(), &message).await {
-                                Ok(response) => {
-                                    if response.status().is_success() {
-                                        stats.inc_dir(
-                                            StatType::HttpCallback,
-                                            DetailType::Initiate,
-                                            Direction::Out,
-                                        );
-                                    } else {
-                                        error!(
-                                            "Callback to {} failed [status: {:?}]",
-                                            url,
-                                            response.status()
-                                        );
-                                        stats.inc_dir(
-                                            StatType::Error,
-                                            DetailType::HttpCallback,
-                                            Direction::Out,
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Unable to send callback: {} ({})", url, e);
-                                    stats.inc_dir(
-                                        StatType::Error,
-                                        DetailType::HttpCallback,
-                                        Direction::Out,
-                                    );
-                                }
-                            }
-                        });
-                    }
+                    rpc_callbacks.execute(
+                        status,
+                        account,
+                        block,
+                        amount,
+                        is_state_send,
+                        is_state_epoch,
+                    );
                 },
             ))
         }
@@ -1680,18 +1622,6 @@ fn make_store(
         .txn_tracker(txn_tracker)
         .build()?;
     Ok(Arc::new(store))
-}
-
-#[derive(Serialize)]
-struct RpcCallbackMessage {
-    account: String,
-    hash: String,
-    block: serde_json::Value,
-    amount: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    sub_type: Option<&'static str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_send: Option<&'static str>,
 }
 
 #[cfg(test)]
