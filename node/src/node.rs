@@ -1305,8 +1305,7 @@ impl Node {
         }
         if perform_cleanup {
             self.ledger.store.online_weight.clear(&mut tx);
-            self.ledger.store.peer.clear(&mut tx);
-            info!("records of peers and online weight after a long period of inactivity");
+            info!("records of peers after a long period of inactivity");
         }
     }
 
