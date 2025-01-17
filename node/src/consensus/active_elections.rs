@@ -1325,6 +1325,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 let online_reps = self.online_reps.clone();
                 let clock = self.steady_clock.clone();
                 let observer_rep_cb = Box::new(move |rep| {
+                    // TODO: Is this neccessary? Move this outside of the election class
                     // Representative is defined as online if replying to live votes or rep_crawler queries
                     online_reps.lock().unwrap().vote_observed(rep, clock.now());
                 });
@@ -1348,10 +1349,13 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                 *guard.count_by_behavior_mut(election.behavior()) += 1;
 
                 // Skip passive phase for blocks without cached votes to avoid bootstrap delays
-                let mut active_immediately = false;
-                if self.vote_cache.lock().unwrap().contains(&hash) {
+                let in_cache = self.vote_cache.lock().unwrap().contains(&hash);
+                let activate_immediately = !in_cache;
+
+                if activate_immediately {
+                    self.stats
+                        .inc(StatType::ActiveElections, DetailType::ActivateImmediately);
                     election.transition_active();
-                    active_immediately = true;
                 }
 
                 self.stats
@@ -1360,7 +1364,7 @@ impl ActiveElectionsExt for Arc<ActiveElections> {
                     .inc(StatType::ActiveElectionsStarted, election_behavior.into());
 
                 debug!(
-                    active_immediately,
+                    activate_immediately,
                     behavior = ?election_behavior,
                     block = %hash,
                     "Started new election"

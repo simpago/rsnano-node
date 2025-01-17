@@ -430,6 +430,7 @@ pub enum DetailType {
     TransitionPriority,
     TransitionPriorityFailed,
     ElectionCleanup,
+    ActivateImmediately,
 
     // active_elections
     Started,
