@@ -1052,11 +1052,12 @@ impl Node {
             }
         }));
 
-        if !config.callback_address.is_empty() {
+        if let Some(callback_url) = config.rpc_callback_url() {
+            info!("RPC callbacks enabled on {:?}", callback_url);
             let rpc_callbacks = RpcCallbacks {
                 runtime: runtime.clone(),
                 stats: stats.clone(),
-                config: config.clone(),
+                callback_url,
             };
             active_elections.on_election_ended(Box::new(
                 move |status, _weights, account, block, amount, is_state_send, is_state_epoch| {

@@ -1,5 +1,4 @@
 use crate::{
-    config::NodeConfig,
     consensus::{ElectionStatus, ElectionStatusType},
     stats::{DetailType, Direction, StatType, Stats},
 };
@@ -14,7 +13,7 @@ use tracing::error;
 pub(crate) struct RpcCallbacks {
     pub runtime: tokio::runtime::Handle,
     pub stats: Arc<Stats>,
-    pub config: NodeConfig,
+    pub callback_url: Url,
 }
 
 impl RpcCallbacks {
@@ -27,18 +26,11 @@ impl RpcCallbacks {
         is_state_send: bool,
         is_state_epoch: bool,
     ) {
-        let url: Url = format!(
-            "http://{}:{}{}",
-            self.config.callback_address, self.config.callback_port, self.config.callback_target
-        )
-        .parse()
-        .unwrap();
-
         let block = block.clone();
         if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
             || status.election_status_type == ElectionStatusType::ActiveConfirmationHeight
         {
-            let url = url.clone();
+            let url = self.callback_url.clone();
             let stats = self.stats.clone();
             self.runtime.spawn(async move {
                 let message = RpcCallbackMessage {

@@ -19,6 +19,7 @@ use rsnano_core::{
     utils::{get_env_or_default_string, Peer},
     Account, Amount, PublicKey,
 };
+use rsnano_nullable_http_client::Url;
 use rsnano_store_lmdb::LmdbConfig;
 use std::{cmp::max, net::Ipv6Addr, time::Duration};
 
@@ -331,6 +332,15 @@ impl NodeConfig {
     pub fn random_representative(&self) -> PublicKey {
         let i = thread_rng().gen_range(0..self.preconfigured_representatives.len());
         return self.preconfigured_representatives[i];
+    }
+
+    pub fn rpc_callback_url(&self) -> Option<Url> {
+        format!(
+            "http://{}:{}{}",
+            self.callback_address, self.callback_port, self.callback_target
+        )
+        .parse()
+        .ok()
     }
 }
 
