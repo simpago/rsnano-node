@@ -1,4 +1,4 @@
-use rsnano_core::utils::{nano_seconds_since_epoch, system_time_as_nanoseconds};
+use rsnano_core::utils::system_time_as_seconds;
 use rsnano_core::{Amount, Networks};
 use rsnano_ledger::Ledger;
 use rsnano_store_lmdb::LmdbWriteTransaction;
@@ -59,13 +59,13 @@ impl OnlineWeightSampler {
 
     /// Called periodically to sample online weight
     pub fn add_sample(&self, current_online_weight: Amount) {
+        let now = SystemTime::now();
         let mut txn = self.ledger.rw_txn();
-        self.sanitize_samples(&mut txn);
-        self.insert_new_sample(&mut txn, current_online_weight);
+        self.sanitize_samples(&mut txn, now);
+        self.insert_new_sample(&mut txn, current_online_weight, now);
     }
 
-    fn sanitize_samples(&self, tx: &mut LmdbWriteTransaction) {
-        let now = SystemTime::now();
+    fn sanitize_samples(&self, tx: &mut LmdbWriteTransaction, now: SystemTime) {
         let to_delete = self.samples_to_delete(tx, now);
 
         for timestamp in to_delete {
@@ -85,7 +85,7 @@ impl OnlineWeightSampler {
         tx: &'tx LmdbWriteTransaction,
         now: SystemTime,
     ) -> impl Iterator<Item = u64> + use<'tx> {
-        let timestamp_cutoff = system_time_as_nanoseconds(now - self.cutoff);
+        let timestamp_cutoff = system_time_as_seconds(now - self.cutoff);
 
         self.ledger
             .store
@@ -100,7 +100,7 @@ impl OnlineWeightSampler {
         tx: &'tx LmdbWriteTransaction,
         now: SystemTime,
     ) -> impl Iterator<Item = u64> + use<'tx> {
-        let timestamp_now = system_time_as_nanoseconds(now);
+        let timestamp_now = system_time_as_seconds(now);
 
         self.ledger
             .store
@@ -110,10 +110,15 @@ impl OnlineWeightSampler {
             .take_while(move |ts| *ts > timestamp_now)
     }
 
-    fn insert_new_sample(&self, txn: &mut LmdbWriteTransaction, current_online_weight: Amount) {
+    fn insert_new_sample(
+        &self,
+        txn: &mut LmdbWriteTransaction,
+        current_online_weight: Amount,
+        now: SystemTime,
+    ) {
         self.ledger.store.online_weight.put(
             txn,
-            nano_seconds_since_epoch(),
+            system_time_as_seconds(now),
             &current_online_weight,
         );
     }

@@ -117,6 +117,7 @@ impl Wallets {
                 Arc::new(RepWeightCache::new()),
                 Duration::default(),
                 Amount::zero(),
+                Amount::zero(),
             ))),
             Arc::new(ConfirmingSet::new(
                 ConfirmingSetConfig::default(),

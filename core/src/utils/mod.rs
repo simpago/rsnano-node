@@ -108,10 +108,6 @@ pub fn is_sanitizer_build() -> bool {
     unsafe { IS_SANITIZER_BUILD() }
 }
 
-pub fn nano_seconds_since_epoch() -> u64 {
-    system_time_as_nanoseconds(SystemTime::now())
-}
-
 pub fn milliseconds_since_epoch() -> u64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -119,10 +115,10 @@ pub fn milliseconds_since_epoch() -> u64 {
         .as_millis() as u64
 }
 
-pub fn system_time_as_nanoseconds(time: SystemTime) -> u64 {
+pub fn system_time_as_seconds(time: SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .expect("Time went backwards")
-        .as_nanos() as u64
+        .as_secs()
 }
 
 /// Elapsed seconds since UNIX_EPOCH

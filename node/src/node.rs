@@ -39,7 +39,7 @@ use crate::{
     BUILD_INFO, VERSION_STRING,
 };
 use rsnano_core::{
-    utils::{system_time_as_nanoseconds, ContainerInfo, Peer},
+    utils::{system_time_as_seconds, ContainerInfo, Peer},
     work::{WorkPool, WorkPoolImpl},
     Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, Root, SavedBlock,
     VoteCode, VoteSource,
@@ -1302,7 +1302,7 @@ impl Node {
                 .next()
                 .unwrap();
             let one_week_ago = SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 7);
-            perform_cleanup = sample_time < system_time_as_nanoseconds(one_week_ago);
+            perform_cleanup = sample_time < system_time_as_seconds(one_week_ago);
         }
         if perform_cleanup {
             self.ledger.store.online_weight.clear(&mut tx);
