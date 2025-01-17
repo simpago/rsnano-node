@@ -39,7 +39,7 @@ use crate::{
     BUILD_INFO, VERSION_STRING,
 };
 use rsnano_core::{
-    utils::{system_time_as_seconds, ContainerInfo, Peer},
+    utils::{ContainerInfo, Peer},
     work::{WorkPool, WorkPoolImpl},
     Account, Amount, Block, BlockHash, BlockType, Networks, NodeId, PrivateKey, Root, SavedBlock,
     VoteCode, VoteSource,
@@ -65,7 +65,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
     },
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tracing::{debug, error, info, warn};
 
@@ -1290,27 +1290,6 @@ impl Node {
             .finish()
     }
 
-    fn long_inactivity_cleanup(&self) {
-        let mut perform_cleanup = false;
-        // TODO get write guard!
-        let mut tx = self.ledger.rw_txn();
-        if self.ledger.store.online_weight.count(&tx) > 0 {
-            let (sample_time, _) = self
-                .ledger
-                .store
-                .online_weight
-                .iter_rev(&tx)
-                .next()
-                .unwrap();
-            let one_week_ago = SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 7);
-            perform_cleanup = sample_time < system_time_as_seconds(one_week_ago);
-        }
-        if perform_cleanup {
-            self.ledger.store.online_weight.clear(&mut tx);
-            info!("records of peers after a long period of inactivity");
-        }
-    }
-
     pub fn is_stopped(&self) -> bool {
         self.stopped.load(Ordering::SeqCst)
     }
@@ -1483,7 +1462,6 @@ impl NodeExt for Arc<Node> {
             panic!("Genesis block not found!");
         }
 
-        self.long_inactivity_cleanup();
         self.online_weight_calculation
             .run_once_then_start(OnlineReps::default_interval_for(
                 self.network_params.network.current_network,
