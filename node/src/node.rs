@@ -1256,10 +1256,12 @@ impl Node {
         let _guard = self.ledger.write_queue.wait(Writer::Testing);
         let mut tx = self.ledger.rw_txn();
         for (i, block) in blocks.iter().enumerate() {
-            self.ledger
-                .process(&mut tx, &mut block.clone())
-                .map_err(|e| anyhow!("Could not multi-process block index {}: {:?}", i, e))
-                .unwrap();
+            match self.ledger.process(&mut tx, &mut block.clone()) {
+                Ok(_) | Err(BlockStatus::Old) => {}
+                Err(e) => {
+                    panic!("Could not multi-process block index {}: {:?}", i, e);
+                }
+            }
         }
     }
 

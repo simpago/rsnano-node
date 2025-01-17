@@ -6,7 +6,7 @@ use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelId, ChannelMode, TrafficType};
 use rsnano_node::NodeExt;
 use std::{sync::Arc, time::Duration};
-use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, System};
+use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, assert_timely_eq2, System};
 
 #[test]
 fn ignore_rebroadcast() {
@@ -101,8 +101,7 @@ fn rep_weight() {
     node3.process_multi(&blocks);
     assert_eq!(node.online_reps.lock().unwrap().online_reps().count(), 0);
 
-    assert_timely_eq(
-        Duration::from_secs(5),
+    assert_timely_eq2(
         || {
             node.network
                 .read()
@@ -138,11 +137,7 @@ fn rep_weight() {
     node.rep_crawler.force_process(vote1, channel2);
     node.rep_crawler.force_process(vote2, channel3);
 
-    assert_timely_eq(
-        Duration::from_secs(5),
-        || node.online_reps.lock().unwrap().peered_reps_count(),
-        2,
-    );
+    assert_timely_eq2(|| node.online_reps.lock().unwrap().peered_reps_count(), 2);
     // Make sure we get the rep with the most weight first
     let rep = node.online_reps.lock().unwrap().peered_reps()[0].clone();
     assert_eq!(
