@@ -39,8 +39,7 @@ pub fn create_websocket_server(
 
     let server_w = Arc::downgrade(&server);
     node.active.on_election_ended(Box::new(
-        move |_,
-              status: &ElectionStatus,
+        move |status: &ElectionStatus,
               votes: &Vec<VoteWithWeightInfo>,
               account: Account,
               block: &SavedBlock,

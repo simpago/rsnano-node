@@ -40,16 +40,8 @@ use tracing::{debug, trace};
 const ELECTION_MAX_BLOCKS: usize = 10;
 
 pub type ElectionEndCallback = Box<
-    dyn Fn(
-            &LmdbReadTransaction,
-            &ElectionStatus,
-            &Vec<VoteWithWeightInfo>,
-            Account,
-            &SavedBlock,
-            Amount,
-            bool,
-            bool,
-        ) + Send
+    dyn Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, &SavedBlock, Amount, bool, bool)
+        + Send
         + Sync,
 >;
 
@@ -244,8 +236,10 @@ impl ActiveElections {
 
         // Trigger callback for confirmed block
         let account = block.account();
-        let txn = self.ledger.read_txn();
-        let amount = self.ledger.any().block_amount_for(&txn, &block);
+        let amount = {
+            let txn = self.ledger.read_txn();
+            self.ledger.any().block_amount_for(&txn, &block)
+        };
         let mut is_state_send = false;
         let mut is_state_epoch = false;
         if amount.is_some() {
@@ -258,7 +252,6 @@ impl ActiveElections {
         let callbacks = self.election_ended_observers.read().unwrap();
         for callback in callbacks.iter() {
             (callback)(
-                &txn,
                 &status,
                 &Vec::new(),
                 account,
@@ -327,7 +320,6 @@ impl ActiveElections {
 
         for callback in ended_callbacks.iter() {
             (callback)(
-                tx,
                 status,
                 votes,
                 account,

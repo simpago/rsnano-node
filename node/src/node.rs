@@ -1063,14 +1063,7 @@ impl Node {
             .parse()
             .unwrap();
             active_elections.on_election_ended(Box::new(
-                move |_txn,
-                      status,
-                      _weights,
-                      account,
-                      block,
-                      amount,
-                      is_state_send,
-                      is_state_epoch| {
+                move |status, _weights, account, block, amount, is_state_send, is_state_epoch| {
                     let block = block.clone();
                     if status.election_status_type == ElectionStatusType::ActiveConfirmedQuorum
                         || status.election_status_type

@@ -10,7 +10,6 @@ use rsnano_core::{
 };
 use rsnano_messages::Message;
 use rsnano_network::ChannelId;
-use rsnano_store_lmdb::LmdbReadTransaction;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 #[derive(Default)]
@@ -37,16 +36,8 @@ impl NodeCallbacksBuilder {
 
     pub fn on_election_end(
         mut self,
-        callback: impl Fn(
-                &LmdbReadTransaction,
-                &ElectionStatus,
-                &Vec<VoteWithWeightInfo>,
-                Account,
-                &SavedBlock,
-                Amount,
-                bool,
-                bool,
-            ) + Send
+        callback: impl Fn(&ElectionStatus, &Vec<VoteWithWeightInfo>, Account, &SavedBlock, Amount, bool, bool)
+            + Send
             + Sync
             + 'static,
     ) -> Self {
