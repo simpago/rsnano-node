@@ -124,12 +124,9 @@ impl OnlineReps {
 
     /// Returns the quorum required for confirmation
     pub fn quorum_delta(&self) -> Amount {
-        // Using a larger container to ensure maximum precision
-        let weight = max(
-            max(self.online_weight, self.trended_weight),
-            self.online_weight_minimum,
-        );
+        let weight = max(self.online_weight(), self.trended_or_minimum_weight());
 
+        // Using a larger container to ensure maximum precision
         let delta =
             U256::from(weight.number()) * U256::from(ONLINE_WEIGHT_QUORUM) / U256::from(100);
         Amount::raw(delta.as_u128())

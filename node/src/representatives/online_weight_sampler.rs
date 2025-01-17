@@ -65,6 +65,12 @@ impl OnlineWeightSampler {
         self.insert_new_sample(&mut txn, current_online_weight, now);
     }
 
+    pub fn sanitize(&self) {
+        let now = SystemTime::now();
+        let mut txn = self.ledger.rw_txn();
+        self.sanitize_samples(&mut txn, now);
+    }
+
     fn sanitize_samples(&self, tx: &mut LmdbWriteTransaction, now: SystemTime) {
         let to_delete = self.samples_to_delete(tx, now);
 
