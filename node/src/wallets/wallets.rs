@@ -1194,12 +1194,16 @@ impl WalletsExt for Arc<Wallets> {
             return PublicKey::zero();
         }
         let key = wallet.store.deterministic_insert(tx);
+
+        info!(account=%key.as_account().encode_account(), "Deterministically inserted new account");
+
         if generate_work {
             self.work_ensure(wallet, key.into(), key.into());
         }
         let half_principal_weight = self.online_reps.lock().unwrap().minimum_principal_weight() / 2;
         let mut reps = self.representative_wallets.lock().unwrap();
         if reps.check_rep(key, half_principal_weight) {
+            info!(account=%key.as_account().encode_account(), "New account qualified as representative");
             wallet.representatives.lock().unwrap().insert(key);
         }
         key
@@ -1218,6 +1222,9 @@ impl WalletsExt for Arc<Wallets> {
             return Err(WalletsError::WalletLocked);
         }
         let account = wallet.store.deterministic_insert_at(&mut tx, index);
+
+        info!(account=%account.as_account().encode_account(), "Deterministically inserted new account");
+
         if generate_work {
             self.work_ensure(wallet, account.into(), account.into());
         }
@@ -1372,15 +1379,18 @@ impl WalletsExt for Arc<Wallets> {
         prv_key: &RawKey,
         mut count: u32,
     ) -> PublicKey {
+        info!("Changing wallet seed");
         wallet.store.set_seed(tx, prv_key);
         let mut account = self.deterministic_insert(wallet, tx, true);
         if count == 0 {
             count = wallet.deterministic_check(tx, 0);
+            info!("Auto-detected {} accounts to generate", count);
         }
         for _ in 0..count {
             // Disable work generation to prevent weak CPU nodes stuck
             account = self.deterministic_insert(wallet, tx, false);
         }
+        info!("Completed changing wallet seed and generating accounts");
         account
     }
 
@@ -1460,11 +1470,20 @@ impl WalletsExt for Arc<Wallets> {
             let wallet_tx = self.env.tx_begin_read();
             let block_tx = self.ledger.read_txn();
             if !wallet.store.valid_password(&wallet_tx) {
+                warn!(
+                    "Changing representative for account {} failed, wallet locked",
+                    source.encode_account()
+                );
                 return None;
             }
 
             let existing = wallet.store.find(&wallet_tx, &source.into());
             if existing.is_some() && self.ledger.any().account_head(&block_tx, &source).is_some() {
+                info!(
+                    "Changing representative for account {} to {}",
+                    source.encode_account(),
+                    representative.as_account().encode_account()
+                );
                 let info = self.ledger.account_info(&block_tx, &source).unwrap();
                 let prv = wallet.store.fetch(&wallet_tx, &source.into()).unwrap();
                 if work == 0 {
@@ -1485,6 +1504,9 @@ impl WalletsExt for Arc<Wallets> {
                 .into();
                 block = Some(state_block);
                 epoch = info.epoch;
+            } else {
+                warn!("Changing representative for account {} failed, wallet locked or account not found",
+                    source.encode_account());
             }
         }
 
@@ -1542,6 +1564,12 @@ impl WalletsExt for Arc<Wallets> {
                 .get_pending(&block_tx, &PendingKey::new(account, send_hash))
             {
                 if let Ok(prv) = wallet.store.fetch(&wallet_tx, &account.into()) {
+                    info!(
+                        "Receiving block {} from account {}, amount {}",
+                        send_hash,
+                        account.encode_account(),
+                        pending_info.amount.number()
+                    );
                     if work == 0 {
                         work = wallet
                             .store
@@ -1577,13 +1605,22 @@ impl WalletsExt for Arc<Wallets> {
                         epoch = pending_info.epoch;
                     }
                 } else {
-                    warn!("Unable to receive, wallet locked");
+                    warn!(
+                        "Unable to receive, wallet locked, block {} to account: {}",
+                        send_hash,
+                        account.encode_account()
+                    );
                 }
             } else {
                 // Ledger doesn't have this marked as available to receive anymore
+                warn!("Not receiving block {}, block already received", send_hash);
             }
         } else {
             // Ledger doesn't have this block anymore.
+            warn!(
+                "Not receiving block {}, block no longer exists or pruned",
+                send_hash
+            );
         }
 
         let block = block?;
@@ -1802,7 +1839,7 @@ impl WalletsExt for Arc<Wallets> {
         wallet_tx: &dyn Transaction,
     ) -> Result<(), ()> {
         if !wallet.store.valid_password(wallet_tx) {
-            info!("Stopping search, wallet is locked");
+            info!("Unable to search receivable blocks, wallet is locked");
             return Err(());
         }
 
@@ -1930,8 +1967,15 @@ impl WalletsExt for Arc<Wallets> {
         let guard = self.mutex.lock().unwrap();
         let wallet = Wallets::get_wallet(&guard, &wallet_id)?;
         let tx = self.env.tx_begin_write();
-        self.enter_password_wallet(wallet, &tx, password)
-            .map_err(|_| WalletsError::InvalidPassword)
+        let result = self
+            .enter_password_wallet(wallet, &tx, password)
+            .map_err(|_| WalletsError::InvalidPassword);
+        if result.is_ok() {
+            info!("Wallet unlocked");
+        } else {
+            warn!("Invalid password, wallet locked");
+        }
+        result
     }
 
     fn enter_password_wallet(
