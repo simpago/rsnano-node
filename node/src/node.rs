@@ -27,9 +27,10 @@ use crate::{
     },
     transport::{
         keepalive::{KeepaliveMessageFactory, KeepalivePublisher},
-        InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives, LatestKeepalivesCleanup,
-        MessageFlooder, MessageProcessor, MessageSender, NanoDataReceiverFactory, NetworkThreads,
-        PeerCacheConnector, PeerCacheUpdater, RealtimeMessageHandler, SynCookies,
+        BlockFlooder, InboundMessageQueue, InboundMessageQueueCleanup, LatestKeepalives,
+        LatestKeepalivesCleanup, MessageFlooder, MessageProcessor, MessageSender,
+        NanoDataReceiverFactory, NetworkThreads, PeerCacheConnector, PeerCacheUpdater,
+        RealtimeMessageHandler, SynCookies,
     },
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
@@ -46,7 +47,7 @@ use rsnano_core::{
     VoteSource,
 };
 use rsnano_ledger::{BlockStatus, Ledger, RepWeightCache, Writer};
-use rsnano_messages::{ConfirmAck, Message, NetworkFilter, Publish};
+use rsnano_messages::{ConfirmAck, Message, NetworkFilter};
 use rsnano_network::{
     ChannelId, DeadChannelCleanup, Network, NetworkCleanup, PeerConnector, TcpListener,
     TcpListenerExt, TcpNetworkAdapter, TrafficType,
@@ -130,6 +131,7 @@ pub struct Node {
     start_stop_listener: OutputListenerMt<&'static str>,
     wallet_backup: WalletBackup,
     receivable_search: ReceivableSearch,
+    block_flooder: BlockFlooder,
 }
 
 pub(crate) struct NodeArgs {
@@ -1126,6 +1128,13 @@ impl Node {
             interval: Duration::from_secs(network_params.node.search_pending_interval_s as u64),
         };
 
+        let message_flooder = Arc::new(Mutex::new(message_flooder.clone()));
+
+        let block_flooder = BlockFlooder {
+            message_flooder: message_flooder.clone(),
+            workers: workers.clone(),
+        };
+
         Self {
             is_nulled,
             steady_clock,
@@ -1180,13 +1189,14 @@ impl Node {
             inbound_message_queue,
             monitor,
             message_sender: message_publisher_l,
-            message_flooder: Arc::new(Mutex::new(message_flooder.clone())),
+            message_flooder,
             network_filter,
             keepalive_publisher,
             stopped: AtomicBool::new(false),
             start_stop_listener: OutputListenerMt::new(),
             wallet_backup,
             receivable_search,
+            block_flooder,
         }
     }
 
@@ -1382,17 +1392,20 @@ impl Node {
             .iter()
             .all(|b| self.ledger.confirmed().block_exists(&tx, &b.hash()))
     }
+
+    pub fn flood_block_many(
+        &self,
+        blocks: VecDeque<Block>,
+        callback: Box<dyn FnOnce() + Send + Sync>,
+        delay: Duration,
+    ) {
+        self.block_flooder.flood_block_many(blocks, callback, delay);
+    }
 }
 
 pub trait NodeExt {
     fn start(&self);
     fn stop(&self);
-    fn flood_block_many(
-        &self,
-        blocks: VecDeque<Block>,
-        callback: Box<dyn FnOnce() + Send + Sync>,
-        delay: Duration,
-    );
 }
 
 impl NodeExt for Arc<Node> {
@@ -1541,35 +1554,6 @@ impl NodeExt for Arc<Node> {
         self.workers.stop();
 
         // work pool is not stopped on purpose due to testing setup
-    }
-
-    fn flood_block_many(
-        &self,
-        mut blocks: VecDeque<Block>,
-        callback: Box<dyn FnOnce() + Send + Sync>,
-        delay: Duration,
-    ) {
-        if let Some(block) = blocks.pop_front() {
-            let publish = Message::Publish(Publish::new_forward(block));
-            self.message_flooder.lock().unwrap().flood(
-                &publish,
-                TrafficType::BlockBroadcastRpc,
-                1.0,
-            );
-            if blocks.is_empty() {
-                callback()
-            } else {
-                let self_w = Arc::downgrade(self);
-                self.workers.post_delayed(
-                    delay,
-                    Box::new(move || {
-                        if let Some(node) = self_w.upgrade() {
-                            node.flood_block_many(blocks, callback, delay);
-                        }
-                    }),
-                );
-            }
-        }
     }
 }
 

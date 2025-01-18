@@ -1,7 +1,6 @@
 use crate::command_handler::RpcCommandHandler;
 use anyhow::anyhow;
 use rsnano_core::{Block, BlockHash, PendingKey};
-use rsnano_node::NodeExt;
 use rsnano_rpc_messages::{BlockHashesResponse, RepublishArgs};
 use std::time::Duration;
 

@@ -1,6 +1,5 @@
 use crate::command_handler::RpcCommandHandler;
 use rsnano_core::{Account, Block, BlockHash};
-use rsnano_node::NodeExt;
 use rsnano_rpc_messages::{BlockHashesResponse, WalletWithCountArgs};
 use std::{collections::VecDeque, time::Duration};
 
