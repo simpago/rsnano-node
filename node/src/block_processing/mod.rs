@@ -3,6 +3,7 @@ mod backlog_scan;
 mod block_context;
 mod block_processor;
 mod bounded_backlog;
+mod ledger_notifications;
 mod local_block_broadcaster;
 mod unchecked_map;
 
