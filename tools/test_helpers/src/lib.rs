@@ -13,7 +13,7 @@ use rsnano_node::{
     unique_path,
     utils::AsyncRuntime,
     wallets::WalletsExt,
-    NetworkParams, Node, NodeBuilder, NodeExt,
+    NetworkParams, Node, NodeBuilder,
 };
 use rsnano_rpc_client::{NanoRpcClient, Url};
 use rsnano_rpc_server::run_rpc_server;

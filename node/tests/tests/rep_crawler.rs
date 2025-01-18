@@ -4,7 +4,6 @@ use rsnano_ledger::{
 };
 use rsnano_messages::{ConfirmAck, Message};
 use rsnano_network::{ChannelId, ChannelMode, TrafficType};
-use rsnano_node::NodeExt;
 use std::{sync::Arc, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely_eq, assert_timely_eq2, System};
 

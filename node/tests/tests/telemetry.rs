@@ -2,7 +2,6 @@ use rsnano_messages::{Message, TelemetryAck};
 use rsnano_node::{
     config::NodeFlags,
     stats::{DetailType, Direction, StatType},
-    NodeExt,
 };
 use std::{net::SocketAddrV6, thread::sleep, time::Duration};
 use test_helpers::{assert_always_eq, assert_never, assert_timely, make_fake_channel, System};

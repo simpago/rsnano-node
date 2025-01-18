@@ -1,7 +1,7 @@
 use crate::cli::get_path;
 use anyhow::{anyhow, Result};
 use clap::{ArgGroup, Parser};
-use rsnano_node::{config::NetworkConstants, NodeBuilder, NodeExt};
+use rsnano_node::{config::NetworkConstants, NodeBuilder};
 use std::sync::{Arc, Condvar, Mutex};
 
 #[derive(Parser)]

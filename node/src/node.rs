@@ -1401,15 +1401,8 @@ impl Node {
     ) {
         self.block_flooder.flood_block_many(blocks, callback, delay);
     }
-}
 
-pub trait NodeExt {
-    fn start(&self);
-    fn stop(&self);
-}
-
-impl NodeExt for Arc<Node> {
-    fn start(&self) {
+    pub fn start(&self) {
         self.start_stop_listener.emit("start");
         if self.is_nulled {
             return; // TODO better nullability implementation
@@ -1504,7 +1497,7 @@ impl NodeExt for Arc<Node> {
         }
     }
 
-    fn stop(&self) {
+    pub fn stop(&self) {
         self.start_stop_listener.emit("stop");
         if self.is_nulled {
             return; // TODO better nullability implementation
