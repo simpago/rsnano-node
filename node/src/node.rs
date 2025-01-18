@@ -34,7 +34,7 @@ use crate::{
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
     },
-    wallets::{WalletBackup, Wallets, WalletsExt},
+    wallets::{ReceivableSearch, WalletBackup, Wallets, WalletsExt},
     work::DistributedWorkFactory,
     NetworkParams, NodeCallbacks, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry,
     BUILD_INFO, VERSION_STRING,
@@ -129,6 +129,7 @@ pub struct Node {
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
     wallet_backup: WalletBackup,
+    receivable_search: ReceivableSearch,
 }
 
 pub(crate) struct NodeArgs {
@@ -1119,6 +1120,12 @@ impl Node {
             wallets: wallets.clone(),
         };
 
+        let receivable_search = ReceivableSearch {
+            wallets: wallets.clone(),
+            workers: workers.clone(),
+            interval: Duration::from_secs(network_params.node.search_pending_interval_s as u64),
+        };
+
         Self {
             is_nulled,
             steady_clock,
@@ -1179,6 +1186,7 @@ impl Node {
             stopped: AtomicBool::new(false),
             start_stop_listener: OutputListenerMt::new(),
             wallet_backup,
+            receivable_search,
         }
     }
 
@@ -1379,7 +1387,6 @@ impl Node {
 pub trait NodeExt {
     fn start(&self);
     fn stop(&self);
-    fn search_receivable_all(&self);
     fn flood_block_many(
         &self,
         blocks: VecDeque<Block>,
@@ -1437,7 +1444,7 @@ impl NodeExt for Arc<Node> {
         }
 
         if !self.flags.disable_search_pending {
-            self.search_receivable_all();
+            self.receivable_search.start();
         }
 
         self.unchecked.start();
@@ -1534,22 +1541,6 @@ impl NodeExt for Arc<Node> {
         self.workers.stop();
 
         // work pool is not stopped on purpose due to testing setup
-    }
-
-    fn search_receivable_all(&self) {
-        // Reload wallets from disk
-        self.wallets.reload();
-        // Search pending
-        self.wallets.search_receivable_all();
-        let node_w = Arc::downgrade(self);
-        self.workers.post_delayed(
-            Duration::from_secs(self.network_params.node.search_pending_interval_s as u64),
-            Box::new(move || {
-                if let Some(node) = node_w.upgrade() {
-                    node.search_receivable_all();
-                }
-            }),
-        )
     }
 
     fn flood_block_many(
