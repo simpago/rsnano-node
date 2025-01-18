@@ -34,7 +34,7 @@ use crate::{
     utils::{
         LongRunningTransactionLogger, ThreadPool, ThreadPoolImpl, TimerThread, TxnTrackingConfig,
     },
-    wallets::{Wallets, WalletsExt},
+    wallets::{WalletBackup, Wallets, WalletsExt},
     work::DistributedWorkFactory,
     NetworkParams, NodeCallbacks, OnlineWeightSampler, TelementryConfig, TelementryExt, Telemetry,
     BUILD_INFO, VERSION_STRING,
@@ -128,6 +128,7 @@ pub struct Node {
     pub keepalive_publisher: Arc<KeepalivePublisher>,
     // to keep the weak pointer alive
     start_stop_listener: OutputListenerMt<&'static str>,
+    wallet_backup: WalletBackup,
 }
 
 pub(crate) struct NodeArgs {
@@ -1111,6 +1112,13 @@ impl Node {
             ),
         );
 
+        let wallet_backup = WalletBackup {
+            data_path: application_path.clone(),
+            backup_interval: Duration::from_secs(network_params.node.backup_interval_m as u64 * 60),
+            workers: workers.clone(),
+            wallets: wallets.clone(),
+        };
+
         Self {
             is_nulled,
             steady_clock,
@@ -1170,6 +1178,7 @@ impl Node {
             keepalive_publisher,
             stopped: AtomicBool::new(false),
             start_stop_listener: OutputListenerMt::new(),
+            wallet_backup,
         }
     }
 
@@ -1370,7 +1379,6 @@ impl Node {
 pub trait NodeExt {
     fn start(&self);
     fn stop(&self);
-    fn backup_wallet(&self);
     fn search_receivable_all(&self);
     fn flood_block_many(
         &self,
@@ -1425,7 +1433,7 @@ impl NodeExt for Arc<Node> {
         }
 
         if !self.flags.disable_backup {
-            self.backup_wallet();
+            self.wallet_backup.start();
         }
 
         if !self.flags.disable_search_pending {
@@ -1526,24 +1534,6 @@ impl NodeExt for Arc<Node> {
         self.workers.stop();
 
         // work pool is not stopped on purpose due to testing setup
-    }
-
-    fn backup_wallet(&self) {
-        let mut backup_path = self.data_path.clone();
-        backup_path.push("backup");
-        if let Err(e) = self.wallets.backup(&backup_path) {
-            error!(error = ?e, "Could not create backup of wallets");
-        }
-
-        let node_w = Arc::downgrade(self);
-        self.workers.post_delayed(
-            Duration::from_secs(self.network_params.node.backup_interval_m as u64 * 60),
-            Box::new(move || {
-                if let Some(node) = node_w.upgrade() {
-                    node.backup_wallet();
-                }
-            }),
-        )
     }
 
     fn search_receivable_all(&self) {
