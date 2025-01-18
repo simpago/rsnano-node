@@ -1497,7 +1497,7 @@ impl Node {
         }
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         self.start_stop_listener.emit("stop");
         if self.is_nulled {
             return; // TODO better nullability implementation

@@ -208,7 +208,7 @@ fn rep_connection_close() {
         || node1.online_reps.lock().unwrap().peered_reps_count(),
         1,
     );
-    node2.stop();
+    system.stop_node(node2);
     assert_timely_eq(
         Duration::from_secs(10),
         || node1.online_reps.lock().unwrap().peered_reps_count(),

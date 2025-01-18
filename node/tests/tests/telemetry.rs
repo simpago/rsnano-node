@@ -115,7 +115,7 @@ fn disconnected() {
             .get_telemetry(&channel.peer_addr())
             .is_some()
     });
-    node_server.stop();
+    system.stop_node(node_server);
 
     // Ensure telemetry from disconnected peer is removed
     assert_timely(Duration::from_secs(5), || {

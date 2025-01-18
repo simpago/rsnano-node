@@ -172,11 +172,23 @@ impl System {
     }
 
     fn stop(&mut self) {
-        for node in &self.nodes {
+        for mut node in self.nodes.drain(..) {
+            let node = Arc::get_mut(&mut node).expect("no exclusive access to node!");
             node.stop();
             std::fs::remove_dir_all(&node.data_path).expect("Could not delete node data dir");
         }
         self.work.stop();
+    }
+
+    pub fn stop_node(&mut self, node: Arc<Node>) {
+        let index = self
+            .nodes
+            .iter()
+            .position(|n| Arc::ptr_eq(n, &node))
+            .unwrap();
+        drop(node);
+        let mut node = self.nodes.remove(index);
+        Arc::get_mut(&mut node).unwrap().stop();
     }
 }
 
@@ -547,14 +559,17 @@ pub fn setup_independent_blocks(node: &Node, count: usize, source: &PrivateKey) 
 use tokio::net::TcpListener as TokioTcpListener;
 
 pub struct RpcServerGuard {
+    handle: tokio::runtime::Handle,
     pub client: Arc<NanoRpcClient>,
     tx_stop: Option<tokio::sync::oneshot::Sender<()>>,
+    rx_closed: Option<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl Drop for RpcServerGuard {
     fn drop(&mut self) {
         if let Some(tx) = self.tx_stop.take() {
             let _ = tx.send(());
+            let _ = self.handle.block_on(self.rx_closed.take().unwrap());
         }
     }
 }
@@ -573,23 +588,28 @@ pub fn setup_rpc_client_and_server(node: Arc<Node>, enable_control: bool) -> Rpc
 
     let (tx_stop, rx_stop) = tokio::sync::oneshot::channel();
     let (tx_stop2, rx_stop2) = tokio::sync::oneshot::channel();
+    let (tx_closed, rx_closed) = tokio::sync::oneshot::channel();
 
-    node.runtime.spawn(run_rpc_server(
-        node.clone(),
-        listener,
-        enable_control,
-        tx_stop,
-        async move {
+    let node_l = node.clone();
+    node.runtime.spawn(async move {
+        let result = run_rpc_server(node_l, listener, enable_control, tx_stop, async move {
             tokio::select! {
                 _ = rx_stop => {},
                 _ = rx_stop2 => {}
             }
-        },
-    ));
+        })
+        .await;
+
+        let _ = tx_closed.send(());
+
+        result.unwrap();
+    });
 
     RpcServerGuard {
+        handle: node.runtime.clone(),
         client: rpc_client,
         tx_stop: Some(tx_stop2),
+        rx_closed: Some(rx_closed),
     }
 }
 
