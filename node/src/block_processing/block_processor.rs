@@ -1,4 +1,4 @@
-use super::UncheckedMap;
+use super::{BlockContext, BlockProcessorCallback, BlockSource, UncheckedMap};
 use crate::{
     stats::{DetailType, StatType, Stats},
     utils::{ThreadPool, ThreadPoolImpl},
@@ -19,112 +19,7 @@ use std::{
     time::{Duration, Instant},
 };
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
 use tracing::{debug, error, info, trace};
-
-#[derive(FromPrimitive, Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, EnumIter, Hash)]
-pub enum BlockSource {
-    Unknown = 0,
-    Live,
-    LiveOriginator,
-    Bootstrap,
-    BootstrapLegacy,
-    Unchecked,
-    Local,
-    Forced,
-    Election,
-}
-
-impl From<BlockSource> for DetailType {
-    fn from(value: BlockSource) -> Self {
-        match value {
-            BlockSource::Unknown => DetailType::Unknown,
-            BlockSource::Live => DetailType::Live,
-            BlockSource::LiveOriginator => DetailType::LiveOriginator,
-            BlockSource::Bootstrap => DetailType::Bootstrap,
-            BlockSource::BootstrapLegacy => DetailType::BootstrapLegacy,
-            BlockSource::Unchecked => DetailType::Unchecked,
-            BlockSource::Local => DetailType::Local,
-            BlockSource::Forced => DetailType::Forced,
-            BlockSource::Election => DetailType::Election,
-        }
-    }
-}
-
-pub type BlockProcessorCallback = Box<dyn Fn(BlockStatus) + Send + Sync>;
-
-pub struct BlockProcessorContext {
-    pub block: Mutex<Block>,
-    pub saved_block: Mutex<Option<SavedBlock>>,
-    pub source: BlockSource,
-    callback: Option<BlockProcessorCallback>,
-    pub arrival: Instant,
-    waiter: Arc<BlockProcessorWaiter>,
-}
-
-impl BlockProcessorContext {
-    pub fn new(
-        block: Block,
-        source: BlockSource,
-        callback: Option<BlockProcessorCallback>,
-    ) -> Self {
-        Self {
-            block: Mutex::new(block),
-            saved_block: Mutex::new(None),
-            source,
-            arrival: Instant::now(),
-            callback,
-            waiter: Arc::new(BlockProcessorWaiter::new()),
-        }
-    }
-
-    pub fn set_result(&self, result: BlockStatus) {
-        self.waiter.set_result(result);
-    }
-
-    pub fn get_waiter(&self) -> Arc<BlockProcessorWaiter> {
-        self.waiter.clone()
-    }
-}
-
-impl Drop for BlockProcessorContext {
-    fn drop(&mut self) {
-        self.waiter.cancel()
-    }
-}
-
-pub struct BlockProcessorWaiter {
-    result: Mutex<(Option<BlockStatus>, bool)>, // (status, done)
-    condition: Condvar,
-}
-
-impl BlockProcessorWaiter {
-    pub fn new() -> Self {
-        Self {
-            result: Mutex::new((None, false)),
-            condition: Condvar::new(),
-        }
-    }
-
-    pub fn set_result(&self, result: BlockStatus) {
-        *self.result.lock().unwrap() = (Some(result), true);
-        self.condition.notify_all();
-    }
-
-    pub fn cancel(&self) {
-        self.result.lock().unwrap().1 = true;
-        self.condition.notify_all();
-    }
-
-    pub fn wait_result(&self) -> Option<BlockStatus> {
-        let guard = self.result.lock().unwrap();
-        if guard.1 {
-            return guard.0;
-        }
-
-        self.condition.wait_while(guard, |i| !i.1).unwrap().0
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockProcessorConfig {
@@ -268,14 +163,14 @@ impl BlockProcessor {
 
     pub fn on_block_processed(
         &self,
-        observer: Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>,
+        observer: Box<dyn Fn(BlockStatus, &BlockContext) + Send + Sync>,
     ) {
         self.processor_loop.on_block_processed(observer);
     }
 
     pub fn on_batch_processed(
         &self,
-        observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>,
+        observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockContext>)]) + Send + Sync>,
     ) {
         self.processor_loop.on_batch_processed(observer);
     }
@@ -352,10 +247,9 @@ pub(crate) struct BlockProcessorLoopImpl {
 
     /// Rolled back blocks <rolled back block, root of rollback>
     roll_back_observers: Arc<RwLock<Vec<Box<dyn Fn(&[SavedBlock], QualifiedRoot) + Send + Sync>>>>,
-    block_processed: RwLock<Vec<Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>>>,
+    block_processed: RwLock<Vec<Box<dyn Fn(BlockStatus, &BlockContext) + Send + Sync>>>,
     /// All processed blocks including forks, rejected etc
-    batch_processed:
-        RwLock<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>>>,
+    batch_processed: RwLock<Vec<Box<dyn Fn(&[(BlockStatus, Arc<BlockContext>)]) + Send + Sync>>>,
 }
 
 trait BlockProcessorLoop {
@@ -417,7 +311,7 @@ impl BlockProcessorLoop for Arc<BlockProcessorLoopImpl> {
 }
 
 impl BlockProcessorLoopImpl {
-    fn notify_batch_processed(&self, blocks: &Vec<(BlockStatus, Arc<BlockProcessorContext>)>) {
+    fn notify_batch_processed(&self, blocks: &Vec<(BlockStatus, Arc<BlockContext>)>) {
         {
             let guard = self.block_processed.read().unwrap();
             for observer in guard.iter() {
@@ -436,14 +330,14 @@ impl BlockProcessorLoopImpl {
 
     pub fn on_block_processed(
         &self,
-        observer: Box<dyn Fn(BlockStatus, &BlockProcessorContext) + Send + Sync>,
+        observer: Box<dyn Fn(BlockStatus, &BlockContext) + Send + Sync>,
     ) {
         self.block_processed.write().unwrap().push(observer);
     }
 
     pub fn on_batch_processed(
         &self,
-        observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockProcessorContext>)]) + Send + Sync>,
+        observer: Box<dyn Fn(&[(BlockStatus, Arc<BlockContext>)]) + Send + Sync>,
     ) {
         self.batch_processed.write().unwrap().push(observer);
     }
@@ -485,7 +379,7 @@ impl BlockProcessorLoopImpl {
         );
 
         self.add_impl(
-            Arc::new(BlockProcessorContext::new(block, source, callback)),
+            Arc::new(BlockContext::new(block, source, callback)),
             channel_id,
         )
     }
@@ -504,11 +398,7 @@ impl BlockProcessorLoopImpl {
         );
 
         let hash = block.hash();
-        let ctx = Arc::new(BlockProcessorContext::new(
-            block.as_ref().clone(),
-            source,
-            None,
-        ));
+        let ctx = Arc::new(BlockContext::new(block.as_ref().clone(), source, None));
         let waiter = ctx.get_waiter();
         self.add_impl(ctx.clone(), ChannelId::LOOPBACK);
 
@@ -527,7 +417,7 @@ impl BlockProcessorLoopImpl {
     pub fn force(&self, block: Block) {
         self.stats.inc(StatType::BlockProcessor, DetailType::Force);
         debug!("Forcing block: {}", block.hash());
-        let ctx = Arc::new(BlockProcessorContext::new(block, BlockSource::Forced, None));
+        let ctx = Arc::new(BlockContext::new(block, BlockSource::Forced, None));
         self.add_impl(ctx, ChannelId::LOOPBACK);
     }
 
@@ -544,7 +434,7 @@ impl BlockProcessorLoopImpl {
             .sum_queue_len((source, ChannelId::MIN)..=(source, ChannelId::MAX))
     }
 
-    fn add_impl(&self, context: Arc<BlockProcessorContext>, channel_id: ChannelId) -> bool {
+    fn add_impl(&self, context: Arc<BlockContext>, channel_id: ChannelId) -> bool {
         let source = context.source;
         let added;
         {
@@ -566,7 +456,7 @@ impl BlockProcessorLoopImpl {
         &self,
         data: &mut BlockProcessorImpl,
         max_count: usize,
-    ) -> VecDeque<Arc<BlockProcessorContext>> {
+    ) -> VecDeque<Arc<BlockContext>> {
         let mut results = VecDeque::new();
         while !data.queue.is_empty() && results.len() < max_count {
             results.push_back(data.next());
@@ -577,7 +467,7 @@ impl BlockProcessorLoopImpl {
     fn process_batch(
         &self,
         mut guard: MutexGuard<BlockProcessorImpl>,
-    ) -> Vec<(BlockStatus, Arc<BlockProcessorContext>)> {
+    ) -> Vec<(BlockStatus, Arc<BlockContext>)> {
         let batch = self.next_batch(&mut guard, self.config.batch_size);
         drop(guard);
 
@@ -622,7 +512,7 @@ impl BlockProcessorLoopImpl {
     pub fn process_one(
         &self,
         txn: &mut LmdbWriteTransaction,
-        context: &BlockProcessorContext,
+        context: &BlockContext,
     ) -> BlockStatus {
         let mut block = context.block.lock().unwrap().clone();
         let hash = block.hash();
@@ -786,13 +676,13 @@ impl BlockProcessorLoopImpl {
 }
 
 struct BlockProcessorImpl {
-    pub queue: FairQueue<(BlockSource, ChannelId), Arc<BlockProcessorContext>>,
+    pub queue: FairQueue<(BlockSource, ChannelId), Arc<BlockContext>>,
     pub last_log: Option<Instant>,
     stopped: bool,
 }
 
 impl BlockProcessorImpl {
-    fn next(&mut self) -> Arc<BlockProcessorContext> {
+    fn next(&mut self) -> Arc<BlockContext> {
         debug_assert!(!self.queue.is_empty()); // This should be checked before calling next
         if !self.queue.is_empty() {
             let ((source, _), request) = self.queue.next().unwrap();

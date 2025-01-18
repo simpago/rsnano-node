@@ -1,7 +1,7 @@
 use super::{
     backlog_index::{BacklogEntry, BacklogIndex},
     backlog_scan::ActivatedInfo,
-    BlockProcessor, BlockProcessorContext,
+    BlockContext, BlockProcessor,
 };
 use crate::{
     consensus::Bucketing,
@@ -128,7 +128,7 @@ impl BoundedBacklog {
         }
     }
 
-    pub fn insert_batch(&self, batch: &[(BlockStatus, Arc<BlockProcessorContext>)]) {
+    pub fn insert_batch(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
         let tx = self.backlog_impl.ledger.read_txn();
         for (result, context) in batch {
             if *result == BlockStatus::Progress {

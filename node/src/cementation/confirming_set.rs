@@ -1,5 +1,5 @@
 use crate::{
-    block_processing::BlockProcessorContext,
+    block_processing::BlockContext,
     consensus::Election,
     stats::{DetailType, StatType, Stats},
     utils::{ThreadPool, ThreadPoolImpl},
@@ -158,7 +158,7 @@ impl ConfirmingSet {
     }
 
     /// Requeue blocks that failed to cement immediately due to missing ledger blocks
-    pub fn requeue_blocks(&self, batch: &[(BlockStatus, Arc<BlockProcessorContext>)]) {
+    pub fn requeue_blocks(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
         let mut should_notify = false;
         {
             let mut guard = self.thread.mutex.lock().unwrap();

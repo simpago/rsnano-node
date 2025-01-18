@@ -9,7 +9,7 @@ use super::{
     AccountSetsConfig,
 };
 use crate::{
-    block_processing::{BlockProcessor, BlockProcessorContext, BlockSource},
+    block_processing::{BlockContext, BlockProcessor, BlockSource},
     bootstrap::BootstrapServer,
     stats::{DetailType, Direction, Sample, StatType, Stats},
     transport::MessageSender,
@@ -898,7 +898,7 @@ impl BootstrapService {
             .inc(StatType::BootstrapAccountSets, DetailType::PrioritizeFailed);
     }
 
-    fn batch_processed(&self, batch: &[(BlockStatus, Arc<BlockProcessorContext>)]) {
+    fn batch_processed(&self, batch: &[(BlockStatus, Arc<BlockContext>)]) {
         {
             let mut guard = self.mutex.lock().unwrap();
             let tx = self.ledger.read_txn();

@@ -808,7 +808,6 @@ fn cemented_no_spacing() {
     node.insert_into_wallet(&DEV_GENESIS_KEY);
 
     // Create a chain of 3 blocks: send1 -> send2 -> send3
-    let key = PrivateKey::new();
     let mut lattice = UnsavedBlockLatticeBuilder::new();
     let send1 = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
     let send2 = lattice.genesis().send(&*DEV_GENESIS_KEY, 1);
