@@ -109,7 +109,7 @@ impl System {
         flags: NodeFlags,
         disconnected: bool,
     ) -> Arc<Node> {
-        let node = self.new_node(config, flags);
+        let mut node = self.new_node(config, flags);
 
         self.setup_node(&node);
 
@@ -122,6 +122,7 @@ impl System {
             self.nodes.len() < node.config.max_peers_per_ip.into()
                 || node.flags.disable_max_peers_per_ip
         );
+        let node = Arc::new(node);
         self.nodes.push(node.clone());
 
         if self.nodes.len() > 1 && !disconnected {
@@ -157,9 +158,9 @@ impl System {
         node
     }
 
-    fn new_node(&self, config: NodeConfig, flags: NodeFlags) -> Arc<Node> {
+    fn new_node(&self, config: NodeConfig, flags: NodeFlags) -> Node {
         let path = unique_path().expect("Could not get a unique path");
-        let node = NodeBuilder::new(self.network_params.network.current_network)
+        NodeBuilder::new(self.network_params.network.current_network)
             .runtime(self.runtime.tokio.handle().clone())
             .data_path(path)
             .config(config)
@@ -167,8 +168,7 @@ impl System {
             .flags(flags)
             .work(self.work.clone())
             .finish()
-            .unwrap();
-        Arc::new(node)
+            .unwrap()
     }
 
     fn stop(&mut self) {

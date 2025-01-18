@@ -22,12 +22,11 @@ impl InitializeArgs {
 
         std::fs::create_dir_all(&path).map_err(|e| anyhow!("Create dir failed: {:?}", e))?;
 
-        let node = NodeBuilder::new(NetworkConstants::active_network())
+        let mut node = NodeBuilder::new(NetworkConstants::active_network())
             .data_path(path)
             .finish()
             .unwrap();
 
-        let node = Arc::new(node);
         node.start();
 
         let finished = Arc::new((Mutex::new(false), Condvar::new()));

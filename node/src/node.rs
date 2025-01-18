@@ -1402,7 +1402,7 @@ impl Node {
         self.block_flooder.flood_block_many(blocks, callback, delay);
     }
 
-    pub fn start(&self) {
+    pub fn start(&mut self) {
         self.start_stop_listener.emit("start");
         if self.is_nulled {
             return; // TODO better nullability implementation
@@ -1593,12 +1593,12 @@ mod tests {
         NodeBuilder,
     };
     use rsnano_core::Networks;
-    use std::ops::Deref;
+    use std::ops::{Deref, DerefMut};
     use uuid::Uuid;
 
     #[tokio::test]
     async fn start_peer_cache_updater() {
-        let node = TestNode::new().await;
+        let mut node = TestNode::new().await;
         let start_tracker = node.peer_cache_updater.track_start();
 
         node.start();
@@ -1615,7 +1615,7 @@ mod tests {
 
     #[tokio::test]
     async fn start_peer_cache_connector() {
-        let node = TestNode::new().await;
+        let mut node = TestNode::new().await;
         let start_tracker = node.peer_cache_connector.track_start();
 
         node.start();
@@ -1632,7 +1632,7 @@ mod tests {
 
     #[tokio::test]
     async fn stop_node() {
-        let node = TestNode::new().await;
+        let mut node = TestNode::new().await;
         node.start();
 
         node.stop();
@@ -1651,7 +1651,7 @@ mod tests {
 
     struct TestNode {
         app_path: PathBuf,
-        node: Arc<Node>,
+        node: Node,
     }
 
     impl TestNode {
@@ -1674,8 +1674,6 @@ mod tests {
                 .finish()
                 .unwrap();
 
-            let node = Arc::new(node);
-
             Self { node, app_path }
         }
     }
@@ -1688,10 +1686,16 @@ mod tests {
     }
 
     impl Deref for TestNode {
-        type Target = Arc<Node>;
+        type Target = Node;
 
         fn deref(&self) -> &Self::Target {
             &self.node
+        }
+    }
+
+    impl DerefMut for TestNode {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.node
         }
     }
 }

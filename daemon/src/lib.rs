@@ -53,8 +53,7 @@ impl DaemonBuilder {
             DaemonConfig::load_from_data_path(self.network, parallelism, &data_path)?;
         let rpc_config =
             RpcServerConfig::load_from_data_path(self.network, parallelism, &data_path)?;
-        let node = self.node_builder.finish()?;
-        let node = Arc::new(node);
+        let mut node = self.node_builder.finish()?;
 
         let websocket_server = if daemon_config.node.websocket_config.enabled {
             Some(create_websocket_server(daemon_config.node.websocket_config, &node).unwrap())
@@ -67,6 +66,7 @@ impl DaemonBuilder {
         }
 
         node.start();
+        let node = Arc::new(node);
 
         if let Some(mut started_callback) = self.node_started {
             started_callback(node.clone());
